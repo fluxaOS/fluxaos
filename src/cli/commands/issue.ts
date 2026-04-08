@@ -36,7 +36,7 @@ Usage:
         return;
       }
       console.log(
-        'Title'.padEnd(40) + 'State'.padEnd(15) + 'Priority'.padEnd(12) + 'Type'
+        `${'Title'.padEnd(40) + 'State'.padEnd(15) + 'Priority'.padEnd(12)}Type`
       );
       console.log('-'.repeat(75));
       for (const i of issues) {
