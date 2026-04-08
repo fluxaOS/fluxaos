@@ -5,6 +5,7 @@ import { personaRouter } from '@/server/routers/persona';
 import { pipelineRouter } from '@/server/routers/pipeline';
 import { projectRouter } from '@/server/routers/project';
 import { providerRouter } from '@/server/routers/provider';
+import { routingRouter } from '@/server/routers/routing';
 import { skillRouter } from '@/server/routers/skill';
 import { router } from '@/server/trpc';
 
@@ -17,6 +18,7 @@ export const appRouter = router({
   persona: personaRouter,
   skill: skillRouter,
   provider: providerRouter,
+  routing: routingRouter,
 });
 
 export type AppRouter = typeof appRouter;
