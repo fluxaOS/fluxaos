@@ -14,6 +14,7 @@ export {
   listPipelineRuns,
   listPipelineStages,
   listPipelines,
+  listRunsByProject,
   listStageRuns,
   requeueStageRun,
   startPipelineRun,

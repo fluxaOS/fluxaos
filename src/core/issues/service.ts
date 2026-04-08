@@ -80,6 +80,14 @@ export async function updateIssue(id: string, updates: UpdateIssueInput) {
   return updated;
 }
 
+export async function listIssueEvents(issueId: string) {
+  return db
+    .select()
+    .from(issueEvent)
+    .where(eq(issueEvent.issueId, issueId))
+    .orderBy(desc(issueEvent.timestamp));
+}
+
 export async function transitionIssue(id: string, newState: IssueState) {
   const existing = await db.query.issue.findFirst({
     where: eq(issue.id, id),

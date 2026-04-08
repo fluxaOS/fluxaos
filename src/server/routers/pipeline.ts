@@ -13,6 +13,7 @@ import {
   listPipelineRuns,
   listPipelineStages,
   listPipelines,
+  listRunsByProject,
   listStageRuns,
   requeueStageRun,
   startPipelineRun,
@@ -98,6 +99,10 @@ export const pipelineRouter = router({
   listRuns: publicProcedure
     .input(z.object({ pipelineId: z.string().uuid() }))
     .query(({ input }) => listPipelineRuns(input.pipelineId)),
+
+  listRunsByProject: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(({ input }) => listRunsByProject(input.projectId)),
 
   cancelRun: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
