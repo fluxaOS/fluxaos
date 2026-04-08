@@ -3,6 +3,7 @@ import { createCLIClient } from './client';
 import { handleConfigCommand } from './commands/config';
 import { handleIssueCommand } from './commands/issue';
 import { handlePersonaCommand } from './commands/persona';
+import { handleDoCommand, handleRunCommand } from './commands/run';
 import { handleSkillCommand } from './commands/skill';
 import { handleStatusCommand } from './commands/status';
 
@@ -14,6 +15,8 @@ fluxaos — AI orchestration OS
 Usage: fluxaos <command> [options]
 
 Commands:
+  do       Run a prompt through the default pipeline ("just do it" mode)
+  run      Manage pipeline runs (start, status, cancel, list)
   issue    Manage issues (list, create, view)
   skill    Manage skills (list, sync)
   persona  Manage personas (list, view, create)
@@ -39,6 +42,12 @@ async function main() {
   const subArgs = args.slice(1);
 
   switch (command) {
+    case 'do':
+      await handleDoCommand(client, subArgs);
+      break;
+    case 'run':
+      await handleRunCommand(client, subArgs);
+      break;
     case 'issue':
       await handleIssueCommand(client, subArgs);
       break;

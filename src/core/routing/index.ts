@@ -1,3 +1,5 @@
+export type { RouteSelection } from './resolver';
+export { resolveRoute } from './resolver';
 export {
   createRoutingProfile,
   createRoutingRule,
