@@ -1,4 +1,5 @@
 # fluxaOS
+2026.04.08
 
 AI orchestration operating system — configurable pipelines, provider-agnostic routing, gate-controlled quality, and full observability. No vendor lock-in.
 
