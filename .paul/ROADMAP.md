@@ -19,7 +19,7 @@ Phases: 4 of 7 complete
 | 3 | Personas & Configuration | 3 | Complete | 2026-04-08 |
 | 4 | Pipeline Engine | 4 | Complete | 2026-04-08 |
 | 5 | Web UI — Core Pages | 3 | Complete | 2026-04-08 |
-| 6 | AI Provider Adapters & Real Execution | TBD | Not started | - |
+| 6 | AI Provider Adapters & Real Execution | 4 | Complete | 2026-04-08 |
 | 7 | Observability, Polish & Ship | TBD | Not started | - |
 
 ## Phase Details
@@ -180,10 +180,10 @@ Phases: 4 of 7 complete
 - Provider fallback: auto-select next candidate on failure
 
 **Plans:**
-- [ ] 06-01: Anthropic + OpenAI AIProvider adapters
-- [ ] 06-02: GitHub GitProvider adapter
-- [ ] 06-03: Harness integration (claude-code subprocess, prompt assembly, cost parsing)
-- [ ] 06-04: Provider fallback + real end-to-end pipeline test
+- [x] 06-01: Anthropic + OpenAI AIProvider adapters
+- [x] 06-02: GitHub GitProvider adapter
+- [x] 06-03: Harness integration (claude-code subprocess, prompt assembly, cost parsing)
+- [x] 06-04: Provider fallback + real end-to-end pipeline test
 
 **Exit criteria:** Full pipeline run with claude-code executing real code changes against a real repo, streaming to UI, with accurate cost tracking. Provider fallback works.
 
