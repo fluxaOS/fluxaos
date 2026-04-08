@@ -7,6 +7,7 @@ const mainLinks = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/dashboard/issues', label: 'Issues' },
   { href: '/dashboard/pipelines', label: 'Pipelines' },
+  { href: '/dashboard/kpis', label: 'KPIs' },
 ];
 
 const settingsLinks = [
