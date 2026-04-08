@@ -84,12 +84,8 @@
           "name": "brand_org_id_organization_id_fk",
           "tableFrom": "brand",
           "tableTo": "organization",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -215,12 +211,8 @@
           "name": "event_stage_run_id_stage_run_id_fk",
           "tableFrom": "event",
           "tableTo": "stage_run",
-          "columnsFrom": [
-            "stage_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stage_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -315,12 +307,8 @@
           "name": "issue_project_id_project_id_fk",
           "tableFrom": "issue",
           "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -381,12 +369,8 @@
           "name": "issue_event_issue_id_issue_id_fk",
           "tableFrom": "issue_event",
           "tableTo": "issue",
-          "columnsFrom": [
-            "issue_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["issue_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -472,12 +456,8 @@
           "name": "memory_project_id_project_id_fk",
           "tableFrom": "memory",
           "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -485,12 +465,8 @@
           "name": "memory_persona_id_persona_id_fk",
           "tableFrom": "memory",
           "tableTo": "persona",
-          "columnsFrom": [
-            "persona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["persona_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -569,12 +545,8 @@
           "name": "model_provider_id_provider_id_fk",
           "tableFrom": "model",
           "tableTo": "provider",
-          "columnsFrom": [
-            "provider_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["provider_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -636,9 +608,7 @@
         "organization_slug_unique": {
           "name": "organization_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -726,12 +696,8 @@
           "name": "persona_project_id_project_id_fk",
           "tableFrom": "persona",
           "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -739,12 +705,8 @@
           "name": "persona_brand_id_brand_id_fk",
           "tableFrom": "persona",
           "tableTo": "brand",
-          "columnsFrom": [
-            "brand_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["brand_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -752,12 +714,8 @@
           "name": "persona_routing_profile_id_routing_profile_id_fk",
           "tableFrom": "persona",
           "tableTo": "routing_profile",
-          "columnsFrom": [
-            "routing_profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["routing_profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -818,12 +776,8 @@
           "name": "persona_skill_persona_id_persona_id_fk",
           "tableFrom": "persona_skill",
           "tableTo": "persona",
-          "columnsFrom": [
-            "persona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["persona_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -831,12 +785,8 @@
           "name": "persona_skill_skill_id_skill_id_fk",
           "tableFrom": "persona_skill",
           "tableTo": "skill",
-          "columnsFrom": [
-            "skill_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["skill_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -844,10 +794,7 @@
       "compositePrimaryKeys": {
         "persona_skill_persona_id_skill_id_pk": {
           "name": "persona_skill_persona_id_skill_id_pk",
-          "columns": [
-            "persona_id",
-            "skill_id"
-          ]
+          "columns": ["persona_id", "skill_id"]
         }
       },
       "uniqueConstraints": {},
@@ -912,12 +859,8 @@
           "name": "pipeline_project_id_project_id_fk",
           "tableFrom": "pipeline",
           "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -998,12 +941,8 @@
           "name": "pipeline_run_pipeline_id_pipeline_id_fk",
           "tableFrom": "pipeline_run",
           "tableTo": "pipeline",
-          "columnsFrom": [
-            "pipeline_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pipeline_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1103,12 +1042,8 @@
           "name": "pipeline_stage_pipeline_id_pipeline_id_fk",
           "tableFrom": "pipeline_stage",
           "tableTo": "pipeline",
-          "columnsFrom": [
-            "pipeline_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pipeline_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1209,12 +1144,8 @@
           "name": "project_org_id_organization_id_fk",
           "tableFrom": "project",
           "tableTo": "organization",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1294,12 +1225,8 @@
           "name": "provider_org_id_organization_id_fk",
           "tableFrom": "provider",
           "tableTo": "organization",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1367,12 +1294,8 @@
           "name": "routing_profile_org_id_organization_id_fk",
           "tableFrom": "routing_profile",
           "tableTo": "organization",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["org_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1458,12 +1381,8 @@
           "name": "routing_rule_profile_id_routing_profile_id_fk",
           "tableFrom": "routing_rule",
           "tableTo": "routing_profile",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1562,12 +1481,8 @@
           "name": "skill_project_id_project_id_fk",
           "tableFrom": "skill",
           "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1680,12 +1595,8 @@
           "name": "stage_run_pipeline_run_id_pipeline_run_id_fk",
           "tableFrom": "stage_run",
           "tableTo": "pipeline_run",
-          "columnsFrom": [
-            "pipeline_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pipeline_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1693,12 +1604,8 @@
           "name": "stage_run_pipeline_stage_id_pipeline_stage_id_fk",
           "tableFrom": "stage_run",
           "tableTo": "pipeline_stage",
-          "columnsFrom": [
-            "pipeline_stage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pipeline_stage_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1759,12 +1666,8 @@
           "name": "team_project_id_project_id_fk",
           "tableFrom": "team",
           "tableTo": "project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1818,12 +1721,8 @@
           "name": "team_member_team_id_team_id_fk",
           "tableFrom": "team_member",
           "tableTo": "team",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["team_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1831,12 +1730,8 @@
           "name": "team_member_persona_id_persona_id_fk",
           "tableFrom": "team_member",
           "tableTo": "persona",
-          "columnsFrom": [
-            "persona_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["persona_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1844,10 +1739,7 @@
       "compositePrimaryKeys": {
         "team_member_team_id_persona_id_pk": {
           "name": "team_member_team_id_persona_id_pk",
-          "columns": [
-            "team_id",
-            "persona_id"
-          ]
+          "columns": ["team_id", "persona_id"]
         }
       },
       "uniqueConstraints": {},

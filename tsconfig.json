@@ -24,7 +24,9 @@
       "@/adapters/*": ["./src/adapters/*"],
       "@/components/*": ["./src/components/*"],
       "@/cli/*": ["./src/cli/*"],
-      "@/config/*": ["./src/config/*"]
+      "@/config/*": ["./src/config/*"],
+      "@/server/*": ["./src/server/*"],
+      "@/lib/*": ["./src/lib/*"]
     }
   },
   "include": [
