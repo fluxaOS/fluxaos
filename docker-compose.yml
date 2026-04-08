@@ -1,0 +1,55 @@
+services:
+  fluxaos:
+    build: .
+    target: dev
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/fluxaos
+      REDIS_URL: redis://redis:6379
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      FLUXAOS_GIT_PROVIDER: ${FLUXAOS_GIT_PROVIDER:-github}
+      FLUXAOS_AUTH_PROVIDER: ${FLUXAOS_AUTH_PROVIDER:-supabase}
+      FLUXAOS_REALTIME_PROVIDER: ${FLUXAOS_REALTIME_PROVIDER:-supabase}
+      FLUXAOS_QUEUE_PROVIDER: ${FLUXAOS_QUEUE_PROVIDER:-bullmq}
+      FLUXAOS_STAGE_EXECUTOR: ${FLUXAOS_STAGE_EXECUTOR:-node-exec}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: fluxaos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
