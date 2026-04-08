@@ -5,19 +5,19 @@
 See: .paul/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Orchestrate any AI workflow end-to-end with configurable pipelines, provider-agnostic routing, gate-controlled quality, and full observability — no vendor lock-in.
-**Current focus:** Phase 4 — Pipeline Engine
+**Current focus:** Phase 5 — Web UI — Core Pages
 
 ## Current Position
 
 Milestone: v0.1.0-alpha
-Phase: 4 of 7 (Pipeline Engine) — Not started
+Phase: 5 of 7 (Web UI — Core Pages) — Not started
 Plan: None yet
-Status: Phase 3 complete, ready to begin Phase 4
-Last activity: 2026-04-08 — Phase 3 complete (personas, routing, providers, brands)
+Status: Phase 4 complete, ready to begin Phase 5
+Last activity: 2026-04-08 — Phase 4 complete (pipeline state machine, gates, routing, execution)
 
 Progress:
-- Milestone: [▓▓▓▓░░░░░░] ~43% (3 of 7 phases complete)
-- Phase 4: [░░░░░░░░░░] 0%
+- Milestone: [▓▓▓▓▓░░░░░] ~57% (4 of 7 phases complete)
+- Phase 5: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
@@ -62,13 +62,13 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Phase 3 fully complete
-Next action: /paul:discuss (Phase 4: Pipeline Engine)
+Stopped at: Phase 4 fully complete
+Next action: /paul:discuss (Phase 5: Web UI — Core Pages)
 Resume file: None
 Resume context:
-- Phase 3 delivered: personas, routing profiles, provider/model registry, brands, seed data, CLI extensions (32 tRPC endpoints, 31 tests passing)
-- Phase 4 scope: pipeline state machine, gate rules engine, routing resolver, BullMQ + node-exec adapters, "Just Do It" mode
-- ROADMAP flags research likely needed: state machine design, gate rules engine, BullMQ job lifecycle
+- Phase 4 delivered: pipeline state machine, gate rules engine, routing resolver, BullMQ + node-exec adapters, "Just Do It" mode
+- Phase 5 scope: dashboard, issues pages, pipeline runs + live transcript, settings pages, gate approval UI
+- ROADMAP flags research unlikely (UI patterns established)
 
 ---
 *STATE.md — Updated after every significant action*
