@@ -110,3 +110,85 @@ export async function resolveRoute(
       (modelsPattern ? ` matching pattern "${modelsPattern}"` : '')
   );
 }
+
+/**
+ * Returns ALL matching provider/model candidates, ranked.
+ * The worker tries each in order until one succeeds (provider fallback).
+ */
+export async function resolveRoutes(
+  personaId: string | null,
+  stageName: string,
+  stageHarness: string | null
+): Promise<RouteSelection[]> {
+  let routingProfileId: string | null = null;
+
+  if (personaId) {
+    const resolved = await resolvePersona(personaId);
+    routingProfileId = resolved.routingProfileId;
+  }
+
+  let rules: (typeof routingRule.$inferSelect)[] = [];
+  let profileHarness: string | null = null;
+  let fallbackHarness: string | null = null;
+  let modelsPattern: string | null = null;
+  let sortStrategy = 'quality';
+
+  if (routingProfileId) {
+    const profile = await db.query.routingProfile.findFirst({
+      where: eq(routingProfile.id, routingProfileId),
+      with: { rules: true },
+    });
+
+    if (profile) {
+      rules = profile.rules;
+    }
+  }
+
+  const exactRule = rules.find((r) => r.stageName === stageName);
+  const wildcardRule = rules.find(
+    (r) => r.stageName === null || r.stageName === '*'
+  );
+  const matchedRule = exactRule ?? wildcardRule;
+
+  if (matchedRule) {
+    modelsPattern = matchedRule.allowedModelsPattern;
+    profileHarness = matchedRule.preferredHarness;
+    fallbackHarness = matchedRule.fallbackHarness;
+    sortStrategy = matchedRule.sortStrategy ?? 'quality';
+  }
+
+  const harness =
+    stageHarness ?? profileHarness ?? fallbackHarness ?? 'claude-code';
+
+  const providers = await db
+    .select()
+    .from(provider)
+    .where(eq(provider.isHealthy, true))
+    .orderBy(asc(provider.name));
+
+  const candidates: RouteSelection[] = [];
+
+  for (const prov of providers) {
+    const models = await db
+      .select()
+      .from(model)
+      .where(eq(model.providerId, prov.id))
+      .orderBy(
+        sortStrategy === 'cost' ? asc(model.costPer1kInput) : asc(model.name)
+      );
+
+    for (const m of models) {
+      if (!modelsPattern || matchesPattern(m.identifier, modelsPattern)) {
+        candidates.push({
+          providerId: prov.id,
+          providerName: prov.name,
+          modelId: m.id,
+          modelIdentifier: m.identifier,
+          harness,
+        });
+      }
+    }
+  }
+
+  return candidates;
+}
