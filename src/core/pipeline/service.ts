@@ -228,6 +228,25 @@ export async function listPipelineRuns(pipelineId: string) {
     .orderBy(desc(pipelineRun.createdAt));
 }
 
+export async function listRunsByProject(projectId: string) {
+  return db
+    .select({
+      id: pipelineRun.id,
+      pipelineId: pipelineRun.pipelineId,
+      issueId: pipelineRun.issueId,
+      status: pipelineRun.status,
+      startedAt: pipelineRun.startedAt,
+      completedAt: pipelineRun.completedAt,
+      totalCostUsd: pipelineRun.totalCostUsd,
+      createdAt: pipelineRun.createdAt,
+      pipelineName: pipeline.name,
+    })
+    .from(pipelineRun)
+    .innerJoin(pipeline, eq(pipelineRun.pipelineId, pipeline.id))
+    .where(eq(pipeline.projectId, projectId))
+    .orderBy(desc(pipelineRun.createdAt));
+}
+
 export async function transitionPipelineRun(
   id: string,
   newStatus: PipelineRunStatus

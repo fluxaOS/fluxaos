@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   createIssue,
   getIssue,
+  listIssueEvents,
   listIssues,
   transitionIssue,
   updateIssue,
@@ -67,4 +68,8 @@ export const issueRouter = router({
       })
     )
     .mutation(({ input }) => transitionIssue(input.id, input.state)),
+
+  events: publicProcedure
+    .input(z.object({ issueId: z.string().uuid() }))
+    .query(({ input }) => listIssueEvents(input.issueId)),
 });
