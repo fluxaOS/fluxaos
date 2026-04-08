@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const links = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/issues', label: 'Issues' },
-  { href: '/pipelines', label: 'Pipelines' },
-  { href: '/settings', label: 'Settings' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/issues', label: 'Issues' },
+  { href: '/dashboard/pipelines', label: 'Pipelines' },
+  { href: '/dashboard/settings', label: 'Settings' },
 ];
 
 export function Nav() {
@@ -24,8 +24,8 @@ export function Nav() {
       <ul className="flex-1 p-3 space-y-1">
         {links.map((link) => {
           const isActive =
-            link.href === '/'
-              ? pathname === '/'
+            link.href === '/dashboard'
+              ? pathname === '/dashboard'
               : pathname.startsWith(link.href);
           return (
             <li key={link.href}>
