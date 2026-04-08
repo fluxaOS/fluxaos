@@ -1,6 +1,7 @@
 export {
   createIssue,
   getIssue,
+  listIssueEvents,
   listIssues,
   transitionIssue,
   updateIssue,

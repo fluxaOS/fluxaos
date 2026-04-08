@@ -7,12 +7,14 @@ import {
   createPipelineStage,
   deletePipeline,
   getPipeline,
+  getPipelineKpis,
   getPipelineRun,
   getStageRun,
   justDoIt,
   listPipelineRuns,
   listPipelineStages,
   listPipelines,
+  listRunsByProject,
   listStageRuns,
   requeueStageRun,
   startPipelineRun,
@@ -99,6 +101,10 @@ export const pipelineRouter = router({
     .input(z.object({ pipelineId: z.string().uuid() }))
     .query(({ input }) => listPipelineRuns(input.pipelineId)),
 
+  listRunsByProject: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(({ input }) => listRunsByProject(input.projectId)),
+
   cancelRun: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(({ input }) => cancelPipelineRun(input.id)),
@@ -157,4 +163,8 @@ export const pipelineRouter = router({
       await transitionPipelineRun(sr.pipelineRunId, 'failed');
       return { action: 'aborted' as const, stageRunId: input.stageRunId };
     }),
+
+  kpis: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(({ input }) => getPipelineKpis(input.projectId)),
 });
