@@ -78,7 +78,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
-              href="/dashboard"
+              href="https://github.com/fluxaOS/fluxaos#getting-started"
               className="rounded-lg bg-royal-violet px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-electric-violet"
             >
               Get started

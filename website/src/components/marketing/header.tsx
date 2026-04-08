@@ -39,12 +39,6 @@ export function MarketingHeader() {
           >
             GitHub
           </a>
-          <Link
-            href="/dashboard"
-            className="rounded-md bg-royal-violet px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-electric-violet"
-          >
-            Get started
-          </Link>
         </nav>
 
         {/* Mobile menu button */}
@@ -88,13 +82,6 @@ export function MarketingHeader() {
             >
               GitHub
             </a>
-            <Link
-              href="/dashboard"
-              onClick={() => setMenuOpen(false)}
-              className="inline-block rounded-md bg-royal-violet px-4 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-electric-violet"
-            >
-              Get started
-            </Link>
           </div>
         </nav>
       )}
