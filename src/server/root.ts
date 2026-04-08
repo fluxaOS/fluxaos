@@ -1,3 +1,4 @@
+import { brandRouter } from '@/server/routers/brand';
 import { healthRouter } from '@/server/routers/health';
 import { issueRouter } from '@/server/routers/issue';
 import { organizationRouter } from '@/server/routers/organization';
@@ -19,6 +20,7 @@ export const appRouter = router({
   skill: skillRouter,
   provider: providerRouter,
   routing: routingRouter,
+  brand: brandRouter,
 });
 
 export type AppRouter = typeof appRouter;

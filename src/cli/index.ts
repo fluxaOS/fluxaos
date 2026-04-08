@@ -1,6 +1,8 @@
 #!/usr/bin/env tsx
 import { createCLIClient } from './client';
+import { handleConfigCommand } from './commands/config';
 import { handleIssueCommand } from './commands/issue';
+import { handlePersonaCommand } from './commands/persona';
 import { handleSkillCommand } from './commands/skill';
 import { handleStatusCommand } from './commands/status';
 
@@ -14,6 +16,8 @@ Usage: fluxaos <command> [options]
 Commands:
   issue    Manage issues (list, create, view)
   skill    Manage skills (list, sync)
+  persona  Manage personas (list, view, create)
+  config   View configuration (providers, routing, brands)
   status   Show server health
 
 Run "fluxaos <command>" for command-specific help.
@@ -40,6 +44,12 @@ async function main() {
       break;
     case 'skill':
       await handleSkillCommand(client, subArgs);
+      break;
+    case 'persona':
+      await handlePersonaCommand(client, subArgs);
+      break;
+    case 'config':
+      await handleConfigCommand(client, subArgs);
       break;
     case 'status':
       await handleStatusCommand(client);

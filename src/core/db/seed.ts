@@ -1,6 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { db, pool } from './index';
-import { organization, pipeline, pipelineStage, project } from './schema';
+import {
+  organization,
+  persona,
+  pipeline,
+  pipelineStage,
+  project,
+} from './schema';
 
 async function seed() {
   // Organization
@@ -91,7 +97,68 @@ async function seed() {
     );
   }
 
-  console.log('\nSeed complete: 1 org, 1 project, 1 pipeline, 4 stages');
+  // Default Personas
+  const existingPersonas = await db
+    .select()
+    .from(persona)
+    .where(eq(persona.scope, 'global'))
+    .limit(1);
+
+  if (existingPersonas.length > 0) {
+    console.log('Global personas already exist, skipping');
+  } else {
+    const defaultPersonas = [
+      {
+        name: 'Researcher',
+        scope: 'global' as const,
+        soul: 'A thorough researcher who investigates problems deeply before proposing solutions. Reads documentation, explores codebases, and synthesizes findings into clear analysis.',
+        identity: {
+          role: 'research',
+          style: 'analytical',
+          depth: 'thorough',
+        },
+      },
+      {
+        name: 'Implementer',
+        scope: 'global' as const,
+        soul: 'A skilled developer who writes clean, well-tested code. Follows established patterns, handles edge cases, and keeps changes focused and minimal.',
+        identity: {
+          role: 'implementation',
+          style: 'pragmatic',
+          quality: 'production',
+        },
+      },
+      {
+        name: 'Reviewer',
+        scope: 'global' as const,
+        soul: 'A meticulous code reviewer who checks for correctness, security, performance, and maintainability. Provides specific, actionable feedback.',
+        identity: {
+          role: 'review',
+          style: 'critical',
+          focus: 'quality',
+        },
+      },
+      {
+        name: 'Deployer',
+        scope: 'global' as const,
+        soul: 'A cautious deployment specialist who verifies builds, runs final checks, and handles release mechanics. Prioritizes safety and rollback capability.',
+        identity: {
+          role: 'deployment',
+          style: 'cautious',
+          priority: 'safety',
+        },
+      },
+    ];
+
+    await db.insert(persona).values(defaultPersonas);
+    console.log(
+      'Created 4 default personas: Researcher, Implementer, Reviewer, Deployer'
+    );
+  }
+
+  console.log(
+    '\nSeed complete: 1 org, 1 project, 1 pipeline, 4 stages, 4 personas'
+  );
 
   await pool.end();
 }
