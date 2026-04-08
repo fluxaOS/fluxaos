@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fluxaOS — Color Reference</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Geist Sans', system-ui, sans-serif;
+    background: #0B0014;
+    color: #F8FAFC;
+    padding: 48px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  h1 span { color: #7C3AED; }
+  .subtitle {
+    color: #94A3B8;
+    font-size: 14px;
+    margin-bottom: 48px;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #A78BFA;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 12px;
+  }
+  .palette-section { margin-bottom: 48px; }
+  .palette-row {
+    display: flex;
+    gap: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .swatch {
+    flex: 1;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 12px;
+    position: relative;
+    transition: flex 0.2s;
+  }
+  .swatch:hover { flex: 1.5; }
+  .swatch-name {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .swatch-hex {
+    font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+  .light-text { color: #F8FAFC; }
+  .dark-text { color: #0B0014; }
+
+  /* Small swatches for slate */
+  .palette-row.compact .swatch { min-height: 80px; }
+
+  /* Semantic row */
+  .semantic-row {
+    display: flex;
+    gap: 16px;
+  }
+  .semantic-card {
+    flex: 1;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 100px;
+  }
+  .semantic-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .semantic-hex {
+    font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid #2D1B69;
+    color: #475569;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Two-column layout for neutral */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .two-col h3 {
+    font-size: 11px;
+    color: #64748B;
+    font-weight: 500;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<h1><span>flux</span>aOS</h1>
+<p class="subtitle">Brand Color Reference &mdash; v1.0 &mdash; April 2026</p>
+
+<!-- Primary Palette -->
+<div class="palette-section">
+  <h2>Primary Palette &mdash; Violet Gradient</h2>
+  <div class="palette-row">
+    <div class="swatch light-text" style="background: #0B0014;">
+      <span class="swatch-name">Void</span>
+      <span class="swatch-hex">#0B0014</span>
+    </div>
+    <div class="swatch light-text" style="background: #150030;">
+      <span class="swatch-name">Abyss</span>
+      <span class="swatch-hex">#150030</span>
+    </div>
+    <div class="swatch light-text" style="background: #2D1B69;">
+      <span class="swatch-name">Deep Violet</span>
+      <span class="swatch-hex">#2D1B69</span>
+    </div>
+    <div class="swatch light-text" style="background: #5B21B6;">
+      <span class="swatch-name">Royal Violet</span>
+      <span class="swatch-hex">#5B21B6</span>
+    </div>
+    <div class="swatch light-text" style="background: #7C3AED;">
+      <span class="swatch-name">Electric Violet</span>
+      <span class="swatch-hex">#7C3AED</span>
+    </div>
+    <div class="swatch dark-text" style="background: #A78BFA;">
+      <span class="swatch-name">Soft Violet</span>
+      <span class="swatch-hex">#A78BFA</span>
+    </div>
+    <div class="swatch dark-text" style="background: #DDD6FE;">
+      <span class="swatch-name">Pale Violet</span>
+      <span class="swatch-hex">#DDD6FE</span>
+    </div>
+  </div>
+</div>
+
+<!-- Neutral Palette -->
+<div class="palette-section">
+  <h2>Neutral Palette &mdash; Slate (Tailwind built-in)</h2>
+  <div class="two-col">
+    <div>
+      <h3>Dark tones</h3>
+      <div class="palette-row compact">
+        <div class="swatch light-text" style="background: #020617;">
+          <span class="swatch-name">950</span>
+          <span class="swatch-hex">#020617</span>
+        </div>
+        <div class="swatch light-text" style="background: #0F172A;">
+          <span class="swatch-name">900</span>
+          <span class="swatch-hex">#0F172A</span>
+        </div>
+        <div class="swatch light-text" style="background: #1E293B;">
+          <span class="swatch-name">800</span>
+          <span class="swatch-hex">#1E293B</span>
+        </div>
+        <div class="swatch light-text" style="background: #334155;">
+          <span class="swatch-name">700</span>
+          <span class="swatch-hex">#334155</span>
+        </div>
+        <div class="swatch light-text" style="background: #475569;">
+          <span class="swatch-name">600</span>
+          <span class="swatch-hex">#475569</span>
+        </div>
+        <div class="swatch light-text" style="background: #64748B;">
+          <span class="swatch-name">500</span>
+          <span class="swatch-hex">#64748B</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3>Light tones</h3>
+      <div class="palette-row compact">
+        <div class="swatch dark-text" style="background: #94A3B8;">
+          <span class="swatch-name">400</span>
+          <span class="swatch-hex">#94A3B8</span>
+        </div>
+        <div class="swatch dark-text" style="background: #CBD5E1;">
+          <span class="swatch-name">300</span>
+          <span class="swatch-hex">#CBD5E1</span>
+        </div>
+        <div class="swatch dark-text" style="background: #E2E8F0;">
+          <span class="swatch-name">200</span>
+          <span class="swatch-hex">#E2E8F0</span>
+        </div>
+        <div class="swatch dark-text" style="background: #F1F5F9;">
+          <span class="swatch-name">100</span>
+          <span class="swatch-hex">#F1F5F9</span>
+        </div>
+        <div class="swatch dark-text" style="background: #F8FAFC;">
+          <span class="swatch-name">50</span>
+          <span class="swatch-hex">#F8FAFC</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Semantic Colors -->
+<div class="palette-section">
+  <h2>Semantic Colors</h2>
+  <div class="semantic-row">
+    <div class="semantic-card light-text" style="background: #188C42;">
+      <span class="semantic-label">Success</span>
+      <span class="semantic-hex">#188C42</span>
+    </div>
+    <div class="semantic-card dark-text" style="background: #F5A314;">
+      <span class="semantic-label">Warning</span>
+      <span class="semantic-hex">#F5A314</span>
+    </div>
+    <div class="semantic-card light-text" style="background: #CE1212;">
+      <span class="semantic-label">Error</span>
+      <span class="semantic-hex">#CE1212</span>
+    </div>
+    <div class="semantic-card light-text" style="background: #097FC3;">
+      <span class="semantic-label">Info</span>
+      <span class="semantic-hex">#097FC3</span>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <span>fluxaOS Brand Color Reference</span>
+  <span>Violet gradient is custom &bull; Slate uses Tailwind defaults &bull; Semantic colors are custom overrides</span>
+</div>
+
+</body>
+</html>

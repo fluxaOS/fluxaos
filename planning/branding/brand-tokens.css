@@ -1,0 +1,30 @@
+/*
+ * fluxaOS Brand Tokens — CSS Custom Properties
+ *
+ * ONLY what's custom to fluxaOS. Slate, spacing, radius, and font-size
+ * come from Tailwind — use utility classes (bg-slate-800, p-4, etc.) instead.
+ *
+ * Usage: @import this file in your globals.css
+ * Reference: var(--brand-electric), var(--color-success), etc.
+ */
+
+:root {
+  /* Brand — Violet Gradient */
+  --brand-void: #0B0014;
+  --brand-abyss: #150030;
+  --brand-deep: #2D1B69;
+  --brand: #5B21B6;
+  --brand-electric: #7C3AED;
+  --brand-soft: #A78BFA;
+  --brand-pale: #DDD6FE;
+
+  /* Semantic — custom, not Tailwind defaults */
+  --color-success: #188C42;
+  --color-warning: #F5A314;
+  --color-error: #CE1212;
+  --color-info: #097FC3;
+
+  /* Typography */
+  --font-sans: 'Geist Sans', 'Inter', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', monospace;
+}
