@@ -5,19 +5,19 @@
 See: .paul/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Orchestrate any AI workflow end-to-end with configurable pipelines, provider-agnostic routing, gate-controlled quality, and full observability — no vendor lock-in.
-**Current focus:** Phase 5 — Web UI — Core Pages
+**Current focus:** Phase 6 — AI Provider Adapters & Real Execution
 
 ## Current Position
 
 Milestone: v0.1.0-alpha
-Phase: 5 of 7 (Web UI — Core Pages) — Not started
+Phase: 6 of 7 (AI Provider Adapters & Real Execution) — Not started
 Plan: None yet
-Status: Phase 4 complete, ready to begin Phase 5
-Last activity: 2026-04-08 — Phase 4 complete (pipeline state machine, gates, routing, execution)
+Status: Phase 5 complete, ready to begin Phase 6
+Last activity: 2026-04-08 — Phase 5 complete (web UI: dashboard, issues, pipelines, settings)
 
 Progress:
-- Milestone: [▓▓▓▓▓░░░░░] ~57% (4 of 7 phases complete)
-- Phase 5: [░░░░░░░░░░] 0%
+- Milestone: [▓▓▓▓▓▓▓░░░] ~71% (5 of 7 phases complete)
+- Phase 6: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
@@ -43,6 +43,9 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | State machine via VALID_TRANSITIONS map | Phase 2, Plan 01 | Simple, explicit, type-safe transitions |
 | Hard delete for skills in alpha | Phase 2, Plan 02 | Simplest approach, revisit post-alpha |
 | No external CLI dependencies | Phase 2, Plan 03 | process.argv + parseFlag, zero packages |
+| Polling over Supabase Realtime for live UI data | Phase 5 | React Query refetchInterval; swap to Realtime in Phase 6/7 |
+| Hardcoded first org/project context for alpha | Phase 5 | Single-user assumption; every page loads first org → first project |
+| No component library (Tailwind only) | Phase 5 | Zero new UI dependencies for alpha |
 
 ### Deferred Issues
 
@@ -54,6 +57,7 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | Realistic test harness for high-throughput transcript simulation | Pre-flight | M | Phase 4 |
 | Node.js subprocess management — Python escape hatch | DA review | M | Phase 6 |
 | Supabase Realtime throughput under high-volume streaming | DA review | M | Phase 4 |
+| Replace polling with Supabase Realtime for run detail page | Phase 5 | S | Phase 6 or 7 |
 
 ### Blockers/Concerns
 
@@ -62,13 +66,14 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Phase 4 fully complete
-Next action: /paul:discuss (Phase 5: Web UI — Core Pages)
-Resume file: None
+Stopped at: Phase 5 fully complete
+Next action: /paul:discuss (Phase 6: AI Provider Adapters & Real Execution)
+Resume file: .paul/handoffs/HANDOFF-2026-04-08-phase5.md
 Resume context:
-- Phase 4 delivered: pipeline state machine, gate rules engine, routing resolver, BullMQ + node-exec adapters, "Just Do It" mode
-- Phase 5 scope: dashboard, issues pages, pipeline runs + live transcript, settings pages, gate approval UI
-- ROADMAP flags research unlikely (UI patterns established)
+- Phase 5 delivered: dashboard, issues (list/detail), pipelines (runs/detail with gate approval), settings (pipelines/personas/skills/routing/providers)
+- Org/project CRUD services added as pre-req (were stubs)
+- Phase 6 scope: Anthropic/OpenAI AIProvider adapters, GitHub GitProvider, harness integration (claude-code subprocess), prompt assembly, cost parsing, provider fallback
+- ROADMAP flags research likely (claude-code subprocess invocation, cost parsing, execa streaming)
 
 ---
 *STATE.md — Updated after every significant action*

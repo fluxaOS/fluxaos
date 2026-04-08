@@ -18,7 +18,7 @@ Phases: 4 of 7 complete
 | 2 | Project Management (Issues, Skills, CLI) | 3 | Complete | 2026-04-08 |
 | 3 | Personas & Configuration | 3 | Complete | 2026-04-08 |
 | 4 | Pipeline Engine | 4 | Complete | 2026-04-08 |
-| 5 | Web UI — Core Pages | TBD | Not started | - |
+| 5 | Web UI — Core Pages | 3 | Complete | 2026-04-08 |
 | 6 | AI Provider Adapters & Real Execution | TBD | Not started | - |
 | 7 | Observability, Polish & Ship | TBD | Not started | - |
 
@@ -154,9 +154,9 @@ Phases: 4 of 7 complete
 - Gate approval UI in run detail
 
 **Plans:**
-- [ ] 05-01: Dashboard + issues pages
-- [ ] 05-02: Pipeline runs + run detail + live transcript
-- [ ] 05-03: Settings pages (pipelines, personas, skills, routing)
+- [x] 05-01: Dashboard + issues pages
+- [x] 05-02: Pipeline runs + run detail + live transcript
+- [x] 05-03: Settings pages (pipelines, personas, skills, routing)
 
 **Exit criteria:** Login → configure → run → observe → approve/reject, all in browser.
 
