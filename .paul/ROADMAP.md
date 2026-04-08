@@ -8,7 +8,7 @@ fluxaOS ships in 7 phases over 14 weeks. Phase 1 lays the bones (repo, schema, a
 
 **v0.1.0-alpha** (first open-source release)
 Status: In progress
-Phases: 2 of 7 complete
+Phases: 3 of 7 complete
 
 ## Phases
 
@@ -16,7 +16,7 @@ Phases: 2 of 7 complete
 |-------|------|-------|--------|-----------|
 | 1 | Foundation & Skeleton | 4 | Complete | 2026-04-08 |
 | 2 | Project Management (Issues, Skills, CLI) | 3 | Complete | 2026-04-08 |
-| 3 | Personas & Configuration | TBD | Not started | - |
+| 3 | Personas & Configuration | 3 | Complete | 2026-04-08 |
 | 4 | Pipeline Engine | TBD | Not started | - |
 | 5 | Web UI — Core Pages | TBD | Not started | - |
 | 6 | AI Provider Adapters & Real Execution | TBD | Not started | - |
@@ -99,9 +99,9 @@ Phases: 2 of 7 complete
 - CLI extensions: `persona list/view/create`, `config set/get`
 
 **Plans:**
-- [ ] 03-01: Persona core + inheritance model + tRPC routes
-- [ ] 03-02: Routing profiles + provider/model registry
-- [ ] 03-03: Brand identity + seed data + CLI extensions
+- [x] 03-01: Persona core + inheritance model + tRPC routes
+- [x] 03-02: Routing profiles + provider/model registry
+- [x] 03-03: Brand identity + seed data + CLI extensions
 
 **Exit criteria:** Create persona with soul/identity/skills/routing, configure routing profiles, see full config tree via CLI and tRPC.
 

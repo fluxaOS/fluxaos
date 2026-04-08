@@ -7,9 +7,9 @@
     "status": "in_progress"
   },
   "phase": {
-    "number": 3,
-    "name": "Personas & Configuration",
-    "status": "in_progress"
+    "number": 4,
+    "name": "Pipeline Engine",
+    "status": "not_started"
   },
   "loop": {
     "plan": null,

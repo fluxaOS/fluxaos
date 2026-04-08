@@ -5,26 +5,26 @@
 See: .paul/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Orchestrate any AI workflow end-to-end with configurable pipelines, provider-agnostic routing, gate-controlled quality, and full observability — no vendor lock-in.
-**Current focus:** Phase 3 — Personas & Configuration
+**Current focus:** Phase 4 — Pipeline Engine
 
 ## Current Position
 
 Milestone: v0.1.0-alpha
-Phase: 3 of 7 (Personas & Configuration) — In Progress
-Plan: 03-01 complete (Persona core + inheritance + tRPC routes)
-Status: Loop closed, ready for next PLAN
-Last activity: 2026-04-08 — Plan 03-01 UNIFY complete
+Phase: 4 of 7 (Pipeline Engine) — Not started
+Plan: None yet
+Status: Phase 3 complete, ready to begin Phase 4
+Last activity: 2026-04-08 — Phase 3 complete (personas, routing, providers, brands)
 
 Progress:
-- Milestone: [▓▓▓░░░░░░░] ~29% (2 of 7 phases complete)
-- Phase 3: [▓▓▓░░░░░░░] ~33% (1 of 3 plans complete)
+- Milestone: [▓▓▓▓░░░░░░] ~43% (3 of 7 phases complete)
+- Phase 4: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ✓        ✓        ✓     [Loop complete — ready for next PLAN]
+  ○        ○        ○     [New phase — needs PLAN]
 ```
 
 ## Accumulated Context
@@ -62,13 +62,13 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Plan 03-01 UNIFY complete
-Next action: /paul:plan (Plan 03-02: Routing profiles + provider/model registry)
-Resume file: .paul/phases/03-personas-configuration/03-01-SUMMARY.md
+Stopped at: Phase 3 fully complete
+Next action: /paul:discuss (Phase 4: Pipeline Engine)
+Resume file: None
 Resume context:
-- Persona service established — persona lifecycle + inheritance + skill binding
-- 03-02 scope: routing profiles CRUD + binding to personas, provider/model registry CRUD
-- Schema exists for routingProfile, routingRule, provider, model tables
+- Phase 3 delivered: personas, routing profiles, provider/model registry, brands, seed data, CLI extensions (32 tRPC endpoints, 31 tests passing)
+- Phase 4 scope: pipeline state machine, gate rules engine, routing resolver, BullMQ + node-exec adapters, "Just Do It" mode
+- ROADMAP flags research likely needed: state machine design, gate rules engine, BullMQ job lifecycle
 
 ---
 *STATE.md — Updated after every significant action*
