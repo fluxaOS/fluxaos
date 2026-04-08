@@ -8,6 +8,13 @@
   --accent: #7c3aed;
   --accent-hover: #6d28d9;
   --muted: #6b6580;
+  --void: #0B0014;
+  --abyss: #150030;
+  --deep-violet: #2D1B69;
+  --royal-violet: #5B21B6;
+  --electric-violet: #7C3AED;
+  --soft-violet: #A78BFA;
+  --pale-violet: #DDD6FE;
 }
 
 @theme inline {
@@ -18,6 +25,13 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-muted: var(--muted);
+  --color-void: var(--void);
+  --color-abyss: var(--abyss);
+  --color-deep-violet: var(--deep-violet);
+  --color-royal-violet: var(--royal-violet);
+  --color-electric-violet: var(--electric-violet);
+  --color-soft-violet: var(--soft-violet);
+  --color-pale-violet: var(--pale-violet);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
