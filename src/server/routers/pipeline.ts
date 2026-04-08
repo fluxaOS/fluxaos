@@ -7,6 +7,7 @@ import {
   createPipelineStage,
   deletePipeline,
   getPipeline,
+  getPipelineKpis,
   getPipelineRun,
   getStageRun,
   justDoIt,
@@ -162,4 +163,8 @@ export const pipelineRouter = router({
       await transitionPipelineRun(sr.pipelineRunId, 'failed');
       return { action: 'aborted' as const, stageRunId: input.stageRunId };
     }),
+
+  kpis: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(({ input }) => getPipelineKpis(input.projectId)),
 });

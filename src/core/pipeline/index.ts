@@ -9,6 +9,7 @@ export {
   getDefaultPipeline,
   getNextStageRun,
   getPipeline,
+  getPipelineKpis,
   getPipelineRun,
   getStageRun,
   listPipelineRuns,

@@ -472,3 +472,40 @@ export async function requeueStageRun(id: string) {
   // rework → queued (for re-execution)
   return transitionStageRun(id, 'queued');
 }
+
+export async function getPipelineKpis(projectId: string) {
+  const result = await db
+    .select({
+      totalRuns: sql<number>`COUNT(*)::int`,
+      completedRuns: sql<number>`COUNT(*) FILTER (WHERE ${pipelineRun.status} = 'completed')::int`,
+      failedRuns: sql<number>`COUNT(*) FILTER (WHERE ${pipelineRun.status} = 'failed')::int`,
+      cancelledRuns: sql<number>`COUNT(*) FILTER (WHERE ${pipelineRun.status} = 'cancelled')::int`,
+      runningRuns: sql<number>`COUNT(*) FILTER (WHERE ${pipelineRun.status} = 'running')::int`,
+      totalCostUsd: sql<string>`COALESCE(SUM(CAST(${pipelineRun.totalCostUsd} AS NUMERIC)), 0)::text`,
+    })
+    .from(pipelineRun)
+    .innerJoin(pipeline, eq(pipelineRun.pipelineId, pipeline.id))
+    .where(eq(pipeline.projectId, projectId));
+
+  const row = result[0];
+  const totalRuns = row?.totalRuns ?? 0;
+  const totalCostUsd = row?.totalCostUsd ?? '0';
+  const avgCostUsd =
+    totalRuns > 0
+      ? (Number.parseFloat(totalCostUsd) / totalRuns).toFixed(6)
+      : '0';
+
+  return {
+    totalRuns,
+    completedRuns: row?.completedRuns ?? 0,
+    failedRuns: row?.failedRuns ?? 0,
+    cancelledRuns: row?.cancelledRuns ?? 0,
+    runningRuns: row?.runningRuns ?? 0,
+    successRate:
+      totalRuns > 0
+        ? Math.round(((row?.completedRuns ?? 0) / totalRuns) * 100)
+        : 0,
+    totalCostUsd,
+    avgCostUsd,
+  };
+}
