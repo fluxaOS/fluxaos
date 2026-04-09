@@ -63,21 +63,33 @@ These are not guidelines. These are hard constraints. Every piece of work must s
 
 ### Data Integrity
 
-12. **Integration tests hit real Supabase.** Not mocks. Not in-memory databases. Real Supabase Postgres via the transaction pooler. If a test doesn't hit the real database, it doesn't count.
+12. **Optimistic concurrency on all mutable entities.** Issues, comments, and any entity that can be edited concurrently must use version fields. Update queries include `WHERE version = $expected`. Zero rows affected means conflict — return 409, not silent overwrite.
 
-13. **Optimistic concurrency on all mutable entities.** Issues, comments, and any entity that can be edited concurrently must use version fields. Update queries include `WHERE version = $expected`. Zero rows affected means conflict — return 409, not silent overwrite.
+13. **Events are immutable.** The event tables are append-only. No updates. No deletes. They are the audit trail.
 
-14. **Events are immutable.** The event tables are append-only. No updates. No deletes. They are the audit trail.
+14. **Body HTML is rendered at write time.** Markdown bodies are rendered to HTML when created or updated, and the HTML is stored. Never render at read time.
 
-15. **Body HTML is rendered at write time.** Markdown bodies are rendered to HTML when created or updated, and the HTML is stored. Never render at read time.
+### Testing
+
+15. **No unit tests. Ever.** Zero unit tests in fluxaOS. Do not write them. Do not suggest them. Do not sneak them in alongside other work. Unit tests burned tokens, provided false confidence, and never caught a single real bug. This is non-negotiable.
+
+16. **Integration tests hit real Supabase.** These test that the database layer actually works — real Postgres via the transaction pooler. They verify CRUD operations, constraints, and relationships. Not mocks. Not in-memory databases. These are the safety net, not the primary test.
+
+17. **The journey test is the real test.** A real user (or Playwright acting as one) does real things in a real browser against a real database: log in, create an issue, edit it, transition states, add/edit/delete comments, fire the pipeline, watch it execute, verify the database matches the UI, verify the output. If one step fails, the entire journey fails. The journey test grows incrementally as features land.
+
+18. **Real-time observability is required.** The user must be able to see what a running pipeline stage is actually doing — live output, not a spinner. This is critical for development, debugging, and verifying that long-running executions are actually working. Supabase Realtime was chosen specifically for this.
+
+19. **CLI must pass the same journey.** Everything the browser can do, the CLI can do. Same operations, same results, same database. Both interfaces are first-class.
+
+20. **Provider/harness swap must not break the journey.** If you change one configuration value (swap Anthropic for OpenAI, swap claude-code for aider), the entire journey test must still pass for both browser and CLI. This is the ultimate agnosticism test.
 
 ### Process
 
-16. **No phase is complete without human verification.** An agent saying "this works" or "tests pass" is not verification. The user must see the result in a running browser or confirm via API output. Self-certification is explicitly forbidden.
+21. **No phase is complete without human verification.** An agent saying "this works" or "tests pass" is not verification. The user must see the result in a running browser or confirm via API output. Self-certification is explicitly forbidden.
 
-17. **Architecture deviations are flagged, not decided.** If an implementation choice differs from the spec or these invariants, stop and flag it to the user. Do not make the decision autonomously and move on. The previous failure was exactly this.
+22. **Architecture deviations are flagged, not decided.** If an implementation choice differs from the spec or these invariants, stop and flag it to the user. Do not make the decision autonomously and move on. The previous failure was exactly this.
 
-18. **Small phases with checkpoints.** Break work into pieces small enough that drift is caught early. Each checkpoint produces something the user can verify.
+23. **Small phases with checkpoints.** Break work into pieces small enough that drift is caught early. Each checkpoint produces something the user can verify.
 
 ---
 
@@ -113,6 +125,12 @@ find src/ -name '*.ts' -o -name '*.tsx' | while read f; do
   lines=$(wc -l < "$f")
   [ "$lines" -gt 500 ] && echo "WARN: $f has $lines lines (max ~500)"
 done || echo "PASS: All files under 500 lines"
+
+# Invariant 15: No unit tests
+find src/ -name '*.test.ts' -o -name '*.spec.ts' | while read f; do
+  grep -L 'supabase\|DATABASE_URL\|integration' "$f" 2>/dev/null
+done | grep . && echo "FAIL: Unit test files found (only integration tests allowed)" \
+  || echo "PASS: No unit tests"
 ```
 
 These checks are necessary but not sufficient. They catch mechanical violations. Architectural drift — like building stage-specific logic that technically doesn't use string literals but still assumes a fixed workflow — requires human judgment. That's why every phase needs user verification.
@@ -141,8 +159,19 @@ These checks are necessary but not sufficient. They catch mechanical violations.
 - Supabase Cloud (Postgres, Auth, Realtime)
 - BullMQ + Redis for job queue
 - Tailwind CSS 4
-- Vitest for integration tests, Playwright for E2E
+- Playwright for journey tests (E2E)
+- Integration tests via Vitest against real Supabase (no unit tests)
+
+## Multi-Tenancy Model
+
+GitHub-style hierarchy: Organization → User → Project. An org owns users. A user owns projects. Each project contains everything: issues, pipelines, settings, skills, personas, routing. Two users can have projects with the same name — they are completely independent.
+
+URL pattern: `/[org]/[user]/[project]/issues/1`
+
+For alpha: one org, one user, one or more projects. The schema and routes are designed for multi-tenancy from day one so it's a feature addition later, not a rewrite.
 
 ## Current State
 
 Phases R1-R2 complete. R3 partially done (basic CRUD for all entities works against Supabase). The issue model uses hardcoded enums and must be overhauled to database-driven catalogs per the design spec. The pipeline engine, rules engine, and routing system are not yet built.
+
+A dashboard UI design (glassmorphism, bento grid, card system) was merged via PR #12. It establishes the visual language and shared components (Card, StatCard, PageHeader, StatusBadge, Skeleton, EmptyState) under a `/dashboard/` route structure. This needs to be reconciled with the multi-tenant `/[org]/[user]/[project]/` routing.
