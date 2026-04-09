@@ -33,6 +33,23 @@ export const organization = pgTable('organization', {
   updatedAt,
 });
 
+export const user = pgTable(
+  'user',
+  {
+    id,
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organization.id),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    avatarUrl: text('avatar_url'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [uniqueIndex('user_org_slug_idx').on(t.orgId, t.slug)]
+);
+
 export const project = pgTable(
   'project',
   {
@@ -40,6 +57,9 @@ export const project = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organization.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
     repoUrl: text('repo_url'),
@@ -48,7 +68,7 @@ export const project = pgTable(
     createdAt,
     updatedAt,
   },
-  (t) => [uniqueIndex('project_org_slug_idx').on(t.orgId, t.slug)]
+  (t) => [uniqueIndex('project_user_slug_idx').on(t.userId, t.slug)]
 );
 
 // ─── Pipeline ───────────────────────────────────────────────────────────────
@@ -350,16 +370,29 @@ export const configEntry = pgTable('config_entry', {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const organizationRelations = relations(organization, ({ many }) => ({
+  users: many(user),
   projects: many(project),
   providers: many(provider),
   routingProfiles: many(routingProfile),
   brands: many(brand),
 }));
 
+export const userRelations = relations(user, ({ one, many }) => ({
+  organization: one(organization, {
+    fields: [user.orgId],
+    references: [organization.id],
+  }),
+  projects: many(project),
+}));
+
 export const projectRelations = relations(project, ({ one, many }) => ({
   organization: one(organization, {
     fields: [project.orgId],
     references: [organization.id],
+  }),
+  user: one(user, {
+    fields: [project.userId],
+    references: [user.id],
   }),
   pipelines: many(pipeline),
   issues: many(issue),
