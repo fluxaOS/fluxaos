@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -8,7 +9,14 @@ import { SkeletonTable } from '@/components/skeleton';
 import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
 
+function useBasePath() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+}
+
 export default function PipelinesPage() {
+  const basePath = useBasePath();
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
   const projectsQuery = trpc.project.list.useQuery(
@@ -101,7 +109,7 @@ export default function PipelinesPage() {
                 >
                   <td className="px-6 py-3.5">
                     <Link
-                      href={`/dashboard/pipelines/${run.id}`}
+                      href={`${basePath}/pipelines/${run.id}`}
                       className="text-soft-violet hover:text-electric-violet font-mono text-xs transition-colors"
                     >
                       {run.id.slice(0, 8)}

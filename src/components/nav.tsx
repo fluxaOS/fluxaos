@@ -14,23 +14,30 @@ import {
   Server,
 } from 'lucide-react';
 
-const mainLinks = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/issues', label: 'Issues', icon: CircleDot },
-  { href: '/dashboard/pipelines', label: 'Pipelines', icon: GitBranch },
-  { href: '/dashboard/kpis', label: 'KPIs', icon: BarChart3 },
-];
-
-const settingsLinks = [
-  { href: '/dashboard/settings', label: 'Pipelines', exact: true, icon: Workflow },
-  { href: '/dashboard/settings/personas', label: 'Personas', icon: Users },
-  { href: '/dashboard/settings/skills', label: 'Skills', icon: Sparkles },
-  { href: '/dashboard/settings/routing', label: 'Routing', icon: Route },
-  { href: '/dashboard/settings/providers', label: 'Providers', icon: Server },
-];
+function useBasePath() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+}
 
 export function Nav() {
   const pathname = usePathname();
+  const basePath = useBasePath();
+
+  const mainLinks = [
+    { href: basePath, label: 'Dashboard', icon: LayoutDashboard },
+    { href: `${basePath}/issues`, label: 'Issues', icon: CircleDot },
+    { href: `${basePath}/pipelines`, label: 'Pipelines', icon: GitBranch },
+    { href: `${basePath}/kpis`, label: 'KPIs', icon: BarChart3 },
+  ];
+
+  const settingsLinks = [
+    { href: `${basePath}/settings`, label: 'Pipelines', exact: true, icon: Workflow },
+    { href: `${basePath}/settings/personas`, label: 'Personas', icon: Users },
+    { href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
+    { href: `${basePath}/settings/routing`, label: 'Routing', icon: Route },
+    { href: `${basePath}/settings/providers`, label: 'Providers', icon: Server },
+  ];
 
   return (
     <nav className="w-[250px] shrink-0 h-full flex flex-col bg-linear-to-b from-slate-900 to-[#0B0014] border-r border-slate-700/30 shadow-[4px_0_24px_rgba(0,0,0,0.3)] relative z-10">
@@ -49,8 +56,8 @@ export function Nav() {
       <ul className="flex-1 px-3 space-y-0.5">
         {mainLinks.map((link) => {
           const isActive =
-            link.href === '/dashboard'
-              ? pathname === '/dashboard'
+            link.href === basePath
+              ? pathname === basePath
               : pathname.startsWith(link.href);
           const Icon = link.icon;
           return (
@@ -77,7 +84,7 @@ export function Nav() {
           </span>
           <ul className="space-y-0.5">
             {settingsLinks.map((link) => {
-              const isActive = link.exact
+              const isActive = 'exact' in link && link.exact
                 ? pathname === link.href
                 : pathname.startsWith(link.href);
               const Icon = link.icon;

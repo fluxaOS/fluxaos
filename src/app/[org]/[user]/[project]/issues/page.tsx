@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Filter } from 'lucide-react';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
@@ -10,11 +11,18 @@ import { SkeletonTable } from '@/components/skeleton';
 import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
 
+function useBasePath() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+}
+
 const states = ['all', 'open', 'in_progress', 'blocked', 'closed'] as const;
 const types = ['all', 'task', 'bug', 'feature', 'research'] as const;
 const priorities = ['low', 'medium', 'high', 'critical'] as const;
 
 export default function IssuesPage() {
+  const basePath = useBasePath();
   const [stateFilter, setStateFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -126,7 +134,7 @@ export default function IssuesPage() {
                 >
                   <td className="px-6 py-3.5">
                     <Link
-                      href={`/dashboard/issues/${issue.id}`}
+                      href={`${basePath}/issues/${issue.id}`}
                       className="text-slate-200 font-medium hover:text-white transition-colors"
                     >
                       {issue.title}

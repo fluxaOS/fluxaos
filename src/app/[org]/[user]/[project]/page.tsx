@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { CircleDot, Loader, Play, Activity, Sparkles } from 'lucide-react';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
@@ -11,8 +12,15 @@ import { StatCard } from '@/components/stat-card';
 import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
 
+function useBasePath() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+}
+
 export default function DashboardPage() {
   const [prompt, setPrompt] = useState('');
+  const basePath = useBasePath();
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
@@ -181,7 +189,7 @@ export default function DashboardPage() {
               Recent pipeline runs
             </h3>
             <Link
-              href="/dashboard/pipelines"
+              href={`${basePath}/pipelines`}
               className="text-xs text-soft-violet hover:text-electric-violet font-medium transition-colors"
             >
               View all &rarr;
@@ -212,7 +220,7 @@ export default function DashboardPage() {
                   >
                     <td className="px-6 py-3.5">
                       <Link
-                        href={`/dashboard/pipelines/${run.id}`}
+                        href={`${basePath}/pipelines/${run.id}`}
                         className="text-slate-200 font-medium hover:text-white transition-colors"
                       >
                         {run.pipelineName}
@@ -265,7 +273,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white">Open issues</h3>
               <Link
-                href="/dashboard/issues"
+                href={`${basePath}/issues`}
                 className="text-xs text-soft-violet hover:text-electric-violet font-medium transition-colors"
               >
                 View all &rarr;
@@ -291,7 +299,7 @@ export default function DashboardPage() {
                     />
                     <div>
                       <Link
-                        href={`/dashboard/issues/${issue.id}`}
+                        href={`${basePath}/issues/${issue.id}`}
                         className="text-xs font-medium text-slate-300 hover:text-white transition-colors"
                       >
                         {issue.title}

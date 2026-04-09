@@ -23,6 +23,14 @@ export function createProjectService(db: Database) {
         .where(and(eq(project.orgId, orgId), eq(project.slug, slug)));
       return row ?? null;
     },
+
+    async getByUserSlug(userId: string, slug: string): Promise<ProjectSelect | null> {
+      const [row] = await db
+        .select()
+        .from(project)
+        .where(and(eq(project.userId, userId), eq(project.slug, slug)));
+      return row ?? null;
+    },
   };
 }
 

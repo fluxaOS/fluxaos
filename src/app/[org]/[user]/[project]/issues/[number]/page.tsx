@@ -2,10 +2,17 @@
 
 import Link from 'next/link';
 import { use } from 'react';
+import { usePathname } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/card';
 import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
+
+function useBasePath() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+}
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   open: ['in_progress', 'blocked', 'closed'],
@@ -17,9 +24,12 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 export default function IssueDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ number: string }>;
 }) {
-  const { id } = use(params);
+  const { number } = use(params);
+  const basePath = useBasePath();
+  // TODO: switch to getByNumber lookup in Task 5.2+
+  const id = number;
   const issueQuery = trpc.issue.getById.useQuery({ id });
   const eventsQuery = trpc.issue.events.useQuery({ issueId: id });
 
@@ -46,7 +56,7 @@ export default function IssueDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/dashboard/issues"
+        href={`${basePath}/issues`}
         className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
       >
         <ArrowLeft size={14} />

@@ -2,10 +2,17 @@
 
 import Link from 'next/link';
 import { use } from 'react';
+import { usePathname } from 'next/navigation';
 import { ArrowLeft, Check, RotateCcw, XOctagon } from 'lucide-react';
 import { Card } from '@/components/card';
 import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
+
+function useBasePath() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+}
 
 export default function RunDetailPage({
   params,
@@ -13,6 +20,7 @@ export default function RunDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const basePath = useBasePath();
 
   const runQuery = trpc.pipeline.getRun.useQuery(
     { id },
@@ -51,7 +59,7 @@ export default function RunDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/dashboard/pipelines"
+        href={`${basePath}/pipelines`}
         className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
       >
         <ArrowLeft size={14} />
