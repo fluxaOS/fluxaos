@@ -1,0 +1,326 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" width="1440" height="900">
+  <defs>
+    <!-- Background atmospheric gradient -->
+    <radialGradient id="bgOrb1" cx="25%" cy="15%" r="45%">
+      <stop offset="0%" stop-color="#2D1B69" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#0B0014" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgOrb2" cx="85%" cy="75%" r="30%">
+      <stop offset="0%" stop-color="#5B21B6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#0B0014" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Sidebar gradient -->
+    <linearGradient id="sidebarBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#0B0014"/>
+    </linearGradient>
+
+    <!-- Active nav pill -->
+    <linearGradient id="navActive" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#5B21B6"/>
+    </linearGradient>
+
+    <!-- Just Do It card gradient -->
+    <linearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2D1B69" stop-opacity="0.7"/>
+      <stop offset="40%" stop-color="#1E293B" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+
+    <!-- Card shadow -->
+    <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <filter id="cardShadowLg" x="-5%" y="-5%" width="110%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="20" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="glowPurple" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#7C3AED" flood-opacity="0.3"/>
+    </filter>
+
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap');
+      text { font-family: 'Inter', system-ui, sans-serif; }
+      .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+    </style>
+  </defs>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- BACKGROUND — deep void with subtle violet atmosphere -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect width="1440" height="900" fill="#0B0014"/>
+  <rect width="1440" height="900" fill="url(#bgOrb1)"/>
+  <rect width="1440" height="900" fill="url(#bgOrb2)"/>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- SIDEBAR — Slate 900 solid, clean -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect x="0" y="0" width="250" height="900" fill="url(#sidebarBg)" filter="url(#cardShadow)"/>
+  <line x1="250" y1="0" x2="250" y2="900" stroke="#334155" stroke-opacity="0.3" stroke-width="1"/>
+
+  <!-- Wordmark -->
+  <text x="24" y="44" font-size="20" font-weight="800" letter-spacing="-0.5">
+    <tspan fill="#A78BFA">flux</tspan><tspan fill="white">aOS</tspan>
+  </text>
+  <text x="24" y="62" font-size="11" fill="#64748B">AI Orchestration OS</text>
+  <line x1="16" y1="80" x2="234" y2="80" stroke="#334155" stroke-opacity="0.3"/>
+
+  <!-- Nav: Dashboard (ACTIVE — solid violet pill) -->
+  <rect x="12" y="96" width="226" height="40" rx="10" fill="url(#navActive)" filter="url(#glowPurple)"/>
+  <!-- Grid icon -->
+  <rect x="26" y="108" width="7" height="7" rx="2" fill="white" opacity="0.9"/>
+  <rect x="36" y="108" width="7" height="7" rx="2" fill="white" opacity="0.9"/>
+  <rect x="26" y="118" width="7" height="7" rx="2" fill="white" opacity="0.9"/>
+  <rect x="36" y="118" width="7" height="7" rx="2" fill="white" opacity="0.9"/>
+  <text x="54" y="121" font-size="14" fill="white" font-weight="600">Dashboard</text>
+
+  <!-- Nav: Issues -->
+  <circle cx="33" cy="160" r="6" fill="none" stroke="#64748B" stroke-width="1.5"/>
+  <circle cx="33" cy="160" r="2" fill="#64748B"/>
+  <text x="54" y="164" font-size="14" fill="#94A3B8" font-weight="400">Issues</text>
+
+  <!-- Nav: Pipelines -->
+  <circle cx="33" cy="196" r="3" fill="none" stroke="#64748B" stroke-width="1.5"/>
+  <line x1="33" y1="192" x2="33" y2="185" stroke="#64748B" stroke-width="1.5"/>
+  <path d="M39 185 L39 189 Q39 193 36 193" fill="none" stroke="#64748B" stroke-width="1.5"/>
+  <text x="54" y="200" font-size="14" fill="#94A3B8" font-weight="400">Pipelines</text>
+
+  <!-- Nav: KPIs -->
+  <rect x="27" y="226" width="4" height="12" rx="1" fill="none" stroke="#64748B" stroke-width="1.5"/>
+  <rect x="33" y="222" width="4" height="16" rx="1" fill="none" stroke="#64748B" stroke-width="1.5"/>
+  <rect x="39" y="229" width="4" height="9" rx="1" fill="none" stroke="#64748B" stroke-width="1.5"/>
+  <text x="54" y="236" font-size="14" fill="#94A3B8" font-weight="400">KPIs</text>
+
+  <!-- Settings section -->
+  <text x="24" y="286" font-size="10" fill="#475569" font-weight="600" letter-spacing="1.5">SETTINGS</text>
+  <text x="54" y="312" font-size="13" fill="#64748B">Pipelines</text>
+  <text x="54" y="338" font-size="13" fill="#64748B">Personas</text>
+  <text x="54" y="364" font-size="13" fill="#64748B">Skills</text>
+  <text x="54" y="390" font-size="13" fill="#64748B">Routing</text>
+  <text x="54" y="416" font-size="13" fill="#64748B">Providers</text>
+
+  <text x="24" y="878" font-size="11" fill="#334155" class="mono">v0.1.0-alpha</text>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- MAIN CONTENT AREA -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <!-- Page header -->
+  <text x="286" y="42" font-size="12" fill="#64748B">Pages / Dashboard</text>
+  <text x="286" y="72" font-size="24" fill="white" font-weight="700">Dashboard</text>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- STAT CARDS — Slate 800 with real shadows, colored left border -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <!-- Card 1: Open Issues — violet left accent -->
+  <rect x="274" y="94" width="254" height="96" rx="14" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="274" y="94" width="5" height="96" rx="2" fill="#7C3AED"/>
+  <text x="296" y="118" font-size="12" fill="#94A3B8" font-weight="500">Open issues</text>
+  <text x="296" y="160" font-size="32" fill="white" font-weight="800">12</text>
+  <text x="336" y="160" font-size="13" fill="#22C55E" font-weight="600">+3</text>
+  <!-- Icon badge top-right -->
+  <rect x="494" y="108" width="24" height="24" rx="6" fill="#7C3AED" opacity="0.15"/>
+  <circle cx="506" cy="120" r="5" fill="none" stroke="#A78BFA" stroke-width="1.5"/>
+  <circle cx="506" cy="120" r="2" fill="#A78BFA"/>
+
+  <!-- Card 2: In Progress — blue left accent -->
+  <rect x="542" y="94" width="254" height="96" rx="14" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="542" y="94" width="5" height="96" rx="2" fill="#097FC3"/>
+  <text x="564" y="118" font-size="12" fill="#94A3B8" font-weight="500">In progress</text>
+  <text x="564" y="160" font-size="32" fill="white" font-weight="800">3</text>
+  <rect x="762" y="108" width="24" height="24" rx="6" fill="#097FC3" opacity="0.15"/>
+  <path d="M774 114 A8 8 0 1 1 766 122" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Card 3: Total Runs — green left accent -->
+  <rect x="810" y="94" width="254" height="96" rx="14" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="810" y="94" width="5" height="96" rx="2" fill="#188C42"/>
+  <text x="832" y="118" font-size="12" fill="#94A3B8" font-weight="500">Total runs</text>
+  <text x="832" y="160" font-size="32" fill="white" font-weight="800">47</text>
+  <text x="878" y="160" font-size="13" fill="#22C55E" font-weight="600">+8%</text>
+  <rect x="1030" y="108" width="24" height="24" rx="6" fill="#188C42" opacity="0.15"/>
+  <polygon points="1038,114 1048,120 1038,126" fill="none" stroke="#22C55E" stroke-width="1.5" stroke-linejoin="round"/>
+
+  <!-- Card 4: Running Now — amber left accent -->
+  <rect x="1078" y="94" width="254" height="96" rx="14" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="1078" y="94" width="5" height="96" rx="2" fill="#F5A314"/>
+  <text x="1100" y="118" font-size="12" fill="#94A3B8" font-weight="500">Running now</text>
+  <text x="1100" y="160" font-size="32" fill="white" font-weight="800">1</text>
+  <rect x="1298" y="108" width="24" height="24" rx="6" fill="#F5A314" opacity="0.15"/>
+  <polyline points="1306,120 1310,114 1314,126 1318,114 1322,120" fill="none" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- BENTO ROW — Just Do It (wide) + Pipeline Health (narrow) -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <!-- JUST DO IT — larger card with Deep Violet gradient blend -->
+  <rect x="274" y="210" width="720" height="160" rx="18" fill="url(#heroGrad)" filter="url(#cardShadowLg)"/>
+  <!-- Inner border for glass feel -->
+  <rect x="274" y="210" width="720" height="160" rx="18" fill="none" stroke="white" stroke-opacity="0.06"/>
+
+  <!-- Sparkle decorations -->
+  <path d="M306 240 L309 232 L312 240 L320 243 L312 246 L309 254 L306 246 L298 243Z" fill="#A78BFA" opacity="0.5"/>
+  <path d="M328 228 L329.5 224 L331 228 L335 229.5 L331 231 L329.5 235 L328 231 L324 229.5Z" fill="#DDD6FE" opacity="0.3"/>
+  <path d="M960 224 L961 221 L962 224 L965 225 L962 226 L961 229 L960 226 L957 225Z" fill="#DDD6FE" opacity="0.15"/>
+
+  <text x="348" y="248" font-size="18" fill="white" font-weight="700">Just Do It</text>
+  <text x="348" y="268" font-size="12" fill="#94A3B8">Describe what you want done — fluxaOS handles the rest.</text>
+
+  <!-- Input field -->
+  <rect x="300" y="286" width="580" height="48" rx="12" fill="#0F172A" stroke="#334155" stroke-opacity="0.5"/>
+  <text x="320" y="316" font-size="14" fill="#475569">Describe what you want done...</text>
+
+  <!-- Go button -->
+  <rect x="892" y="286" width="80" height="48" rx="12" fill="#7C3AED"/>
+  <rect x="892" y="286" width="80" height="48" rx="12" fill="#7C3AED" opacity="0.5" filter="url(#glowPurple)"/>
+  <path d="M922 304 L924 298 L926 304 L932 306.5 L926 309 L924 315 L922 309 L916 306.5Z" fill="white" opacity="0.9"/>
+  <text x="936" y="314" font-size="13" fill="white" font-weight="600">Go</text>
+
+  <!-- PIPELINE HEALTH — right side card -->
+  <rect x="1010" y="210" width="322" height="160" rx="18" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="1010" y="210" width="322" height="160" rx="18" fill="none" stroke="#334155" stroke-opacity="0.3"/>
+
+  <text x="1038" y="242" font-size="14" fill="white" font-weight="600">Pipeline health</text>
+  <text x="1038" y="260" font-size="12" fill="#64748B">Last 30 days</text>
+
+  <!-- Large success rate -->
+  <text x="1038" y="316" font-size="42" fill="#22C55E" font-weight="800">87%</text>
+  <text x="1038" y="340" font-size="12" fill="#64748B">success rate</text>
+
+  <!-- Mini bar chart on right -->
+  <rect x="1200" y="276" width="16" height="64" rx="4" fill="#22C55E" opacity="0.8"/>
+  <rect x="1224" y="296" width="16" height="44" rx="4" fill="#22C55E" opacity="0.6"/>
+  <rect x="1248" y="284" width="16" height="56" rx="4" fill="#22C55E" opacity="0.7"/>
+  <rect x="1272" y="310" width="16" height="30" rx="4" fill="#EF4444" opacity="0.5"/>
+  <rect x="1296" y="290" width="16" height="50" rx="4" fill="#22C55E" opacity="0.65"/>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- BENTO ROW 2 — Recent Runs (wide) + Cost Summary (narrow) -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <!-- RECENT RUNS TABLE -->
+  <rect x="274" y="390" width="720" height="340" rx="18" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="274" y="390" width="720" height="340" rx="18" fill="none" stroke="#334155" stroke-opacity="0.3"/>
+
+  <text x="302" y="422" font-size="14" fill="white" font-weight="600">Recent pipeline runs</text>
+  <text x="940" y="422" font-size="12" fill="#A78BFA" font-weight="500" text-anchor="end">View all →</text>
+
+  <!-- Table header -->
+  <text x="302" y="456" font-size="11" fill="#475569" font-weight="600" letter-spacing="0.5">PIPELINE</text>
+  <text x="530" y="456" font-size="11" fill="#475569" font-weight="600" letter-spacing="0.5">STATUS</text>
+  <text x="680" y="456" font-size="11" fill="#475569" font-weight="600" letter-spacing="0.5">STARTED</text>
+  <text x="890" y="456" font-size="11" fill="#475569" font-weight="600" letter-spacing="0.5">COST</text>
+  <line x1="290" y1="466" x2="980" y2="466" stroke="#334155" stroke-opacity="0.3"/>
+
+  <!-- Row 1: completed -->
+  <text x="302" y="494" font-size="13" fill="#CBD5E1" font-weight="500">Standard Dev</text>
+  <rect x="530" y="480" width="90" height="24" rx="12" fill="#188C42" opacity="0.12"/>
+  <circle cx="544" cy="492" r="3" fill="#22C55E"/>
+  <text x="553" y="496" font-size="11" fill="#22C55E" font-weight="500">completed</text>
+  <text x="680" y="494" font-size="12" fill="#64748B">Apr 9, 2:31 PM</text>
+  <text x="890" y="494" font-size="12" fill="#94A3B8" class="mono">$0.0842</text>
+  <line x1="290" y1="510" x2="980" y2="510" stroke="#334155" stroke-opacity="0.15"/>
+
+  <!-- Row 2: running -->
+  <text x="302" y="538" font-size="13" fill="#CBD5E1" font-weight="500">Standard Dev</text>
+  <rect x="530" y="524" width="72" height="24" rx="12" fill="#097FC3" opacity="0.12"/>
+  <circle cx="544" cy="536" r="3" fill="#38BDF8"/>
+  <text x="553" y="540" font-size="11" fill="#38BDF8" font-weight="500">running</text>
+  <text x="680" y="538" font-size="12" fill="#64748B">Apr 9, 2:45 PM</text>
+  <text x="890" y="538" font-size="12" fill="#94A3B8" class="mono">$0.0124</text>
+  <line x1="290" y1="554" x2="980" y2="554" stroke="#334155" stroke-opacity="0.15"/>
+
+  <!-- Row 3: failed -->
+  <text x="302" y="582" font-size="13" fill="#CBD5E1" font-weight="500">Standard Dev</text>
+  <rect x="530" y="568" width="62" height="24" rx="12" fill="#CE1212" opacity="0.12"/>
+  <circle cx="544" cy="580" r="3" fill="#EF4444"/>
+  <text x="553" y="584" font-size="11" fill="#EF4444" font-weight="500">failed</text>
+  <text x="680" y="582" font-size="12" fill="#64748B">Apr 9, 1:12 PM</text>
+  <text x="890" y="582" font-size="12" fill="#94A3B8" class="mono">$0.0531</text>
+  <line x1="290" y1="598" x2="980" y2="598" stroke="#334155" stroke-opacity="0.15"/>
+
+  <!-- Row 4: completed -->
+  <text x="302" y="626" font-size="13" fill="#CBD5E1" font-weight="500">Quick Fix</text>
+  <rect x="530" y="612" width="90" height="24" rx="12" fill="#188C42" opacity="0.12"/>
+  <circle cx="544" cy="624" r="3" fill="#22C55E"/>
+  <text x="553" y="628" font-size="11" fill="#22C55E" font-weight="500">completed</text>
+  <text x="680" y="626" font-size="12" fill="#64748B">Apr 8, 5:22 PM</text>
+  <text x="890" y="626" font-size="12" fill="#94A3B8" class="mono">$0.0213</text>
+  <line x1="290" y1="642" x2="980" y2="642" stroke="#334155" stroke-opacity="0.15"/>
+
+  <!-- Row 5: pending -->
+  <text x="302" y="670" font-size="13" fill="#CBD5E1" font-weight="500">Standard Dev</text>
+  <rect x="530" y="656" width="72" height="24" rx="12" fill="#F5A314" opacity="0.12"/>
+  <circle cx="544" cy="668" r="3" fill="#FBBF24"/>
+  <text x="553" y="672" font-size="11" fill="#FBBF24" font-weight="500">pending</text>
+  <text x="680" y="670" font-size="12" fill="#64748B">Apr 9, 3:01 PM</text>
+  <text x="890" y="670" font-size="12" fill="#94A3B8" class="mono">$0.0000</text>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- RIGHT COLUMN — Cost + Issues stack -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <!-- COST SUMMARY card -->
+  <rect x="1010" y="390" width="322" height="160" rx="18" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="1010" y="390" width="322" height="160" rx="18" fill="none" stroke="#334155" stroke-opacity="0.3"/>
+
+  <text x="1038" y="422" font-size="14" fill="white" font-weight="600">Total spend</text>
+  <text x="1038" y="440" font-size="12" fill="#64748B">All pipeline runs</text>
+
+  <text x="1038" y="502" font-size="36" fill="white" font-weight="800" class="mono">$3.42</text>
+
+  <!-- Cost trend line (mini sparkline) -->
+  <polyline points="1038,520 1060,516 1082,518 1104,510 1126,512 1148,506 1170,508 1192,500 1214,504 1236,496 1258,498 1280,490 1302,492"
+    fill="none" stroke="#A78BFA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Avg label -->
+  <text x="1038" y="544" font-size="12" fill="#64748B">Avg <tspan fill="#94A3B8" class="mono">$0.073</tspan> / run</text>
+
+  <!-- RECENT ISSUES card -->
+  <rect x="1010" y="566" width="322" height="164" rx="18" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="1010" y="566" width="322" height="164" rx="18" fill="none" stroke="#334155" stroke-opacity="0.3"/>
+
+  <text x="1038" y="598" font-size="14" fill="white" font-weight="600">Open issues</text>
+  <text x="1288" y="598" font-size="12" fill="#A78BFA" font-weight="500" text-anchor="end">View all →</text>
+
+  <!-- Issue 1 -->
+  <rect x="1038" y="614" width="4" height="28" rx="2" fill="#CE1212"/>
+  <text x="1054" y="630" font-size="12" fill="#CBD5E1" font-weight="500">Fix gate timeout bug</text>
+  <text x="1054" y="644" font-size="10" fill="#475569">critical · 2h ago</text>
+
+  <!-- Issue 2 -->
+  <rect x="1038" y="650" width="4" height="28" rx="2" fill="#F5A314"/>
+  <text x="1054" y="666" font-size="12" fill="#CBD5E1" font-weight="500">Add retry backoff to stages</text>
+  <text x="1054" y="680" font-size="10" fill="#475569">high · 5h ago</text>
+
+  <!-- Issue 3 -->
+  <rect x="1038" y="686" width="4" height="28" rx="2" fill="#097FC3"/>
+  <text x="1054" y="702" font-size="12" fill="#CBD5E1" font-weight="500">Improve prompt assembly</text>
+  <text x="1054" y="716" font-size="10" fill="#475569">medium · 1d ago</text>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- BOTTOM ROW — providers bar -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <rect x="274" y="748" width="1058" height="72" rx="18" fill="#1E293B" filter="url(#cardShadow)"/>
+  <rect x="274" y="748" width="1058" height="72" rx="18" fill="none" stroke="#334155" stroke-opacity="0.3"/>
+
+  <text x="302" y="778" font-size="12" fill="#64748B" font-weight="500">PROVIDERS</text>
+
+  <!-- Provider: Anthropic — healthy -->
+  <circle cx="420" cy="784" r="4" fill="#22C55E"/>
+  <text x="430" y="788" font-size="13" fill="#CBD5E1" font-weight="500">Anthropic</text>
+  <text x="510" y="788" font-size="11" fill="#64748B">3 models</text>
+
+  <!-- Provider: OpenAI — healthy -->
+  <circle cx="620" cy="784" r="4" fill="#22C55E"/>
+  <text x="630" y="788" font-size="13" fill="#CBD5E1" font-weight="500">OpenAI</text>
+  <text x="694" y="788" font-size="11" fill="#64748B">2 models</text>
+
+  <!-- Provider: Ollama — unhealthy -->
+  <circle cx="800" cy="784" r="4" fill="#EF4444"/>
+  <text x="810" y="788" font-size="13" fill="#CBD5E1" font-weight="500">Ollama</text>
+  <text x="870" y="788" font-size="11" fill="#EF4444">offline</text>
+
+</svg>
