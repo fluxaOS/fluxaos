@@ -5,26 +5,26 @@
 See: .paul/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Orchestrate any AI workflow end-to-end with configurable pipelines, provider-agnostic routing, gate-controlled quality, and full observability — no vendor lock-in.
-**Current focus:** Phase 8 — Ship Alpha
+**Current focus:** v0.1.0-alpha shipped
 
 ## Current Position
 
 Milestone: v0.1.0-alpha
-Phase: 8 (Ship Alpha) — Not started
-Plan: None yet
-Status: Phase 7 partially complete, ready to begin Phase 8
-Last activity: 2026-04-08 — Phase 7 partial (KPI dashboard, Docker Compose, README, license, tests)
+Phase: 8 (Ship Alpha) — Complete
+Plan: 08-01 through 08-04
+Status: All 8 phases complete. Alpha ready.
+Last activity: 2026-04-09 — Phase 8 complete (E2E tests, .github/ templates, CONTRIBUTING.md, bug sweep)
 
 Progress:
-- Milestone: [▓▓▓▓▓▓▓▓▓░] ~90% (7 of 8 phases, Phase 7 partial)
-- Phase 8: [░░░░░░░░░░] 0%
+- Milestone: [▓▓▓▓▓▓▓▓▓▓] 100% (8 of 8 phases complete)
+- Phase 8: [▓▓▓▓▓▓▓▓▓▓] 100%
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ○        ○        ○     [Ready for Phase 5 PLAN]
+  ✓        ✓        ✓     [Phase 8 complete — v0.1.0-alpha]
 ```
 
 ## Accumulated Context
@@ -79,15 +79,15 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-08
-Stopped at: Phase 7 partially complete (KPI dashboard, Docker Compose, README, license, tests delivered; E2E tests, seed data, bug sweep, release remain)
-Next action: /paul:plan (Phase 8: Ship Alpha)
+Last session: 2026-04-09
+Stopped at: Phase 8 complete — all exit criteria met
+Next action: Tag v0.1.0-alpha on GitHub after PR merge
 Resume file: .paul/handoffs/HANDOFF-2026-04-08-phase7.md
 Resume context:
-- Phase 7 delivered: KPI dashboard, Docker Compose hardening (3 services), README rewrite, AGPLv3 license, cost-parser + prompt-assembler tests (95/95 passing)
-- Phase 8 scope: CI fix (website/ errors), E2E tests, seed data + .github/ templates, bug sweep + v0.1.0-alpha release
-- CI currently fails on website/ pre-existing issues (Biome format + missing marketing components)
-- PR #9 merged to main
+- Phase 8 delivered: E2E tests (pipeline lifecycle, adapter registry, issue lifecycle), .github/ templates (bug report, feature request, PR template), CONTRIBUTING.md, bug sweep
+- CI green: tsc 0 errors, biome 0 errors, 120+ tests passing
+- Seed data already complete from Phase 7 (Standard Dev pipeline, 4 personas)
+- All 8 phases complete, ready for v0.1.0-alpha tag
 
 ---
 *STATE.md — Updated after every significant action*

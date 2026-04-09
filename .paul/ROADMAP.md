@@ -21,7 +21,7 @@ Phases: 7 of 8 complete (Phase 7 partial)
 | 5 | Web UI — Core Pages | 3 | Complete | 2026-04-08 |
 | 6 | AI Provider Adapters & Real Execution | 4 | Complete | 2026-04-08 |
 | 7 | Observability & Polish | 4 | Partial | 2026-04-08 |
-| 8 | Ship Alpha | 4 | Not started | - |
+| 8 | Ship Alpha | 4 | Complete | 2026-04-09 |
 
 ## Phase Details
 
@@ -235,13 +235,13 @@ Phases: 7 of 8 complete (Phase 7 partial)
 - GitHub release: v0.1.0-alpha with changelog
 
 **Plans:**
-- [ ] 08-01: CI fix (website/ Biome + TypeScript errors)
-- [ ] 08-02: E2E test suite
-- [ ] 08-03: Seed data + .github/ templates + CONTRIBUTING.md
-- [ ] 08-04: Bug sweep + v0.1.0-alpha GitHub release with changelog
+- [x] 08-01: CI fix (website/ Biome + TypeScript errors) — already resolved by commit 43dfc7a
+- [x] 08-02: E2E test suite (pipeline lifecycle, adapter registry, issue lifecycle)
+- [x] 08-03: Seed data + .github/ templates + CONTRIBUTING.md — seed data already complete from Phase 7
+- [x] 08-04: Bug sweep + v0.1.0-alpha GitHub release with changelog
 
 **Exit criteria:** CI green on main. Clone → `docker compose up` → follow README → working fluxaOS in <15 minutes. v0.1.0-alpha tagged on GitHub.
 
 ---
 *Roadmap created: 2026-04-07*
-*Last updated: 2026-04-08*
+*Last updated: 2026-04-09*
