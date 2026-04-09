@@ -220,7 +220,7 @@ export function createIssueService(db: Database) {
       const result = await db.transaction(async (tx) => {
         // Allocate number with FOR UPDATE lock
         const rows = await tx.execute(
-          sql`SELECT COALESCE(MAX(number), 0) + 1 AS "nextNumber" FROM issue WHERE project_id = ${data.projectId} FOR UPDATE`,
+          sql`SELECT COALESCE(MAX(number), 0) + 1 AS "nextNumber" FROM (SELECT number FROM issue WHERE project_id = ${data.projectId} FOR UPDATE) AS locked`,
         );
         const nextNumber = Number((rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber);
 
