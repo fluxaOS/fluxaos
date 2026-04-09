@@ -4,14 +4,15 @@
  */
 import 'dotenv/config';
 import { describe, expect, it, afterAll } from 'vitest';
-import { createDatabase } from '@/core/db/connection';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { organization } from '@/core/db/schema';
 import { eq } from 'drizzle-orm';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
 
-const db = createDatabase(url);
+const provider = new SupabaseDatabaseProvider(url);
+const db = provider.getConnection();
 
 describe('supabase postgres connection', () => {
   const testSlug = `test-${Date.now()}`;

@@ -5,7 +5,7 @@
  * Requires: DATABASE_URL or DIRECT_URL set in .env
  */
 import 'dotenv/config';
-import { createDatabase } from './connection';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { organization, project, pipeline, pipelineStage } from './schema';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -14,7 +14,8 @@ if (!url) {
   process.exit(1);
 }
 
-const db = createDatabase(url);
+const provider = new SupabaseDatabaseProvider(url);
+const db = provider.getConnection();
 
 async function seed() {
   console.log('Seeding fluxaOS database...');
