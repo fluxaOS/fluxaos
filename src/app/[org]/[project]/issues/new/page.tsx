@@ -1,30 +1,42 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function NewIssuePage() {
   const router = useRouter();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState('medium');
-  const [type, setType] = useState('task');
+  const params = useParams<{ org: string; project: string }>();
+  const base = `/${params.org}/${params.project}`;
+
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    type: 'task',
+    source: 'web',
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  function set(field: string, value: string) {
+    setForm(f => ({ ...f, [field]: value }));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
 
-    // Get the first project (for now — project switcher comes later)
+    // Get project ID from slug
     const projRes = await fetch('/api/trpc/project.list');
     const projData = await projRes.json();
-    const projectId = projData?.result?.data?.[0]?.id;
+    const project = projData?.result?.data?.find(
+      (p: { slug: string }) => p.slug === params.project,
+    );
 
-    if (!projectId) {
-      setError('No project found. Run the seed script.');
+    if (!project) {
+      setError('Project not found.');
       setSaving(false);
       return;
     }
@@ -32,7 +44,14 @@ export default function NewIssuePage() {
     const res = await fetch('/api/trpc/issue.create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, title, description, priority, type }),
+      body: JSON.stringify({
+        projectId: project.id,
+        title: form.title,
+        description: form.description || undefined,
+        priority: form.priority,
+        type: form.type,
+        source: form.source,
+      }),
     });
 
     const data = await res.json();
@@ -42,14 +61,14 @@ export default function NewIssuePage() {
       return;
     }
 
-    router.push('/dashboard');
+    router.push(`${base}/issues/${data.result.data.id}`);
     router.refresh();
   }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white p-8 max-w-2xl mx-auto">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/dashboard" className="text-neutral-400 hover:text-white">← Back</Link>
+        <Link href={base} className="text-neutral-400 hover:text-white">← Back</Link>
         <h1 className="text-xl font-bold">New Issue</h1>
       </div>
 
@@ -61,10 +80,10 @@ export default function NewIssuePage() {
         )}
 
         <div>
-          <label className="block text-sm text-neutral-300 mb-1">Title</label>
+          <label className="block text-sm text-neutral-300 mb-1">Title *</label>
           <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
+            value={form.title}
+            onChange={e => set('title', e.target.value)}
             required
             className="w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
           />
@@ -73,19 +92,19 @@ export default function NewIssuePage() {
         <div>
           <label className="block text-sm text-neutral-300 mb-1">Description</label>
           <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            rows={4}
+            value={form.description}
+            onChange={e => set('description', e.target.value)}
+            rows={5}
             className="w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm text-neutral-300 mb-1">Priority</label>
             <select
-              value={priority}
-              onChange={e => setPriority(e.target.value)}
+              value={form.priority}
+              onChange={e => set('priority', e.target.value)}
               className="w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2 text-white"
             >
               <option value="low">Low</option>
@@ -97,14 +116,27 @@ export default function NewIssuePage() {
           <div>
             <label className="block text-sm text-neutral-300 mb-1">Type</label>
             <select
-              value={type}
-              onChange={e => setType(e.target.value)}
+              value={form.type}
+              onChange={e => set('type', e.target.value)}
               className="w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2 text-white"
             >
               <option value="task">Task</option>
               <option value="bug">Bug</option>
               <option value="feature">Feature</option>
               <option value="research">Research</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-neutral-300 mb-1">Source</label>
+            <select
+              value={form.source}
+              onChange={e => set('source', e.target.value)}
+              className="w-full rounded bg-neutral-900 border border-neutral-700 px-3 py-2 text-white"
+            >
+              <option value="web">Web</option>
+              <option value="cli">CLI</option>
+              <option value="api">API</option>
+              <option value="github">GitHub</option>
             </select>
           </div>
         </div>

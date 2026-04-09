@@ -126,18 +126,21 @@ describe('issue service', () => {
     cleanup.push({ table: 'issueEvent', id: comment.id });
     expect(comment.type).toBe('comment');
 
-    // List events
+    // List events: 3 state_change (in_progress, closed, open) + 1 comment = 4
     const events = await issueSvc.listEvents(issue.id);
-    expect(events.length).toBe(1);
+    expect(events.length).toBe(4);
+    expect(events.filter(e => e.type === 'state_change').length).toBe(3);
+    expect(events.filter(e => e.type === 'comment').length).toBe(1);
 
     // Update comment
-    const updated = await issueSvc.updateComment(comment.id, { text: 'Updated comment' });
+    const updated = await issueSvc.updateComment(comment.id, { text: 'Updated comment', editedBy: 'test' });
     expect((updated?.payload as any).text).toBe('Updated comment');
 
-    // Delete comment
+    // Delete comment — state_change events remain
     await issueSvc.deleteComment(comment.id);
     const eventsAfter = await issueSvc.listEvents(issue.id);
-    expect(eventsAfter.length).toBe(0);
+    expect(eventsAfter.length).toBe(3);
+    expect(eventsAfter.every(e => e.type === 'state_change')).toBe(true);
     // Remove from cleanup since we already deleted it
     cleanup.pop();
   });
