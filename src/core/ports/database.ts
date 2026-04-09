@@ -1,4 +1,4 @@
-import type { Database } from '@/core/db';
+import type { Database } from '@/core/db/connection';
 
 export interface DatabaseProvider {
   getConnection(): Database;

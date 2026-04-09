@@ -10,6 +10,8 @@ export type StageRunStatus =
   | 'running'
   | 'completed'
   | 'failed'
+  | 'cancelled'
+  | 'timed_out'
   | 'skipped'
   | 'rework';
 
@@ -26,9 +28,11 @@ export const PIPELINE_RUN_TRANSITIONS: Record<
 
 export const STAGE_RUN_TRANSITIONS: Record<StageRunStatus, StageRunStatus[]> = {
   queued: ['running', 'skipped'],
-  running: ['completed', 'failed'],
+  running: ['completed', 'failed', 'cancelled', 'timed_out'],
   completed: ['rework'],
   failed: [],
+  cancelled: [],
+  timed_out: [],
   skipped: [],
   rework: ['queued'],
 };

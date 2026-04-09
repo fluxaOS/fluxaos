@@ -1,170 +1,99 @@
-import { eq } from 'drizzle-orm';
-import { db, pool } from './index';
-import {
-  organization,
-  persona,
-  pipeline,
-  pipelineStage,
-  project,
-} from './schema';
+/**
+ * Seed script — populates Supabase with default org, project, and pipeline.
+ *
+ * Usage: npx tsx src/core/db/seed.ts
+ * Requires: DATABASE_URL or DIRECT_URL set in .env
+ */
+import 'dotenv/config';
+import { createDatabase } from './connection';
+import { organization, project, pipeline, pipelineStage } from './schema';
+
+const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+if (!url) {
+  console.error('ERROR: DIRECT_URL or DATABASE_URL must be set.');
+  process.exit(1);
+}
+
+const db = createDatabase(url);
 
 async function seed() {
-  // Organization
-  const existingOrg = await db
-    .select()
-    .from(organization)
-    .where(eq(organization.slug, 'default'))
-    .limit(1);
+  console.log('Seeding fluxaOS database...');
 
-  let orgId: string;
-  if (existingOrg.length > 0) {
-    orgId = existingOrg[0].id;
-    console.log("Organization 'Default' already exists, skipping");
-  } else {
-    const [org] = await db
-      .insert(organization)
-      .values({ name: 'Default', slug: 'default' })
-      .returning();
-    orgId = org.id;
-    console.log('Created organization: Default');
+  // Default organization
+  const [org] = await db
+    .insert(organization)
+    .values({
+      name: 'Default',
+      slug: 'default',
+      settings: {},
+    })
+    .onConflictDoNothing({ target: organization.slug })
+    .returning();
+
+  if (!org) {
+    console.log('Organization "default" already exists, skipping seed.');
+    process.exit(0);
   }
 
-  // Project
-  const existingProject = await db
-    .select()
-    .from(project)
-    .where(eq(project.slug, 'fluxaos'))
-    .limit(1);
+  console.log(`  Created organization: ${org.name} (${org.id})`);
 
-  let projectId: string;
-  if (existingProject.length > 0) {
-    projectId = existingProject[0].id;
-    console.log("Project 'fluxaos' already exists, skipping");
-  } else {
-    const [proj] = await db
-      .insert(project)
-      .values({ orgId, name: 'fluxaos', slug: 'fluxaos' })
-      .returning();
-    projectId = proj.id;
-    console.log('Created project: fluxaos');
-  }
+  // Default project
+  const [proj] = await db
+    .insert(project)
+    .values({
+      orgId: org.id,
+      name: 'fluxaOS',
+      slug: 'fluxaos',
+      repoUrl: 'https://github.com/fluxaOS/fluxaos',
+    })
+    .returning();
 
-  // Pipeline
-  const existingPipeline = await db
-    .select()
-    .from(pipeline)
-    .where(eq(pipeline.name, 'Standard Dev'))
-    .limit(1);
+  console.log(`  Created project: ${proj.name} (${proj.id})`);
 
-  let pipelineId: string;
-  if (existingPipeline.length > 0) {
-    pipelineId = existingPipeline[0].id;
-    console.log("Pipeline 'Standard Dev' already exists, skipping");
-  } else {
-    const [pipe] = await db
-      .insert(pipeline)
+  // Default pipeline
+  const [pipe] = await db
+    .insert(pipeline)
+    .values({
+      projectId: proj.id,
+      name: 'Standard Dev',
+      description: 'Research → Implement → Review → Deploy',
+      isDefault: true,
+    })
+    .returning();
+
+  console.log(`  Created pipeline: ${pipe.name} (${pipe.id})`);
+
+  // Default stages
+  const stages = [
+    { name: 'research', sortOrder: 1, gateMode: 'auto', harness: 'claude-code' },
+    { name: 'implement', sortOrder: 2, gateMode: 'rules', harness: 'claude-code' },
+    { name: 'review', sortOrder: 3, gateMode: 'hold', harness: 'claude-code' },
+    { name: 'deploy', sortOrder: 4, gateMode: 'hold', harness: 'claude-code' },
+  ];
+
+  for (const stage of stages) {
+    const [s] = await db
+      .insert(pipelineStage)
       .values({
-        projectId,
-        name: 'Standard Dev',
-        isDefault: true,
+        pipelineId: pipe.id,
+        name: stage.name,
+        sortOrder: stage.sortOrder,
+        gateMode: stage.gateMode,
+        harness: stage.harness,
+        timeoutSec: 300,
+        maxRetries: 1,
+        gateRules: [],
       })
       .returning();
-    pipelineId = pipe.id;
-    console.log('Created pipeline: Standard Dev');
+
+    console.log(`    Created stage: ${s.name} (order: ${s.sortOrder})`);
   }
 
-  // Pipeline Stages
-  const existingStages = await db
-    .select()
-    .from(pipelineStage)
-    .where(eq(pipelineStage.pipelineId, pipelineId));
-
-  if (existingStages.length > 0) {
-    console.log(
-      `Pipeline stages already exist (${existingStages.length}), skipping`
-    );
-  } else {
-    const stages = [
-      { pipelineId, name: 'research', sortOrder: 1, gateMode: 'auto' },
-      { pipelineId, name: 'implement', sortOrder: 2, gateMode: 'auto' },
-      { pipelineId, name: 'review', sortOrder: 3, gateMode: 'rules' },
-      { pipelineId, name: 'deploy', sortOrder: 4, gateMode: 'hold' },
-    ] as const;
-
-    await db.insert(pipelineStage).values([...stages]);
-    console.log(
-      'Created 4 pipeline stages: research, implement, review, deploy'
-    );
-  }
-
-  // Default Personas
-  const existingPersonas = await db
-    .select()
-    .from(persona)
-    .where(eq(persona.scope, 'global'))
-    .limit(1);
-
-  if (existingPersonas.length > 0) {
-    console.log('Global personas already exist, skipping');
-  } else {
-    const defaultPersonas = [
-      {
-        name: 'Researcher',
-        scope: 'global' as const,
-        soul: 'A thorough researcher who investigates problems deeply before proposing solutions. Reads documentation, explores codebases, and synthesizes findings into clear analysis.',
-        identity: {
-          role: 'research',
-          style: 'analytical',
-          depth: 'thorough',
-        },
-      },
-      {
-        name: 'Implementer',
-        scope: 'global' as const,
-        soul: 'A skilled developer who writes clean, well-tested code. Follows established patterns, handles edge cases, and keeps changes focused and minimal.',
-        identity: {
-          role: 'implementation',
-          style: 'pragmatic',
-          quality: 'production',
-        },
-      },
-      {
-        name: 'Reviewer',
-        scope: 'global' as const,
-        soul: 'A meticulous code reviewer who checks for correctness, security, performance, and maintainability. Provides specific, actionable feedback.',
-        identity: {
-          role: 'review',
-          style: 'critical',
-          focus: 'quality',
-        },
-      },
-      {
-        name: 'Deployer',
-        scope: 'global' as const,
-        soul: 'A cautious deployment specialist who verifies builds, runs final checks, and handles release mechanics. Prioritizes safety and rollback capability.',
-        identity: {
-          role: 'deployment',
-          style: 'cautious',
-          priority: 'safety',
-        },
-      },
-    ];
-
-    await db.insert(persona).values(defaultPersonas);
-    console.log(
-      'Created 4 default personas: Researcher, Implementer, Reviewer, Deployer'
-    );
-  }
-
-  console.log(
-    '\nSeed complete: 1 org, 1 project, 1 pipeline, 4 stages, 4 personas'
-  );
-
-  await pool.end();
+  console.log('Seed complete.');
+  process.exit(0);
 }
 
 seed().catch((err) => {
   console.error('Seed failed:', err);
-  pool.end();
   process.exit(1);
 });

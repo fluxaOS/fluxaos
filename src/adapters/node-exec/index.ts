@@ -1,1 +1,0 @@
-export { NodeExecAdapter } from './executor';
