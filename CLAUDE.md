@@ -175,3 +175,15 @@ For alpha: one org, one user, one or more projects. The schema and routes are de
 Phases R1-R2 complete. R3 partially done (basic CRUD for all entities works against Supabase). The issue model uses hardcoded enums and must be overhauled to database-driven catalogs per the design spec. The pipeline engine, rules engine, and routing system are not yet built.
 
 A dashboard UI design (glassmorphism, bento grid, card system) was merged via PR #12. It establishes the visual language and shared components (Card, StatCard, PageHeader, StatusBadge, Skeleton, EmptyState) under a `/dashboard/` route structure. This needs to be reconciled with the multi-tenant `/[org]/[user]/[project]/` routing.
+
+## Development Database
+
+There is no production database. This is a pre-alpha development project with zero users. The Supabase Cloud database is the development database.
+
+**Nuke-and-seed script:** A script must exist that:
+1. Drops all user-configurable/user-created data (issues, comments, events, pipeline runs, etc.)
+2. Seeds default catalog data (issue types, states, statuses, priorities, labels, transitions, status automation config)
+3. Seeds a default org, user, and project
+4. Can optionally load fake/mock data for development and testing
+
+Every verification checkpoint starts from a known state: nuke, seed, then verify. No stale data, no mystery state from previous sessions. Agents should never hesitate about modifying the database — there is nothing to protect.
