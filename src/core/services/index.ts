@@ -13,3 +13,5 @@ export { createPipelineService, type PipelineService } from './pipeline';
 export { createProviderService, type ProviderService } from './provider';
 export { createRoutingService, type RoutingService } from './routing';
 export { createBrandService, type BrandService } from './brand';
+export { createUserService, type UserService } from './user';
+export { createIssueCatalogService, type IssueCatalogService } from './issue-catalog';
