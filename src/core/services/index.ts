@@ -15,3 +15,8 @@ export { createRoutingService, type RoutingService } from './routing';
 export { createBrandService, type BrandService } from './brand';
 export { createUserService, type UserService } from './user';
 export { createIssueCatalogService, type IssueCatalogService } from './issue-catalog';
+export { createIssueCommentService, type IssueCommentService } from './issue-comment';
+export { createIssueAttachmentService, type IssueAttachmentService } from './issue-attachment';
+export { createIssueDependencyService, type IssueDependencyService } from './issue-dependency';
+export { createIssueEventService, type IssueEventService } from './issue-event';
+export { createIssueSavedViewService, type IssueSavedViewService } from './issue-saved-view';
