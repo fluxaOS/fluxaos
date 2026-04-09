@@ -2,13 +2,13 @@
 
 ## Overview
 
-fluxaOS ships in 7 phases over 14 weeks. Phase 1 lays the bones (repo, schema, auth, Docker). Phase 2 makes it self-managing (issues, skills, CLI). Phases 3-4 build the config and execution engine. Phase 5-6 wire up the UI and real AI providers. Phase 7 hardens, polishes, and ships v0.1.0-alpha on GitHub. Every phase produces working, testable software.
+fluxaOS ships in 8 phases over 14 weeks. Phase 1 lays the bones (repo, schema, auth, Docker). Phase 2 makes it self-managing (issues, skills, CLI). Phases 3-4 build the config and execution engine. Phase 5-6 wire up the UI and real AI providers. Phase 7 adds observability and polish. Phase 8 fixes CI, adds E2E tests, and ships v0.1.0-alpha on GitHub. Every phase produces working, testable software.
 
 ## Current Milestone
 
 **v0.1.0-alpha** (first open-source release)
 Status: In progress
-Phases: 4 of 7 complete
+Phases: 7 of 8 complete (Phase 7 partial)
 
 ## Phases
 
@@ -20,7 +20,8 @@ Phases: 4 of 7 complete
 | 4 | Pipeline Engine | 4 | Complete | 2026-04-08 |
 | 5 | Web UI — Core Pages | 3 | Complete | 2026-04-08 |
 | 6 | AI Provider Adapters & Real Execution | 4 | Complete | 2026-04-08 |
-| 7 | Observability, Polish & Ship | TBD | Not started | - |
+| 7 | Observability & Polish | 4 | Partial | 2026-04-08 |
+| 8 | Ship Alpha | 4 | Not started | - |
 
 ## Phase Details
 
@@ -207,13 +208,40 @@ Phases: 4 of 7 complete
 - AGPLv3 license file, .github/ (issue templates, contributing guide, CI)
 
 **Plans:**
-- [ ] 07-01: KPI dashboard
-- [ ] 07-02: Docker Compose hardening + default seed data
-- [ ] 07-03: README + install guide
-- [ ] 07-04: E2E tests + bug sweep + GitHub release
+- [x] 07-01: KPI dashboard
+- [x] 07-02: Docker Compose hardening + .env.example
+- [x] 07-03: README + AGPLv3 license
+- [x] 07-04: Cost parser + prompt assembler tests
 
-**Exit criteria:** Clone → `docker compose up` → follow README → working fluxaOS in <15 minutes. v0.1.0-alpha tagged on GitHub.
+**Exit criteria:** KPI dashboard live, Docker Compose self-contained, README rewritten, license added, new unit tests passing.
+
+**Note:** Remaining original Phase 7 scope (E2E tests, seed data, bug sweep, .github/ templates, GitHub release) moved to Phase 8.
+
+---
+
+### Phase 8: Ship Alpha
+
+**Goal:** Fix CI, add E2E tests, expand seed data, add .github/ templates, tag v0.1.0-alpha.
+**Depends on:** All phases (1-7)
+**Research:** Unlikely
+**Duration estimate:** Week 14
+
+**Scope:**
+- CI fix (website/ Biome format errors + missing marketing component imports)
+- E2E test suite: login → configure → run → observe → approve
+- Seed data expansion: Standard Dev pipeline, 4 default personas (researcher, implementer, reviewer, deployer)
+- `.github/` templates: issue templates, CONTRIBUTING.md, PR template
+- Bug sweep (all known issues from Phases 1-7)
+- GitHub release: v0.1.0-alpha with changelog
+
+**Plans:**
+- [ ] 08-01: CI fix (website/ Biome + TypeScript errors)
+- [ ] 08-02: E2E test suite
+- [ ] 08-03: Seed data + .github/ templates + CONTRIBUTING.md
+- [ ] 08-04: Bug sweep + v0.1.0-alpha GitHub release with changelog
+
+**Exit criteria:** CI green on main. Clone → `docker compose up` → follow README → working fluxaOS in <15 minutes. v0.1.0-alpha tagged on GitHub.
 
 ---
 *Roadmap created: 2026-04-07*
-*Last updated: 2026-04-07*
+*Last updated: 2026-04-08*

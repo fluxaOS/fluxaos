@@ -5,19 +5,19 @@
 See: .paul/PROJECT.md (updated 2026-04-08)
 
 **Core value:** Orchestrate any AI workflow end-to-end with configurable pipelines, provider-agnostic routing, gate-controlled quality, and full observability — no vendor lock-in.
-**Current focus:** Phase 7 — Observability, Polish & Ship
+**Current focus:** Phase 8 — Ship Alpha
 
 ## Current Position
 
 Milestone: v0.1.0-alpha
-Phase: 7 of 7 (Observability, Polish & Ship) — Not started
+Phase: 8 (Ship Alpha) — Not started
 Plan: None yet
-Status: Phase 6 complete, ready to begin Phase 7
-Last activity: 2026-04-08 — Phase 6 complete (AI adapters, prompt assembly, cost parsing, fallback)
+Status: Phase 7 partially complete, ready to begin Phase 8
+Last activity: 2026-04-08 — Phase 7 partial (KPI dashboard, Docker Compose, README, license, tests)
 
 Progress:
-- Milestone: [▓▓▓▓▓▓▓▓░░] ~86% (6 of 7 phases complete)
-- Phase 7: [░░░░░░░░░░] 0%
+- Milestone: [▓▓▓▓▓▓▓▓▓░] ~90% (7 of 8 phases, Phase 7 partial)
+- Phase 8: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
@@ -51,6 +51,9 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | Hardcoded cost rates per model | Phase 6 | Anthropic/OpenAI rates hardcoded; DB rates may not be populated |
 | Prompt via FLUXAOS_PROMPT env var | Phase 6 | Simplest mechanism; may hit env size limits for long prompts |
 | resolveRoutes() returns ranked list for fallback | Phase 6 | Worker tries each candidate in order |
+| `.gitignore` exception for `.env.example` | Phase 7 | `.env*` glob was blocking template; `!.env.example` added |
+| Mock DB in prompt-assembler tests | Phase 7 | Fast isolated tests; no test DB dependency |
+| Phase 7 partial → Phase 8 split | Phase 7 | E2E, seed data, bug sweep, release deferred to dedicated session |
 
 ### Deferred Issues
 
@@ -68,6 +71,7 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | Node.js subprocess management — Python escape hatch | DA review | M | Phase 6 |
 | Replace polling with Supabase Realtime for run detail page | Phase 5 | S | Phase 7 |
 | FLUXAOS_PROMPT env var size limit for large prompts | Phase 6 | S | Post-alpha (use temp file) |
+| website/ marketing components missing (header/footer) | Phase 7 CI | S | Phase 8 (08-01) |
 
 ### Blockers/Concerns
 
@@ -76,13 +80,14 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Phase 6 fully complete
-Next action: /paul:discuss (Phase 7: Observability, Polish & Ship)
-Resume file: .paul/handoffs/HANDOFF-2026-04-08-phase6.md
+Stopped at: Phase 7 partially complete (KPI dashboard, Docker Compose, README, license, tests delivered; E2E tests, seed data, bug sweep, release remain)
+Next action: /paul:plan (Phase 8: Ship Alpha)
+Resume file: .paul/handoffs/HANDOFF-2026-04-08-phase7.md
 Resume context:
-- Phase 6 delivered: Anthropic + OpenAI AIProvider adapters, GitHub GitProvider, prompt assembler, cost parser, provider fallback
-- Phase 7 scope: KPI dashboard, Docker Compose hardening, README, E2E tests, GitHub release
-- ROADMAP flags research unlikely
+- Phase 7 delivered: KPI dashboard, Docker Compose hardening (3 services), README rewrite, AGPLv3 license, cost-parser + prompt-assembler tests (95/95 passing)
+- Phase 8 scope: CI fix (website/ errors), E2E tests, seed data + .github/ templates, bug sweep + v0.1.0-alpha release
+- CI currently fails on website/ pre-existing issues (Biome format + missing marketing components)
+- PR #9 merged to main
 
 ---
 *STATE.md — Updated after every significant action*
