@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
+  index,
   integer,
   jsonb,
   numeric,
@@ -148,37 +149,6 @@ export const event = pgTable('event', {
     .references(() => stageRun.id),
   type: text('type').notNull(),
   payload: jsonb('payload').notNull(),
-  timestamp: timestamp('timestamp', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  createdAt,
-});
-
-// ─── Issues ─────────────────────────────────────────────────────────────────
-
-export const issue = pgTable('issue', {
-  id,
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => project.id),
-  title: text('title').notNull(),
-  description: text('description'),
-  state: text('state').notNull().default('open'),
-  priority: text('priority').default('medium'),
-  type: text('type').default('task'),
-  createdBy: text('created_by'),
-  source: text('source').default('internal'),
-  createdAt,
-  updatedAt,
-});
-
-export const issueEvent = pgTable('issue_event', {
-  id,
-  issueId: uuid('issue_id')
-    .notNull()
-    .references(() => issue.id),
-  type: text('type').notNull(),
-  payload: jsonb('payload'),
   timestamp: timestamp('timestamp', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -345,6 +315,186 @@ export const issueTransition = pgTable(
       .where(sql`${t.projectId} IS NULL`),
   ]
 );
+
+// ─── Issues (rich model) ───────────────────────────────────────────────────
+
+export const issue = pgTable(
+  'issue',
+  {
+    id,
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    bodyMd: text('body_md'),
+    bodyHtml: text('body_html'),
+    stateId: uuid('state_id')
+      .notNull()
+      .references(() => issueState.id, { onDelete: 'restrict' }),
+    statusId: uuid('status_id')
+      .notNull()
+      .references(() => issueStatus.id, { onDelete: 'restrict' }),
+    typeId: uuid('type_id')
+      .notNull()
+      .references(() => issueType.id, { onDelete: 'restrict' }),
+    priorityId: uuid('priority_id')
+      .notNull()
+      .references(() => issuePriority.id, { onDelete: 'restrict' }),
+    isClosed: boolean('is_closed').notNull().default(false),
+    assignee: text('assignee'),
+    author: text('author').notNull().default('system'),
+    labels: jsonb('labels').notNull().default(sql`'[]'::jsonb`),
+    version: integer('version').notNull().default(1),
+    source: text('source').default('internal'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_project_number_idx').on(t.projectId, t.number),
+    index('issue_project_closed_idx').on(t.projectId, t.isClosed),
+  ]
+);
+
+export const issueEvent = pgTable('issue_event', {
+  id,
+  issueId: uuid('issue_id')
+    .notNull()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  actor: text('actor').notNull().default('system'),
+  type: text('type').notNull(),
+  payload: jsonb('payload'),
+  timestamp: timestamp('timestamp', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdAt,
+});
+
+// ─── Issue Entities ────────────────────────────────────────────────────────
+
+export const issueComment = pgTable('issue_comment', {
+  id,
+  issueId: uuid('issue_id')
+    .notNull()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  commentNumber: integer('comment_number').notNull(),
+  bodyMd: text('body_md'),
+  bodyHtml: text('body_html'),
+  author: text('author'),
+  version: integer('version').notNull().default(1),
+  isDeleted: boolean('is_deleted').notNull().default(false),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  createdAt,
+  updatedAt,
+});
+
+export const issueAttachment = pgTable('issue_attachment', {
+  id,
+  issueId: uuid('issue_id')
+    .notNull()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  storageUrl: text('storage_url').notNull(),
+  uploadedBy: text('uploaded_by'),
+  createdAt,
+  updatedAt,
+});
+
+export const issueDependency = pgTable(
+  'issue_dependency',
+  {
+    id,
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    dependsOnIssueId: uuid('depends_on_issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    dependencyType: text('dependency_type').notNull().default('blocks'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_dependency_unique_idx').on(
+      t.projectId,
+      t.issueId,
+      t.dependsOnIssueId
+    ),
+  ]
+);
+
+export const issueSavedView = pgTable('issue_saved_view', {
+  id,
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => project.id),
+  name: text('name').notNull(),
+  filters: jsonb('filters').notNull(),
+  sortField: text('sort_field'),
+  sortOrder: text('sort_order'),
+  limit: integer('limit'),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdBy: text('created_by'),
+  createdAt,
+  updatedAt,
+});
+
+// ─── Issue Git Placeholders (no CRUD until R5) ────────────────────────────
+
+export const issueBranch = pgTable('issue_branch', {
+  id,
+  issueId: uuid('issue_id')
+    .notNull()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  repo: text('repo').notNull(),
+  branchName: text('branch_name').notNull(),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  createdBy: text('created_by'),
+  createdAt,
+  updatedAt,
+});
+
+export const issuePullRequest = pgTable('issue_pull_request', {
+  id,
+  issueId: uuid('issue_id')
+    .notNull()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  repo: text('repo').notNull(),
+  provider: text('provider').notNull(),
+  prNumber: integer('pr_number').notNull(),
+  prUrl: text('pr_url').notNull(),
+  title: text('title').notNull(),
+  state: text('state').notNull(),
+  headBranch: text('head_branch').notNull(),
+  baseBranch: text('base_branch').notNull(),
+  author: text('author'),
+  mergedAt: timestamp('merged_at', { withTimezone: true }),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  createdAt,
+  updatedAt,
+});
+
+export const issueCommit = pgTable('issue_commit', {
+  id,
+  issueId: uuid('issue_id')
+    .notNull()
+    .references(() => issue.id, { onDelete: 'cascade' }),
+  repo: text('repo').notNull(),
+  sha: text('sha').notNull(),
+  author: text('author'),
+  message: text('message'),
+  committedAt: timestamp('committed_at', { withTimezone: true }).notNull(),
+  createdAt,
+  updatedAt,
+});
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 
@@ -515,16 +665,27 @@ export const memory = pgTable('memory', {
 
 // ─── System ─────────────────────────────────────────────────────────────────
 
-export const configEntry = pgTable('config_entry', {
-  id,
-  scope: text('scope').notNull().default('global'),
-  key: text('key').notNull(),
-  value: jsonb('value').notNull(),
-  previousValue: jsonb('previous_value'),
-  changedBy: text('changed_by'),
-  createdAt,
-  updatedAt,
-});
+export const configEntry = pgTable(
+  'config_entry',
+  {
+    id,
+    scope: text('scope').notNull().default('global'),
+    projectId: uuid('project_id').references(() => project.id),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+    previousValue: jsonb('previous_value'),
+    changedBy: text('changed_by'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('config_entry_scope_project_key_idx').on(
+      t.scope,
+      t.projectId,
+      t.key
+    ),
+  ]
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Relations
@@ -620,7 +781,25 @@ export const issueRelations = relations(issue, ({ one, many }) => ({
     fields: [issue.projectId],
     references: [project.id],
   }),
+  state: one(issueState, {
+    fields: [issue.stateId],
+    references: [issueState.id],
+  }),
+  status: one(issueStatus, {
+    fields: [issue.statusId],
+    references: [issueStatus.id],
+  }),
+  type: one(issueType, {
+    fields: [issue.typeId],
+    references: [issueType.id],
+  }),
+  priority: one(issuePriority, {
+    fields: [issue.priorityId],
+    references: [issuePriority.id],
+  }),
   events: many(issueEvent),
+  comments: many(issueComment),
+  attachments: many(issueAttachment),
   pipelineRuns: many(pipelineRun),
 }));
 
@@ -629,6 +808,69 @@ export const issueEventRelations = relations(issueEvent, ({ one }) => ({
     fields: [issueEvent.issueId],
     references: [issue.id],
   }),
+}));
+
+export const issueCommentRelations = relations(issueComment, ({ one }) => ({
+  issue: one(issue, {
+    fields: [issueComment.issueId],
+    references: [issue.id],
+  }),
+}));
+
+export const issueAttachmentRelations = relations(
+  issueAttachment,
+  ({ one }) => ({
+    issue: one(issue, {
+      fields: [issueAttachment.issueId],
+      references: [issue.id],
+    }),
+  })
+);
+
+export const issueDependencyRelations = relations(
+  issueDependency,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [issueDependency.projectId],
+      references: [project.id],
+    }),
+    issue: one(issue, {
+      fields: [issueDependency.issueId],
+      references: [issue.id],
+      relationName: 'dependentIssue',
+    }),
+    dependsOn: one(issue, {
+      fields: [issueDependency.dependsOnIssueId],
+      references: [issue.id],
+      relationName: 'blockingIssue',
+    }),
+  })
+);
+
+export const issueSavedViewRelations = relations(
+  issueSavedView,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [issueSavedView.projectId],
+      references: [project.id],
+    }),
+  })
+);
+
+export const issueTypeRelations = relations(issueType, ({ many }) => ({
+  issues: many(issue),
+}));
+
+export const issueStateRelations = relations(issueState, ({ many }) => ({
+  issues: many(issue),
+}));
+
+export const issueStatusRelations = relations(issueStatus, ({ many }) => ({
+  issues: many(issue),
+}));
+
+export const issuePriorityRelations = relations(issuePriority, ({ many }) => ({
+  issues: many(issue),
 }));
 
 export const providerRelations = relations(provider, ({ one, many }) => ({
