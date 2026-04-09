@@ -3,13 +3,13 @@
 :root {
   --background: #0b0a10;
   --foreground: #e4e2eb;
-  --void: #0B0014;
+  --void: #0b0014;
   --abyss: #150030;
-  --deep-violet: #2D1B69;
-  --royal-violet: #5B21B6;
-  --electric-violet: #7C3AED;
-  --soft-violet: #A78BFA;
-  --pale-violet: #DDD6FE;
+  --deep-violet: #2d1b69;
+  --royal-violet: #5b21b6;
+  --electric-violet: #7c3aed;
+  --soft-violet: #a78bfa;
+  --pale-violet: #ddd6fe;
 }
 
 @theme inline {

@@ -24,7 +24,7 @@ Progress:
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ○        ○        ○     [New phase — needs PLAN]
+  ○        ○        ○     [Ready for Phase 5 PLAN]
 ```
 
 ## Accumulated Context
@@ -36,14 +36,16 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | Use central_databases stack (not per-project Docker) | Phase 1, Plan 02 | postgres via pgbouncer on :5432, redis on :6379 with auth; docker-compose.yml stripped |
 | Apply migrations via direct SQL (drizzle-kit migrate hangs) | Phase 1, Plan 02 | Workaround for drizzle-kit v0.31.10 pg pool close issue |
 | Adapter boundaries NON-NEGOTIABLE | Pre-flight | Every vendor integration behind port interface from day one |
-| Supabase Cloud for alpha (not self-hosted) | Pre-flight | 3-container Docker Compose, zero auth/realtime ops |
+| Supabase Cloud for alpha (not self-hosted) | Pre-flight | Hosted Postgres + auth + realtime, zero ops |
 | Skills DB → disk materialization | Pre-flight | Harnesses read files; DB is source of truth |
 | Sequential phases for solo dev | Pre-flight | 14-week timeline; phases 5+6 can partially overlap |
 | Native fetch for GitHub API (no Octokit) | Phase 2, Plan 01 | Minimize alpha dependencies |
 | State machine via VALID_TRANSITIONS map | Phase 2, Plan 01 | Simple, explicit, type-safe transitions |
 | Hard delete for skills in alpha | Phase 2, Plan 02 | Simplest approach, revisit post-alpha |
 | No external CLI dependencies | Phase 2, Plan 03 | process.argv + parseFlag, zero packages |
-| Polling over Supabase Realtime for live UI data | Phase 5 | React Query refetchInterval; swap to Realtime post-alpha |
+| Gate verdict severity: proceed < hold < rework < abort | Phase 4 | Worst verdict wins when multiple rules fail |
+| Cost parsing deferred to Phase 6 | Phase 4 | Hardcoded to '0' until real AI providers wired up |
+| Polling over Supabase Realtime for live UI data | Phase 5 | React Query refetchInterval; swap to Realtime in Phase 6/7 |
 | Hardcoded first org/project context for alpha | Phase 5 | Single-user assumption; every page loads first org → first project |
 | No component library (Tailwind only) | Phase 5 | Zero new UI dependencies for alpha |
 | Hardcoded cost rates per model | Phase 6 | Anthropic/OpenAI rates hardcoded; DB rates may not be populated |
@@ -58,10 +60,16 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | Issue | Origin | Effort | Revisit |
 |-------|--------|--------|---------|
 | drizzle-kit migrate hangs (pg pool close) | Phase 1, Plan 02 | S | Next drizzle-kit update |
-| CLI authentication model (PAT vs Supabase session) | Pre-flight | S | Post-alpha |
-| Supabase Auth middleware containment (not inside adapters/) | Pre-flight | M | Post-alpha |
-| Node.js subprocess management — Python escape hatch | DA review | M | Post-alpha |
-| Replace polling with Supabase Realtime for run detail page | Phase 5 | S | Phase 8 or post-alpha |
+| CLI authentication model (PAT vs Supabase session) | Pre-flight | S | Phase 5 or later |
+| Supabase Auth middleware (not wired into tRPC) | Phase 1 | M | Phase 5 |
+| Supabase Realtime adapter (not implemented) | Phase 1 | M | Phase 5 |
+| Cost parsing from harness output | Phase 4 | M | Phase 6 |
+| Node.js subprocess management — Python escape hatch | DA review | M | Phase 6 |
+| Supabase Realtime throughput under high-volume streaming | DA review | M | Phase 5 |
+| CLI authentication model (PAT vs Supabase session) | Pre-flight | S | Phase 3 or later |
+| Supabase Auth middleware containment (not inside adapters/) | Pre-flight | M | Phase 3 |
+| Node.js subprocess management — Python escape hatch | DA review | M | Phase 6 |
+| Replace polling with Supabase Realtime for run detail page | Phase 5 | S | Phase 7 |
 | FLUXAOS_PROMPT env var size limit for large prompts | Phase 6 | S | Post-alpha (use temp file) |
 | website/ marketing components missing (header/footer) | Phase 7 CI | S | Phase 8 (08-01) |
 

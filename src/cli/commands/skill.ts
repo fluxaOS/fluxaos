@@ -33,7 +33,7 @@ Usage:
         return;
       }
       console.log(
-        'Name'.padEnd(30) + 'Scope'.padEnd(12) + 'Version'.padEnd(10) + 'Tags'
+        `${'Name'.padEnd(30) + 'Scope'.padEnd(12) + 'Version'.padEnd(10)}Tags`
       );
       console.log('-'.repeat(70));
       for (const s of skills) {

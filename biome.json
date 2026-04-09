@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
   "vcs": { "useIgnoreFile": true },
-  "files": { "includes": ["**", "!**/.next"] },
+  "files": { "includes": ["**", "!**/.next", "!website"] },
   "linter": { "enabled": true },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
   "css": {

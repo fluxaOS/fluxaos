@@ -67,6 +67,7 @@ describe('assemblePrompt', () => {
       assignee: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any);
 
     const result = await assemblePrompt({

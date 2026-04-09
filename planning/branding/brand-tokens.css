@@ -10,21 +10,21 @@
 
 :root {
   /* Brand — Violet Gradient */
-  --brand-void: #0B0014;
+  --brand-void: #0b0014;
   --brand-abyss: #150030;
-  --brand-deep: #2D1B69;
-  --brand: #5B21B6;
-  --brand-electric: #7C3AED;
-  --brand-soft: #A78BFA;
-  --brand-pale: #DDD6FE;
+  --brand-deep: #2d1b69;
+  --brand: #5b21b6;
+  --brand-electric: #7c3aed;
+  --brand-soft: #a78bfa;
+  --brand-pale: #ddd6fe;
 
   /* Semantic — custom, not Tailwind defaults */
-  --color-success: #188C42;
-  --color-warning: #F5A314;
-  --color-error: #CE1212;
-  --color-info: #097FC3;
+  --color-success: #188c42;
+  --color-warning: #f5a314;
+  --color-error: #ce1212;
+  --color-info: #097fc3;
 
   /* Typography */
-  --font-sans: 'Geist Sans', 'Inter', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: "Geist Sans", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", "Fira Code", monospace;
 }
