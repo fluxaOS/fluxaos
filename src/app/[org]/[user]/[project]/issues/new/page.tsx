@@ -1,7 +1,7 @@
 import { resolveContext } from '@/lib/resolve-context';
-import { DashboardClient } from './dashboard-client';
+import { IssueCreateClient } from './client';
 
-export default async function DashboardPage({
+export default async function IssueCreatePage({
   params,
 }: {
   params: Promise<{ org: string; user: string; project: string }>;
@@ -10,9 +10,8 @@ export default async function DashboardPage({
   const ctx = await resolveContext(org, user, project);
 
   return (
-    <DashboardClient
+    <IssueCreateClient
       projectId={ctx.project.id}
-      projectName={ctx.project.name}
       basePath={`/${org}/${user}/${project}`}
     />
   );
