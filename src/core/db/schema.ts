@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   integer,
@@ -184,6 +184,167 @@ export const issueEvent = pgTable('issue_event', {
     .notNull(),
   createdAt,
 });
+
+// ─── Issue Catalogs ────────────────────────────────────────────────────────
+
+export const issueType = pgTable(
+  'issue_type',
+  {
+    id,
+    projectId: uuid('project_id').references(() => project.id, {
+      onDelete: 'restrict',
+    }),
+    key: text('key').notNull(),
+    displayName: text('display_name').notNull(),
+    description: text('description'),
+    color: text('color').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_type_project_key_idx')
+      .on(t.projectId, t.key)
+      .where(sql`${t.projectId} IS NOT NULL`),
+    uniqueIndex('issue_type_global_key_idx')
+      .on(t.key)
+      .where(sql`${t.projectId} IS NULL`),
+  ]
+);
+
+export const issueState = pgTable(
+  'issue_state',
+  {
+    id,
+    projectId: uuid('project_id').references(() => project.id, {
+      onDelete: 'restrict',
+    }),
+    key: text('key').notNull(),
+    displayName: text('display_name').notNull(),
+    description: text('description'),
+    color: text('color').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    isTerminal: boolean('is_terminal').notNull().default(false),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_state_project_key_idx')
+      .on(t.projectId, t.key)
+      .where(sql`${t.projectId} IS NOT NULL`),
+    uniqueIndex('issue_state_global_key_idx')
+      .on(t.key)
+      .where(sql`${t.projectId} IS NULL`),
+  ]
+);
+
+export const issueStatus = pgTable(
+  'issue_status',
+  {
+    id,
+    projectId: uuid('project_id').references(() => project.id, {
+      onDelete: 'restrict',
+    }),
+    key: text('key').notNull(),
+    displayName: text('display_name').notNull(),
+    description: text('description'),
+    sortOrder: integer('sort_order').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_status_project_key_idx')
+      .on(t.projectId, t.key)
+      .where(sql`${t.projectId} IS NOT NULL`),
+    uniqueIndex('issue_status_global_key_idx')
+      .on(t.key)
+      .where(sql`${t.projectId} IS NULL`),
+  ]
+);
+
+export const issuePriority = pgTable(
+  'issue_priority',
+  {
+    id,
+    projectId: uuid('project_id').references(() => project.id, {
+      onDelete: 'restrict',
+    }),
+    key: text('key').notNull(),
+    displayName: text('display_name').notNull(),
+    description: text('description'),
+    color: text('color').notNull(),
+    weight: integer('weight').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_priority_project_key_idx')
+      .on(t.projectId, t.key)
+      .where(sql`${t.projectId} IS NOT NULL`),
+    uniqueIndex('issue_priority_global_key_idx')
+      .on(t.key)
+      .where(sql`${t.projectId} IS NULL`),
+  ]
+);
+
+export const issueLabel = pgTable(
+  'issue_label',
+  {
+    id,
+    projectId: uuid('project_id').references(() => project.id, {
+      onDelete: 'restrict',
+    }),
+    key: text('key').notNull(),
+    displayName: text('display_name').notNull(),
+    description: text('description'),
+    color: text('color').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_label_project_key_idx')
+      .on(t.projectId, t.key)
+      .where(sql`${t.projectId} IS NOT NULL`),
+    uniqueIndex('issue_label_global_key_idx')
+      .on(t.key)
+      .where(sql`${t.projectId} IS NULL`),
+  ]
+);
+
+export const issueTransition = pgTable(
+  'issue_transition',
+  {
+    id,
+    projectId: uuid('project_id').references(() => project.id, {
+      onDelete: 'restrict',
+    }),
+    fromStateId: uuid('from_state_id')
+      .notNull()
+      .references(() => issueState.id, { onDelete: 'restrict' }),
+    toStateId: uuid('to_state_id')
+      .notNull()
+      .references(() => issueState.id, { onDelete: 'restrict' }),
+    description: text('description'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_transition_project_states_idx')
+      .on(t.projectId, t.fromStateId, t.toStateId)
+      .where(sql`${t.projectId} IS NOT NULL`),
+    uniqueIndex('issue_transition_global_states_idx')
+      .on(t.fromStateId, t.toStateId)
+      .where(sql`${t.projectId} IS NULL`),
+  ]
+);
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 
