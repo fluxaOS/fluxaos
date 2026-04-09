@@ -37,17 +37,30 @@ function mapJob<T>(bullJob: BullJob<T>): Job<T> {
 }
 
 export class BullMQAdapter implements QueueProvider {
-  private connection: IORedis;
+  private connection: IORedis | null = null;
+  private redisUrl: string;
   private queues = new Map<string, Queue>();
 
   constructor(redisUrl: string) {
-    this.connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+    this.redisUrl = redisUrl;
+    // Lazy connection — don't connect until first use.
+    // Prevents ioredis errors when Redis isn't available (e.g., dev without Docker).
+  }
+
+  private getConnection(): IORedis {
+    if (!this.connection) {
+      this.connection = new Redis(this.redisUrl, {
+        maxRetriesPerRequest: null,
+        lazyConnect: true,
+      });
+    }
+    return this.connection;
   }
 
   private getQueue(name: string): Queue {
     let queue = this.queues.get(name);
     if (!queue) {
-      queue = new Queue(name, { connection: this.connection });
+      queue = new Queue(name, { connection: this.getConnection() });
       this.queues.set(name, queue);
     }
     return queue;
@@ -75,7 +88,7 @@ export class BullMQAdapter implements QueueProvider {
       async (bullJob) => {
         await handler(mapJob(bullJob));
       },
-      { connection: this.connection },
+      { connection: this.getConnection() },
     );
   }
 
@@ -100,7 +113,9 @@ export class BullMQAdapter implements QueueProvider {
 
   async healthCheck(): Promise<boolean> {
     try {
-      const result = await this.connection.ping();
+      const conn = this.getConnection();
+      await conn.connect();
+      const result = await conn.ping();
       return result === 'PONG';
     } catch {
       return false;
