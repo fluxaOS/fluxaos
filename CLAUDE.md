@@ -31,6 +31,52 @@ The first eight phases of this rewrite went off course: agents made autonomous a
 
 ---
 
+## Two Actors: The Orchestrator and The Workers
+
+This is one of the most important architectural decisions in the system. There are two types of actors, and they have completely different responsibilities:
+
+### The System Service (systemd daemon) — The Orchestrator
+
+This is the brain. It runs as a background service on a heartbeat. It:
+- Wakes up on its heartbeat interval
+- Checks the database for issues that need work
+- Evaluates the rules engine (gates, transitions, routing)
+- Assigns work to AI workers via the job queue
+- Reads results back from workers
+- Updates issue state, status, priority, pipeline stage — all database writes for pipeline progression
+- Transitions issues to the next stage based on the rules
+- Records events and audit trail entries
+
+The orchestrator is the ONLY actor that manages pipeline state. It decides what happens next. It writes to the database.
+
+### The AI Workers — Pure Executors
+
+AI workers are dumb pipes. They:
+- Receive a task from the queue: a prompt, a skill, a context
+- Do the work (write code, research, review, etc.)
+- Report what they did by adding a comment to the issue
+- That's it. They're done.
+
+AI workers do NOT:
+- Know what pipeline stage they're in
+- Know the issue's state, status, or priority
+- Poll the database to check status
+- Update issue state, status, priority, type, or pipeline stage
+- Delete comments
+- Make any pipeline or routing decisions
+
+AI workers treat the database as **read-only** (except for adding/editing their own comments). They don't know they're part of a pipeline. They get a prompt, do the work, report back. The orchestrator handles everything else.
+
+**Why this matters:** In PAT, AI workers were polling the database every 3-5 minutes, burning through the Anthropic API plan in a single day. The AI was doing the orchestrator's job. That's wrong. The systemd service does the orchestrating. The AI does the work. Clean separation.
+
+**Comment permissions for AI workers:**
+- Can add comments (with author attribution)
+- Can edit their own comments (with audit trail: who, when, old value, new value)
+- Cannot delete comments
+- Every add/edit creates an audit trail entry
+
+---
+
 ## Invariants — Rules That Are Never Violated
 
 These are not guidelines. These are hard constraints. Every piece of work must satisfy all of them. If your work violates any invariant, it is wrong regardless of whether it "works."
