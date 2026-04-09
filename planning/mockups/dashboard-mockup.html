@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440">
+<title>fluxaOS Dashboard — Design Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --void: #0B0014;
+    --abyss: #150030;
+    --deep-violet: #2D1B69;
+    --royal: #5B21B6;
+    --electric: #7C3AED;
+    --soft: #A78BFA;
+    --pale: #DDD6FE;
+    --slate-950: #020617;
+    --slate-900: #0F172A;
+    --slate-800: #1E293B;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748B;
+    --slate-400: #94A3B8;
+    --slate-300: #CBD5E1;
+    --success: #188C42;
+    --warning: #F5A314;
+    --error: #CE1212;
+    --info: #097FC3;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--void);
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* BACKGROUND */
+  /* ═══════════════════════════════════════════════════════════ */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 10%, rgba(45,27,105,0.35) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 40% at 80% 80%, rgba(91,33,182,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 30% 30% at 60% 40%, rgba(124,58,237,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* SIDEBAR */
+  /* ═══════════════════════════════════════════════════════════ */
+  .sidebar {
+    width: 250px;
+    min-height: 100vh;
+    background: linear-gradient(180deg, var(--slate-900) 0%, var(--void) 100%);
+    border-right: 1px solid rgba(51,65,85,0.3);
+    padding: 20px 12px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 10;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+  }
+
+  .logo { padding: 0 12px; margin-bottom: 8px; }
+  .logo h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo h1 .accent { color: var(--soft); }
+  .logo p { font-size: 11px; color: var(--slate-500); margin-top: 2px; }
+  .sidebar-divider { height: 1px; background: rgba(51,65,85,0.3); margin: 16px 12px; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 10px;
+    font-size: 14px; color: var(--slate-400);
+    text-decoration: none; transition: all 0.2s;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--slate-300); }
+  .nav-item.active {
+    background: linear-gradient(135deg, var(--electric), var(--royal));
+    color: white; font-weight: 600;
+    box-shadow: 0 4px 16px rgba(124,58,237,0.35), 0 0 0 1px rgba(124,58,237,0.2);
+  }
+  .nav-item .icon { width: 20px; height: 20px; opacity: 0.6; }
+  .nav-item.active .icon { opacity: 1; }
+
+  .nav-section { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--slate-600); padding: 24px 14px 8px; }
+
+  .nav-item.sub { padding-left: 28px; font-size: 13px; }
+
+  .version { margin-top: auto; padding: 0 14px; font-size: 11px; color: var(--slate-700); font-family: 'JetBrains Mono', monospace; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* MAIN */
+  /* ═══════════════════════════════════════════════════════════ */
+  .main {
+    flex: 1;
+    padding: 28px 36px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 1;
+    max-height: 100vh;
+  }
+
+  .breadcrumb { font-size: 12px; color: var(--slate-500); margin-bottom: 4px; }
+  .page-title { font-size: 24px; font-weight: 700; margin-bottom: 24px; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* CARD BASE */
+  /* ═══════════════════════════════════════════════════════════ */
+  .card {
+    background: var(--slate-800);
+    border-radius: 18px;
+    border: 1px solid rgba(51,65,85,0.35);
+    box-shadow:
+      0 4px 6px rgba(0,0,0,0.15),
+      0 10px 30px rgba(0,0,0,0.25),
+      0 0 0 1px rgba(255,255,255,0.02) inset;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    position: relative;
+  }
+  .card:hover {
+    box-shadow:
+      0 8px 12px rgba(0,0,0,0.2),
+      0 20px 40px rgba(0,0,0,0.35),
+      0 0 0 1px rgba(255,255,255,0.04) inset;
+    transform: translateY(-2px);
+    border-color: rgba(51,65,85,0.5);
+  }
+
+  .card-glass {
+    background: rgba(30,41,59,0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* STAT CARDS */
+  /* ═══════════════════════════════════════════════════════════ */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 20px 22px;
+    position: relative;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 16px; bottom: 16px;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+  }
+  .stat-card.accent-violet::before { background: var(--electric); box-shadow: 0 0 12px rgba(124,58,237,0.4); }
+  .stat-card.accent-blue::before { background: var(--info); box-shadow: 0 0 12px rgba(9,127,195,0.4); }
+  .stat-card.accent-green::before { background: var(--success); box-shadow: 0 0 12px rgba(24,140,66,0.4); }
+  .stat-card.accent-amber::before { background: var(--warning); box-shadow: 0 0 12px rgba(245,163,20,0.4); }
+
+  .stat-label { font-size: 12px; color: var(--slate-400); font-weight: 500; margin-bottom: 10px; }
+  .stat-value { font-size: 30px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; }
+  .stat-trend { font-size: 12px; font-weight: 600; color: #22C55E; }
+  .stat-trend.down { color: #EF4444; }
+
+  .stat-icon {
+    position: absolute;
+    top: 18px; right: 18px;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .stat-icon.violet { background: rgba(124,58,237,0.15); color: var(--soft); }
+  .stat-icon.blue { background: rgba(9,127,195,0.15); color: #38BDF8; }
+  .stat-icon.green { background: rgba(24,140,66,0.15); color: #22C55E; }
+  .stat-icon.amber { background: rgba(245,163,20,0.15); color: #FBBF24; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* BENTO GRID */
+  /* ═══════════════════════════════════════════════════════════ */
+  .bento-1 {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .bento-2 {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* JUST DO IT HERO */
+  /* ═══════════════════════════════════════════════════════════ */
+  .hero-card {
+    background: linear-gradient(135deg, rgba(45,27,105,0.5) 0%, var(--slate-800) 60%);
+    padding: 28px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-card::after {
+    content: '';
+    position: absolute;
+    top: -50px; right: -50px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(124,58,237,0.15), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-card .sparkle {
+    position: absolute;
+    color: var(--soft);
+    font-size: 24px;
+    opacity: 0.4;
+  }
+  .hero-card .sparkle:nth-child(1) { top: 16px; left: 24px; }
+  .hero-card .sparkle:nth-child(2) { top: 8px; left: 48px; font-size: 14px; opacity: 0.25; }
+
+  .hero-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; position: relative; z-index: 1; }
+  .hero-desc { font-size: 12px; color: var(--slate-400); margin-bottom: 20px; position: relative; z-index: 1; }
+
+  .hero-input-row { display: flex; gap: 12px; position: relative; z-index: 1; }
+  .hero-input {
+    flex: 1;
+    background: var(--slate-900);
+    border: 1px solid rgba(51,65,85,0.6);
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 14px;
+    color: var(--slate-500);
+    outline: none;
+  }
+  .hero-input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+
+  .hero-btn {
+    background: var(--electric);
+    border: none;
+    border-radius: 12px;
+    padding: 12px 24px;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 4px 16px rgba(124,58,237,0.4);
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .hero-btn:hover { background: #6D28D9; box-shadow: 0 6px 24px rgba(124,58,237,0.5); transform: translateY(-1px); }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* PIPELINE HEALTH */
+  /* ═══════════════════════════════════════════════════════════ */
+  .health-card { padding: 24px; }
+  .health-card .card-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .health-card .card-subtitle { font-size: 12px; color: var(--slate-500); margin-bottom: 20px; }
+  .health-big { font-size: 44px; font-weight: 800; color: #22C55E; line-height: 1; }
+  .health-label { font-size: 12px; color: var(--slate-500); margin-top: 4px; }
+
+  .mini-bars { display: flex; align-items: flex-end; gap: 6px; position: absolute; right: 24px; bottom: 24px; height: 60px; }
+  .mini-bar { width: 14px; border-radius: 4px 4px 0 0; transition: height 0.3s; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* TABLE */
+  /* ═══════════════════════════════════════════════════════════ */
+  .table-card { padding: 0; }
+  .table-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 16px; }
+  .table-title { font-size: 14px; font-weight: 600; }
+  .table-link { font-size: 12px; color: var(--soft); font-weight: 500; text-decoration: none; }
+  .table-link:hover { color: var(--electric); }
+
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.8px;
+    color: var(--slate-600); text-transform: uppercase;
+    text-align: left; padding: 8px 24px 12px;
+    border-bottom: 1px solid rgba(51,65,85,0.3);
+  }
+  .tbl td {
+    font-size: 13px; padding: 14px 24px;
+    border-bottom: 1px solid rgba(51,65,85,0.12);
+    color: var(--slate-300);
+  }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr { transition: background 0.15s; }
+  .tbl tr:hover { background: rgba(255,255,255,0.02); }
+
+  .tbl .pipeline-name { font-weight: 500; color: var(--slate-200); }
+
+  /* Status pills */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 12px 3px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  .status-pill.completed { background: rgba(34,197,94,0.1); color: #22C55E; }
+  .status-pill.completed .dot { background: #22C55E; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+  .status-pill.running { background: rgba(56,189,248,0.1); color: #38BDF8; }
+  .status-pill.running .dot { background: #38BDF8; box-shadow: 0 0 6px rgba(56,189,248,0.5); }
+  .status-pill.failed { background: rgba(239,68,68,0.1); color: #EF4444; }
+  .status-pill.failed .dot { background: #EF4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+  .status-pill.pending { background: rgba(251,191,36,0.1); color: #FBBF24; }
+  .status-pill.pending .dot { background: #FBBF24; box-shadow: 0 0 6px rgba(251,191,36,0.5); }
+
+  .tbl .cost { font-family: 'JetBrains Mono', monospace; color: var(--slate-400); font-size: 12px; }
+  .tbl .date { color: var(--slate-500); font-size: 12px; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* RIGHT COLUMN CARDS */
+  /* ═══════════════════════════════════════════════════════════ */
+  .right-stack { display: flex; flex-direction: column; gap: 20px; }
+
+  .cost-card { padding: 24px; }
+  .cost-card .card-title { font-size: 14px; font-weight: 600; }
+  .cost-card .card-subtitle { font-size: 12px; color: var(--slate-500); margin-top: 2px; }
+  .cost-big { font-size: 36px; font-weight: 800; margin-top: 16px; font-family: 'JetBrains Mono', monospace; }
+  .cost-avg { font-size: 12px; color: var(--slate-500); margin-top: 6px; }
+  .cost-avg span { color: var(--slate-400); font-family: 'JetBrains Mono', monospace; }
+
+  .sparkline { margin-top: 12px; display: flex; align-items: flex-end; gap: 3px; height: 24px; }
+  .spark-dot { width: 4px; border-radius: 2px; background: var(--soft); opacity: 0.5; transition: opacity 0.2s; }
+  .sparkline:hover .spark-dot { opacity: 0.8; }
+
+  .issues-card { padding: 20px 24px; }
+  .issues-card .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .issues-card .card-title { font-size: 14px; font-weight: 600; }
+
+  .issue-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(51,65,85,0.15);
+  }
+  .issue-row:last-child { border-bottom: none; }
+  .issue-bar { width: 4px; height: 32px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+  .issue-bar.critical { background: var(--error); box-shadow: 0 0 8px rgba(206,18,18,0.3); }
+  .issue-bar.high { background: var(--warning); box-shadow: 0 0 8px rgba(245,163,20,0.3); }
+  .issue-bar.medium { background: var(--info); box-shadow: 0 0 8px rgba(9,127,195,0.3); }
+  .issue-title { font-size: 12px; font-weight: 500; color: var(--slate-300); }
+  .issue-meta { font-size: 10px; color: var(--slate-600); margin-top: 3px; }
+
+  /* ═══════════════════════════════════════════════════════════ */
+  /* PROVIDERS BAR */
+  /* ═══════════════════════════════════════════════════════════ */
+  .providers-bar {
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 36px;
+  }
+  .providers-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--slate-600); text-transform: uppercase; }
+  .provider { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--slate-300); }
+  .provider .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .provider .dot.healthy { background: #22C55E; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+  .provider .dot.offline { background: #EF4444; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+  .provider .count { font-size: 11px; color: var(--slate-500); }
+  .provider .offline-label { font-size: 11px; color: #EF4444; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <h1><span class="accent">flux</span>aOS</h1>
+    <p>AI Orchestration OS</p>
+  </div>
+  <div class="sidebar-divider"></div>
+
+  <a class="nav-item active" href="#">
+    <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="2" width="7" height="7" rx="2"/><rect x="11" y="2" width="7" height="7" rx="2"/><rect x="2" y="11" width="7" height="7" rx="2"/><rect x="11" y="11" width="7" height="7" rx="2"/></svg>
+    Dashboard
+  </a>
+  <a class="nav-item" href="#">
+    <svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="2.5"/></svg>
+    Issues
+  </a>
+  <a class="nav-item" href="#">
+    <svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="14" r="2.5"/><line x1="8" y1="11.5" x2="8" y2="5"/><path d="M14 5v3c0 2-2 3-3.5 3.5"/></svg>
+    Pipelines
+  </a>
+  <a class="nav-item" href="#">
+    <svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="8" width="4" height="9" rx="1"/><rect x="8" y="4" width="4" height="13" rx="1"/><rect x="13" y="10" width="4" height="7" rx="1"/></svg>
+    KPIs
+  </a>
+
+  <div class="nav-section">SETTINGS</div>
+  <a class="nav-item sub" href="#">Pipelines</a>
+  <a class="nav-item sub" href="#">Personas</a>
+  <a class="nav-item sub" href="#">Skills</a>
+  <a class="nav-item sub" href="#">Routing</a>
+  <a class="nav-item sub" href="#">Providers</a>
+
+  <div class="version">v0.1.0-alpha</div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+  <p class="breadcrumb">Pages / Dashboard</p>
+  <h2 class="page-title">Dashboard</h2>
+
+  <!-- STAT CARDS -->
+  <div class="stats-grid">
+    <div class="card stat-card accent-violet">
+      <div class="stat-icon violet">&#9679;</div>
+      <div class="stat-label">Open issues</div>
+      <div class="stat-value">12 <span class="stat-trend">+3</span></div>
+    </div>
+    <div class="card stat-card accent-blue">
+      <div class="stat-icon blue">&#8635;</div>
+      <div class="stat-label">In progress</div>
+      <div class="stat-value">3</div>
+    </div>
+    <div class="card stat-card accent-green">
+      <div class="stat-icon green">&#9654;</div>
+      <div class="stat-label">Total runs</div>
+      <div class="stat-value">47 <span class="stat-trend">+8%</span></div>
+    </div>
+    <div class="card stat-card accent-amber">
+      <div class="stat-icon amber">&#9889;</div>
+      <div class="stat-label">Running now</div>
+      <div class="stat-value">1</div>
+    </div>
+  </div>
+
+  <!-- BENTO ROW 1: Just Do It + Pipeline Health -->
+  <div class="bento-1">
+    <div class="card hero-card">
+      <span class="sparkle">&#10022;</span>
+      <span class="sparkle">&#10022;</span>
+      <div class="hero-title">Just Do It</div>
+      <div class="hero-desc">Describe what you want done — fluxaOS handles the rest.</div>
+      <div class="hero-input-row">
+        <div class="hero-input">Describe what you want done...</div>
+        <button class="hero-btn">&#10022; Go</button>
+      </div>
+    </div>
+
+    <div class="card health-card" style="position:relative;">
+      <div class="card-title">Pipeline health</div>
+      <div class="card-subtitle">Last 30 days</div>
+      <div class="health-big">87%</div>
+      <div class="health-label">success rate</div>
+      <div class="mini-bars">
+        <div class="mini-bar" style="height:52px; background:#22C55E; opacity:0.8;"></div>
+        <div class="mini-bar" style="height:36px; background:#22C55E; opacity:0.6;"></div>
+        <div class="mini-bar" style="height:48px; background:#22C55E; opacity:0.7;"></div>
+        <div class="mini-bar" style="height:20px; background:#EF4444; opacity:0.6;"></div>
+        <div class="mini-bar" style="height:42px; background:#22C55E; opacity:0.65;"></div>
+        <div class="mini-bar" style="height:56px; background:#22C55E; opacity:0.75;"></div>
+        <div class="mini-bar" style="height:30px; background:#22C55E; opacity:0.55;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BENTO ROW 2: Table + Right stack -->
+  <div class="bento-2">
+    <div class="card table-card">
+      <div class="table-header">
+        <span class="table-title">Recent pipeline runs</span>
+        <a class="table-link" href="#">View all &rarr;</a>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Pipeline</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pipeline-name">Standard Dev</td>
+            <td><span class="status-pill completed"><span class="dot"></span>completed</span></td>
+            <td class="date">Apr 9, 2:31 PM</td>
+            <td class="cost">$0.0842</td>
+          </tr>
+          <tr>
+            <td class="pipeline-name">Standard Dev</td>
+            <td><span class="status-pill running"><span class="dot"></span>running</span></td>
+            <td class="date">Apr 9, 2:45 PM</td>
+            <td class="cost">$0.0124</td>
+          </tr>
+          <tr>
+            <td class="pipeline-name">Standard Dev</td>
+            <td><span class="status-pill failed"><span class="dot"></span>failed</span></td>
+            <td class="date">Apr 9, 1:12 PM</td>
+            <td class="cost">$0.0531</td>
+          </tr>
+          <tr>
+            <td class="pipeline-name">Quick Fix</td>
+            <td><span class="status-pill completed"><span class="dot"></span>completed</span></td>
+            <td class="date">Apr 8, 5:22 PM</td>
+            <td class="cost">$0.0213</td>
+          </tr>
+          <tr>
+            <td class="pipeline-name">Standard Dev</td>
+            <td><span class="status-pill pending"><span class="dot"></span>pending</span></td>
+            <td class="date">Apr 9, 3:01 PM</td>
+            <td class="cost">$0.0000</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="right-stack">
+      <div class="card cost-card">
+        <div class="card-title">Total spend</div>
+        <div class="card-subtitle">All pipeline runs</div>
+        <div class="cost-big">$3.42</div>
+        <div class="cost-avg">Avg <span>$0.073</span> / run</div>
+        <div class="sparkline">
+          <div class="spark-dot" style="height:8px"></div>
+          <div class="spark-dot" style="height:12px"></div>
+          <div class="spark-dot" style="height:10px"></div>
+          <div class="spark-dot" style="height:16px"></div>
+          <div class="spark-dot" style="height:14px"></div>
+          <div class="spark-dot" style="height:20px"></div>
+          <div class="spark-dot" style="height:18px"></div>
+          <div class="spark-dot" style="height:22px"></div>
+          <div class="spark-dot" style="height:16px"></div>
+          <div class="spark-dot" style="height:24px"></div>
+          <div class="spark-dot" style="height:20px"></div>
+          <div class="spark-dot" style="height:14px"></div>
+          <div class="spark-dot" style="height:18px"></div>
+          <div class="spark-dot" style="height:22px"></div>
+        </div>
+      </div>
+
+      <div class="card issues-card">
+        <div class="card-header">
+          <span class="card-title">Open issues</span>
+          <a class="table-link" href="#">View all &rarr;</a>
+        </div>
+        <div class="issue-row">
+          <div class="issue-bar critical"></div>
+          <div>
+            <div class="issue-title">Fix gate timeout bug</div>
+            <div class="issue-meta">critical &middot; 2h ago</div>
+          </div>
+        </div>
+        <div class="issue-row">
+          <div class="issue-bar high"></div>
+          <div>
+            <div class="issue-title">Add retry backoff to stages</div>
+            <div class="issue-meta">high &middot; 5h ago</div>
+          </div>
+        </div>
+        <div class="issue-row">
+          <div class="issue-bar medium"></div>
+          <div>
+            <div class="issue-title">Improve prompt assembly</div>
+            <div class="issue-meta">medium &middot; 1d ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROVIDERS BAR -->
+  <div class="card providers-bar">
+    <span class="providers-label">Providers</span>
+    <div class="provider">
+      <span class="dot healthy"></span>
+      <span>Anthropic</span>
+      <span class="count">3 models</span>
+    </div>
+    <div class="provider">
+      <span class="dot healthy"></span>
+      <span>OpenAI</span>
+      <span class="count">2 models</span>
+    </div>
+    <div class="provider">
+      <span class="dot offline"></span>
+      <span>Ollama</span>
+      <span class="offline-label">offline</span>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
