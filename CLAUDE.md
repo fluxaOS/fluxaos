@@ -137,6 +137,8 @@ These are not guidelines. These are hard constraints. Every piece of work must s
 
 23. **Small phases with checkpoints.** Break work into pieces small enough that drift is caught early. Each checkpoint produces something the user can verify.
 
+24. **No undocumented removals.** Never strip, simplify, or remove existing UI layouts, components, features, or behavior without explicit user approval. If a rewrite touches a page, the existing layout and functionality must be preserved unless the user specifically asks for changes. "Simplifying" a working page is a regression, not polish. When in doubt, keep what's there and wire it to new endpoints rather than replacing it with a reduced version.
+
 ---
 
 ## Verification Protocol
