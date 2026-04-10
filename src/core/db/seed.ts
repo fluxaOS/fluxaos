@@ -124,11 +124,36 @@ async function seed() {
     .where(eq(pipelineStage.pipelineId, pipe.id));
 
   if (existingStages.length === 0) {
+    // Example gate rules for the 'implement' stage:
+    // - exit code must be 0 (rework if not)
+    // - cost must be under $10 (hold if not)
+    const implementGateRules = {
+      logic: 'AND',
+      rules: [
+        {
+          field: 'exit_code',
+          operator: 'equals',
+          value: 0,
+          severity: 'required',
+          onFail: 'rework',
+          label: 'Clean exit required',
+        },
+        {
+          field: 'cost_usd',
+          operator: 'less_than',
+          value: 10,
+          severity: 'required',
+          onFail: 'hold',
+          label: 'Cost cap',
+        },
+      ],
+    };
+
     const stagesDef = [
-      { name: 'research', sortOrder: 1, gateMode: 'auto', harness: 'claude-code' },
-      { name: 'implement', sortOrder: 2, gateMode: 'rules', harness: 'claude-code' },
-      { name: 'review', sortOrder: 3, gateMode: 'hold', harness: 'claude-code' },
-      { name: 'deploy', sortOrder: 4, gateMode: 'hold', harness: 'claude-code' },
+      { name: 'research', sortOrder: 1, gateMode: 'auto', gateRules: {} },
+      { name: 'implement', sortOrder: 2, gateMode: 'rules', gateRules: implementGateRules },
+      { name: 'review', sortOrder: 3, gateMode: 'hold', gateRules: {} },
+      { name: 'deploy', sortOrder: 4, gateMode: 'hold', gateRules: {} },
     ];
 
     for (const stage of stagesDef) {
@@ -139,10 +164,10 @@ async function seed() {
           name: stage.name,
           sortOrder: stage.sortOrder,
           gateMode: stage.gateMode,
-          harness: stage.harness,
+          harness: 'claude-code',
           timeoutSec: 300,
           maxRetries: 1,
-          gateRules: [],
+          gateRules: stage.gateRules,
         })
         .returning();
     }

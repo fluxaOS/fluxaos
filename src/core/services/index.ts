@@ -20,3 +20,4 @@ export { createIssueAttachmentService, type IssueAttachmentService } from './iss
 export { createIssueDependencyService, type IssueDependencyService } from './issue-dependency';
 export { createIssueEventService, type IssueEventService } from './issue-event';
 export { createIssueSavedViewService, type IssueSavedViewService } from './issue-saved-view';
+export { createGateService, type GateService } from '@/core/gates/service';

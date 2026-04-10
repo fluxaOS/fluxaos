@@ -140,6 +140,22 @@ export const stageRun = pgTable('stage_run', {
   updatedAt,
 });
 
+// ─── Gate Results (append-only audit) ──────────────────────────────────────
+
+export const stageGateResult = pgTable('stage_gate_result', {
+  id,
+  stageRunId: uuid('stage_run_id')
+    .notNull()
+    .references(() => stageRun.id),
+  verdict: text('verdict').notNull(),
+  passed: boolean('passed').notNull(),
+  worstAction: text('worst_action'),
+  ruleSnapshot: jsonb('rule_snapshot').notNull(),
+  ruleResults: jsonb('rule_results').notNull(),
+  reason: text('reason').notNull(),
+  createdAt,
+});
+
 // ─── Event Store (append-only) ──────────────────────────────────────────────
 
 export const event = pgTable('event', {
@@ -767,7 +783,18 @@ export const stageRunRelations = relations(stageRun, ({ one, many }) => ({
     references: [pipelineStage.id],
   }),
   events: many(event),
+  gateResults: many(stageGateResult),
 }));
+
+export const stageGateResultRelations = relations(
+  stageGateResult,
+  ({ one }) => ({
+    stageRun: one(stageRun, {
+      fields: [stageGateResult.stageRunId],
+      references: [stageRun.id],
+    }),
+  })
+);
 
 export const eventRelations = relations(event, ({ one }) => ({
   stageRun: one(stageRun, {

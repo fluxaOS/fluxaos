@@ -29,6 +29,7 @@ const tables = [
   'issue_branch',
   'issue_pull_request',
   'issue_commit',
+  'stage_gate_result',
   'event',
   'stage_run',
   'pipeline_run',
