@@ -151,7 +151,21 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
 
 function PersonaDetail({ personaId }: { personaId: string }) {
   const personaQuery = trpc.persona.getById.useQuery({ id: personaId });
+  const skillsQuery = trpc.persona.skills.useQuery({ personaId });
+  const allSkillsQuery = trpc.skill.list.useQuery();
+
+  const attachSkill = trpc.persona.attachSkill.useMutation({
+    onSuccess: () => skillsQuery.refetch(),
+  });
+  const detachSkill = trpc.persona.detachSkill.useMutation({
+    onSuccess: () => skillsQuery.refetch(),
+  });
+
   const persona = personaQuery.data;
+  const attachedSkills = skillsQuery.data ?? [];
+  const allSkills = allSkillsQuery.data ?? [];
+  const attachedSkillIds = new Set(attachedSkills.map((s: typeof attachedSkills[number]) => s.skillId));
+  const availableSkills = allSkills.filter((s: typeof allSkills[number]) => !attachedSkillIds.has(s.id));
 
   if (!persona) return null;
 
@@ -165,9 +179,56 @@ function PersonaDetail({ personaId }: { personaId: string }) {
           </pre>
         </div>
       )}
-      <p className="text-xs text-slate-500">
-        Skill attachment UI coming in R6.
-      </p>
+
+      <div>
+        <span className="text-xs text-slate-400">Attached Skills:</span>
+        {attachedSkills.length === 0 ? (
+          <p className="text-xs text-slate-500 mt-1">No skills attached.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {attachedSkills.map((ps: typeof attachedSkills[number]) => (
+              <span
+                key={ps.skillId}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/[0.04] rounded text-xs"
+              >
+                {ps.skillName ?? ps.skillId.slice(0, 8)}
+                <button
+                  type="button"
+                  onClick={() =>
+                    detachSkill.mutate({
+                      personaId,
+                      skillId: ps.skillId,
+                    })
+                  }
+                  className="text-red-400 hover:text-red-300"
+                >
+                  &times;
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {availableSkills.length > 0 && (
+        <div>
+          <span className="text-xs text-slate-400">Attach skill:</span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {availableSkills.map((s: typeof availableSkills[number]) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() =>
+                  attachSkill.mutate({ personaId, skillId: s.id })
+                }
+                className="px-2 py-0.5 text-xs bg-electric-violet/10 hover:bg-electric-violet/20 text-soft-violet rounded transition-colors"
+              >
+                + {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

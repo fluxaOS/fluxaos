@@ -36,6 +36,14 @@ export default function RunDetailPage({
     onSuccess: () => runQuery.refetch(),
   });
 
+  const approveStage = trpc.pipeline.runs.approveStage.useMutation({
+    onSuccess: () => runQuery.refetch(),
+  });
+
+  const rejectStage = trpc.pipeline.runs.rejectStage.useMutation({
+    onSuccess: () => runQuery.refetch(),
+  });
+
   const run = runQuery.data;
 
   if (runQuery.isLoading) {
@@ -100,6 +108,14 @@ export default function RunDetailPage({
               key={sr.id}
               stageRun={sr}
               isLast={idx === stageRuns.length - 1}
+              onApprove={() => approveStage.mutate({ stageRunId: sr.id })}
+              onRework={() =>
+                rejectStage.mutate({ stageRunId: sr.id, verdict: 'rework' })
+              }
+              onAbort={() =>
+                rejectStage.mutate({ stageRunId: sr.id, verdict: 'abort' })
+              }
+              isActing={approveStage.isPending || rejectStage.isPending}
             />
           ))}
         </div>
@@ -111,6 +127,10 @@ export default function RunDetailPage({
 function StageRunCard({
   stageRun,
   isLast,
+  onApprove,
+  onRework,
+  onAbort,
+  isActing,
 }: {
   stageRun: {
     id: string;
@@ -125,14 +145,19 @@ function StageRunCard({
     pipelineStageId: string;
   };
   isLast: boolean;
+  onApprove: () => void;
+  onRework: () => void;
+  onAbort: () => void;
+  isActing: boolean;
 }) {
   const isCompleted = stageRun.status === 'completed';
   const isActive = stageRun.status === 'running' || stageRun.status === 'launching';
   const isPending = stageRun.status === 'pending' || stageRun.status === 'queued';
+  const isGatePending = stageRun.status === 'pending';
 
   const stepColor = isCompleted
     ? 'bg-emerald-400/15 border-emerald-400/40 text-emerald-400'
-    : isActive
+    : isActive || isGatePending
       ? 'bg-electric-violet/20 border-soft-violet/60 text-soft-violet'
       : 'bg-white/[0.03] border-slate-700/30 text-slate-500';
 
@@ -153,10 +178,10 @@ function StageRunCard({
 
         <div
           className={`flex-1 card-static p-4 ${
-            isActive
+            isActive || isGatePending
               ? 'border-electric-violet/25 shadow-[0_4px_6px_rgba(0,0,0,0.15),0_10px_30px_rgba(0,0,0,0.25),0_0_20px_rgba(124,58,237,0.08)]'
               : ''
-          } ${isPending ? 'opacity-50' : ''}`}
+          }`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -179,6 +204,44 @@ function StageRunCard({
               {(stageRun.tokensIn / 1000).toFixed(1)}k in &middot;{' '}
               {((stageRun.tokensOut ?? 0) / 1000).toFixed(1)}k out
             </p>
+          )}
+
+          {/* Gate Approval UI */}
+          {isGatePending && (
+            <div className="mt-4 pt-4 border-t border-slate-700/20">
+              <p className="text-xs text-slate-500 font-medium mb-3">
+                Gate hold — awaiting review
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onApprove}
+                  disabled={isActing}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-400 border border-emerald-400/25 bg-emerald-400/10 hover:bg-emerald-400/20 transition-colors disabled:opacity-50"
+                >
+                  <Check size={14} />
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  onClick={onRework}
+                  disabled={isActing}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-400 border border-amber-400/20 bg-amber-400/10 hover:bg-amber-400/20 transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw size={14} />
+                  Rework
+                </button>
+                <button
+                  type="button"
+                  onClick={onAbort}
+                  disabled={isActing}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-red-400 border border-red-400/20 bg-red-400/10 hover:bg-red-400/20 transition-colors disabled:opacity-50"
+                >
+                  <XOctagon size={14} />
+                  Abort
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -188,6 +188,36 @@ export const pipelineRouter = router({
           .orderBy(event.timestamp);
       }),
 
+    /** Approve a held stage — release it for execution. */
+    approveStage: publicProcedure
+      .input(z.object({ stageRunId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        // Mark the pending stage as launching so the orchestrator picks it up
+        await svc.updateStageRunStatus(input.stageRunId, 'launching');
+        await svc.appendEvent(input.stageRunId, 'gate_checked', {
+          verdict: 'proceed',
+          reason: 'manually approved',
+        });
+        return { approved: true };
+      }),
+
+    /** Reject a held stage — rework or abort. */
+    rejectStage: publicProcedure
+      .input(z.object({
+        stageRunId: z.string().uuid(),
+        verdict: z.enum(['rework', 'abort']),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        const status = input.verdict === 'abort' ? 'cancelled' : 'failed';
+        await svc.completeStageRun(input.stageRunId, status, {});
+        await svc.appendEvent(input.stageRunId, input.verdict === 'abort' ? 'cancelled' : 'failed', {
+          reason: `manually rejected: ${input.verdict}`,
+        });
+        return { rejected: true, verdict: input.verdict };
+      }),
+
     /** KPIs — aggregate stats for a project's pipeline runs. */
     kpis: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
