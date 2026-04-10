@@ -22,6 +22,7 @@ export const projectRouter = router({
   create: publicProcedure
     .input(z.object({
       orgId: z.string().uuid(),
+      userId: z.string().uuid(),
       name: z.string().min(1),
       slug: z.string().min(1),
       repoUrl: z.string().optional(),

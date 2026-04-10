@@ -187,5 +187,49 @@ export const pipelineRouter = router({
           .where(eq(event.stageRunId, input.stageRunId))
           .orderBy(event.timestamp);
       }),
+
+    /** KPIs — aggregate stats for a project's pipeline runs. */
+    kpis: publicProcedure
+      .input(z.object({ projectId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { pipeline } = await import('@/core/db/schema');
+        const pipelines = await ctx.db
+          .select({ id: pipeline.id })
+          .from(pipeline)
+          .where(eq(pipeline.projectId, input.projectId));
+
+        if (pipelines.length === 0) {
+          return {
+            totalRuns: 0, completedRuns: 0, failedRuns: 0,
+            cancelledRuns: 0, runningRuns: 0, successRate: 0,
+            totalCostUsd: '0', avgCostUsd: '0',
+          };
+        }
+
+        const allRuns = [];
+        for (const p of pipelines) {
+          const runs = await ctx.db.select().from(pipelineRun)
+            .where(eq(pipelineRun.pipelineId, p.id));
+          allRuns.push(...runs);
+        }
+
+        const total = allRuns.length;
+        const completed = allRuns.filter((r) => r.status === 'completed').length;
+        const failed = allRuns.filter((r) => r.status === 'failed').length;
+        const cancelled = allRuns.filter((r) => r.status === 'cancelled').length;
+        const running = allRuns.filter((r) => r.status === 'running').length;
+        const totalCost = allRuns.reduce((s, r) => s + Number(r.totalCostUsd ?? 0), 0);
+
+        return {
+          totalRuns: total,
+          completedRuns: completed,
+          failedRuns: failed,
+          cancelledRuns: cancelled,
+          runningRuns: running,
+          successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+          totalCostUsd: totalCost.toFixed(4),
+          avgCostUsd: total > 0 ? (totalCost / total).toFixed(4) : '0',
+        };
+      }),
   }),
 });

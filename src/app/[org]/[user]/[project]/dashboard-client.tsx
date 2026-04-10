@@ -8,20 +8,8 @@ import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton';
 import { StatCard } from '@/components/stat-card';
+import { CatalogBadge } from '@/components/catalog-badge';
 import { trpc } from '@/lib/trpc/client';
-
-/** Catalog-colored badge — uses DB color, no hardcoded mappings. */
-function CatalogBadge({ displayName, color }: { displayName: string; color: string }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
-      style={{ backgroundColor: `${color}20`, color }}
-    >
-      <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: color }} />
-      {displayName}
-    </span>
-  );
-}
 
 export function DashboardClient({
   projectId,

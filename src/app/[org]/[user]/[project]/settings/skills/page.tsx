@@ -117,9 +117,9 @@ function CreateSkillForm({ onCreated }: { onCreated: () => void }) {
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.list.useQuery(
+  const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId }
+    { enabled: !!orgId },
   );
   const projectId = projectsQuery.data?.[0]?.id;
 
@@ -137,6 +137,7 @@ function CreateSkillForm({ onCreated }: { onCreated: () => void }) {
           .map((t) => t.trim())
           .filter(Boolean);
         createMutation.mutate({
+          scope: 'project',
           name: name.trim(),
           description: description.trim() || undefined,
           promptTemplate: promptTemplate.trim() || undefined,

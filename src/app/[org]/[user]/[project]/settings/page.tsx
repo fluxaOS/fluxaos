@@ -1,28 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
 
 export default function PipelineSettingsPage() {
   const [showCreate, setShowCreate] = useState(false);
-  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(
-    null
-  );
+  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.list.useQuery(
+  const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId }
+    { enabled: !!orgId },
   );
   const projectId = projectsQuery.data?.[0]?.id;
 
-  const pipelinesQuery = trpc.pipeline.list.useQuery(
+  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
     { projectId: projectId! },
-    { enabled: !!projectId }
+    { enabled: !!projectId },
   );
 
   const pipelines = pipelinesQuery.data ?? [];
@@ -59,10 +56,7 @@ export default function PipelineSettingsPage() {
       ) : (
         <div className="space-y-4">
           {pipelines.map((p) => (
-            <div
-              key={p.id}
-              className="card-static p-4"
-            >
+            <div key={p.id} className="card-static p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{p.name}</span>
@@ -76,9 +70,7 @@ export default function PipelineSettingsPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setEditingPipelineId(
-                      editingPipelineId === p.id ? null : p.id
-                    )
+                    setEditingPipelineId(editingPipelineId === p.id ? null : p.id)
                   }
                   className="text-xs text-muted hover:text-foreground"
                 >
@@ -152,10 +144,10 @@ function CreatePipelineForm({
 
 function StageEditor({ pipelineId }: { pipelineId: string }) {
   const [showAdd, setShowAdd] = useState(false);
-  const stagesQuery = trpc.pipeline.stages.useQuery({ pipelineId });
+  const stagesQuery = trpc.pipeline.stages.listByPipeline.useQuery({ pipelineId });
   const stages = stagesQuery.data ?? [];
 
-  const createStage = trpc.pipeline.createStage.useMutation({
+  const createStage = trpc.pipeline.stages.create.useMutation({
     onSuccess: () => {
       setShowAdd(false);
       stagesQuery.refetch();
@@ -181,7 +173,7 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
             </tr>
           </thead>
           <tbody>
-            {stages.map((s) => (
+            {stages.map((s: typeof stages[number]) => (
               <tr key={s.id} className="text-foreground/80">
                 <td className="pr-3 py-1">{s.sortOrder}</td>
                 <td className="pr-3 py-1 capitalize">{s.name}</td>

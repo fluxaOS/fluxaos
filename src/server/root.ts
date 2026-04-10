@@ -10,6 +10,8 @@ import { skillRouter } from './routers/skill';
 import { personaRouter } from './routers/persona';
 import { pipelineRouter } from './routers/pipeline';
 import { gateRouter } from './routers/gate';
+import { providerRouter } from './routers/provider';
+import { routingRouter } from './routers/routing';
 
 export const appRouter = router({
   organization: organizationRouter,
@@ -20,6 +22,8 @@ export const appRouter = router({
   persona: personaRouter,
   pipeline: pipelineRouter,
   gate: gateRouter,
+  provider: providerRouter,
+  routing: routingRouter,
 });
 
 export type AppRouter = typeof appRouter;

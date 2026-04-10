@@ -5,21 +5,8 @@ import { useState } from 'react';
 import { ArrowLeft, MessageSquare, Clock, GitBranch, Pencil, Trash2 } from 'lucide-react';
 import { Card } from '@/components/card';
 import { SkeletonCard } from '@/components/skeleton';
+import { CatalogBadge } from '@/components/catalog-badge';
 import { trpc } from '@/lib/trpc/client';
-
-// ─── Catalog badge (DB-driven colors) ───────────────────────────────────────
-
-function CatalogBadge({ displayName, color }: { displayName: string; color: string }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
-      style={{ backgroundColor: `${color}20`, color }}
-    >
-      <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: color }} />
-      {displayName}
-    </span>
-  );
-}
 
 // ─── Editable text field (save on blur / Enter) ─────────────────────────────
 
@@ -637,10 +624,10 @@ export function IssueDetailClient({
           {comments.map((c) => (
             <CommentCard
               key={c.id}
-              comment={c}
+              comment={{ ...c, bodyMd: c.bodyMd ?? '', author: c.author ?? 'unknown' }}
               onUpdate={(bodyMd) =>
                 updateComment.mutate({
-                  id: c.id,
+                  commentId: c.id,
                   bodyMd,
                   editedBy: 'user',
                   version: c.version,
@@ -648,7 +635,7 @@ export function IssueDetailClient({
               }
               onDelete={() =>
                 deleteComment.mutate({
-                  id: c.id,
+                  commentId: c.id,
                   deletedBy: 'user',
                   version: c.version,
                 })

@@ -10,15 +10,15 @@ import { trpc } from '@/lib/trpc/client';
 export default function KpisPage() {
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.list.useQuery(
+  const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId }
+    { enabled: !!orgId },
   );
   const projectId = projectsQuery.data?.[0]?.id;
 
-  const kpisQuery = trpc.pipeline.kpis.useQuery(
+  const kpisQuery = trpc.pipeline.runs.kpis.useQuery(
     { projectId: projectId! },
-    { enabled: !!projectId }
+    { enabled: !!projectId },
   );
 
   const kpis = kpisQuery.data;
@@ -54,7 +54,6 @@ export default function KpisPage() {
     <div className="space-y-8">
       <PageHeader title="KPIs" />
 
-      {/* Pipeline Run Stats */}
       <div>
         <h3 className="text-sm font-semibold text-slate-400 mb-3">Pipeline runs</h3>
         <div className="grid grid-cols-3 gap-4">
@@ -69,7 +68,6 @@ export default function KpisPage() {
         </div>
       </div>
 
-      {/* Status Breakdown */}
       <div>
         <h3 className="text-sm font-semibold text-slate-400 mb-3">Status breakdown</h3>
         <div className="grid grid-cols-4 gap-4">
@@ -80,7 +78,6 @@ export default function KpisPage() {
         </div>
       </div>
 
-      {/* Cost */}
       <div>
         <h3 className="text-sm font-semibold text-slate-400 mb-3">Cost</h3>
         <div className="grid grid-cols-2 gap-4">
