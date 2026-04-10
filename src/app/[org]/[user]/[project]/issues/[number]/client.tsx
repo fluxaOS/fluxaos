@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowLeft, MessageSquare, Clock, GitBranch, Pencil, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, MessageSquare, Clock, GitBranch, Pencil, Trash2, Play } from 'lucide-react';
 import { Card } from '@/components/card';
 import { SkeletonCard } from '@/components/skeleton';
 import { CatalogBadge } from '@/components/catalog-badge';
@@ -315,6 +316,7 @@ export function IssueDetailClient({
   issueNumber: number;
   basePath: string;
 }) {
+  const router = useRouter();
   const [eventFilter, setEventFilter] = useState<EventFilter>('all');
   const [commentBody, setCommentBody] = useState('');
 
@@ -401,6 +403,24 @@ export function IssueDetailClient({
       eventsQuery.refetch();
     },
   });
+
+  // Pipeline state for this issue
+  const pipelineStateQuery = trpc.pipeline.runs.issueState.useQuery(
+    { issueId: issue?.id ?? '' },
+    { enabled: !!issue?.id },
+  );
+
+  const executeStage = trpc.pipeline.runs.executeStage.useMutation({
+    onSuccess: () => pipelineStateQuery.refetch(),
+  });
+
+  const deleteIssue = trpc.issue.delete.useMutation({
+    onSuccess: () => {
+      router.push(`${basePath}/issues`);
+    },
+  });
+
+  const pipelineState = pipelineStateQuery.data;
 
   const isMutating = updateFields.isPending || transitionMutation.isPending;
 
@@ -534,6 +554,79 @@ export function IssueDetailClient({
           </div>
         )}
       </Card>
+
+      {/* Pipeline Stages */}
+      {pipelineState && pipelineState.stages.length > 0 && (
+        <Card hover={false} padding="p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-400">Pipeline Stages</h3>
+          <div className="flex gap-2">
+            {pipelineState.stages.map((s: typeof pipelineState.stages[number]) => {
+              const sr = s.stageRun;
+              const isCurrent = pipelineState.currentStage?.id === s.id;
+              const isCompleted = sr?.status === 'completed';
+              const isPending = sr?.status === 'pending';
+              const isRunning = sr?.status === 'running' || sr?.status === 'launching';
+
+              return (
+                <div
+                  key={s.id}
+                  className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                    isCompleted
+                      ? 'bg-emerald-400/10 border-emerald-400/30 text-emerald-400'
+                      : isRunning
+                        ? 'bg-electric-violet/15 border-soft-violet/40 text-soft-violet'
+                        : isCurrent
+                          ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
+                          : 'bg-white/[0.02] border-slate-700/30 text-slate-500'
+                  }`}
+                >
+                  <span className="font-medium">{s.name}</span>
+                  <span className="text-slate-600 ml-1">({s.gateMode})</span>
+                  {sr && (
+                    <span className="ml-1.5 text-[10px] opacity-70">{sr.status}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Run Stage button — only when current stage is pending (held by gate) */}
+          {pipelineState.currentStageRun &&
+            pipelineState.currentStageRun.status === 'pending' && (
+            <button
+              type="button"
+              onClick={() =>
+                executeStage.mutate({ stageRunId: pipelineState.currentStageRun!.id })
+              }
+              disabled={executeStage.isPending}
+              className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
+            >
+              <Play size={14} />
+              {executeStage.isPending ? 'Starting...' : 'Run Stage'}
+            </button>
+          )}
+
+          {pipelineState.run && (
+            <p className="text-[11px] text-slate-600">
+              Run: {pipelineState.run.status} &middot; Cost: ${pipelineState.run.totalCostUsd ?? '0.00'}
+            </p>
+          )}
+        </Card>
+      )}
+
+      {/* Delete Issue */}
+      <button
+        type="button"
+        onClick={() => {
+          if (confirm('Delete this issue and all its data?')) {
+            deleteIssue.mutate({ id: issue.id });
+          }
+        }}
+        disabled={deleteIssue.isPending}
+        className="text-xs px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-400/20 transition-colors disabled:opacity-50"
+      >
+        {deleteIssue.isPending ? 'Deleting...' : 'Delete Issue'}
+      </button>
 
       {/* Activity feed */}
       <div>

@@ -69,11 +69,11 @@ export function DashboardClient({
   );
   const providers = providersQuery.data ?? [];
 
-  // Sort open issues by priority weight (lowest weight = highest priority)
+  // Sort open issues by priority weight (highest weight first)
   const priorityWeight = new Map(priorities.map((p) => [p.id, p.weight]));
   const topOpenIssues = [...openIssues]
-    .sort((a, b) => (priorityWeight.get(a.priorityId) ?? 999) - (priorityWeight.get(b.priorityId) ?? 999))
-    .slice(0, 3);
+    .sort((a, b) => (priorityWeight.get(b.priorityId) ?? 0) - (priorityWeight.get(a.priorityId) ?? 0))
+    .slice(0, 5);
 
   const isLoading = statesQuery.isLoading || prioritiesQuery.isLoading || issuesQuery.isLoading;
 
@@ -314,6 +314,30 @@ export function DashboardClient({
           </Card>
         </div>
       </div>
+
+      {/* Issue State Breakdown */}
+      <Card padding="p-6">
+        <h3 className="text-sm font-semibold text-white">Issues by state</h3>
+        <p className="text-xs text-slate-500 mb-5">Current distribution</p>
+        <div className="space-y-3">
+          {states.map((s) => {
+            const count = stateCounts.get(s.id) ?? 0;
+            const pct = issues.length > 0 ? Math.round((count / issues.length) * 100) : 0;
+            return (
+              <div key={s.id} className="flex items-center gap-3">
+                <CatalogBadge displayName={s.displayName} color={s.color} />
+                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${pct}%`, backgroundColor: s.color }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-slate-400 w-8 text-right">{count}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       {/* Providers bar */}
       {providers.length > 0 && (

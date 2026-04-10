@@ -124,6 +124,31 @@ export default function RunDetailPage({
   );
 }
 
+interface StageRunData {
+  id: string;
+  status: string;
+  provider: string | null;
+  model: string | null;
+  harness: string | null;
+  costUsd: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  startedAt: string | Date | null;
+  completedAt: string | Date | null;
+  pipelineStageId: string;
+  pipelineStage: {
+    name: string;
+    sortOrder: number;
+    gateMode: string | null;
+  } | null;
+  events: Array<{
+    id: string;
+    type: string;
+    payload?: unknown;
+    timestamp: string | Date;
+  }>;
+}
+
 function StageRunCard({
   stageRun,
   isLast,
@@ -132,27 +157,17 @@ function StageRunCard({
   onAbort,
   isActing,
 }: {
-  stageRun: {
-    id: string;
-    status: string;
-    provider: string | null;
-    model: string | null;
-    costUsd: string | null;
-    tokensIn: number | null;
-    tokensOut: number | null;
-    startedAt: string | Date | null;
-    completedAt: string | Date | null;
-    pipelineStageId: string;
-  };
+  stageRun: StageRunData;
   isLast: boolean;
   onApprove: () => void;
   onRework: () => void;
   onAbort: () => void;
   isActing: boolean;
 }) {
+  const stage = stageRun.pipelineStage;
   const isCompleted = stageRun.status === 'completed';
   const isActive = stageRun.status === 'running' || stageRun.status === 'launching';
-  const isPending = stageRun.status === 'pending' || stageRun.status === 'queued';
+  const isQueued = stageRun.status === 'queued';
   const isGatePending = stageRun.status === 'pending';
 
   const stepColor = isCompleted
@@ -163,36 +178,38 @@ function StageRunCard({
 
   return (
     <div className="relative">
+      {/* Connecting line */}
       {!isLast && (
         <div className="absolute left-[21px] top-[54px] bottom-[-2px] w-0.5 bg-slate-700/20" />
       )}
 
       <div className="flex gap-4 mb-3">
+        {/* Step circle */}
         <div className={`w-[44px] h-[44px] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 ${stepColor}`}>
           {isCompleted ? (
             <Check size={18} strokeWidth={2.5} />
           ) : (
-            <span className="text-sm font-bold">&bull;</span>
+            <span className="text-sm font-bold">{stage?.sortOrder ?? '?'}</span>
           )}
         </div>
 
+        {/* Card */}
         <div
           className={`flex-1 card-static p-4 ${
             isActive || isGatePending
               ? 'border-electric-violet/25 shadow-[0_4px_6px_rgba(0,0,0,0.15),0_10px_30px_rgba(0,0,0,0.25),0_0_20px_rgba(124,58,237,0.08)]'
               : ''
-          }`}
+          } ${isQueued ? 'opacity-50' : ''}`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="font-semibold text-white font-mono text-xs">
-                {stageRun.pipelineStageId.slice(0, 8)}
-              </span>
+              <span className="font-semibold capitalize text-white">{stage?.name ?? 'Unknown'}</span>
               <StatusBadge status={stageRun.status} />
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               {stageRun.provider && <span>{stageRun.provider}</span>}
               {stageRun.model && <span>/ {stageRun.model}</span>}
+              {stageRun.harness && <span>({stageRun.harness})</span>}
               {stageRun.costUsd && Number(stageRun.costUsd) > 0 && (
                 <span className="font-mono text-slate-400">${stageRun.costUsd}</span>
               )}
@@ -201,8 +218,8 @@ function StageRunCard({
 
           {stageRun.tokensIn != null && stageRun.tokensIn > 0 && (
             <p className="text-[11px] text-slate-600 mt-1.5">
-              {(stageRun.tokensIn / 1000).toFixed(1)}k in &middot;{' '}
-              {((stageRun.tokensOut ?? 0) / 1000).toFixed(1)}k out
+              {(stageRun.tokensIn / 1000).toFixed(1)}k tokens in &middot;{' '}
+              {((stageRun.tokensOut ?? 0) / 1000).toFixed(1)}k tokens out
             </p>
           )}
 
@@ -210,7 +227,7 @@ function StageRunCard({
           {isGatePending && (
             <div className="mt-4 pt-4 border-t border-slate-700/20">
               <p className="text-xs text-slate-500 font-medium mb-3">
-                Gate hold — awaiting review
+                Gate ({stage?.gateMode ?? 'auto'}) — awaiting review
               </p>
               <div className="flex gap-2">
                 <button
@@ -243,8 +260,37 @@ function StageRunCard({
               </div>
             </div>
           )}
+
+          {/* Events / Transcript */}
+          {stageRun.events.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-700/20">
+              <div className="max-h-48 overflow-y-auto space-y-1 font-mono text-xs">
+                {stageRun.events.map((evt) => (
+                  <div key={evt.id} className="flex gap-2">
+                    <span className="text-slate-600 whitespace-nowrap">
+                      {new Date(evt.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className="text-slate-500">{evt.type}</span>
+                    <span className="text-slate-400 truncate">
+                      {formatEventPayload(evt.payload)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function formatEventPayload(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const obj = payload as Record<string, unknown>;
+  if (obj.from && obj.to) return `${obj.from} → ${obj.to}`;
+  if (obj.output) return String(obj.output).slice(0, 200);
+  if (obj.error) return String(obj.error);
+  const str = JSON.stringify(payload);
+  return str.length > 100 ? `${str.slice(0, 100)}...` : str;
 }

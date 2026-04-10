@@ -114,15 +114,43 @@ export const pipelineRouter = router({
         );
       }),
 
-    /** Get a pipeline run by ID with its stage runs. */
+    /** Get a pipeline run by ID with enriched stage runs (stage name, events). */
     get: publicProcedure
       .input(z.object({ id: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
+        const { pipelineStage, event: eventTable } = await import('@/core/db/schema');
+        const { asc } = await import('drizzle-orm');
         const svc = createPipelineRunService(ctx.db);
         const run = await svc.getRun(input.id);
         if (!run) return null;
-        const stages = await svc.getStageRuns(input.id);
-        return { ...run, stageRuns: stages };
+
+        const rawStageRuns = await svc.getStageRuns(input.id);
+
+        // Enrich each stage run with stage definition + events
+        const enrichedStageRuns = await Promise.all(
+          rawStageRuns.map(async (sr) => {
+            const [stageDef] = await ctx.db
+              .select()
+              .from(pipelineStage)
+              .where(eq(pipelineStage.id, sr.pipelineStageId));
+
+            const events = await ctx.db
+              .select()
+              .from(eventTable)
+              .where(eq(eventTable.stageRunId, sr.id))
+              .orderBy(asc(eventTable.timestamp));
+
+            return {
+              ...sr,
+              pipelineStage: stageDef
+                ? { name: stageDef.name, sortOrder: stageDef.sortOrder, gateMode: stageDef.gateMode }
+                : null,
+              events,
+            };
+          }),
+        );
+
+        return { ...run, stageRuns: enrichedStageRuns };
       }),
 
     /** List pipeline runs for a pipeline. */
@@ -136,25 +164,26 @@ export const pipelineRouter = router({
           .orderBy(pipelineRun.createdAt);
       }),
 
-    /** List pipeline runs for a project (via pipeline). */
+    /** List pipeline runs for a project (via pipeline), with pipeline name. */
     listByProject: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
         const { pipeline } = await import('@/core/db/schema');
         const pipelines = await ctx.db
-          .select({ id: pipeline.id })
+          .select({ id: pipeline.id, name: pipeline.name })
           .from(pipeline)
           .where(eq(pipeline.projectId, input.projectId));
 
         if (pipelines.length === 0) return [];
 
+        const pipelineNames = new Map(pipelines.map((p) => [p.id, p.name]));
         const runs = [];
         for (const p of pipelines) {
           const pRuns = await ctx.db
             .select()
             .from(pipelineRun)
             .where(eq(pipelineRun.pipelineId, p.id));
-          runs.push(...pRuns);
+          runs.push(...pRuns.map((r) => ({ ...r, pipelineName: pipelineNames.get(r.pipelineId) ?? '' })));
         }
         return runs.sort((a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -216,6 +245,69 @@ export const pipelineRouter = router({
           reason: `manually rejected: ${input.verdict}`,
         });
         return { rejected: true, verdict: input.verdict };
+      }),
+
+    /** Get the current pipeline state for an issue — latest run + current stage. */
+    issueState: publicProcedure
+      .input(z.object({ issueId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { pipeline, pipelineStage } = await import('@/core/db/schema');
+        const { desc, asc } = await import('drizzle-orm');
+
+        // Find latest pipeline run for this issue
+        const [latestRun] = await ctx.db
+          .select()
+          .from(pipelineRun)
+          .where(eq(pipelineRun.issueId, input.issueId))
+          .orderBy(desc(pipelineRun.createdAt))
+          .limit(1);
+
+        if (!latestRun) return null;
+
+        // Get all stage runs for this pipeline run
+        const stageRuns = await ctx.db
+          .select()
+          .from(stageRun)
+          .where(eq(stageRun.pipelineRunId, latestRun.id))
+          .orderBy(asc(stageRun.createdAt));
+
+        // Get all stages for the pipeline (for display)
+        const stages = await ctx.db
+          .select()
+          .from(pipelineStage)
+          .where(eq(pipelineStage.pipelineId, latestRun.pipelineId))
+          .orderBy(asc(pipelineStage.sortOrder));
+
+        // Find current stage — last non-terminal stage run, or the last completed one
+        const currentStageRun = stageRuns.length > 0
+          ? stageRuns[stageRuns.length - 1]
+          : null;
+
+        const currentStage = currentStageRun
+          ? stages.find((s) => s.id === currentStageRun.pipelineStageId) ?? null
+          : null;
+
+        return {
+          run: latestRun,
+          stages: stages.map((s) => ({
+            ...s,
+            stageRun: stageRuns.find((sr) => sr.pipelineStageId === s.id) ?? null,
+          })),
+          currentStage,
+          currentStageRun,
+        };
+      }),
+
+    /** Execute a specific stage run — mark it as launching for the orchestrator. */
+    executeStage: publicProcedure
+      .input(z.object({ stageRunId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        await svc.updateStageRunStatus(input.stageRunId, 'launching');
+        await svc.appendEvent(input.stageRunId, 'launched', {
+          reason: 'manually executed by user',
+        });
+        return { executed: true };
       }),
 
     /** KPIs — aggregate stats for a project's pipeline runs. */

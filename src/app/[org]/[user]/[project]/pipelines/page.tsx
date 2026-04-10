@@ -98,6 +98,7 @@ export default function PipelinesPage() {
             <thead>
               <tr className="text-left">
                 <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Run</th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Pipeline</th>
                 <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Status</th>
                 <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Started</th>
                 <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Completed</th>
@@ -117,6 +118,9 @@ export default function PipelinesPage() {
                     >
                       {run.id.slice(0, 8)}
                     </Link>
+                  </td>
+                  <td className="px-6 py-3.5 text-slate-300 font-medium">
+                    {(run as any).pipelineName || run.pipelineId.slice(0, 8)}
                   </td>
                   <td className="px-6 py-3.5">
                     <StatusBadge status={run.status} />
