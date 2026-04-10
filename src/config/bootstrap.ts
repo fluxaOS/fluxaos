@@ -11,6 +11,7 @@ import { registry } from './registry';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
+import { SubprocessExecutor } from '@/adapters/subprocess/executor';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -51,6 +52,11 @@ export function bootstrap(): void {
   registry.register('queue', () => {
     const redisUrl = requireEnv('REDIS_URL');
     return new BullMQAdapter(redisUrl);
+  });
+
+  // Stage Executor — subprocess-based
+  registry.register('executor', () => {
+    return new SubprocessExecutor();
   });
 
   // Validate all required adapters are registered
