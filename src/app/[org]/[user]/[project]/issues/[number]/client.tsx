@@ -404,11 +404,29 @@ export function IssueDetailClient({
     },
   });
 
-  // Pipeline state for this issue
+  // Pipeline: get project's pipelines + stages (always visible)
+  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
+    { projectId },
+    { enabled: !!projectId },
+  );
+  const defaultPipeline = pipelinesQuery.data?.find((p) => p.isDefault) ?? pipelinesQuery.data?.[0];
+
+  const stagesQuery = trpc.pipeline.stages.listByPipeline.useQuery(
+    { pipelineId: defaultPipeline?.id ?? '' },
+    { enabled: !!defaultPipeline?.id },
+  );
+  const pipelineStages = stagesQuery.data ?? [];
+
+  // Pipeline run state for this issue (if a run exists)
   const pipelineStateQuery = trpc.pipeline.runs.issueState.useQuery(
     { issueId: issue?.id ?? '' },
     { enabled: !!issue?.id },
   );
+  const pipelineState = pipelineStateQuery.data;
+
+  const triggerRun = trpc.pipeline.runs.trigger.useMutation({
+    onSuccess: () => pipelineStateQuery.refetch(),
+  });
 
   const executeStage = trpc.pipeline.runs.executeStage.useMutation({
     onSuccess: () => pipelineStateQuery.refetch(),
@@ -419,8 +437,6 @@ export function IssueDetailClient({
       router.push(`${basePath}/issues`);
     },
   });
-
-  const pipelineState = pipelineStateQuery.data;
 
   const isMutating = updateFields.isPending || transitionMutation.isPending;
 
@@ -555,64 +571,83 @@ export function IssueDetailClient({
         )}
       </Card>
 
-      {/* Pipeline Stages */}
-      {pipelineState && pipelineState.stages.length > 0 && (
-        <Card hover={false} padding="p-5 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-400">Pipeline Stages</h3>
-          <div className="flex gap-2">
-            {pipelineState.stages.map((s: typeof pipelineState.stages[number]) => {
-              const sr = s.stageRun;
-              const isCurrent = pipelineState.currentStage?.id === s.id;
-              const isCompleted = sr?.status === 'completed';
-              const isPending = sr?.status === 'pending';
-              const isRunning = sr?.status === 'running' || sr?.status === 'launching';
+      {/* Pipeline Stages — always visible when pipeline exists */}
+      {pipelineStages.length > 0 && (() => {
+        // Match the issue's current state to a pipeline stage by name
+        const currentStateName = stateInfo?.key ?? stateInfo?.displayName?.toLowerCase();
+        const matchingStage = pipelineStages.find(
+          (s: typeof pipelineStages[number]) => s.name === currentStateName,
+        );
+        const isExecuting = executeStage.isPending || triggerRun.isPending;
 
-              return (
-                <div
-                  key={s.id}
-                  className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
-                    isCompleted
-                      ? 'bg-emerald-400/10 border-emerald-400/30 text-emerald-400'
-                      : isRunning
-                        ? 'bg-electric-violet/15 border-soft-violet/40 text-soft-violet'
-                        : isCurrent
-                          ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
-                          : 'bg-white/[0.02] border-slate-700/30 text-slate-500'
-                  }`}
-                >
-                  <span className="font-medium">{s.name}</span>
-                  <span className="text-slate-600 ml-1">({s.gateMode})</span>
-                  {sr && (
-                    <span className="ml-1.5 text-[10px] opacity-70">{sr.status}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        return (
+          <Card hover={false} padding="p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-slate-400">Pipeline Stages</h3>
+            <div className="flex gap-2">
+              {pipelineStages.map((s: typeof pipelineStages[number]) => {
+                const sr = pipelineState?.stages?.find(
+                  (ps: any) => ps.id === s.id,
+                )?.stageRun ?? null;
+                const isCurrent = s.id === matchingStage?.id;
+                const isCompleted = sr?.status === 'completed';
+                const isRunning = sr?.status === 'running' || sr?.status === 'launching';
 
-          {/* Run Stage button — only when current stage is pending (held by gate) */}
-          {pipelineState.currentStageRun &&
-            pipelineState.currentStageRun.status === 'pending' && (
-            <button
-              type="button"
-              onClick={() =>
-                executeStage.mutate({ stageRunId: pipelineState.currentStageRun!.id })
-              }
-              disabled={executeStage.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
-            >
-              <Play size={14} />
-              {executeStage.isPending ? 'Starting...' : 'Run Stage'}
-            </button>
-          )}
+                return (
+                  <div
+                    key={s.id}
+                    className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                      isCompleted
+                        ? 'bg-emerald-400/10 border-emerald-400/30 text-emerald-400'
+                        : isRunning
+                          ? 'bg-electric-violet/15 border-soft-violet/40 text-soft-violet'
+                          : isCurrent
+                            ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
+                            : 'bg-white/[0.02] border-slate-700/30 text-slate-500'
+                    }`}
+                  >
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-slate-600 ml-1">({s.gateMode})</span>
+                    {sr && (
+                      <span className="ml-1.5 text-[10px] opacity-70">{sr.status}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-          {pipelineState.run && (
-            <p className="text-[11px] text-slate-600">
-              Run: {pipelineState.run.status} &middot; Cost: ${pipelineState.run.totalCostUsd ?? '0.00'}
-            </p>
-          )}
-        </Card>
-      )}
+            {/* Run Stage — always available, triggers the stage matching the issue's state */}
+            {matchingStage && defaultPipeline && issue && (
+              <button
+                type="button"
+                onClick={() => {
+                  // If a pending stage run exists, execute it
+                  const existingSr = pipelineState?.currentStageRun;
+                  if (existingSr && (existingSr.status === 'pending' || existingSr.status === 'queued')) {
+                    executeStage.mutate({ stageRunId: existingSr.id });
+                  } else {
+                    // Otherwise trigger a new pipeline run
+                    triggerRun.mutate({
+                      pipelineId: defaultPipeline.id,
+                      issueId: issue.id,
+                    });
+                  }
+                }}
+                disabled={isExecuting}
+                className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
+              >
+                <Play size={14} />
+                {isExecuting ? 'Starting...' : `Run Stage`}
+              </button>
+            )}
+
+            {pipelineState?.run && (
+              <p className="text-[11px] text-slate-600">
+                Run: {pipelineState.run.status} &middot; Cost: ${pipelineState.run.totalCostUsd ?? '0.00'}
+              </p>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* Delete Issue */}
       <button
