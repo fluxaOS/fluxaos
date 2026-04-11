@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Phase snapshot (generated per-phase, not committed)
+.phase-snapshot.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
