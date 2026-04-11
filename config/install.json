@@ -1,0 +1,49 @@
+{
+  "__meta": {
+    "managed_by": "fhc install",
+    "note": "DO NOT EDIT \u2014 this file is overwritten by fhc install. Edit templates/install-files/install.json.template in fh-commons."
+  },
+  "_comment": "See docs/python-functions-reference.md for feature documentation and docs/examples/ for usage examples",
+  "project": {
+    "name": "fluxaos",
+    "description": "AI orchestration OS",
+    "cli_name": "flu"
+  },
+  "state_file": "config/install-state.json",
+  "features": {
+    "poetry": {
+      "enabled": true,
+      "extras": [
+        "browser",
+        "dev"
+      ]
+    },
+    "npm": {
+      "enabled": false
+    },
+    "config": {
+      "enabled": true
+    },
+    "symlink": {
+      "enabled": true
+    },
+    "host_config": {
+      "enabled": false
+    },
+    "api_key": {
+      "enabled": false
+    },
+    "cron": {
+      "enabled": false
+    },
+    "systemd": {
+      "enabled": false
+    },
+    "scripts": {
+      "enabled": false
+    },
+    "actions": {
+      "enabled": false
+    }
+  }
+}
