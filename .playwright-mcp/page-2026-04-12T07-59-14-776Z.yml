@@ -1,0 +1,21 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "fluxaOS" [level=1] [ref=e5]
+      - paragraph [ref=e6]: AI Orchestration Operating System
+    - generic [ref=e7]:
+      - paragraph [ref=e26]: Invalid login credentials
+      - generic [ref=e8]:
+        - generic [ref=e9]: Email
+        - textbox "Email" [ref=e10]:
+          - /placeholder: you@example.com
+          - text: admin@fluxaos.local
+      - generic [ref=e11]:
+        - generic [ref=e12]: Password
+        - textbox "Password" [ref=e13]:
+          - /placeholder: ••••••••
+          - text: admin
+      - button "Sign in" [ref=e14]
+  - button "Open Next.js Dev Tools" [ref=e20] [cursor=pointer]:
+    - img [ref=e21]
+  - alert [ref=e24]
