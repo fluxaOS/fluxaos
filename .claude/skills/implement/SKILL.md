@@ -110,11 +110,17 @@ git commit -m "feat: <phase description>"
 git push -u origin phase/$PHASE_NAME
 ```
 
-### 7. Signal Ready for Review
+### 7. Run Pre-Deploy Review
 
-Tell the user:
-> "Phase $PHASE_NAME implementation complete on branch `phase/$PHASE_NAME`. Ready for Codex review. Run `/review` to proceed."
+Run `/review` to execute all Layer 1 checks (snapshot, invariants, type check, tests). This is NOT the Codex review — the Codex stop-time review gate fires automatically when this session ends.
 
-### 8. STOP
+### 8. Signal Ready for Deploy
 
-Wait for the review skill. Do NOT merge, create PRs, or mark the phase complete.
+If `/review` passes, tell the user:
+> "Phase $PHASE_NAME implementation complete on branch `phase/$PHASE_NAME`. Layer 1 review passed. Run `/deploy` to merge and verify in browser.
+>
+> The Codex stop-time review gate will automatically review this work when the session ends."
+
+### 9. STOP
+
+Wait for the deploy skill. Do NOT merge, create PRs, or mark the phase complete.
