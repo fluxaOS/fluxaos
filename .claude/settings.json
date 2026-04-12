@@ -4,7 +4,7 @@
     "note": "DO NOT EDIT \u2014 this file is overwritten by fhc sync. Edit templates/claude-settings/settings.json in fh-commons."
   },
   "hooks": {
-    "postToolUse": [
+    "PostToolUse": [
       {
         "matcher": "Write",
         "hooks": [
