@@ -1,0 +1,20 @@
+{
+  "__meta": {
+    "description": "Shared ecosystem configuration synced from fh-commons",
+    "version": "1.0.0",
+    "managed_by": "fhc sync",
+    "note": "DO NOT EDIT — this file is overwritten by fhc sync. Edit templates/shared-config/shared.json in fh-commons."
+  },
+  "testing": {
+    "browser_tests": {
+      "screenshot_dir": "tests/browser/screenshots"
+    }
+  },
+  "logging": {
+    "dir": "logs",
+    "file_extension": ".log",
+    "level": "INFO",
+    "format": "text",
+    "log_to_screen": false
+  }
+}

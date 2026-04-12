@@ -185,6 +185,38 @@ These checks are necessary but not sufficient. They catch mechanical violations.
 
 ---
 
+## Session Protocol
+
+Rules that govern how each implementation session operates. These complement the invariants — invariants say what the code must be, the session protocol says how agents must work.
+
+### Before Starting Any Work
+
+1. Read the current phase plan (path will be provided in the session prompt).
+2. Your scope is LIMITED to the files listed in that plan.
+3. If you need to modify a file NOT in the plan, STOP and flag to the user.
+4. Create a restore point: `/restore-point create <phase-name>`
+5. Generate phase snapshot: `bash .claude/hooks/phase-snapshot.sh`
+
+### During Work
+
+6. NEVER use Write on an existing file — use Edit only. A postToolUse hook enforces this for `src/app/`, `src/components/`, and `src/server/`, but apply this discipline to ALL existing files.
+7. When fixing type errors: BUILD the missing endpoint, don't DELETE the UI that calls it. The UI defines what the backend needs, not the other way around.
+8. If a page references a tRPC endpoint that doesn't exist, create the endpoint.
+
+### Before Committing
+
+9. Review your own diff: `git diff --stat` — any file that lost >20% of its lines needs justification to the user.
+10. No UI elements were removed without explicit user approval.
+11. Any new endpoints referenced by UI actually exist.
+12. Run snapshot check: `bash .claude/hooks/phase-snapshot-check.sh` — fix any regressions before committing.
+
+### After Committing (before marking complete)
+
+13. Run Codex adversarial review on the feature branch (the /review skill handles this).
+14. No phase is complete until the user verifies it in a running browser (invariant #21 — restated here for emphasis).
+
+---
+
 ## Reference Architecture
 
 **Source of truth:** PAT at `/mnt/dev/pat/` — specifically:
@@ -220,9 +252,11 @@ For alpha: one org, one user, one or more projects. The schema and routes are de
 
 ## Current State
 
-Phases R1-R2 complete. R3 partially done (basic CRUD for all entities works against Supabase). The issue model uses hardcoded enums and must be overhauled to database-driven catalogs per the design spec. The pipeline engine, rules engine, and routing system are not yet built.
+Phases R1-R3 complete and verified (rich issue model, 23 integration tests, catalog-driven UI). R4 (gate engine) and R5 (pipeline engine) are committed but NOT verified by user in browser. The UI has drifted from the approved mockup at `planning/mockups/dashboard-mockup.html` due to multiple rewrites — see `docs/rca/2026-04-11-ui-regression-rca.md` for the full root cause analysis.
 
-A dashboard UI design (glassmorphism, bento grid, card system) was merged via PR #12. It establishes the visual language and shared components (Card, StatCard, PageHeader, StatusBadge, Skeleton, EmptyState) under a `/dashboard/` route structure. This needs to be reconciled with the multi-tenant `/[org]/[user]/[project]/` routing.
+Phase R3.5 (enforcement infrastructure) installs drift prevention tooling. All subsequent phases use the skill chain: `/implement → /review (Codex) → /rework → /deploy`.
+
+**Remaining phases:** R3.5 → R4-V (verify gate engine) → R5-V (verify pipeline engine) → R-UI (mockup reconciliation) → R6 (polish + ship). See `docs/superpowers/specs/2026-04-11-session-drift-prevention-design.md` for the full revised roadmap.
 
 ## Development Database
 
