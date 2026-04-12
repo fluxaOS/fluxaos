@@ -15,26 +15,13 @@
         ]
       }
     ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '\u26a0\ufe0f  REMINDER: This repository uses Forgejo (NOT GitHub)' && echo '   \u2705 ALWAYS use: flu git commands' && echo '   \u274c NEVER use: gh or tea commands'"
-          }
-        ]
-      }
-    ]
+    "SessionStart": []
   },
   "enabledPlugins": {
     "codex@openai-codex": true
   },
   "permissions": {
     "deny": [
-      "Bash(gh:*)",
-      "Bash(gh)",
-      "Bash(tea:*)",
-      "Bash(tea)",
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./secrets/**)",
