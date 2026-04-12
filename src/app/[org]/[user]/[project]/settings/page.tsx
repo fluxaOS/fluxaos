@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
+import { RuleBuilder } from '@/components/gates/RuleBuilder';
+import { RuleTestPanel } from '@/components/gates/RuleTestPanel';
 import { trpc } from '@/lib/trpc/client';
+import type { RuleGroup, GateMode } from '@/core/gates/types';
 
 export default function PipelineSettingsPage() {
   const [showCreate, setShowCreate] = useState(false);
@@ -155,7 +158,8 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
   });
 
   const [newName, setNewName] = useState('');
-  const [newGateMode, setNewGateMode] = useState('auto');
+  const [newGateMode, setNewGateMode] = useState<string>('auto');
+  const [newGateRules, setNewGateRules] = useState<RuleGroup | null>(null);
 
   return (
     <div className="mt-3 pt-3 border-t border-slate-700/20 space-y-2">
@@ -187,50 +191,62 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
       )}
 
       {showAdd ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!newName.trim()) return;
-            createStage.mutate({
-              pipelineId,
-              name: newName.trim(),
-              sortOrder: stages.length + 1,
-              gateMode: newGateMode,
-            });
-          }}
-          className="flex gap-2 items-end"
-        >
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Stage name"
-            className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
-          />
-          <select
-            value={newGateMode}
-            onChange={(e) => setNewGateMode(e.target.value)}
-            className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+        <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newName.trim()) return;
+              createStage.mutate({
+                pipelineId,
+                name: newName.trim(),
+                sortOrder: stages.length + 1,
+                gateMode: newGateMode,
+                gateRules: newGateMode === 'rules' ? newGateRules : undefined,
+              });
+            }}
+            className="flex gap-2 items-end"
           >
-            <option value="auto">auto</option>
-            <option value="rules">rules</option>
-            <option value="hold">hold</option>
-          </select>
-          <button
-            type="submit"
-            disabled={createStage.isPending}
-            className="px-2 py-1 bg-accent text-white text-xs rounded-md disabled:opacity-50"
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd(false)}
-            className="px-2 py-1 text-muted text-xs"
-          >
-            Cancel
-          </button>
-        </form>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Stage name"
+              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+            />
+            <select
+              value={newGateMode}
+              onChange={(e) => setNewGateMode(e.target.value)}
+              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+            >
+              <option value="auto">auto</option>
+              <option value="rules">rules</option>
+              <option value="hold">hold</option>
+            </select>
+            <button
+              type="submit"
+              disabled={createStage.isPending}
+              className="px-2 py-1 bg-accent text-white text-xs rounded-md disabled:opacity-50"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAdd(false)}
+              className="px-2 py-1 text-muted text-xs"
+            >
+              Cancel
+            </button>
+          </form>
+          {newGateMode === 'rules' && (
+            <div className="space-y-3 mt-3">
+              <RuleBuilder rules={newGateRules} onChange={setNewGateRules} />
+              <RuleTestPanel
+                mode={newGateMode as GateMode}
+                rules={newGateRules}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <button
           type="button"

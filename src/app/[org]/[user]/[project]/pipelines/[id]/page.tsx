@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { ArrowLeft, Check, RotateCcw, XOctagon } from 'lucide-react';
 import { Card } from '@/components/card';
 import { StatusBadge } from '@/components/status-badge';
+import { VerdictBadge } from '@/components/gates/VerdictBadge';
 import { trpc } from '@/lib/trpc/client';
 
 function useBasePath() {
@@ -170,6 +171,13 @@ function StageRunCard({
   const isQueued = stageRun.status === 'queued';
   const isGatePending = stageRun.status === 'pending';
 
+  // Extract gate verdict from events (gate_checked event has verdict in payload)
+  const gateEvent = stageRun.events.find((evt) => evt.type === 'gate_checked');
+  const gateVerdict =
+    gateEvent && typeof gateEvent.payload === 'object' && gateEvent.payload !== null
+      ? (gateEvent.payload as Record<string, unknown>).verdict as string | undefined
+      : undefined;
+
   const stepColor = isCompleted
     ? 'bg-emerald-400/15 border-emerald-400/40 text-emerald-400'
     : isActive || isGatePending
@@ -205,6 +213,7 @@ function StageRunCard({
             <div className="flex items-center gap-3">
               <span className="font-semibold capitalize text-white">{stage?.name ?? 'Unknown'}</span>
               <StatusBadge status={stageRun.status} />
+              {gateVerdict && <VerdictBadge verdict={gateVerdict} />}
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               {stageRun.provider && <span>{stageRun.provider}</span>}
