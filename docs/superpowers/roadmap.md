@@ -19,7 +19,7 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 ## What's Next
 
 1. **Update skills to emit flux:signal** — All 4 pipeline skills (research, implement, review, deploy) need `flux:signal` emission added to prompt templates. Without this, all stage runs fail with "no skill signal emitted" (correct no-fallback behavior).
-2. **R-UI** — reconcile UI with approved mockup at `planning/mockups/dashboard-mockup.html`
+2. **R-UI** — reconcile UI with approved mockup at `docs/planning/mockups/dashboard-mockup.html`
    - Harness catalog management page (list/create/edit/delete harnesses — currently only visible in stage dropdowns)
    - Skill edit/delete in settings
    - Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates)
