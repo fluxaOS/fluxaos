@@ -255,7 +255,9 @@ export async function executeStageRun(
 
     // Spawn subprocess
     let lineNumber = 0;
-    let lastSignal: SkillSignal | null = null;
+    // Widened type so TS doesn't narrow to `never` after the null-check
+    // (lastSignal is mutated inside the onStdout callback)
+    let lastSignal = null as SkillSignal | null;
     const lineParser = getParser(harnessRow.outputFormat as string);
 
     const result = await executor.execute({
