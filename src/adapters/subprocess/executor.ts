@@ -31,6 +31,7 @@ export class SubprocessExecutor implements StageExecutor {
       env: { ...process.env, ...params.env },
       timeout: params.timeoutMs ?? 300_000,
       reject: false,
+      stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
     });

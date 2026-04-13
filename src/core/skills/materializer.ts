@@ -61,18 +61,20 @@ export async function materialize(
   // Create directories
   await mkdir(skillDir, { recursive: true });
 
-  // 1. Write CLAUDE.md from persona
-  const claudeMd = buildPersonaContent(options.persona);
-  if (claudeMd) {
-    await atomicWrite(join(workspacePath, 'CLAUDE.md'), claudeMd);
+  // 1. Write CLAUDE.md — persona + skill instructions combined
+  //    Claude auto-discovers CLAUDE.md from --add-dir directories,
+  //    but skills/{name}/SKILL.md requires explicit invocation.
+  //    Embedding skill instructions in CLAUDE.md ensures they're always read.
+  const parts: string[] = [];
+  const personaContent = buildPersonaContent(options.persona);
+  if (personaContent) {
+    parts.push(personaContent);
   }
-
-  // 2. Write skills/{name}/SKILL.md
   if (options.skill.promptTemplate) {
-    await atomicWrite(
-      join(skillDir, 'SKILL.md'),
-      options.skill.promptTemplate,
-    );
+    parts.push(`## Skill: ${options.skill.name}\n\n${options.skill.promptTemplate}`);
+  }
+  if (parts.length > 0) {
+    await atomicWrite(join(workspacePath, 'CLAUDE.md'), parts.join('\n\n'));
   }
 
   // 3. Write context.md with issue metadata

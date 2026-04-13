@@ -175,7 +175,12 @@ async function seed() {
         .returning();
     }
   }
-  console.log(`  pipeline stages: ${existingStages.length || 4}`);
+  // Re-query stages so the FK update below always runs
+  const allStages = await db
+    .select()
+    .from(pipelineStage)
+    .where(eq(pipelineStage.pipelineId, pipe.id));
+  console.log(`  pipeline stages: ${allStages.length}`);
 
   // ── 5b. Harness catalog ────────────────────────────────────────────────
   let [claudeHarness] = await db
@@ -186,11 +191,11 @@ async function seed() {
       binary: 'claude',
       modelFlag: '--model',
       dirFlag: '--add-dir',
-      sessionNameFlag: '--session-name',
+      sessionNameFlag: '--name',
       promptTransport: 'argv',
       issuePromptTemplate: '{{skill_name}}: {{issue_title}} — {{issue_description}}',
       queuePromptTemplate: '{{issue_title}}',
-      defaultArgs: ['--dangerously-skip-permissions'],
+      defaultArgs: ['--print', '--dangerously-skip-permissions'],
       envVars: {},
     })
     .onConflictDoNothing({ target: harnessCatalog.slug })
@@ -227,9 +232,9 @@ async function seed() {
   console.log(`  skill: ${researchSkill.name} (${researchSkill.id})`);
 
   // ── 5d. Update pipeline stages with harness + skill FKs ───────────────
-  if (existingStages.length > 0) {
-    // Update existing stages with harness FK
-    for (const stage of existingStages) {
+  if (allStages.length > 0) {
+    // Update stages with harness FK
+    for (const stage of allStages) {
       await db
         .update(pipelineStage)
         .set({

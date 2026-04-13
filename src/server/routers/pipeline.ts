@@ -3,7 +3,10 @@ import { eq } from 'drizzle-orm';
 import { router, publicProcedure } from '../trpc';
 import { createPipelineService } from '@/core/services';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
+import { executeManualRun } from '@/core/orchestrator/manual-run';
 import { pipelineRun, stageRun, event, stageGateResult } from '@/core/db/schema';
+import { registry } from '@/config/registry';
+import type { StageExecutor } from '@/core/ports/stage-executor';
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -105,17 +108,30 @@ export const pipelineRouter = router({
 
   // ─── Pipeline Runs ──────────────────────────────────────────────────────
   runs: router({
-    /** Trigger a new pipeline run for an issue. */
+    /** Trigger a manual pipeline run for a single stage. */
     trigger: publicProcedure
       .input(z.object({
         pipelineId: z.string().uuid(),
         issueId: z.string().uuid(),
+        stageId: z.string().uuid(),
       }))
-      .mutation(({ ctx, input }) => {
-        return createPipelineRunService(ctx.db).createRun(
-          input.pipelineId,
-          input.issueId,
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        const run = await svc.createRun(input.pipelineId, input.issueId);
+        await svc.updateRunStatus(run.id, 'running');
+        const sr = await svc.createStageRun(run.id, input.stageId);
+        await svc.updateStageRunStatus(sr.id, 'launching');
+        await svc.appendEvent(sr.id, 'launched', {
+          reason: 'manually executed by user',
+        });
+
+        // Fire-and-forget: spawn subprocess in background
+        const executor = registry.get<StageExecutor>('executor');
+        executeManualRun(ctx.db, executor, run.id, sr.id).catch((err) =>
+          console.error('[manual-run] unhandled error:', err),
         );
+
+        return run;
       }),
 
     /** Get a pipeline run by ID with enriched stage runs (stage name, events). */

@@ -634,10 +634,11 @@ export function IssueDetailClient({
                   if (existingSr && (existingSr.status === 'pending' || existingSr.status === 'queued')) {
                     executeStage.mutate({ stageRunId: existingSr.id });
                   } else {
-                    // Otherwise trigger a new pipeline run
+                    // Otherwise trigger a new pipeline run for this stage
                     triggerRun.mutate({
                       pipelineId: defaultPipeline.id,
                       issueId: issue.id,
+                      stageId: matchingStage.id,
                     });
                   }
                 }}
