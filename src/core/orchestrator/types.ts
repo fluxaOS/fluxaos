@@ -1,63 +1,30 @@
 /**
  * Orchestrator types — shared across the pipeline engine.
  *
- * No hardcoded stage names, provider names, or harness names.
- * Everything is a string read from the database.
+ * Status types and terminal sets are re-exported from constants.ts.
+ * Domain-specific interfaces (routing, job payloads, config) live here.
  */
 
-// ─── Pipeline Run ──────────────────────────────────────────────────────────
+// Re-export status types and sets from the single source of truth
+export {
+  type PipelineRunStatus,
+  type StageRunStatus,
+  PIPELINE_RUN_TERMINAL,
+  STAGE_RUN_TERMINAL,
+  type EventType as StageEventType,
+  PIPELINE_RUN_STATUS,
+  STAGE_RUN_STATUS,
+  EVENT_TYPE,
+  ISSUE_EVENT_TYPE,
+  GATE_VERDICT,
+  GATE_MODE,
+  DEFAULT_STAGE_TIMEOUT_SEC,
+  ORCHESTRATOR_HEARTBEAT_MS,
+} from '@/core/constants';
 
-/** Status of a pipeline run. Stored as text in DB — no TypeScript enum. */
-export type PipelineRunStatus =
-  | 'queued'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'timed_out'
-  | 'cancelled'
-  | 'blocked';
+import { ORCHESTRATOR_HEARTBEAT_MS } from '@/core/constants';
 
-export const PIPELINE_RUN_TERMINAL: ReadonlySet<string> = new Set([
-  'completed',
-  'failed',
-  'timed_out',
-  'cancelled',
-]);
-
-// ─── Stage Run ─────────────────────────────────────────────────────────────
-
-/** Status of a stage run. Stored as text in DB. */
-export type StageRunStatus =
-  | 'pending'
-  | 'launching'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'timed_out'
-  | 'cancelled';
-
-export const STAGE_RUN_TERMINAL: ReadonlySet<string> = new Set([
-  'completed',
-  'failed',
-  'timed_out',
-  'cancelled',
-]);
-
-// ─── Stage Events ──────────────────────────────────────────────────────────
-
-/** Event types appended to the event store. */
-export type StageEventType =
-  | 'launched'
-  | 'heartbeat'
-  | 'output'
-  | 'gate_checked'
-  | 'error'
-  | 'timed_out'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
-
-// ─── Routing ───────────────────────────────────────────────────────────────
+// ─── Routing ───────────────────────────────────────────────────────────
 
 /** Result of resolving routing for a stage. All from DB config. */
 export interface ResolvedRouting {
@@ -72,7 +39,7 @@ export interface ResolvedRouting {
   costPer1kOutput: number;
 }
 
-// ─── Job Payload ───────────────────────────────────────────────────────────
+// ─── Job Payload ───────────────────────────────────────────────────────
 
 /** Data enqueued to BullMQ for a stage execution job. */
 export interface StageJobPayload {
@@ -91,7 +58,7 @@ export interface StageJobPayload {
   timeoutMs: number;
 }
 
-// ─── Orchestrator Config ───────────────────────────────────────────────────
+// ─── Orchestrator Config ───────────────────────────────────────────────
 
 export interface OrchestratorConfig {
   /** How often the orchestrator checks for work (ms). */
@@ -105,7 +72,7 @@ export interface OrchestratorConfig {
 }
 
 export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
-  heartbeatIntervalMs: 5_000,
+  heartbeatIntervalMs: ORCHESTRATOR_HEARTBEAT_MS,
   maxConcurrentRuns: 5,
   maxConcurrentStages: 3,
   queueName: 'stage-execution',
