@@ -104,9 +104,15 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
     const parsed: TranscriptEntry[] = [];
     for (const line of rawLines) {
       if (line.type === EVENT_TYPE.output) {
-        parsed.push(...parseLine(line.content, line.lineNumber));
+        // Try JSON parsing first (streaming harness output)
+        const results = parseLine(line.content, line.lineNumber);
+        // If parseLine only produced raw entries, promote to text for readability
+        const promoted = results.map((entry) =>
+          entry.kind === 'raw' ? { ...entry, kind: 'text' as EntryKind } : entry,
+        );
+        parsed.push(...promoted);
       } else {
-        // Non-output events (STAGE_STARTED, etc.) become system entries
+        // Non-output events (launched, completed, etc.) become system entries
         parsed.push({
           id: `sys-${line.lineNumber}`,
           kind: 'system' as EntryKind,

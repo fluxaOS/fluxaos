@@ -30,6 +30,20 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `src/__tests__/integration/orchestrator.test.ts`
 **What's needed:** Rewrite tests for event-orchestrator architecture, or write new manual-run integration tests
 
+## Manual-run: Issue state not transitioned after pipeline completion
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Medium — pipeline completes but issue stays in its current state
+**Location:** `src/core/orchestrator/manual-run.ts`
+**What's needed:** After pipeline completes, transition issue state based on exit code (e.g. research → implement on success)
+
+## UI: Issue activity feed doesn't auto-refresh via Realtime
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Medium — issue events (stage_started, pipeline_completed) only appear after page refresh
+**Location:** Issue detail client component
+**What's needed:** Subscribe to `issue_event` table changes via Supabase Realtime, or add polling refetch
+
 ## Adapter: RealtimeProvider not implemented
 
 **Found:** 2026-04-13 during architectural cleanup
