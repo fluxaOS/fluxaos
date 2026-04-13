@@ -11,11 +11,19 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `src/app/[org]/[user]/[project]/settings/skills/page.tsx`
 **What's needed:** Add edit (inline or modal) and delete buttons to each skill card. Requires `skill.update` and `skill.delete` tRPC mutations.
 
-## UI: GateResultsPanel untested
+## UI: GateResultsPanel rule details show empty dots
 
-**Found:** 2026-04-13 — original verification checklist item #7
-**Severity:** Low — gate evaluation logic exists but no gates have fired in browser
-**What's needed:** Trigger a run on the `implement` stage (gateMode: rules) and verify the gate panel renders
+**Found:** 2026-04-13 — gate evaluation works, verdict displays correctly, but individual rule dots show no text
+**Severity:** Low — verdict and pass/fail are correct, just the per-rule detail is missing
+**Location:** `src/components/pipeline/GateResultsPanel.tsx`
+**Root cause:** Panel expects `ruleResults[].field` but the stored `RuleResult` has `rule.field`, `rule.operator`, `rule.value` nested under a `rule` object. Panel needs to read `rule.rule.field` etc.
+
+## UI: Previous run details not visible after new run
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Medium — after running implement stage, research run details are no longer accessible
+**Location:** `RunDetailModal` or run history display
+**What's needed:** Show run history per stage or allow selecting previous runs
 
 ## UI: Cancel buttons untested
 
@@ -36,6 +44,20 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Medium — issue events (stage_started, pipeline_completed) only appear after page refresh
 **Location:** Issue detail client component
 **What's needed:** Subscribe to `issue_event` table changes via Supabase Realtime, or add polling refetch
+
+## UI: LiveOutput updates all at once instead of streaming line-by-line
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Medium — output appears as a batch when the run completes rather than streaming incrementally
+**Location:** `src/components/pipeline/LiveOutput.tsx`, `src/core/orchestrator/stage-runner.ts`
+**What's needed:** Investigate whether Supabase Realtime INSERT events are batched or delayed. May need to flush event writes more aggressively, or switch from refetch-on-event to appending new events directly from the Realtime payload.
+
+## UI: Pipeline detail modal duration doesn't update in real-time
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Low — duration shows stale value until modal is reopened
+**Location:** `RunDetailModal` or parent component
+**What's needed:** Poll or subscribe to `pipeline_run` / `stage_run` updates so duration reflects current elapsed time
 
 ## Adapter: RealtimeProvider not implemented
 
