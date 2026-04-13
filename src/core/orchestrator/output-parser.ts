@@ -32,7 +32,7 @@ export interface TranscriptEntry {
 /**
  * Parse a single stdout line into one or more TranscriptEntries.
  *
- * Claude Code outputs one JSON object per line. The `type` field determines
+ * The harness outputs one JSON object per line. The `type` field determines
  * the entry kind:
  * - "assistant" with content[].type="text" → text
  * - "assistant" with content[].type="tool_use" → tool_call
