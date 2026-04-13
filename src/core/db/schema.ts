@@ -99,6 +99,8 @@ export const pipelineStage = pgTable('pipeline_stage', {
   maxRetries: integer('max_retries').default(0),
   gateMode: text('gate_mode').default('auto'),
   gateRules: jsonb('gate_rules'),
+  skillId: uuid('skill_id').references(() => skill.id),
+  harnessId: uuid('harness_id').references(() => harnessCatalog.id),
   createdAt,
   updatedAt,
 });
@@ -131,9 +133,14 @@ export const stageRun = pgTable('stage_run', {
   provider: text('provider'),
   model: text('model'),
   harness: text('harness'),
+  attempt: integer('attempt').notNull().default(1),
+  pid: integer('pid'),
+  exitCode: integer('exit_code'),
   costUsd: numeric('cost_usd', { precision: 10, scale: 6 }).default('0'),
   tokensIn: integer('tokens_in').default(0),
   tokensOut: integer('tokens_out').default(0),
+  skillId: uuid('skill_id').references(() => skill.id),
+  harnessId: uuid('harness_id').references(() => harnessCatalog.id),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt,
@@ -154,6 +161,31 @@ export const stageGateResult = pgTable('stage_gate_result', {
   ruleResults: jsonb('rule_results').notNull(),
   reason: text('reason').notNull(),
   createdAt,
+});
+
+// ─── Harness Catalog ──────────────────────────────────────────────────────
+
+export const harnessCatalog = pgTable('harness_catalog', {
+  id,
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  binary: text('binary').notNull(),
+  defaultArgs: jsonb('default_args').notNull().default(sql`'[]'::jsonb`),
+  modelFlag: text('model_flag'),
+  dirFlag: text('dir_flag'),
+  sessionNameFlag: text('session_name_flag'),
+  promptTransport: text('prompt_transport').notNull().default('argv'),
+  promptSendDelayMs: integer('prompt_send_delay_ms').notNull().default(0),
+  probeCommand: text('probe_command'),
+  issuePromptTemplate: text('issue_prompt_template'),
+  queuePromptTemplate: text('queue_prompt_template'),
+  envVars: jsonb('env_vars').notNull().default(sql`'{}'::jsonb`),
+  extraArgs: jsonb('extra_args').notNull().default(sql`'{}'::jsonb`),
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  notes: text('notes'),
+  version: integer('version').notNull().default(1),
+  createdAt,
+  updatedAt,
 });
 
 // ─── Event Store (append-only) ──────────────────────────────────────────────
@@ -746,6 +778,11 @@ export const pipelineRelations = relations(pipeline, ({ one, many }) => ({
   runs: many(pipelineRun),
 }));
 
+export const harnessCatalogRelations = relations(harnessCatalog, ({ many }) => ({
+  pipelineStages: many(pipelineStage),
+  stageRuns: many(stageRun),
+}));
+
 export const pipelineStageRelations = relations(
   pipelineStage,
   ({ one, many }) => ({
@@ -756,6 +793,14 @@ export const pipelineStageRelations = relations(
     persona: one(persona, {
       fields: [pipelineStage.personaId],
       references: [persona.id],
+    }),
+    skillEntry: one(skill, {
+      fields: [pipelineStage.skillId],
+      references: [skill.id],
+    }),
+    harnessCatalogEntry: one(harnessCatalog, {
+      fields: [pipelineStage.harnessId],
+      references: [harnessCatalog.id],
     }),
     stageRuns: many(stageRun),
   })
@@ -781,6 +826,14 @@ export const stageRunRelations = relations(stageRun, ({ one, many }) => ({
   pipelineStage: one(pipelineStage, {
     fields: [stageRun.pipelineStageId],
     references: [pipelineStage.id],
+  }),
+  skillEntry: one(skill, {
+    fields: [stageRun.skillId],
+    references: [skill.id],
+  }),
+  harnessCatalogEntry: one(harnessCatalog, {
+    fields: [stageRun.harnessId],
+    references: [harnessCatalog.id],
   }),
   events: many(event),
   gateResults: many(stageGateResult),
@@ -962,6 +1015,8 @@ export const skillRelations = relations(skill, ({ one, many }) => ({
     references: [project.id],
   }),
   personaSkills: many(personaSkill),
+  pipelineStages: many(pipelineStage),
+  stageRuns: many(stageRun),
 }));
 
 export const personaSkillRelations = relations(personaSkill, ({ one }) => ({
