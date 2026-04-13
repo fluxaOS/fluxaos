@@ -12,14 +12,13 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R3.5 — Enforcement Infrastructure | **Done** | [enforcement-plan](superpowers/plans/2026-04-11-enforcement-infrastructure-plan.md) | [drift-prevention-design](superpowers/specs/2026-04-11-session-drift-prevention-design.md) |
 | R4-V — Gate Engine Verification | **Done** | [r4v-plan](superpowers/plans/2026-04-11-r4v-gate-engine-verification.md) | — |
 | R5-V — Pipeline Engine + Manual Execution | **Done — PR #20** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md), [cleanup-plan](superpowers/plans/2026-04-13-r5v-architectural-cleanup.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [cleanup-design](superpowers/specs/2026-04-13-r5v-architectural-cleanup-design.md) |
-| R5.5 — Skill-to-Orchestrator IPC | **Designed — ready for implementation** | [r5.5-ipc-plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](superpowers/specs/2026-04-13-r5.5-ipc-protocol-design.md) |
+| R5.5 — Skill-to-Orchestrator IPC | **Done — PR #23** | [r5.5-ipc-plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](superpowers/specs/2026-04-13-r5.5-ipc-protocol-design.md) |
 | R-UI — Mockup Reconciliation | **Not started** | — | [ui-inventory](superpowers/specs/2026-04-11-ui-inventory.md) |
 | R6 — Polish + Ship | **Not started** | — | — |
 
 ## What's Next
 
-1. **R5.5 — Execute IPC protocol implementation** — Design complete. 14-task plan ready. Skills communicate via `flux:signal` JSON lines in stdout. Needs execution + skill template updates to emit signals.
-   - See [implementation plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md)
+1. **Update skills to emit flux:signal** — All 4 pipeline skills (research, implement, review, deploy) need `flux:signal` emission added to prompt templates. Without this, all stage runs fail with "no skill signal emitted" (correct no-fallback behavior).
 2. **R-UI** — reconcile UI with approved mockup at `planning/mockups/dashboard-mockup.html`
    - Harness catalog management page (list/create/edit/delete harnesses — currently only visible in stage dropdowns)
    - Skill edit/delete in settings

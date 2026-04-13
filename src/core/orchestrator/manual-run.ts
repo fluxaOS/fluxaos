@@ -18,6 +18,7 @@ import {
   EVENT_TYPE,
   GATE_MODE,
   DEFAULT_GATE_MODE,
+  TRIGGER_TYPE,
 } from '@/core/constants';
 import { eq } from 'drizzle-orm';
 import { pipelineStage, stageRun } from '@/core/db/schema';
@@ -42,6 +43,7 @@ export async function executeManualRun(
       runService,
       runId,
       stageRunId,
+      trigger: TRIGGER_TYPE.manual,
     });
 
     // Gate evaluation (if stage has gates configured)
@@ -68,6 +70,7 @@ export async function executeManualRun(
             provider: result.providerName,
             model: result.modelIdentifier,
             harness: result.harnessName,
+            skill_signal: result.skillSignal,
           },
         );
         await runService.appendEvent(stageRunId, EVENT_TYPE.gate_checked, {

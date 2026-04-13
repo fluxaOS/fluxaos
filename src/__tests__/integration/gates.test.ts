@@ -616,3 +616,82 @@ describe('gate service — testEvaluate', () => {
     expect(r.verdict).toBe('proceed');
   });
 });
+
+describe('gate engine — skill_signal field', () => {
+  it('evaluates gate rule referencing skill_signal field', () => {
+    const rules: RuleGroup = {
+      logic: 'AND',
+      rules: [
+        {
+          field: 'skill_signal',
+          operator: 'equals',
+          value: 'proceed',
+          severity: 'required',
+          onFail: 'hold',
+          label: 'Skill must signal proceed',
+        },
+      ],
+    };
+
+    const result = evaluateGate('rules', rules, {
+      exit_code: 0,
+      skill_signal: 'proceed',
+    });
+    expect(result.verdict).toBe('proceed');
+    expect(result.passed).toBe(true);
+  });
+
+  it('holds when skill_signal is rework', () => {
+    const rules: RuleGroup = {
+      logic: 'AND',
+      rules: [
+        {
+          field: 'skill_signal',
+          operator: 'equals',
+          value: 'proceed',
+          severity: 'required',
+          onFail: 'rework',
+          label: 'Skill must signal proceed',
+        },
+      ],
+    };
+
+    const result = evaluateGate('rules', rules, {
+      exit_code: 0,
+      skill_signal: 'rework',
+    });
+    expect(result.verdict).toBe('rework');
+    expect(result.passed).toBe(false);
+  });
+
+  it('combined skill_signal and exit_code gate', () => {
+    const rules: RuleGroup = {
+      logic: 'AND',
+      rules: [
+        {
+          field: 'skill_signal',
+          operator: 'equals',
+          value: 'proceed',
+          severity: 'required',
+          onFail: 'hold',
+          label: 'Skill must signal proceed',
+        },
+        {
+          field: 'exit_code',
+          operator: 'equals',
+          value: 0,
+          severity: 'required',
+          onFail: 'rework',
+          label: 'Clean exit',
+        },
+      ],
+    };
+
+    // Both pass
+    expect(evaluateGate('rules', rules, { exit_code: 0, skill_signal: 'proceed' }).passed).toBe(true);
+    // skill_signal fails
+    expect(evaluateGate('rules', rules, { exit_code: 0, skill_signal: 'hold' }).passed).toBe(false);
+    // exit_code fails
+    expect(evaluateGate('rules', rules, { exit_code: 1, skill_signal: 'proceed' }).passed).toBe(false);
+  });
+});

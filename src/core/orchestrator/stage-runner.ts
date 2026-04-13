@@ -26,8 +26,10 @@ import {
 } from '@/core/db/schema';
 import { materialize, cleanup } from '@/core/skills/materializer';
 import { buildCommand, renderTemplate } from './command-builder';
-import { parseLine } from './output-parser';
+import { getParser } from './output-parser';
+import { parseSignalLine, type SkillSignal } from './signal-parser';
 import { createRoutingResolver } from './routing-resolver';
+import type { TriggerType } from '@/core/constants';
 import {
   STAGE_RUN_STATUS,
   EVENT_TYPE,
@@ -43,6 +45,7 @@ export interface StageRunContext {
   runService: PipelineRunService;
   runId: string;
   stageRunId: string;
+  trigger: TriggerType;
 }
 
 export interface StageRunResult {
@@ -54,6 +57,8 @@ export interface StageRunResult {
   modelIdentifier: string | null;
   issueId: string | null;
   stageId: string;
+  skillSignal: string | null;
+  skillMetadata: Record<string, unknown> | null;
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -108,6 +113,10 @@ export async function executeStageRun(
       stageName: stage.name,
     });
     throw new Error(`No harness configured for stage: ${stage.name}`);
+  }
+
+  if (!harnessRow.outputFormat) {
+    throw new Error(`Harness '${harnessRow.name}' has no output_format configured`);
   }
 
   // Skill (optional)
@@ -246,6 +255,11 @@ export async function executeStageRun(
 
     // Spawn subprocess
     let lineNumber = 0;
+    // Widened type so TS doesn't narrow to `never` after the null-check
+    // (lastSignal is mutated inside the onStdout callback)
+    let lastSignal = null as SkillSignal | null;
+    const lineParser = getParser(harnessRow.outputFormat as string);
+
     const result = await executor.execute({
       command: cmd.binary,
       args: cmd.args,
@@ -256,8 +270,30 @@ export async function executeStageRun(
         const lines = data.split('\n');
         for (const line of lines) {
           if (!line.trim()) continue;
+
+          // Check for flux:signal — hold in memory, don't store as event
+          try {
+            const signal = parseSignalLine(line);
+            if (signal) {
+              lastSignal = signal;
+              continue;
+            }
+          } catch (err) {
+            // Invalid signal — store the error as an event and continue
+            lineNumber++;
+            runService
+              .appendEvent(sRun.id, EVENT_TYPE.error, {
+                lineNumber,
+                content: err instanceof Error ? err.message : String(err),
+                kind: 'system',
+              })
+              .catch(logError);
+            continue;
+          }
+
+          // Normal output — parse and store immediately
           lineNumber++;
-          const entries = parseLine(line, lineNumber);
+          const entries = lineParser(line, lineNumber);
           for (const entry of entries) {
             runService
               .appendEvent(sRun.id, EVENT_TYPE.output, {
@@ -281,15 +317,76 @@ export async function executeStageRun(
       },
     });
 
-    // Complete stage run with full metadata
+    // ── Completion with signal handling ──────────────────────────────
+
+    // No signal emitted → fail the stage
+    if (!lastSignal) {
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        provider: routing?.providerName,
+        model: routing?.modelIdentifier,
+        harness: harnessRow.name,
+        trigger: ctx.trigger,
+        errorMessage: 'no skill signal emitted',
+      });
+
+      await runService.appendEvent(sRun.id, EVENT_TYPE.error, {
+        message: 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
+        exitCode: result.exitCode,
+      });
+
+      // Issue event for failure
+      if (run.issueId) {
+        await runService.appendIssueEvent(
+          run.issueId,
+          ISSUE_EVENT_TYPE.stage_failed,
+          {
+            stageRunId: sRun.id,
+            stageName: stage.name,
+            reason: 'no skill signal emitted',
+          },
+          'stage-runner',
+        );
+      }
+
+      await cleanup(workspacePath);
+
+      return {
+        exitCode: result.exitCode,
+        durationMs: result.durationMs,
+        stageName: stage.name,
+        harnessName: harnessRow.name,
+        providerName: routing?.providerName ?? null,
+        modelIdentifier: routing?.modelIdentifier ?? null,
+        issueId: run.issueId,
+        stageId: stage.id,
+        skillSignal: null,
+        skillMetadata: null,
+      };
+    }
+
+    // Signal was emitted — use it
     const finalStatus = result.exitCode === 0
       ? STAGE_RUN_STATUS.completed
       : STAGE_RUN_STATUS.failed;
+
+    // Build skill metadata from signal
+    const skillMetadata: Record<string, unknown> = {};
+    if (lastSignal.summary) skillMetadata.summary = lastSignal.summary;
+    if (lastSignal.meta) Object.assign(skillMetadata, lastSignal.meta);
 
     await runService.completeStageRun(sRun.id, finalStatus, {
       provider: routing?.providerName,
       model: routing?.modelIdentifier,
       harness: harnessRow.name,
+      costUsd: lastSignal.costUsd?.toFixed(6),
+      tokensIn: lastSignal.tokensIn,
+      tokensOut: lastSignal.tokensOut,
+      skillSignal: lastSignal.verdict,
+      skillMetadata: Object.keys(skillMetadata).length > 0 ? skillMetadata : undefined,
+      trigger: ctx.trigger,
+      errorMessage: result.exitCode !== 0
+        ? `exit code ${result.exitCode}`
+        : undefined,
     });
 
     // Completion event
@@ -299,6 +396,8 @@ export async function executeStageRun(
     await runService.appendEvent(sRun.id, eventType, {
       exitCode: result.exitCode,
       duration: result.durationMs,
+      skillSignal: lastSignal.verdict,
+      summary: lastSignal.summary,
     });
 
     // Issue events
@@ -313,6 +412,7 @@ export async function executeStageRun(
           stageRunId: sRun.id,
           stageName: stage.name,
           exitCode: result.exitCode,
+          skillSignal: lastSignal.verdict,
         },
         'stage-runner',
       );
@@ -330,11 +430,15 @@ export async function executeStageRun(
       modelIdentifier: routing?.modelIdentifier ?? null,
       issueId: run.issueId,
       stageId: stage.id,
+      skillSignal: lastSignal.verdict,
+      skillMetadata: Object.keys(skillMetadata).length > 0 ? skillMetadata : null,
     };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
       harness: harnessRow.name,
+      trigger: ctx.trigger,
+      errorMessage: err instanceof Error ? err.message : String(err),
     });
     await runService.appendEvent(sRun.id, EVENT_TYPE.error, {
       message: err instanceof Error ? err.message : String(err),

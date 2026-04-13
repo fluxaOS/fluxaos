@@ -155,3 +155,35 @@ export function parseLine(
   // Unknown JSON structure → raw
   return [{ id: `raw-${lineNumber}`, kind: 'raw', lineNumber, text: trimmed }];
 }
+
+/**
+ * Parse a plain-text stdout line into a single text TranscriptEntry.
+ * Used for harnesses with output_format='text'.
+ */
+export function parseTextLine(
+  line: string,
+  lineNumber: number,
+): TranscriptEntry[] {
+  const trimmed = line.trim();
+  if (!trimmed) return [];
+  return [{ id: `text-${lineNumber}`, kind: 'text', lineNumber, text: trimmed }];
+}
+
+/**
+ * Select the appropriate line parser based on harness output format.
+ *
+ * @param outputFormat - The output_format value from harness_catalog
+ * @returns A parser function with the same signature as parseLine
+ */
+export function getParser(
+  outputFormat: string,
+): (line: string, lineNumber: number) => TranscriptEntry[] {
+  switch (outputFormat) {
+    case 'stream-json':
+      return parseLine;
+    case 'text':
+      return parseTextLine;
+    default:
+      throw new Error(`unknown output format: ${outputFormat}`);
+  }
+}

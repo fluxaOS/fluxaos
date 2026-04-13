@@ -78,6 +78,10 @@ export interface PipelineRunService {
       costUsd?: string;
       tokensIn?: number;
       tokensOut?: number;
+      skillSignal?: string;
+      skillMetadata?: Record<string, unknown>;
+      trigger?: string;
+      errorMessage?: string;
     },
   ): Promise<void>;
 
@@ -251,6 +255,10 @@ export function createPipelineRunService(db: Database): PipelineRunService {
           costUsd: results.costUsd ?? '0',
           tokensIn: results.tokensIn ?? 0,
           tokensOut: results.tokensOut ?? 0,
+          skillSignal: results.skillSignal,
+          skillMetadata: results.skillMetadata,
+          trigger: results.trigger,
+          errorMessage: results.errorMessage,
           updatedAt: new Date(),
         })
         .where(eq(stageRun.id, id));

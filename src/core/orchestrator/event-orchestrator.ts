@@ -33,6 +33,7 @@ import {
   GATE_MODE,
   GATE_VERDICT,
   DEFAULT_GATE_MODE,
+  TRIGGER_TYPE,
 } from '@/core/constants';
 import type { GateMode } from '@/core/constants';
 
@@ -181,6 +182,7 @@ export function createEventOrchestrator(
         runService,
         runId: run.id,
         stageRunId: sRun.id,
+        trigger: TRIGGER_TYPE.automated,
       });
 
       // Post-execution gate evaluation
@@ -196,6 +198,7 @@ export function createEventOrchestrator(
             provider: result.providerName,
             model: result.modelIdentifier,
             harness: result.harnessName,
+            skill_signal: result.skillSignal,
           },
         );
 

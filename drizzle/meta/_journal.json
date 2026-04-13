@@ -15,6 +15,13 @@
       "when": 1744502400000,
       "tag": "0001_r5v_harness_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776083056945,
+      "tag": "0003_ipc_signal_columns",
+      "breakpoints": true
     }
   ]
 }

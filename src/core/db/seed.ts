@@ -200,9 +200,11 @@ async function seed() {
       dirFlag: '--add-dir',
       sessionNameFlag: '--name',
       promptTransport: 'argv',
+      outputFormat: 'stream-json',
+      outputFormatFlag: '--output-format',
       issuePromptTemplate: '{{skill_name}}: {{issue_title}} — {{issue_description}}',
       queuePromptTemplate: '{{issue_title}}',
-      defaultArgs: ['--print', '--dangerously-skip-permissions'],
+      defaultArgs: ['--dangerously-skip-permissions'],
       envVars: {},
       contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
     })
