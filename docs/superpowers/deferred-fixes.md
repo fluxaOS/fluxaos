@@ -59,6 +59,18 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `RunDetailModal` or parent component
 **What's needed:** Poll or subscribe to `pipeline_run` / `stage_run` updates so duration reflects current elapsed time
 
+## UI: Closed issues should display "Closed" not "Complete"
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Low — issue state shows "Complete" but users expect "Closed" for `isClosed=true`
+**Location:** Issue detail and list components
+**What's needed:** When `isClosed` is true, display "Closed" label regardless of state name. Or add a visual indicator (strikethrough, badge) for closed issues.
+
+## UI: Raw JSON shows initial events immediately but output only at end
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Low — the `launched` events appear right away in raw JSON mode, but output events only appear when the run completes. This is the same batching issue as LiveOutput but specifically visible in raw mode.
+
 ## Adapter: RealtimeProvider not implemented
 
 **Found:** 2026-04-13 during architectural cleanup
