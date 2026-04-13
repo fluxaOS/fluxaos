@@ -11,18 +11,19 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R3 — Rich Issue Model + CRUD + UI | **Done** | [rich-issue-plan-v2](superpowers/plans/2026-04-09-rich-issue-model-plan-v2.md) | [rich-issue-design](superpowers/specs/2026-04-09-rich-issue-model-design.md) |
 | R3.5 — Enforcement Infrastructure | **Done** | [enforcement-plan](superpowers/plans/2026-04-11-enforcement-infrastructure-plan.md) | [drift-prevention-design](superpowers/specs/2026-04-11-session-drift-prevention-design.md) |
 | R4-V — Gate Engine Verification | **Done** | [r4v-plan](superpowers/plans/2026-04-11-r4v-gate-engine-verification.md) | — |
-| R5-V — Pipeline Engine + Manual Execution | **In verification — PR #19** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [verification handoff](handoffs/2026-04-13-r5v-browser-verification-handoff.md) |
+| R5-V — Pipeline Engine + Manual Execution | **Done — PR #20** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md), [cleanup-plan](superpowers/plans/2026-04-13-r5v-architectural-cleanup.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [cleanup-design](superpowers/specs/2026-04-13-r5v-architectural-cleanup-design.md) |
+| R5.5 — Skill-to-Orchestrator IPC | **Not started — needs design** | — | — |
 | R-UI — Mockup Reconciliation | **Not started** | — | [ui-inventory](superpowers/specs/2026-04-11-ui-inventory.md) |
 | R6 — Polish + Ship | **Not started** | — | — |
 
 ## What's Next
 
-1. **Finish R5-V verification** — PR #19 has 10 bugs fixed during browser verification but two architectural issues remain:
-   - Context injection is vendor-locked to CLAUDE.md — needs harness-agnostic `contextTransport` mechanism
-   - No end-to-end journey test — every bug found was invisible to static analysis
-   - Verification checklist items 7-10 still untested (gates, cancel, pipeline modal, activity feed)
+1. **R5.5 — Design skill-to-orchestrator IPC protocol** — Skills need to communicate decisions (state transitions, exit status, results) back to the orchestrator. The systemd daemon is the single DB writer; skills cannot write directly. Need brainstorming session to determine the IPC mechanism.
+   - See [deferred fixes](superpowers/deferred-fixes.md) for full context
 2. **R-UI** — reconcile UI with approved mockup at `planning/mockups/dashboard-mockup.html`
    - Harness catalog management page (list/create/edit/delete harnesses — currently only visible in stage dropdowns)
+   - Skill edit/delete in settings
+   - Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates)
 3. **R6** — polish + ship
 
 ## RCAs
@@ -38,3 +39,5 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 4. **The UI defines the backend.** When fixing type errors, build the missing endpoint — don't delete the UI.
 5. **Vague plans produce vague work.** "Reference PAT" is not a plan. Component-level specificity required.
 6. **Structural verification is necessary but not sufficient.** Types, tests, and code review missed 10 integration bugs that surfaced immediately in browser testing. Journey tests that invoke real external tools are essential.
+7. **The orchestrator must not make decisions the skill should make.** Auto-advancing issue state on exit code 0 is wrong — the skill knows whether work is done, blocked, or needs rework. The orchestrator only manages execution lifecycle; the skill owns the outcome.
+8. **Skills synced from fh-commons must have resolved partials.** Hand-written stub skills with wrong behavior (deploy asking for human review) cause real failures. Always sync via `fhc sync` or manually resolve `{{PARTIAL:...}}` placeholders.
