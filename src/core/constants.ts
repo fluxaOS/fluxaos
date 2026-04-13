@@ -103,3 +103,19 @@ export const DEFAULT_GATE_MODE = GATE_MODE.auto;
 export const DEFAULT_SORT_STRATEGY = 'quality' as const;
 export const KILL_GRACE_PERIOD_MS = 5_000;
 export const ORCHESTRATOR_HEARTBEAT_MS = 5_000;
+
+// ── Trigger Types ─────────────────────────────────────────
+export const TRIGGER_TYPE = {
+  manual: 'manual',
+  automated: 'automated',
+} as const;
+
+export type TriggerType = (typeof TRIGGER_TYPE)[keyof typeof TRIGGER_TYPE];
+
+// ── Output Formats ────────────────────────────────────────
+export const OUTPUT_FORMAT = {
+  stream_json: 'stream-json',
+  text: 'text',
+} as const;
+
+export type OutputFormat = (typeof OUTPUT_FORMAT)[keyof typeof OUTPUT_FORMAT];
