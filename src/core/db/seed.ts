@@ -27,6 +27,7 @@ import {
   configEntry,
   harnessCatalog,
   skill,
+  issue,
   provider,
   model,
   routingProfile,
@@ -462,6 +463,61 @@ async function seed() {
     )
     .onConflictDoNothing();
   console.log(`  config entries: ${configDef.length}`);
+
+  // ── 13. Seed issue ─────────────────────────────────────────────────────
+  const types = await db
+    .select({ id: issueType.id, key: issueType.key })
+    .from(issueType)
+    .where(eq(issueType.projectId, proj.id));
+  const typeMap = new Map(types.map((t) => [t.key, t.id]));
+
+  const statuses = await db
+    .select({ id: issueStatus.id, key: issueStatus.key })
+    .from(issueStatus)
+    .where(eq(issueStatus.projectId, proj.id));
+  const statusMap = new Map(statuses.map((s) => [s.key, s.id]));
+
+  const priorities = await db
+    .select({ id: issuePriority.id, key: issuePriority.key })
+    .from(issuePriority)
+    .where(eq(issuePriority.projectId, proj.id));
+  const priorityMap = new Map(priorities.map((p) => [p.key, p.id]));
+
+  const existingIssues = await db
+    .select()
+    .from(issue)
+    .where(eq(issue.projectId, proj.id));
+
+  if (existingIssues.length === 0) {
+    await db.insert(issue).values({
+      projectId: proj.id,
+      number: 1,
+      title: 'Research: Evaluate pyproject.toml migration for fluxaOS tooling',
+      bodyMd: [
+        '## Summary',
+        '',
+        'Investigate whether fluxaOS would benefit from a `pyproject.toml` for any Python-based tooling, scripts, or build processes.',
+        '',
+        '## Context',
+        '',
+        'fluxaOS is primarily a TypeScript/Next.js project, but some infrastructure tooling (linting hooks, CI scripts, automation) may benefit from Python utilities. Evaluate whether adding a `pyproject.toml` makes sense or if the current npm-only setup is sufficient.',
+        '',
+        '## Acceptance Criteria',
+        '',
+        '- [ ] Inventory of any Python usage in the project or CI pipeline',
+        '- [ ] Recommendation: add pyproject.toml or confirm npm-only is correct',
+        '- [ ] If adding: propose minimal pyproject.toml with required dependencies',
+      ].join('\n'),
+      stateId: stateMap.get('research')!,
+      statusId: statusMap.get('open')!,
+      typeId: typeMap.get('research')!,
+      priorityId: priorityMap.get('low')!,
+      author: 'seed',
+    });
+    console.log('  issue: #1 seeded');
+  } else {
+    console.log(`  issues: ${existingIssues.length} existing`);
+  }
 
   console.log('\nSeed complete.');
   process.exit(0);
