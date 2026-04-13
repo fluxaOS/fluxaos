@@ -30,26 +30,12 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `src/__tests__/integration/orchestrator.test.ts`
 **What's needed:** Rewrite tests for event-orchestrator architecture, or write new manual-run integration tests
 
-## Manual-run: Issue state not transitioned after pipeline completion
-
-**Found:** 2026-04-13 during R5-V browser verification
-**Severity:** Medium — pipeline completes but issue stays in its current state
-**Location:** `src/core/orchestrator/manual-run.ts`
-**What's needed:** After pipeline completes, transition issue state based on exit code (e.g. research → implement on success)
-
 ## UI: Issue activity feed doesn't auto-refresh via Realtime
 
 **Found:** 2026-04-13 during R5-V browser verification
 **Severity:** Medium — issue events (stage_started, pipeline_completed) only appear after page refresh
 **Location:** Issue detail client component
 **What's needed:** Subscribe to `issue_event` table changes via Supabase Realtime, or add polling refetch
-
-## Seed: Skills for all pipeline stages + end-to-end test issue
-
-**Found:** 2026-04-13 during R5-V browser verification
-**Severity:** Medium — only `research` skill is seeded; `implement`, `review`, `deploy` stages have no skills
-**Location:** `src/core/db/seed.ts`, `.claude/skills/`
-**What's needed:** Load implement/review/deploy skills from disk (like research). Create a seed issue that can flow through all stages to test the full pipeline lifecycle including gate evaluation on the implement stage.
 
 ## Adapter: RealtimeProvider not implemented
 
