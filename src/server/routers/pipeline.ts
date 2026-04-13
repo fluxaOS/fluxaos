@@ -66,6 +66,8 @@ export const pipelineRouter = router({
         sortOrder: z.number().int(),
         personaId: z.string().uuid().optional(),
         harness: z.string().optional(),
+        skillId: z.string().uuid().optional(),
+        harnessId: z.string().uuid().optional(),
         timeoutSec: z.number().int().optional(),
         maxRetries: z.number().int().optional(),
         gateMode: z.string().optional(),
@@ -82,6 +84,8 @@ export const pipelineRouter = router({
         sortOrder: z.number().int().optional(),
         personaId: z.string().uuid().optional(),
         harness: z.string().optional(),
+        skillId: z.string().uuid().nullable().optional(),
+        harnessId: z.string().uuid().nullable().optional(),
         timeoutSec: z.number().int().optional(),
         maxRetries: z.number().int().optional(),
         gateMode: z.string().optional(),
@@ -203,6 +207,18 @@ export const pipelineRouter = router({
           }
         }
         await svc.completeRun(input.id, 'cancelled');
+        return { cancelled: true };
+      }),
+
+    /** Cancel a specific stage run. */
+    cancelStage: publicProcedure
+      .input(z.object({ stageRunId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        await svc.completeStageRun(input.stageRunId, 'cancelled', {});
+        await svc.appendEvent(input.stageRunId, 'cancelled', {
+          reason: 'cancelled by user',
+        });
         return { cancelled: true };
       }),
 
