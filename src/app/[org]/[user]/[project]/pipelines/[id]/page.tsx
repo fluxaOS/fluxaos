@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { use } from 'react';
+import { use, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowLeft, Check, RotateCcw, XOctagon } from 'lucide-react';
 import { Card } from '@/components/card';
 import { StatusBadge } from '@/components/status-badge';
 import { VerdictBadge } from '@/components/gates/VerdictBadge';
+import { RunDetailModal } from '@/components/pipeline/RunDetailModal';
 import { trpc } from '@/lib/trpc/client';
 
 function useBasePath() {
@@ -22,6 +23,7 @@ export default function RunDetailPage({
 }) {
   const { id } = use(params);
   const basePath = useBasePath();
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const runQuery = trpc.pipeline.runs.get.useQuery(
     { id },
@@ -97,8 +99,23 @@ export default function RunDetailPage({
             <span>Completed: {new Date(run.completedAt).toLocaleString()}</span>
           )}
           <span>Cost: <span className="font-mono text-slate-400">${run.totalCostUsd ?? '0.00'}</span></span>
+          <button
+            type="button"
+            onClick={() => setSelectedRunId(run.id)}
+            className="text-soft-violet hover:underline ml-auto"
+          >
+            View in modal
+          </button>
         </div>
       </Card>
+
+      <RunDetailModal
+        runId={selectedRunId}
+        onClose={() => {
+          setSelectedRunId(null);
+          runQuery.refetch();
+        }}
+      />
 
       {/* Stage Timeline */}
       <div>

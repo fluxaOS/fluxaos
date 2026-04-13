@@ -7,6 +7,7 @@ import { ArrowLeft, MessageSquare, Clock, GitBranch, Pencil, Trash2, Play } from
 import { Card } from '@/components/card';
 import { SkeletonCard } from '@/components/skeleton';
 import { CatalogBadge } from '@/components/catalog-badge';
+import { RunDetailModal } from '@/components/pipeline/RunDetailModal';
 import { trpc } from '@/lib/trpc/client';
 
 // ─── Editable text field (save on blur / Enter) ─────────────────────────────
@@ -319,6 +320,7 @@ export function IssueDetailClient({
   const router = useRouter();
   const [eventFilter, setEventFilter] = useState<EventFilter>('all');
   const [commentBody, setCommentBody] = useState('');
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   // ── Data queries ────────────────────────────────────────────────────────
   const issueQuery = trpc.issue.getByNumber.useQuery({
@@ -425,11 +427,18 @@ export function IssueDetailClient({
   const pipelineState = pipelineStateQuery.data;
 
   const triggerRun = trpc.pipeline.runs.trigger.useMutation({
-    onSuccess: () => pipelineStateQuery.refetch(),
+    onSuccess: (data) => {
+      pipelineStateQuery.refetch();
+      if (data?.id) setActiveRunId(data.id);
+    },
   });
 
   const executeStage = trpc.pipeline.runs.executeStage.useMutation({
-    onSuccess: () => pipelineStateQuery.refetch(),
+    onSuccess: () => {
+      pipelineStateQuery.refetch();
+      // Open modal for existing run if we have one
+      if (pipelineState?.run?.id) setActiveRunId(pipelineState.run.id);
+    },
   });
 
   const deleteIssue = trpc.issue.delete.useMutation({
@@ -625,10 +634,11 @@ export function IssueDetailClient({
                   if (existingSr && (existingSr.status === 'pending' || existingSr.status === 'queued')) {
                     executeStage.mutate({ stageRunId: existingSr.id });
                   } else {
-                    // Otherwise trigger a new pipeline run
+                    // Otherwise trigger a new pipeline run for this stage
                     triggerRun.mutate({
                       pipelineId: defaultPipeline.id,
                       issueId: issue.id,
+                      stageId: matchingStage.id,
                     });
                   }
                 }}
@@ -643,8 +653,24 @@ export function IssueDetailClient({
             {pipelineState?.run && (
               <p className="text-[11px] text-slate-600">
                 Run: {pipelineState.run.status} &middot; Cost: ${pipelineState.run.totalCostUsd ?? '0.00'}
+                {' '}&middot;{' '}
+                <button
+                  type="button"
+                  onClick={() => setActiveRunId(pipelineState.run!.id)}
+                  className="text-soft-violet hover:underline"
+                >
+                  View details
+                </button>
               </p>
             )}
+
+            <RunDetailModal
+              runId={activeRunId}
+              onClose={() => {
+                setActiveRunId(null);
+                pipelineStateQuery.refetch();
+              }}
+            />
           </Card>
         );
       })()}

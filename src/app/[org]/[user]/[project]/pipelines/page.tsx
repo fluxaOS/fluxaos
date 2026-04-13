@@ -68,16 +68,7 @@ export default function PipelinesPage() {
       <PageHeader
         title="Pipeline runs"
         action={
-          defaultPipeline ? (
-            <button
-              type="button"
-              onClick={() => triggerRun.mutate({ pipelineId: defaultPipeline.id, issueId: '' })}
-              disabled={triggerRun.isPending}
-              className="px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
-            >
-              {triggerRun.isPending ? 'Starting...' : 'Start Run'}
-            </button>
-          ) : undefined
+          undefined /* Runs are triggered from issue detail with a specific stage */
         }
       />
 

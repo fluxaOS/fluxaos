@@ -10,6 +10,7 @@
  */
 import { execa, type ResultPromise } from 'execa';
 import { randomUUID } from 'crypto';
+import { KILL_GRACE_PERIOD_MS } from '@/core/constants';
 import type {
   StageExecutor,
   ExecuteParams,
@@ -31,6 +32,7 @@ export class SubprocessExecutor implements StageExecutor {
       env: { ...process.env, ...params.env },
       timeout: params.timeoutMs ?? 300_000,
       reject: false,
+      stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -77,7 +79,7 @@ export class SubprocessExecutor implements StageExecutor {
           proc.kill('SIGKILL');
           this.processes.delete(processId);
         }
-      }, 5_000);
+      }, KILL_GRACE_PERIOD_MS);
     }
   }
 }

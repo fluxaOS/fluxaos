@@ -12,6 +12,7 @@ import {
   pipelineRun,
   stageRun,
   event,
+  issueEvent,
   issue,
 } from '@/core/db/schema';
 import type {
@@ -19,7 +20,11 @@ import type {
   StageRunStatus,
   StageEventType,
 } from './types';
-import { STAGE_RUN_TERMINAL } from './types';
+import {
+  STAGE_RUN_TERMINAL,
+  STAGE_RUN_STATUS,
+  PIPELINE_RUN_STATUS,
+} from './types';
 
 type PipelineRunRow = typeof pipelineRun.$inferSelect;
 type StageRunRow = typeof stageRun.$inferSelect;
@@ -88,6 +93,17 @@ export interface PipelineRunService {
     pipelineId: string,
     currentSortOrder: number,
   ): Promise<StageRow | null>;
+
+  /** Write an issue event (stage_started, stage_completed, etc.) */
+  appendIssueEvent(
+    issueId: string,
+    type: string,
+    payload: Record<string, unknown>,
+    actor: string,
+  ): Promise<void>;
+
+  /** Fail both the stage run and the pipeline run in one call. */
+  failStageAndRun(stageRunId: string, runId: string): Promise<void>;
 }
 
 export function createPipelineRunService(db: Database): PipelineRunService {
@@ -98,7 +114,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         .values({
           pipelineId,
           issueId,
-          status: 'queued',
+          status: PIPELINE_RUN_STATUS.queued,
         })
         .returning();
       return row;
@@ -116,7 +132,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
       return db
         .select()
         .from(pipelineRun)
-        .where(eq(pipelineRun.status, 'queued'))
+        .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.queued))
         .orderBy(asc(pipelineRun.createdAt))
         .limit(limit);
     },
@@ -125,7 +141,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
       return db
         .select()
         .from(pipelineRun)
-        .where(eq(pipelineRun.status, 'running'));
+        .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.running));
     },
 
     async updateRunStatus(id, status) {
@@ -133,7 +149,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         status,
         updatedAt: new Date(),
       };
-      if (status === 'running') {
+      if (status === PIPELINE_RUN_STATUS.running) {
         updates.startedAt = new Date();
       }
       await db
@@ -179,7 +195,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         .values({
           pipelineRunId,
           pipelineStageId,
-          status: 'pending',
+          status: STAGE_RUN_STATUS.pending,
         })
         .returning();
       return row;
@@ -214,7 +230,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         status,
         updatedAt: new Date(),
       };
-      if (status === 'running') {
+      if (status === STAGE_RUN_STATUS.running) {
         updates.startedAt = new Date();
       }
       await db
@@ -261,6 +277,34 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         .orderBy(asc(pipelineStage.sortOrder))
         .limit(1);
       return next ?? null;
+    },
+
+    async appendIssueEvent(issueId, type, payload, actor) {
+      await db.insert(issueEvent).values({
+        issueId,
+        actor,
+        type,
+        payload,
+      });
+    },
+
+    async failStageAndRun(stageRunId, runId) {
+      await db
+        .update(stageRun)
+        .set({
+          status: STAGE_RUN_STATUS.failed,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(stageRun.id, stageRunId));
+      await db
+        .update(pipelineRun)
+        .set({
+          status: PIPELINE_RUN_STATUS.failed,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(pipelineRun.id, runId));
     },
   };
 }

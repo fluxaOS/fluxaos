@@ -135,7 +135,7 @@ function CreateProviderForm({
             type="text"
             value={type}
             onChange={(e) => setType(e.target.value)}
-            placeholder="anthropic, openai, etc."
+            placeholder="provider slug"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -158,7 +158,7 @@ function CreateProviderForm({
             type="text"
             value={apiKeyRef}
             onChange={(e) => setApiKeyRef(e.target.value)}
-            placeholder="env:ANTHROPIC_API_KEY"
+            placeholder="env:API_KEY_NAME"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -254,7 +254,7 @@ function ModelsEditor({ providerId }: { providerId: string }) {
             type="text"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="claude-sonnet-4-6"
+            placeholder="model identifier"
             className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
           />
           <button

@@ -1,14 +1,36 @@
 /**
  * Health check endpoint — resolves each adapter via registry and reports status.
+ * Also includes build metadata (git sha, build time, version).
  *
  * GET /api/health → JSON showing all adapters and their health.
  */
+import { execSync } from 'child_process';
 import { NextResponse } from 'next/server';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
 import type { DatabaseProvider } from '@/core/ports/database';
 import type { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import type { BullMQAdapter } from '@/adapters/bullmq/queue';
+
+/** Read build metadata from env vars (set at build time) or fall back to git at runtime. */
+function getBuildMeta(): { sha: string; buildTime: string; version: string } {
+  const sha =
+    process.env.NEXT_PUBLIC_GIT_SHA ??
+    (() => {
+      try {
+        return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+      } catch {
+        return 'unknown';
+      }
+    })();
+
+  const buildTime =
+    process.env.NEXT_PUBLIC_BUILD_TIME ?? new Date().toISOString();
+
+  const version = process.env.npm_package_version ?? '0.1.0';
+
+  return { sha, buildTime, version };
+}
 
 /** Run a health check with a timeout to prevent hanging. */
 async function withTimeout(
@@ -65,12 +87,17 @@ export async function GET() {
       (a) => a.registered && a.healthy === true,
     );
 
+    const build = getBuildMeta();
+
     return NextResponse.json(
       {
         status: allHealthy ? 'healthy' : 'degraded',
         adapters,
         registeredAdapters: registry.names(),
         timestamp: new Date().toISOString(),
+        sha: build.sha,
+        buildTime: build.buildTime,
+        version: build.version,
       },
       { status: allHealthy ? 200 : 503 },
     );

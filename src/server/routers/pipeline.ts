@@ -3,7 +3,10 @@ import { eq } from 'drizzle-orm';
 import { router, publicProcedure } from '../trpc';
 import { createPipelineService } from '@/core/services';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
-import { pipelineRun, stageRun, event } from '@/core/db/schema';
+import { executeManualRun } from '@/core/orchestrator/manual-run';
+import { pipelineRun, stageRun, event, stageGateResult } from '@/core/db/schema';
+import { registry } from '@/config/registry';
+import type { StageExecutor } from '@/core/ports/stage-executor';
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -66,6 +69,8 @@ export const pipelineRouter = router({
         sortOrder: z.number().int(),
         personaId: z.string().uuid().optional(),
         harness: z.string().optional(),
+        skillId: z.string().uuid().optional(),
+        harnessId: z.string().uuid().optional(),
         timeoutSec: z.number().int().optional(),
         maxRetries: z.number().int().optional(),
         gateMode: z.string().optional(),
@@ -82,6 +87,8 @@ export const pipelineRouter = router({
         sortOrder: z.number().int().optional(),
         personaId: z.string().uuid().optional(),
         harness: z.string().optional(),
+        skillId: z.string().uuid().nullable().optional(),
+        harnessId: z.string().uuid().nullable().optional(),
         timeoutSec: z.number().int().optional(),
         maxRetries: z.number().int().optional(),
         gateMode: z.string().optional(),
@@ -101,17 +108,30 @@ export const pipelineRouter = router({
 
   // ─── Pipeline Runs ──────────────────────────────────────────────────────
   runs: router({
-    /** Trigger a new pipeline run for an issue. */
+    /** Trigger a manual pipeline run for a single stage. */
     trigger: publicProcedure
       .input(z.object({
         pipelineId: z.string().uuid(),
         issueId: z.string().uuid(),
+        stageId: z.string().uuid(),
       }))
-      .mutation(({ ctx, input }) => {
-        return createPipelineRunService(ctx.db).createRun(
-          input.pipelineId,
-          input.issueId,
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        const run = await svc.createRun(input.pipelineId, input.issueId);
+        await svc.updateRunStatus(run.id, 'running');
+        const sr = await svc.createStageRun(run.id, input.stageId);
+        await svc.updateStageRunStatus(sr.id, 'launching');
+        await svc.appendEvent(sr.id, 'launched', {
+          reason: 'manually executed by user',
+        });
+
+        // Fire-and-forget: spawn subprocess in background
+        const executor = registry.get<StageExecutor>('executor');
+        executeManualRun(ctx.db, executor, run.id, sr.id).catch((err) =>
+          console.error('[manual-run] unhandled error:', err),
         );
+
+        return run;
       }),
 
     /** Get a pipeline run by ID with enriched stage runs (stage name, events). */
@@ -203,6 +223,18 @@ export const pipelineRouter = router({
           }
         }
         await svc.completeRun(input.id, 'cancelled');
+        return { cancelled: true };
+      }),
+
+    /** Cancel a specific stage run. */
+    cancelStage: publicProcedure
+      .input(z.object({ stageRunId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const svc = createPipelineRunService(ctx.db);
+        await svc.completeStageRun(input.stageRunId, 'cancelled', {});
+        await svc.appendEvent(input.stageRunId, 'cancelled', {
+          reason: 'cancelled by user',
+        });
         return { cancelled: true };
       }),
 
@@ -308,6 +340,17 @@ export const pipelineRouter = router({
           reason: 'manually executed by user',
         });
         return { executed: true };
+      }),
+
+    /** Get gate results for a stage run. */
+    gateResults: publicProcedure
+      .input(z.object({ stageRunId: z.string().uuid() }))
+      .query(({ ctx, input }) => {
+        return ctx.db
+          .select()
+          .from(stageGateResult)
+          .where(eq(stageGateResult.stageRunId, input.stageRunId))
+          .orderBy(stageGateResult.createdAt);
       }),
 
     /** KPIs — aggregate stats for a project's pipeline runs. */

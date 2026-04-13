@@ -8,6 +8,13 @@
       "when": 1775629999714,
       "tag": "0000_good_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1744502400000,
+      "tag": "0001_r5v_harness_catalog",
+      "breakpoints": true
     }
   ]
 }

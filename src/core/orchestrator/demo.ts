@@ -29,11 +29,9 @@ import {
   project,
 } from '@/core/db/schema';
 import { createPipelineRunService } from './pipeline-run-service';
-import { createOrchestratorManager } from './manager';
-import { createStageJobHandler } from './stage-worker';
-import type { QueueProvider, Job, JobOptions } from '@/core/ports/queue';
+import { executeManualRun } from './manual-run';
 import type { StageExecutor, ExecuteParams, ExecuteResult } from '@/core/ports/stage-executor';
-import type { StageJobPayload } from './types';
+import { PIPELINE_RUN_STATUS } from '@/core/constants';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {
@@ -44,31 +42,7 @@ if (!url) {
 const dbProvider = new SupabaseDatabaseProvider(url);
 const db = dbProvider.getConnection();
 
-// ─── Mock Queue + Executor ──────────────────────────────────────────────────
-
-const jobQueue = new Map<string, Job<StageJobPayload>>();
-let jobHandler: ((job: Job<StageJobPayload>) => Promise<void>) | null = null;
-
-const mockQueue: QueueProvider = {
-  async enqueue<T>(queueName: string, jobId: string, data: T): Promise<void> {
-    jobQueue.set(jobId, {
-      id: jobId,
-      data: data as any,
-      status: 'waiting',
-      progress: 0,
-      attempts: 0,
-    });
-  },
-  process<T>(queueName: string, handler: (job: Job<T>) => Promise<void>): void {
-    jobHandler = handler as any;
-  },
-  async getJob<T>(queueName: string, jobId: string): Promise<Job<T> | null> {
-    return (jobQueue.get(jobId) as any) ?? null;
-  },
-  async cancelJob(queueName: string, jobId: string): Promise<void> {
-    jobQueue.delete(jobId);
-  },
-};
+// ─── Mock Executor ──────────────────────────────────────────────────────────
 
 const mockExecutor: StageExecutor = {
   async execute(params: ExecuteParams): Promise<ExecuteResult> {
@@ -89,17 +63,6 @@ const mockExecutor: StageExecutor = {
 
 function log(icon: string, msg: string) {
   console.log(`  ${icon} ${msg}`);
-}
-
-async function processQueuedJobs() {
-  if (!jobHandler) return 0;
-  let processed = 0;
-  for (const [id, job] of jobQueue) {
-    await jobHandler(job);
-    jobQueue.delete(id);
-    processed++;
-  }
-  return processed;
 }
 
 // ─── Demo ───────────────────────────────────────────────────────────────────
@@ -174,56 +137,18 @@ async function demo() {
   const run = await runService.createRun(pipe.id, iss.id);
   log('🚀', `Pipeline run created: ${run.id} (status: ${run.status})`);
 
-  // 3. Set up the worker — assign handler so processQueuedJobs can use it
-  jobHandler = createStageJobHandler({
-    db,
-    executor: mockExecutor,
-    onOutput: (_stageRunId, text) => {
-      for (const line of text.trim().split('\n')) {
-        log('  📤', line);
-      }
-    },
-  });
+  // 3. Execute first stage via manual-run (fire-and-forget style)
+  console.log('\n── Executing Stage ─────────────────────────────────\n');
 
-  // 4. Orchestrator tick loop
-  const manager = createOrchestratorManager(db, mockQueue, {
-    maxConcurrentRuns: 5,
-    maxConcurrentStages: 5,
-  });
+  const firstStage = stages[0];
+  const sRun = await runService.createStageRun(run.id, firstStage.id);
+  await runService.updateRunStatus(run.id, PIPELINE_RUN_STATUS.running);
+  log('🟢', `Launching stage: ${firstStage.name}`);
 
-  console.log('\n── Orchestrator Loop ───────────────────────────────\n');
+  await executeManualRun(db, mockExecutor, run.id, sRun.id);
 
-  // The loop simulates the real-world cycle:
-  // 1. Orchestrator tick (launches stages, advances pipelines)
-  // 2. Worker processes queued jobs (executes stages)
-  // 3. Repeat until pipeline is terminal
-  for (let tick = 1; tick <= (stages.length * 2) + 2; tick++) {
-    log('⏱️', `Tick ${tick}...`);
-
-    // First: process any queued jobs from the PREVIOUS tick
-    // (In production, the BullMQ worker does this continuously)
-    const processed = await processQueuedJobs();
-    if (processed > 0) {
-      log('⚡', `Worker processed ${processed} job(s)`);
-    }
-
-    // Then: orchestrator tick (picks up queued runs, advances completed stages)
-    const result = await manager.tick();
-
-    if (result.launched > 0) log('🟢', `Launched ${result.launched} stage(s)`);
-    if (result.advanced > 0) log('🔄', `Advanced ${result.advanced} pipeline(s)`);
-    if (result.completed > 0) log('🏁', `Completed ${result.completed} pipeline(s)`);
-    if (result.errors.length > 0) {
-      for (const err of result.errors) log('❌', err);
-    }
-
-    // Check if pipeline is done
-    const current = await runService.getRun(run.id);
-    if (current && ['completed', 'failed', 'cancelled', 'timed_out'].includes(current.status)) {
-      log('✅', `Pipeline finished: ${current.status}`);
-      break;
-    }
-  }
+  const finalStatus = await runService.getRun(run.id);
+  log('✅', `Pipeline finished: ${finalStatus?.status}`);
 
   // 5. Show final state
   console.log('\n── Final State ─────────────────────────────────────\n');
@@ -242,16 +167,15 @@ async function demo() {
     log('  ', `${stageDef?.name ?? '?'}: ${sr.status} (${events.length} events, provider: ${sr.provider ?? 'n/a'}, model: ${sr.model ?? 'n/a'})`);
   }
 
-  // Cleanup demo data
+  // Cleanup demo data (events are append-only — never deleted)
   console.log('\n── Cleanup ─────────────────────────────────────────\n');
   for (const sr of finalStageRuns) {
-    await db.delete(event).where(eq(event.stageRunId, sr.id)).catch(() => {});
     const { stageGateResult } = await import('@/core/db/schema');
     await db.delete(stageGateResult).where(eq(stageGateResult.stageRunId, sr.id)).catch(() => {});
     await db.delete(stageRun).where(eq(stageRun.id, sr.id)).catch(() => {});
   }
   await db.delete(pipelineRun).where(eq(pipelineRun.id, run.id)).catch(() => {});
-  log('🧹', 'Demo data cleaned up');
+  log('🧹', 'Demo data cleaned up (events preserved)');
 
   console.log('\n═══════════════════════════════════════════════════════');
   console.log('  Demo complete.');
