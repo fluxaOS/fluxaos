@@ -4,6 +4,22 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 
 ---
 
+## ARCH: Skill-to-orchestrator IPC protocol not defined
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** High — skills cannot communicate decisions (state transitions, exit status, results) back to the orchestrator
+**Context:** In PAT, skills call `pat pipeline exit --stage X --status Y --result Z` which writes to PAT's DB. The PAT manager reads those records. In fluxaOS, `pat pipeline exit` doesn't exist. The systemd daemon is the single DB writer — skills cannot write to the DB directly (race conditions, drift). Need an IPC mechanism for skills to signal completion/decisions back to the orchestrator.
+**Options discussed:** Structured stdout JSON protocol, file-based result in workspace, or a local API endpoint that only systemd listens on.
+**Blocked on:** Design session (brainstorming) to determine the right approach.
+
+## ARCH: Manual-run does not auto-advance issue state (by design)
+
+**Found:** 2026-04-13 — initially implemented auto-advance, then removed
+**Severity:** N/A — architectural decision, not a bug
+**Context:** Manual-run is an admin override. The admin sees the output and decides what state to transition to. Auto-advancing was wrong because: (1) the skill owns the decision about next state, (2) exit code 0 doesn't mean "advance" (skill may find work already done), (3) the orchestrator shouldn't make decisions the skill should make.
+
+---
+
 ## UI: Skill edit/delete missing
 
 **Found:** 2026-04-13 during R5-V browser verification
@@ -58,6 +74,18 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Low — duration shows stale value until modal is reopened
 **Location:** `RunDetailModal` or parent component
 **What's needed:** Poll or subscribe to `pipeline_run` / `stage_run` updates so duration reflects current elapsed time
+
+## UI: Closed issues should display "Closed" not "Complete"
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Low — issue state shows "Complete" but users expect "Closed" for `isClosed=true`
+**Location:** Issue detail and list components
+**What's needed:** When `isClosed` is true, display "Closed" label regardless of state name. Or add a visual indicator (strikethrough, badge) for closed issues.
+
+## UI: Raw JSON shows initial events immediately but output only at end
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Low — the `launched` events appear right away in raw JSON mode, but output events only appear when the run completes. This is the same batching issue as LiveOutput but specifically visible in raw mode.
 
 ## Adapter: RealtimeProvider not implemented
 
