@@ -11,13 +11,13 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R3 — Rich Issue Model + CRUD + UI | **Done** | [rich-issue-plan-v2](superpowers/plans/2026-04-09-rich-issue-model-plan-v2.md) | [rich-issue-design](superpowers/specs/2026-04-09-rich-issue-model-design.md) |
 | R3.5 — Enforcement Infrastructure | **Done** | [enforcement-plan](superpowers/plans/2026-04-11-enforcement-infrastructure-plan.md) | [drift-prevention-design](superpowers/specs/2026-04-11-session-drift-prevention-design.md) |
 | R4-V — Gate Engine Verification | **Done** | [r4v-plan](superpowers/plans/2026-04-11-r4v-gate-engine-verification.md) | — |
-| R5-V — Pipeline Engine + Manual Execution | **Spec approved, plan written** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [handoff](superpowers/specs/2026-04-12-r5v-session-handoff.md) |
+| R5-V — Pipeline Engine + Manual Execution | **Complete — PR #19** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [handoff](superpowers/specs/2026-04-12-r5v-session-handoff.md) |
 | R-UI — Mockup Reconciliation | **Not started** | — | [ui-inventory](superpowers/specs/2026-04-11-ui-inventory.md) |
 | R6 — Polish + Ship | **Not started** | — | — |
 
 ## What's Next
 
-1. **R5-V** — manual stage execution with full materialization (spec approved, plan written, 15 tasks)
+1. **Merge R5-V** — PR #19 awaiting browser verification, then merge
 2. **R-UI** — reconcile UI with approved mockup at `planning/mockups/dashboard-mockup.html`
 3. **R6** — polish + ship
 
