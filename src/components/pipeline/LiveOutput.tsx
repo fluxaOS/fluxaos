@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { trpc } from '@/lib/trpc/client';
 import type { TranscriptEntry, EntryKind } from '@/core/orchestrator/output-parser';
 import { parseLine } from '@/core/orchestrator/output-parser';
+import { EVENT_TYPE } from '@/core/constants';
 
 interface LiveOutputProps {
   stageRunId: string;
@@ -88,7 +89,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
 
   const rawLines = useMemo(() => {
     return (eventsQuery.data ?? [])
-      .filter((e) => e.type === 'OUTPUT' || e.type === 'STAGE_STARTED' || e.type === 'STAGE_COMPLETED' || e.type === 'ERROR')
+      .filter((e) => e.type === EVENT_TYPE.output || e.type === EVENT_TYPE.launched || e.type === EVENT_TYPE.completed || e.type === EVENT_TYPE.error)
       .map((e, idx) => ({
         lineNumber: idx,
         content: typeof e.payload === 'object' && e.payload !== null
@@ -102,7 +103,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const entries = useMemo(() => {
     const parsed: TranscriptEntry[] = [];
     for (const line of rawLines) {
-      if (line.type === 'OUTPUT') {
+      if (line.type === EVENT_TYPE.output) {
         parsed.push(...parseLine(line.content, line.lineNumber));
       } else {
         // Non-output events (STAGE_STARTED, etc.) become system entries
