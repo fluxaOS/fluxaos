@@ -8,6 +8,8 @@
  * Idempotent: safe to run multiple times. Uses onConflictDoNothing() throughout.
  */
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { eq, and, sql } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import {
@@ -215,13 +217,21 @@ async function seed() {
   console.log(`  harness: ${claudeHarness.name} (${claudeHarness.id})`);
 
   // ── 5c. Skills ─────────────────────────────────────────────────────────
+  // Load skill content from the actual skill file on disk
+  const researchSkillPath = join(process.cwd(), '.claude', 'skills', 'research', 'SKILL.md');
+  let researchPrompt = 'Research the following topic thoroughly.';
+  try {
+    researchPrompt = readFileSync(researchSkillPath, 'utf-8');
+  } catch {
+    console.log(`  warning: ${researchSkillPath} not found, using fallback prompt`);
+  }
+
   let [researchSkill] = await db
     .insert(skill)
     .values({
       name: 'research',
-      description: 'Research a topic and produce findings',
-      promptTemplate:
-        'Research the following topic thoroughly. Produce a summary of findings with sources.',
+      description: 'Unified research and planning — assess, decide, execute',
+      promptTemplate: researchPrompt,
       scope: 'project',
       projectId: proj.id,
     })
