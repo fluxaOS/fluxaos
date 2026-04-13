@@ -8,6 +8,7 @@
  * Zero vendor imports. Receives Database via DI.
  */
 import { eq, and, sql } from 'drizzle-orm';
+import { DEFAULT_SORT_STRATEGY } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
   pipelineStage,
@@ -126,7 +127,7 @@ export function createRoutingResolver(db: Database): RoutingResolver {
       if (candidates.length === 0) return null;
 
       // 6. Sort by strategy
-      const strategy = rule?.sortStrategy ?? 'quality';
+      const strategy = rule?.sortStrategy ?? DEFAULT_SORT_STRATEGY;
       if (strategy === 'cost') {
         candidates.sort(
           (a, b) => Number(a.costPer1kInput ?? 0) - Number(b.costPer1kInput ?? 0),
@@ -136,12 +137,14 @@ export function createRoutingResolver(db: Database): RoutingResolver {
 
       const pick = candidates[0];
 
-      // 7. Resolve harness: stage override > rule preferred > rule fallback > 'subprocess'
+      // 7. Resolve harness: stage override > rule preferred > rule fallback (fail fast)
       const harness =
         stage.harness ??
         rule?.preferredHarness ??
-        rule?.fallbackHarness ??
-        'subprocess';
+        rule?.fallbackHarness;
+      if (!harness) {
+        return null; // No harness configured — caller must handle
+      }
 
       return {
         providerId: pick.providerId,

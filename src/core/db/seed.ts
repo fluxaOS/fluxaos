@@ -25,6 +25,10 @@ import {
   configEntry,
   harnessCatalog,
   skill,
+  provider,
+  model,
+  routingProfile,
+  routingRule,
 } from './schema';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -33,8 +37,8 @@ if (!url) {
   process.exit(1);
 }
 
-const provider = new SupabaseDatabaseProvider(url);
-const db = provider.getConnection();
+const dbProvider = new SupabaseDatabaseProvider(url);
+const db = dbProvider.getConnection();
 
 async function seed() {
   console.log('Seeding fluxaOS database...\n');
@@ -197,6 +201,7 @@ async function seed() {
       queuePromptTemplate: '{{issue_title}}',
       defaultArgs: ['--print', '--dangerously-skip-permissions'],
       envVars: {},
+      contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
     })
     .onConflictDoNothing({ target: harnessCatalog.slug })
     .returning();
@@ -244,6 +249,81 @@ async function seed() {
         .where(eq(pipelineStage.id, stage.id));
     }
     console.log('  updated pipeline stages with harness/skill FKs');
+  }
+
+  // ── 5e. Provider + Model + Routing ─────────────────────────────────────
+  let [defaultProvider] = await db
+    .insert(provider)
+    .values({
+      orgId: org.id,
+      name: 'Anthropic',
+      type: 'anthropic',
+      apiKeyRef: 'env:ANTHROPIC_API_KEY',
+      isHealthy: true,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!defaultProvider) {
+    [defaultProvider] = await db
+      .select()
+      .from(provider)
+      .where(eq(provider.orgId, org.id))
+      .limit(1);
+  }
+
+  if (defaultProvider) {
+    let [defaultModel] = await db
+      .insert(model)
+      .values({
+        providerId: defaultProvider.id,
+        name: 'Claude Sonnet 4.6',
+        identifier: 'claude-sonnet-4-6',
+        costPer1kInput: '0.003',
+        costPer1kOutput: '0.015',
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (!defaultModel) {
+      [defaultModel] = await db
+        .select()
+        .from(model)
+        .where(eq(model.providerId, defaultProvider.id))
+        .limit(1);
+    }
+
+    let [defaultProfile] = await db
+      .insert(routingProfile)
+      .values({
+        orgId: org.id,
+        name: 'Default',
+        description: 'Default routing profile',
+        isDefault: true,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (!defaultProfile) {
+      [defaultProfile] = await db
+        .select()
+        .from(routingProfile)
+        .where(eq(routingProfile.orgId, org.id))
+        .limit(1);
+    }
+
+    if (defaultProfile) {
+      await db
+        .insert(routingRule)
+        .values({
+          profileId: defaultProfile.id,
+          stageName: null, // wildcard — matches all stages
+          preferredHarness: 'claude-code',
+          sortStrategy: 'quality',
+        })
+        .onConflictDoNothing();
+      console.log(`  routing: ${defaultProvider.name} → ${defaultModel?.identifier ?? 'n/a'} via ${defaultProfile.name}`);
+    }
   }
 
   // ── 6. Issue type catalog ──────────────────────────────────────────────
