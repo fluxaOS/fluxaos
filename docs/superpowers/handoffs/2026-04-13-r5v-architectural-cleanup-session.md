@@ -92,12 +92,59 @@ Full list in `docs/superpowers/deferred-fixes.md`. Key items:
 
 ---
 
+## Technical Details for Next Session
+
+### Schema State
+- Migration `0002_harness_context_layout.sql` adds `context_layout` jsonb column to `harness_catalog`
+- Applied via `drizzle-kit push` (not `npm run db:migrate` — the migrate command was unreliable)
+- Default value: `{"instructionsFile":"CLAUDE.md","contextFile":"context.md"}`
+
+### Seed Data
+- Seed loads skill content from `.claude/skills/{name}/SKILL.md` on disk — not hardcoded
+- Seeds: org, user, project, pipeline (4 stages), harness (claude-code), 4 skills (research/implement/review/deploy), provider (Anthropic), model (claude-sonnet-4-6), routing profile + wildcard rule, issue catalogs, transitions, 1 seed issue
+- Run with: `tsx src/core/db/nuke.ts && npm run db:seed`
+
+### Event Types
+- DB stores lowercase event types: `launched`, `output`, `completed`, `error`, `gate_checked`
+- The original plan proposed uppercase (`STAGE_STARTED`, `OUTPUT`) which didn't match existing data
+- `EVENT_TYPE` constants in `src/core/constants.ts` use the correct lowercase values
+- LiveOutput filters and parsers all reference constants now — no more string mismatches
+
+### Output Parsing
+- `claude --print` outputs plain text, not JSON streaming events
+- `parseLine()` in `output-parser.ts` was designed for JSON streaming format (type: "assistant", message.content[])
+- Plain text goes through as `raw` entries, promoted to `text` in LiveOutput for display
+- Output events batch at end of execution rather than streaming — likely Supabase Realtime latency or event write batching in the stage-runner's stdout callback
+
+### fhc Sync Issue
+- `fhc sync` uses isolated git worktrees — checks the committed state, not the working tree
+- For fluxaOS (TypeScript, no pyproject.toml), `fhc sync` must be run from a Python project directory
+- The implement/review/deploy skills were hand-written stubs with wrong behavior
+- Fixed by manually resolving `{{PARTIAL:...}}` placeholders using a Python script against fh-commons templates
+- The deploy stub asked for human review; the real skill from fh-commons runs autonomously
+
+### Deploy Skill Side Effect
+- During testing, the deploy skill executed `gh pr merge` on PR #19 (the real PR), merging stale code to main
+- This is expected behavior — the skill runs real commands in the real environment
+- PR #20 was created on top and merged cleanly after conflict resolution
+
+### Manual-Run Architecture
+- `manual-run.ts` is a permanent feature — admin override for running individual stages
+- Does NOT auto-advance issue state (removed after testing proved it wrong)
+- Skills own state transition decisions — the orchestrator only manages execution lifecycle
+- In PAT, skills call `pat pipeline exit --status <status>` to signal decisions
+- fluxaOS needs its own IPC protocol (R5.5) for skill → orchestrator communication
+
+---
+
 ## What's Next
 
 1. **R5.5 — Design skill-to-orchestrator IPC protocol** (brainstorming session)
    - How do skills signal completion, state transitions, results back to the orchestrator?
-   - Options: structured stdout JSON, file-based result, local API endpoint
-   - Must respect single-writer principle (only systemd writes to DB)
+   - The systemd daemon is the single DB writer — skills cannot write to the DB directly
+   - In PAT: `pat pipeline exit --stage X --status Y --result Z` writes to PAT's DB, manager reads it
+   - Options: structured stdout JSON, file-based result in workspace, local API endpoint
+   - Key constraint: must work for both manual-run (admin) and event-orchestrator (automated)
    
 2. **R-UI — Mockup reconciliation** — harness catalog page, skill CRUD, real-time updates
 
