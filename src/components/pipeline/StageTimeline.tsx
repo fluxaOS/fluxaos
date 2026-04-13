@@ -1,5 +1,7 @@
 'use client';
 
+import { STAGE_RUN_STATUS } from '@/core/constants';
+
 interface StageTimelineItem {
   id: string;
   name: string;
@@ -15,14 +17,14 @@ interface StageTimelineProps {
 }
 
 const dotColors: Record<string, string> = {
-  completed: 'bg-emerald-400',
-  running:   'bg-sky-400 animate-pulse',
-  launching: 'bg-sky-400 animate-pulse',
-  pending:   'bg-amber-400',
-  hold:      'bg-amber-400',
-  failed:    'bg-red-400',
-  queued:    'bg-slate-500',
-  cancelled: 'bg-slate-500',
+  [STAGE_RUN_STATUS.completed]:  'bg-emerald-400',
+  [STAGE_RUN_STATUS.running]:    'bg-sky-400 animate-pulse',
+  [STAGE_RUN_STATUS.launching]:  'bg-sky-400 animate-pulse',
+  [STAGE_RUN_STATUS.pending]:    'bg-amber-400',
+  hold:                          'bg-amber-400',
+  [STAGE_RUN_STATUS.failed]:     'bg-red-400',
+  queued:                        'bg-slate-500',
+  [STAGE_RUN_STATUS.cancelled]:  'bg-slate-500',
 };
 
 function formatDuration(seconds: number): string {
