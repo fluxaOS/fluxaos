@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { router, publicProcedure } from '../trpc';
 import { createPipelineService } from '@/core/services';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
-import { pipelineRun, stageRun, event } from '@/core/db/schema';
+import { pipelineRun, stageRun, event, stageGateResult } from '@/core/db/schema';
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -324,6 +324,17 @@ export const pipelineRouter = router({
           reason: 'manually executed by user',
         });
         return { executed: true };
+      }),
+
+    /** Get gate results for a stage run. */
+    gateResults: publicProcedure
+      .input(z.object({ stageRunId: z.string().uuid() }))
+      .query(({ ctx, input }) => {
+        return ctx.db
+          .select()
+          .from(stageGateResult)
+          .where(eq(stageGateResult.stageRunId, input.stageRunId))
+          .orderBy(stageGateResult.createdAt);
       }),
 
     /** KPIs — aggregate stats for a project's pipeline runs. */
