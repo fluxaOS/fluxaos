@@ -68,4 +68,4 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 - [PAT reference](../pat/) — data models, seed data, API routes, frontend components
 - [Design spec v2](docs/superpowers/specs/2026-04-07-fluxaos-spec-v2.md)
 - [Rebuild spec](docs/superpowers/specs/2026-04-09-rebuild-spec.md)
-- [Approved mockup](planning/mockups/dashboard-mockup.html)
+- [Approved mockup](docs/planning/mockups/dashboard-mockup.html)
