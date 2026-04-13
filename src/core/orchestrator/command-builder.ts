@@ -15,6 +15,8 @@ export interface HarnessConfig {
   dirFlag: string | null;
   sessionNameFlag: string | null;
   promptTransport: string;
+  outputFormat: string;
+  outputFormatFlag: string | null;
   issuePromptTemplate: string | null;
   queuePromptTemplate: string | null;
   envVars: Record<string, string> | unknown;
@@ -79,35 +81,40 @@ export function buildCommand(
     : [];
   args.push(...defaultArgs);
 
-  // 2. Model flag + resolved model
+  // 2. Output format flag
+  if (harness.outputFormatFlag && harness.outputFormat) {
+    args.push(harness.outputFormatFlag, harness.outputFormat);
+  }
+
+  // 3. Model flag + resolved model
   if (harness.modelFlag && options.model) {
     args.push(harness.modelFlag, options.model);
   }
 
-  // 3. Session name flag
+  // 4. Session name flag
   if (harness.sessionNameFlag && options.sessionName) {
     args.push(harness.sessionNameFlag, options.sessionName);
   }
 
-  // 4. Dir flag + workspace path
+  // 5. Dir flag + workspace path
   if (harness.dirFlag && options.workspacePath) {
     args.push(harness.dirFlag, options.workspacePath);
   }
 
-  // 5. Additional directories
+  // 6. Additional directories
   if (harness.dirFlag && options.additionalDirs) {
     for (const dir of options.additionalDirs) {
       args.push(harness.dirFlag, dir);
     }
   }
 
-  // 6. Env vars from harness config
+  // 7. Env vars from harness config
   const env: Record<string, string> =
     harness.envVars && typeof harness.envVars === 'object' && !Array.isArray(harness.envVars)
       ? { ...(harness.envVars as Record<string, string>) }
       : {};
 
-  // 7. Handle prompt based on transport
+  // 8. Handle prompt based on transport
   let stdin: string | undefined;
   const transport = harness.promptTransport || 'argv';
 
