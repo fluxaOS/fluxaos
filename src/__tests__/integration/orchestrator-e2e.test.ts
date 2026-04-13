@@ -174,6 +174,7 @@ describe('skill materializer', () => {
   it('creates workspace with skill and context files', async () => {
     workspacePath = await materialize({
       stageRunId: `test-materializer-${RUN}`,
+      contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
       persona: {
         soul: 'You are a helpful assistant.',
         identity: 'Test Identity',

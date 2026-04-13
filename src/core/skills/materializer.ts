@@ -2,9 +2,8 @@
  * Skill Materializer — writes DB-stored skills and persona config to disk.
  *
  * At execution time, creates an isolated workspace directory with:
- * - CLAUDE.md (persona prompt: soul + identity + brand)
- * - skills/{name}/SKILL.md (skill content from promptTemplate)
- * - context.md (issue context: title, description, state, metadata)
+ * - Instructions file (persona prompt + skill content, filename from harness config)
+ * - Context file (issue context: title, description, state, metadata)
  *
  * The harness reads these files as it normally would.
  * After execution, the workspace is cleaned up.
@@ -40,6 +39,7 @@ export interface IssueInput {
 
 export interface MaterializeOptions {
   stageRunId: string;
+  contextLayout: { instructionsFile: string; contextFile: string };
   persona?: PersonaInput | null;
   skill: SkillInput;
   issue: IssueInput;
@@ -56,15 +56,12 @@ export async function materialize(
   options: MaterializeOptions,
 ): Promise<string> {
   const workspacePath = join(WORKSPACE_ROOT, options.stageRunId);
-  const skillDir = join(workspacePath, 'skills', options.skill.name);
 
-  // Create directories
-  await mkdir(skillDir, { recursive: true });
+  // Create workspace directory
+  await mkdir(workspacePath, { recursive: true });
 
-  // 1. Write CLAUDE.md — persona + skill instructions combined
-  //    Claude auto-discovers CLAUDE.md from --add-dir directories,
-  //    but skills/{name}/SKILL.md requires explicit invocation.
-  //    Embedding skill instructions in CLAUDE.md ensures they're always read.
+  // 1. Write instructions file — persona + skill instructions combined
+  //    Filename comes from harness config (e.g. CLAUDE.md, AGENTS.md, GEMINI.md)
   const parts: string[] = [];
   const personaContent = buildPersonaContent(options.persona);
   if (personaContent) {
@@ -74,12 +71,18 @@ export async function materialize(
     parts.push(`## Skill: ${options.skill.name}\n\n${options.skill.promptTemplate}`);
   }
   if (parts.length > 0) {
-    await atomicWrite(join(workspacePath, 'CLAUDE.md'), parts.join('\n\n'));
+    await atomicWrite(
+      join(workspacePath, options.contextLayout.instructionsFile),
+      parts.join('\n\n'),
+    );
   }
 
-  // 3. Write context.md with issue metadata
+  // 2. Write context file with issue metadata
   const contextMd = buildContextContent(options.issue, options.projectName);
-  await atomicWrite(join(workspacePath, 'context.md'), contextMd);
+  await atomicWrite(
+    join(workspacePath, options.contextLayout.contextFile),
+    contextMd,
+  );
 
   return workspacePath;
 }
