@@ -44,6 +44,13 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** Issue detail client component
 **What's needed:** Subscribe to `issue_event` table changes via Supabase Realtime, or add polling refetch
 
+## Seed: Skills for all pipeline stages + end-to-end test issue
+
+**Found:** 2026-04-13 during R5-V browser verification
+**Severity:** Medium — only `research` skill is seeded; `implement`, `review`, `deploy` stages have no skills
+**Location:** `src/core/db/seed.ts`, `.claude/skills/`
+**What's needed:** Load implement/review/deploy skills from disk (like research). Create a seed issue that can flow through all stages to test the full pipeline lifecycle including gate evaluation on the implement stage.
+
 ## Adapter: RealtimeProvider not implemented
 
 **Found:** 2026-04-13 during architectural cleanup
