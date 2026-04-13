@@ -1,10 +1,11 @@
 /**
  * Orchestrator barrel export.
  */
-export { createOrchestratorManager, type OrchestratorManager, type TickResult } from './manager';
+export { createEventOrchestrator, type EventOrchestrator, type EventOrchestratorConfig } from './event-orchestrator';
 export { createPipelineRunService, type PipelineRunService } from './pipeline-run-service';
 export { createRoutingResolver, type RoutingResolver } from './routing-resolver';
 export { createStageJobHandler, type StageWorkerDeps } from './stage-worker';
+export { executeStageRun, type StageRunContext, type StageRunResult } from './stage-runner';
 export type {
   PipelineRunStatus,
   StageRunStatus,
