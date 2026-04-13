@@ -181,6 +181,7 @@ export const harnessCatalog = pgTable('harness_catalog', {
   queuePromptTemplate: text('queue_prompt_template'),
   envVars: jsonb('env_vars').notNull().default(sql`'{}'::jsonb`),
   extraArgs: jsonb('extra_args').notNull().default(sql`'{}'::jsonb`),
+  contextLayout: jsonb('context_layout').notNull().default(sql`'{"instructionsFile":"CLAUDE.md","contextFile":"context.md"}'::jsonb`),
   isEnabled: boolean('is_enabled').notNull().default(true),
   notes: text('notes'),
   version: integer('version').notNull().default(1),
