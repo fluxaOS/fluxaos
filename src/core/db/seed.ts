@@ -23,6 +23,8 @@ import {
   issueLabel,
   issueTransition,
   configEntry,
+  harnessCatalog,
+  skill,
 } from './schema';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -168,11 +170,76 @@ async function seed() {
           timeoutSec: 300,
           maxRetries: 1,
           gateRules: stage.gateRules,
+          // FKs set in 5d after harness + skill are seeded
         })
         .returning();
     }
   }
   console.log(`  pipeline stages: ${existingStages.length || 4}`);
+
+  // ── 5b. Harness catalog ────────────────────────────────────────────────
+  let [claudeHarness] = await db
+    .insert(harnessCatalog)
+    .values({
+      name: 'Claude Code',
+      slug: 'claude-code',
+      binary: 'claude',
+      modelFlag: '--model',
+      dirFlag: '--add-dir',
+      sessionNameFlag: '--session-name',
+      promptTransport: 'argv',
+      issuePromptTemplate: '{{skill_name}}: {{issue_title}} — {{issue_description}}',
+      queuePromptTemplate: '{{issue_title}}',
+      defaultArgs: ['--dangerously-skip-permissions'],
+      envVars: {},
+    })
+    .onConflictDoNothing({ target: harnessCatalog.slug })
+    .returning();
+
+  if (!claudeHarness) {
+    [claudeHarness] = await db
+      .select()
+      .from(harnessCatalog)
+      .where(eq(harnessCatalog.slug, 'claude-code'));
+  }
+  console.log(`  harness: ${claudeHarness.name} (${claudeHarness.id})`);
+
+  // ── 5c. Skills ─────────────────────────────────────────────────────────
+  let [researchSkill] = await db
+    .insert(skill)
+    .values({
+      name: 'research',
+      description: 'Research a topic and produce findings',
+      promptTemplate:
+        'Research the following topic thoroughly. Produce a summary of findings with sources.',
+      scope: 'project',
+      projectId: proj.id,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!researchSkill) {
+    [researchSkill] = await db
+      .select()
+      .from(skill)
+      .where(and(eq(skill.projectId, proj.id), eq(skill.name, 'research')));
+  }
+  console.log(`  skill: ${researchSkill.name} (${researchSkill.id})`);
+
+  // ── 5d. Update pipeline stages with harness + skill FKs ───────────────
+  if (existingStages.length > 0) {
+    // Update existing stages with harness FK
+    for (const stage of existingStages) {
+      await db
+        .update(pipelineStage)
+        .set({
+          harnessId: claudeHarness.id,
+          ...(stage.name === 'research' ? { skillId: researchSkill.id } : {}),
+        })
+        .where(eq(pipelineStage.id, stage.id));
+    }
+    console.log('  updated pipeline stages with harness/skill FKs');
+  }
 
   // ── 6. Issue type catalog ──────────────────────────────────────────────
   const typesDef = [
