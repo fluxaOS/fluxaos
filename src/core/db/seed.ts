@@ -218,44 +218,56 @@ async function seed() {
   console.log(`  harness: ${claudeHarness.name} (${claudeHarness.id})`);
 
   // ── 5c. Skills ─────────────────────────────────────────────────────────
-  // Load skill content from the actual skill file on disk
-  const researchSkillPath = join(process.cwd(), '.claude', 'skills', 'research', 'SKILL.md');
-  let researchPrompt = 'Research the following topic thoroughly.';
-  try {
-    researchPrompt = readFileSync(researchSkillPath, 'utf-8');
-  } catch {
-    console.log(`  warning: ${researchSkillPath} not found, using fallback prompt`);
-  }
+  // Load skill content from actual skill files on disk
+  const skillsDir = join(process.cwd(), '.claude', 'skills');
+  const skillsDef = [
+    { name: 'research', description: 'Unified research and planning — assess, decide, execute' },
+    { name: 'implement', description: 'Implementation orchestrator — build features from plans' },
+    { name: 'review', description: 'Code review — review only, no implementation' },
+    { name: 'deploy', description: 'Deploy — merge approved PRs' },
+  ];
 
-  let [researchSkill] = await db
-    .insert(skill)
-    .values({
-      name: 'research',
-      description: 'Unified research and planning — assess, decide, execute',
-      promptTemplate: researchPrompt,
-      scope: 'project',
-      projectId: proj.id,
-    })
-    .onConflictDoNothing()
-    .returning();
+  const skillMap = new Map<string, string>();
+  for (const def of skillsDef) {
+    const skillPath = join(skillsDir, def.name, 'SKILL.md');
+    let promptTemplate = `${def.name}: ${def.description}`;
+    try {
+      promptTemplate = readFileSync(skillPath, 'utf-8');
+    } catch {
+      console.log(`  warning: ${skillPath} not found, using fallback prompt`);
+    }
 
-  if (!researchSkill) {
-    [researchSkill] = await db
-      .select()
-      .from(skill)
-      .where(and(eq(skill.projectId, proj.id), eq(skill.name, 'research')));
+    let [row] = await db
+      .insert(skill)
+      .values({
+        name: def.name,
+        description: def.description,
+        promptTemplate,
+        scope: 'project',
+        projectId: proj.id,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (!row) {
+      [row] = await db
+        .select()
+        .from(skill)
+        .where(and(eq(skill.projectId, proj.id), eq(skill.name, def.name)));
+    }
+    skillMap.set(def.name, row.id);
+    console.log(`  skill: ${row.name} (${row.id})`);
   }
-  console.log(`  skill: ${researchSkill.name} (${researchSkill.id})`);
 
   // ── 5d. Update pipeline stages with harness + skill FKs ───────────────
   if (allStages.length > 0) {
-    // Update stages with harness FK
     for (const stage of allStages) {
+      const skillId = skillMap.get(stage.name) ?? null;
       await db
         .update(pipelineStage)
         .set({
           harnessId: claudeHarness.id,
-          ...(stage.name === 'research' ? { skillId: researchSkill.id } : {}),
+          ...(skillId ? { skillId } : {}),
         })
         .where(eq(pipelineStage.id, stage.id));
     }
@@ -489,32 +501,56 @@ async function seed() {
     .where(eq(issue.projectId, proj.id));
 
   if (existingIssues.length === 0) {
-    await db.insert(issue).values({
-      projectId: proj.id,
-      number: 1,
-      title: 'Research: Evaluate pyproject.toml migration for fluxaOS tooling',
-      bodyMd: [
-        '## Summary',
-        '',
-        'Investigate whether fluxaOS would benefit from a `pyproject.toml` for any Python-based tooling, scripts, or build processes.',
-        '',
-        '## Context',
-        '',
-        'fluxaOS is primarily a TypeScript/Next.js project, but some infrastructure tooling (linting hooks, CI scripts, automation) may benefit from Python utilities. Evaluate whether adding a `pyproject.toml` makes sense or if the current npm-only setup is sufficient.',
-        '',
-        '## Acceptance Criteria',
-        '',
-        '- [ ] Inventory of any Python usage in the project or CI pipeline',
-        '- [ ] Recommendation: add pyproject.toml or confirm npm-only is correct',
-        '- [ ] If adding: propose minimal pyproject.toml with required dependencies',
-      ].join('\n'),
-      stateId: stateMap.get('research')!,
-      statusId: statusMap.get('open')!,
-      typeId: typeMap.get('research')!,
-      priorityId: priorityMap.get('low')!,
-      author: 'seed',
-    });
-    console.log('  issue: #1 seeded');
+    await db.insert(issue).values([
+      {
+        projectId: proj.id,
+        number: 1,
+        title: 'Research: Evaluate pyproject.toml migration for fluxaOS tooling',
+        bodyMd: [
+          '## Summary',
+          '',
+          'Investigate whether fluxaOS would benefit from a `pyproject.toml` for any Python-based tooling, scripts, or build processes.',
+          '',
+          '## Acceptance Criteria',
+          '',
+          '- [ ] Inventory of any Python usage in the project or CI pipeline',
+          '- [ ] Recommendation: add pyproject.toml or confirm npm-only is correct',
+        ].join('\n'),
+        stateId: stateMap.get('research')!,
+        statusId: statusMap.get('open')!,
+        typeId: typeMap.get('research')!,
+        priorityId: priorityMap.get('low')!,
+        author: 'seed',
+      },
+      {
+        projectId: proj.id,
+        number: 2,
+        title: 'Add health check endpoint with build metadata',
+        bodyMd: [
+          '## Summary',
+          '',
+          'Add a `/api/health` endpoint that returns build metadata (git sha, build time, version).',
+          '',
+          '## Implementation Plan',
+          '',
+          '1. Read `src/app/api/health/route.ts`',
+          '2. Update the health endpoint to include git sha from `git rev-parse HEAD`',
+          '3. Add build timestamp',
+          '4. Return JSON with `{ status: "ok", sha, buildTime, version }`',
+          '',
+          '## Acceptance Criteria',
+          '',
+          '- [ ] `/api/health` returns JSON with status, sha, buildTime, version',
+          '- [ ] No hardcoded values — reads from environment or git',
+        ].join('\n'),
+        stateId: stateMap.get('implement')!,
+        statusId: statusMap.get('open')!,
+        typeId: typeMap.get('task')!,
+        priorityId: priorityMap.get('medium')!,
+        author: 'seed',
+      },
+    ]);
+    console.log('  issues: #1 (research), #2 (implement) seeded');
   } else {
     console.log(`  issues: ${existingIssues.length} existing`);
   }
