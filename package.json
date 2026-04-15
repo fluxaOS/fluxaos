@@ -13,7 +13,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/core/db/seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:issues": "tsx src/core/db/scripts/issues.ts",
+    "db:runs": "tsx src/core/db/scripts/runs.ts",
+    "db:gates": "tsx src/core/db/scripts/gates.ts",
+    "db:events": "tsx src/core/db/scripts/events.ts",
+    "verify": "tsx tests/verify/run-all.ts",
+    "verify:seed": "tsx tests/verify/seed-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.0",
