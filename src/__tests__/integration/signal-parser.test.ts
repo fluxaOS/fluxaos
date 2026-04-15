@@ -122,6 +122,48 @@ describe('signal-parser', () => {
     expect(parseSignalLine(line)).toBeNull();
   });
 
+  it('parses signal with reason: already_complete and meta.targetState', () => {
+    const line = JSON.stringify({
+      'flux:signal': {
+        verdict: 'hold',
+        reason: 'already_complete',
+        summary: 'Health endpoint already implemented',
+        meta: { targetState: 'deploy' },
+      },
+    });
+    const result = parseSignalLine(line);
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe('hold');
+    expect(result!.reason).toBe('already_complete');
+    expect(result!.meta?.targetState).toBe('deploy');
+  });
+
+  it('parses signal with reason: needs_human and meta.question', () => {
+    const line = JSON.stringify({
+      'flux:signal': {
+        verdict: 'hold',
+        reason: 'needs_human',
+        summary: 'Cannot determine auth strategy',
+        meta: { question: 'Should this use OAuth or API keys?' },
+      },
+    });
+    const result = parseSignalLine(line);
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe('hold');
+    expect(result!.reason).toBe('needs_human');
+    expect(result!.meta?.question).toBe('Should this use OAuth or API keys?');
+  });
+
+  it('parses signal with no reason field without error', () => {
+    const line = JSON.stringify({
+      'flux:signal': { verdict: 'hold', summary: 'pausing' },
+    });
+    const result = parseSignalLine(line);
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe('hold');
+    expect(result!.reason).toBeUndefined();
+  });
+
   it('throws for invalid verdict in embedded signal', () => {
     const line = JSON.stringify({
       type: 'user',

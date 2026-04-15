@@ -58,6 +58,7 @@ export interface StageRunResult {
   issueId: string | null;
   stageId: string;
   skillSignal: string | null;
+  skillSignalReason: string | null;
   skillMetadata: Record<string, unknown> | null;
 }
 
@@ -360,6 +361,7 @@ export async function executeStageRun(
         issueId: run.issueId,
         stageId: stage.id,
         skillSignal: null,
+        skillSignalReason: null,
         skillMetadata: null,
       };
     }
@@ -431,6 +433,7 @@ export async function executeStageRun(
       issueId: run.issueId,
       stageId: stage.id,
       skillSignal: lastSignal.verdict,
+      skillSignalReason: lastSignal.reason ?? null,
       skillMetadata: Object.keys(skillMetadata).length > 0 ? skillMetadata : null,
     };
   } catch (err) {

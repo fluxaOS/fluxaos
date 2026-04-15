@@ -197,6 +197,58 @@ export function createIssueService(db: Database) {
     return state;
   }
 
+  async function resolveStatusByConfigKey(projectId: string, configKey: string): Promise<string> {
+    const [config] = await db
+      .select()
+      .from(configEntry)
+      .where(
+        and(
+          eq(configEntry.projectId, projectId),
+          eq(configEntry.key, configKey),
+        ),
+      );
+
+    if (!config) {
+      throw new Error(`Missing config: ${configKey} for project ${projectId}. Run seed.`);
+    }
+
+    const statusKey = config.value as string;
+    const [status] = await db
+      .select()
+      .from(issueStatus)
+      .where(
+        and(
+          eq(issueStatus.projectId, projectId),
+          eq(issueStatus.key, statusKey),
+        ),
+      );
+
+    if (!status) {
+      throw new Error(`Status '${statusKey}' not found for project ${projectId}.`);
+    }
+
+    return status.id;
+  }
+
+  async function findStateByKey(projectId: string, key: string): Promise<IssueStateSelect> {
+    const [state] = await db
+      .select()
+      .from(issueState)
+      .where(
+        and(
+          eq(issueState.projectId, projectId),
+          eq(issueState.key, key),
+          eq(issueState.isActive, true),
+        ),
+      );
+
+    if (!state) {
+      throw new Error(`State '${key}' not found for project ${projectId}.`);
+    }
+
+    return state;
+  }
+
   function assertVersion(current: IssueSelect, expected: number) {
     if (current.version !== expected) {
       throw new Error(
@@ -550,6 +602,34 @@ export function createIssueService(db: Database) {
 
       const nonTerminalState = await findNonTerminalState(current.projectId);
       return this.stateOverride(id, nonTerminalState.id, version, userId);
+    },
+
+    async updateStatus(
+      id: string,
+      statusId: string,
+      actor: string,
+      reason?: string,
+    ): Promise<IssueSelect> {
+      const [updated] = await db
+        .update(issue)
+        .set({ statusId, updatedAt: new Date() })
+        .where(eq(issue.id, id))
+        .returning();
+
+      if (!updated) {
+        throw new Error(`Issue ${id} not found.`);
+      }
+
+      await recordEvent(id, actor, 'status_changed', { statusId, reason });
+      return updated;
+    },
+
+    async getStateByKey(projectId: string, key: string): Promise<IssueStateSelect> {
+      return findStateByKey(projectId, key);
+    },
+
+    async getStatusIdByConfigKey(projectId: string, configKey: string): Promise<string> {
+      return resolveStatusByConfigKey(projectId, configKey);
     },
 
     async delete(id: string): Promise<void> {

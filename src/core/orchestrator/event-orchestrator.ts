@@ -18,12 +18,14 @@ import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { Unsubscribe } from '@/core/ports/auth';
 import {
+  issue,
   pipelineStage,
   pipelineRun,
   stageRun,
 } from '@/core/db/schema';
 import { createPipelineRunService } from './pipeline-run-service';
 import { createGateService } from '@/core/gates/service';
+import { createIssueService } from '@/core/services/issue';
 import { executeStageRun } from './stage-runner';
 import {
   PIPELINE_RUN_STATUS,
@@ -185,36 +187,35 @@ export function createEventOrchestrator(
         trigger: TRIGGER_TYPE.automated,
       });
 
-      // Post-execution gate evaluation
-      if (result.exitCode === 0 && gateMode === GATE_MODE.rules) {
-        const gateResult = await gateService.evaluateStageGate(
-          stage.id,
-          sRun.id,
-          {
-            exit_code: result.exitCode,
-            cost_usd: 0,
-            tokens_in: 0,
-            tokens_out: 0,
-            provider: result.providerName,
-            model: result.modelIdentifier,
-            harness: result.harnessName,
-            skill_signal: result.skillSignal,
-          },
-        );
+      // Post-execution gate evaluation — always write a result row
+      const gateResult = await gateService.evaluateStageGate(
+        stage.id,
+        sRun.id,
+        {
+          exit_code: result.exitCode,
+          cost_usd: 0,
+          tokens_in: 0,
+          tokens_out: 0,
+          provider: result.providerName,
+          model: result.modelIdentifier,
+          harness: result.harnessName,
+          skill_signal: result.skillSignal,
+        },
+      );
 
-        await runService.appendEvent(sRun.id, EVENT_TYPE.gate_checked, {
-          verdict: gateResult.verdict,
-          passed: gateResult.passed,
-          reason: gateResult.reason,
-        });
+      await runService.appendEvent(sRun.id, EVENT_TYPE.gate_checked, {
+        verdict: gateResult.verdict,
+        passed: gateResult.passed,
+        reason: gateResult.reason,
+      });
 
-        await applyVerdict(run, stage, sRun, gateResult.verdict);
-      } else if (result.exitCode === 0) {
-        // auto/skip gate → proceed
-        await applyVerdict(run, stage, sRun, GATE_VERDICT.proceed);
-      } else {
+      if (result.exitCode !== 0) {
         // Failed — check retry budget
         await handleStageFailed(run, stage, sRun);
+      } else {
+        // Use skill signal verdict if present (hold/rework/abort), otherwise gate verdict
+        const effectiveVerdict = result.skillSignal ?? gateResult.verdict;
+        await applyVerdict(run, stage, sRun, effectiveVerdict, result.skillSignalReason, result.skillMetadata);
       }
     } catch {
       // Stage execution threw (timeout, signal, etc.)
@@ -230,6 +231,8 @@ export function createEventOrchestrator(
     stage: typeof pipelineStage.$inferSelect,
     sRun: typeof stageRun.$inferSelect,
     verdict: string,
+    signalReason?: string | null,
+    signalMeta?: Record<string, unknown> | null,
   ): Promise<void> {
     if (verdict === GATE_VERDICT.proceed) {
       const nextStage = await runService.getNextStage(
@@ -244,6 +247,41 @@ export function createEventOrchestrator(
       }
     } else if (verdict === GATE_VERDICT.hold) {
       await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.pending);
+
+      if (run.issueId) {
+        const issueService = createIssueService(db);
+        const [issueRow] = await db.select().from(issue).where(eq(issue.id, run.issueId));
+
+        if (issueRow) {
+          if (signalReason === 'already_complete') {
+            const targetStateKey = signalMeta?.targetState as string | undefined;
+            if (targetStateKey) {
+              const targetState = await issueService.getStateByKey(issueRow.projectId, targetStateKey);
+              await issueService.stateOverride(run.issueId, targetState.id, issueRow.version, 'orchestrator');
+              await runService.appendIssueEvent(
+                run.issueId,
+                ISSUE_EVENT_TYPE.state_changed,
+                { reason: 'already_complete', targetState: targetStateKey },
+                'orchestrator',
+              );
+            }
+          } else {
+            // needs_human or unknown reason — block the issue
+            const blockedStatusId = await issueService.getStatusIdByConfigKey(
+              issueRow.projectId,
+              'issues.status.on_blocked_key',
+            );
+            const question = signalMeta?.question as string | undefined;
+            await issueService.updateStatus(run.issueId, blockedStatusId, 'orchestrator', question);
+            await runService.appendIssueEvent(
+              run.issueId,
+              ISSUE_EVENT_TYPE.status_changed,
+              { reason: signalReason ?? 'needs_human', question },
+              'orchestrator',
+            );
+          }
+        }
+      }
     } else if (verdict === GATE_VERDICT.rework) {
       await handleStageFailed(run, stage, sRun);
     } else if (verdict === GATE_VERDICT.abort) {

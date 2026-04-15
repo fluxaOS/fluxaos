@@ -72,6 +72,8 @@ export const ISSUE_EVENT_TYPE = {
   pipeline_completed: 'pipeline_completed',
   pipeline_failed: 'pipeline_failed',
   gate_hold: 'gate_hold',
+  state_changed: 'state_changed',
+  status_changed: 'status_changed',
 } as const;
 
 export type IssueEventType = (typeof ISSUE_EVENT_TYPE)[keyof typeof ISSUE_EVENT_TYPE];
