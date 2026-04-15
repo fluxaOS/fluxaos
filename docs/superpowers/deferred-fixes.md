@@ -87,6 +87,25 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Found:** 2026-04-13 during R5-V browser verification
 **Severity:** Low — the `launched` events appear right away in raw JSON mode, but output events only appear when the run completes. This is the same batching issue as LiveOutput but specifically visible in raw mode.
 
+## UI: Activity feed does not show correctly
+
+**Found:** 2026-04-15 during R5.5 browser verification
+**Severity:** Medium — activity feed display is broken or misleading
+**Location:** Issue detail activity/event feed
+**What's needed:** Investigate and fix activity event rendering
+
+## UI: State/status labels have inconsistent verb tenses
+
+**Found:** 2026-04-15 during R5.5 browser verification
+**Severity:** Low — e.g. pipeline shows "completed" (past tense) while states use present tense like "Research", "Implement"
+**What's needed:** Align all state/status labels to consistent tense conventions. States should be nouns/phases (Research, Implementation, Review). Statuses should be adjectives/states (Open, Running, Blocked, Completed).
+
+## UI: Inconsistent text casing across UI
+
+**Found:** 2026-04-15 during R5.5 browser verification
+**Severity:** Low — some labels are all lowercase, some sentence case, some all uppercase
+**What's needed:** Standardize to sentence case throughout the UI
+
 ## Adapter: RealtimeProvider not implemented
 
 **Found:** 2026-04-13 during architectural cleanup
