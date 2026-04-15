@@ -1,0 +1,97 @@
+---
+model: opus
+---
+# Review Session for LLM Tool Optimization
+
+Analyze a session.txt file to identify opportunities for improving LLM coding efficiency, reducing token waste, and enhancing workflows.
+
+## Usage
+
+When the user asks to review a session file:
+
+```bash
+# User provides path to session file
+Run the review-session skill
+```
+
+## Instructions
+
+### Analysis Framework
+
+Read `references/analysis-framework.md` and execute the full framework. This covers session preparation, tool usage analysis, and pattern identification.
+
+### Report Output
+
+Use the template in `references/report-template.md` for the final session analysis report.
+
+## Important Notes
+
+### What to Look For
+
+**Red Flags:**
+- Same file operation repeated >2 times
+- 0-result searches
+- Wrong tool usage (`gh`, `tea`, `cat`, `grep` bash commands)
+- No TodoWrite for >3 step tasks
+- Manual template construction
+- No error handling
+
+**Green Flags:**
+- Parallel tool calls where appropriate
+- Task tool usage for exploration
+- TodoWrite for tracking
+- Batch file edits
+- Proper tool selection
+
+### How to Provide Feedback
+
+- Be specific: Include line numbers from session
+- Be actionable: Provide exact code/config changes
+- Be measurable: Estimate token/time savings
+- Be prioritized: Focus on high-impact changes first
+
+### Reference Previous Optimizations
+
+Compare findings to the 2025-12-10 optimization:
+- Check if similar issues were already addressed
+- Note if regression occurred
+- Suggest additional patterns based on new findings
+
+## Example Usage
+
+**User:** "Please review my session.txt file and tell me how to improve my LLM workflows"
+
+**Assistant:**
+1. Reads session.txt
+2. Analyzes using framework above
+3. Generates detailed report
+4. Provides implementation checklist
+5. Estimates impact metrics
+6. Manages memory entries (add/update/delete)
+7. Analyzes CLI patterns for improvement opportunities
+8. Files issues for HIGH+ recommendations
+9. Presents summary with filed issues and memory changes
+
+---
+
+## Tips for Analysis
+
+1. **Read entire session first** - Understand context before analyzing
+2. **Look for patterns** - One occurrence is data, multiple is a pattern
+3. **Calculate real costs** - Use actual token counts when possible
+4. **Be honest** - If session was efficient, say so
+5. **Learn from it** - Update this template based on new patterns found
+
+## Output Format
+
+Provide report in markdown with:
+- Executive summary (2-3 sentences)
+- Issues by category (organized by priority)
+- Specific recommendations (with file paths and line numbers)
+- Implementation checklist (actionable items)
+- Success metrics (measurable targets)
+- Examples (quoted from session with line numbers)
+
+---
+
+**Remember:** The goal is continuous improvement. Every session reveals optimization opportunities. Document them, prioritize them, and implement them systematically.

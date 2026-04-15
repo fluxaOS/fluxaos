@@ -29,9 +29,5 @@
   "enabledPlugins": {
     "codex@openai-codex": true,
     "claude-md-management@claude-plugins-official": true
-  },
-  "__meta": {
-    "managed_by": "fhc sync",
-    "note": "DO NOT EDIT — this file is overwritten by fhc sync. Edit templates/claude-settings/settings.json in fh-commons."
   }
 }
