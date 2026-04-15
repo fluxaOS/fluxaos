@@ -63,9 +63,6 @@ are permitted.
 | `new` | `research` | Start research |
 | `new` | `implement` | Skip research, start implementing |
 | `research` | `implement` | Begin implementation |
-| `research` | `deploy` | Research found work already done through deploy |
-| `research` | `review` | Research found work already done through review |
-| `research` | `complete` | Research found issue is fully complete |
 | `implement` | `review` | Submit for review |
 | `implement` | `research` | Back to research |
 | `review` | `rework` | Needs rework |
@@ -74,10 +71,9 @@ are permitted.
 | `deploy` | `complete` | Mark complete |
 | `complete` | `implement` | Reopen |
 
-> **Note:** `research → deploy`, `research → review`, and `research → complete` transitions
-> are required for the `hold/already_complete` skill signal path (see Skill Signals below).
-> These are not yet in the seed as of R5.5 — add them before implementing signal-driven
-> state transitions.
+> **Signal-driven jumps bypass this table.** The orchestrator uses `issueService.stateOverride()`
+> for `hold/already_complete` signals — no transition entry required. The transition table
+> is enforced only for human-initiated moves in the UI.
 
 ---
 

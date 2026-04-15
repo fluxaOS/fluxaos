@@ -62,6 +62,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 ## Reference
 
+- [Issue Lifecycle](docs/issue-lifecycle.md) — states, statuses, transitions, skill signal protocol
 - [Invariants & Verification](docs/invariants.md) — 24 hard constraints + verification script
 - [Session Protocol](docs/session-protocol.md) — 14-step checklist for implementation sessions
 - [Roadmap](docs/roadmap.md) — phase status, plans, specs, RCAs
