@@ -44,31 +44,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# BEGIN fhc-managed - DO NOT EDIT THIS SECTION
-# Managed by fhc sync from fh-commons
-__pycache__/
-*.code-workspace
-*jscpd*.json
+# project-specific
 *.log
-*.py[cod]
-.joe
 .claude/
-.coverage
-.DS_Store
-.fhc-config.json
-.forgejo_token
-.forgejo/workflows/test-gate.yaml
-.jscpd.json
-.mypy_cache/
 .paul
-.pytest_cache/
-.sync.lock
 .trash
-ARCHITECTURAL_STANDARDS.md
-CLAUDE.md
-config/install-state.json
-reports/
-tests/browser/screenshots/
-tests/spikes/
 worktrees/
-# END fhc-managed
