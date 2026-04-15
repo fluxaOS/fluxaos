@@ -263,7 +263,7 @@ export async function executeStageRun(
     const result = await executor.execute({
       command: cmd.binary,
       args: cmd.args,
-      cwd: process.cwd(),
+      cwd: workspacePath,
       env: cmd.env,
       timeoutMs: (stage.timeoutSec ?? DEFAULT_STAGE_TIMEOUT_SEC) * 1000,
       onStdout: (data: string) => {
