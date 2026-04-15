@@ -63,4 +63,78 @@ describe('signal-parser', () => {
       expect(result!.verdict).toBe(verdict);
     }
   });
+
+  it('extracts signal from stream-json tool_result content', () => {
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{
+          tool_use_id: 'toolu_abc',
+          type: 'tool_result',
+          content: '{"flux:signal": {"verdict": "proceed", "summary": "Done"}}',
+          is_error: false,
+        }],
+      },
+    });
+    const result = parseSignalLine(line);
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe('proceed');
+    expect(result!.summary).toBe('Done');
+  });
+
+  it('extracts signal from stream-json tool_use_result.stdout', () => {
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{
+          tool_use_id: 'toolu_abc',
+          type: 'tool_result',
+          content: '{"flux:signal": {"verdict": "rework", "summary": "Needs changes"}}',
+          is_error: false,
+        }],
+      },
+      tool_use_result: {
+        stdout: '{"flux:signal": {"verdict": "rework", "summary": "Needs changes"}}',
+        stderr: '',
+      },
+    });
+    const result = parseSignalLine(line);
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe('rework');
+    expect(result!.summary).toBe('Needs changes');
+  });
+
+  it('returns null for tool_result without signal', () => {
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{
+          tool_use_id: 'toolu_abc',
+          type: 'tool_result',
+          content: 'just some regular output',
+          is_error: false,
+        }],
+      },
+    });
+    expect(parseSignalLine(line)).toBeNull();
+  });
+
+  it('throws for invalid verdict in embedded signal', () => {
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{
+          tool_use_id: 'toolu_abc',
+          type: 'tool_result',
+          content: '{"flux:signal": {"verdict": "invalid"}}',
+          is_error: false,
+        }],
+      },
+    });
+    expect(() => parseSignalLine(line)).toThrow('invalid skill signal verdict');
+  });
 });
