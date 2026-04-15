@@ -15,6 +15,12 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 | `npm run db:migrate` | Run migrations |
 | `npm run db:seed` | Seed catalog data + default org/user/project |
 | `npm run db:studio` | Drizzle Studio (DB browser) |
+| `npm run db:issues` | List issues with state/status |
+| `npm run db:runs` | List pipeline and stage runs |
+| `npm run db:gates` | List gate results |
+| `npm run db:events` | List events (all, or `-- --run <id>`) |
+| `npm run verify` | Run all verification checks |
+| `npm run verify:seed` | Verify seed data is correct |
 | `npx vitest` | Integration tests (real Supabase) |
 | `tsx src/core/db/nuke.ts` | Drop all user data, keep schema |
 
