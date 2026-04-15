@@ -11,17 +11,17 @@ import type { Database } from '@/core/db/connection';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import { createPipelineRunService } from './pipeline-run-service';
 import { createGateService } from '@/core/gates/service';
+import { createIssueService } from '@/core/services/issue';
 import { executeStageRun } from './stage-runner';
 import {
   PIPELINE_RUN_STATUS,
   ISSUE_EVENT_TYPE,
   EVENT_TYPE,
-  GATE_MODE,
-  DEFAULT_GATE_MODE,
+  GATE_VERDICT,
   TRIGGER_TYPE,
 } from '@/core/constants';
 import { eq } from 'drizzle-orm';
-import { pipelineStage, stageRun } from '@/core/db/schema';
+import { issue, pipelineStage, stageRun } from '@/core/db/schema';
 
 /**
  * Execute a single stage run. Fire-and-forget — caller does not await.
@@ -46,38 +46,66 @@ export async function executeManualRun(
       trigger: TRIGGER_TYPE.manual,
     });
 
-    // Gate evaluation (if stage has gates configured)
+    // Gate evaluation — always write a result row for every stage run
     const [sRun] = await db
       .select({ pipelineStageId: stageRun.pipelineStageId })
       .from(stageRun)
       .where(eq(stageRun.id, stageRunId));
     if (sRun) {
-      const [stage] = await db
-        .select({ gateMode: pipelineStage.gateMode })
-        .from(pipelineStage)
-        .where(eq(pipelineStage.id, sRun.pipelineStageId));
+      const gateResult = await gateService.evaluateStageGate(
+        sRun.pipelineStageId,
+        stageRunId,
+        {
+          exit_code: result.exitCode,
+          cost_usd: 0,
+          tokens_in: 0,
+          tokens_out: 0,
+          provider: result.providerName,
+          model: result.modelIdentifier,
+          harness: result.harnessName,
+          skill_signal: result.skillSignal,
+        },
+      );
+      await runService.appendEvent(stageRunId, EVENT_TYPE.gate_checked, {
+        verdict: gateResult.verdict,
+        passed: gateResult.passed,
+        reason: gateResult.reason,
+      });
+    }
 
-      const gateMode = (stage?.gateMode ?? DEFAULT_GATE_MODE) as string;
-      if (result.exitCode === 0 && gateMode === GATE_MODE.rules) {
-        const gateResult = await gateService.evaluateStageGate(
-          sRun.pipelineStageId,
-          stageRunId,
-          {
-            exit_code: result.exitCode,
-            cost_usd: 0,
-            tokens_in: 0,
-            tokens_out: 0,
-            provider: result.providerName,
-            model: result.modelIdentifier,
-            harness: result.harnessName,
-            skill_signal: result.skillSignal,
-          },
-        );
-        await runService.appendEvent(stageRunId, EVENT_TYPE.gate_checked, {
-          verdict: gateResult.verdict,
-          passed: gateResult.passed,
-          reason: gateResult.reason,
-        });
+    // Handle hold verdict from skill signal
+    if (result.skillSignal === GATE_VERDICT.hold && result.issueId) {
+      const issueService = createIssueService(db);
+      const [issueRow] = await db.select().from(issue).where(eq(issue.id, result.issueId));
+
+      if (issueRow) {
+        if (result.skillSignalReason === 'already_complete') {
+          const targetStateKey = result.skillMetadata?.targetState as string | undefined;
+          if (targetStateKey) {
+            const targetState = await issueService.getStateByKey(issueRow.projectId, targetStateKey);
+            await issueService.stateOverride(result.issueId, targetState.id, issueRow.version, 'orchestrator');
+            await runService.appendIssueEvent(
+              result.issueId,
+              ISSUE_EVENT_TYPE.state_changed,
+              { reason: 'already_complete', targetState: targetStateKey },
+              'manual-run',
+            );
+          }
+        } else {
+          // needs_human or unknown reason — block the issue
+          const blockedStatusId = await issueService.getStatusIdByConfigKey(
+            issueRow.projectId,
+            'issues.status.on_blocked_key',
+          );
+          const question = result.skillMetadata?.question as string | undefined;
+          await issueService.updateStatus(result.issueId, blockedStatusId, 'orchestrator', question);
+          await runService.appendIssueEvent(
+            result.issueId,
+            ISSUE_EVENT_TYPE.pipeline_failed,
+            { reason: result.skillSignalReason ?? 'needs_human', question },
+            'manual-run',
+          );
+        }
       }
     }
 

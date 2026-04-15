@@ -8,9 +8,7 @@
  * Idempotent: safe to run multiple times. Uses onConflictDoNothing() throughout.
  */
 import 'dotenv/config';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import {
   organization,
@@ -220,8 +218,29 @@ async function seed() {
   console.log(`  harness: ${claudeHarness.name} (${claudeHarness.id})`);
 
   // ── 5c. Skills ─────────────────────────────────────────────────────────
-  // Load skill content from actual skill files on disk
-  const skillsDir = join(process.cwd(), '.claude', 'skills');
+  // Lean pipeline prompts — designed for headless --print mode in isolated workspaces.
+  // The workspace contains only CLAUDE.md (persona + skill definition) and context.md
+  // (issue details). Do NOT load the full interactive SKILL.md files — those are for
+  // Claude Code slash-command use and will cause token waste and misbehavior in --print mode.
+  const PIPELINE_PROMPT = `You are running as a pipeline agent in headless mode. You have two files available:
+- CLAUDE.md — your instructions and skill definition for this task
+- context.md — the issue you are working on
+
+Read both files. Assess the issue. Do the work described in CLAUDE.md for this issue.
+
+When complete, emit your result as a flux:signal on a single stdout line:
+echo '{"flux:signal": {"verdict": "proceed", "summary": "brief description of what was done"}}'
+
+If the issue is already complete or further ahead than its current state, emit:
+echo '{"flux:signal": {"verdict": "hold", "reason": "already_complete", "summary": "explanation", "meta": {"targetState": "<state key>"}}}'
+
+Valid state keys: new, research, implement, review, rework, deploy, complete
+
+If you cannot proceed without human input, emit:
+echo '{"flux:signal": {"verdict": "hold", "reason": "needs_human", "summary": "explanation", "meta": {"question": "specific question for the human"}}}'
+
+Do not ask questions. Do not use slash commands. Do not run CLI tools beyond what the task genuinely requires.`;
+
   const skillsDef = [
     { name: 'research', description: 'Unified research and planning — assess, decide, execute' },
     { name: 'implement', description: 'Implementation orchestrator — build features from plans' },
@@ -232,13 +251,7 @@ async function seed() {
 
   const skillMap = new Map<string, string>();
   for (const def of skillsDef) {
-    const skillPath = join(skillsDir, def.name, 'SKILL.md');
-    let promptTemplate = `${def.name}: ${def.description}`;
-    try {
-      promptTemplate = readFileSync(skillPath, 'utf-8');
-    } catch {
-      console.log(`  warning: ${skillPath} not found, using fallback prompt`);
-    }
+    const promptTemplate = PIPELINE_PROMPT;
 
     let [row] = await db
       .insert(skill)
@@ -532,6 +545,34 @@ async function seed() {
       author: 'seed',
     });
     console.log('  issue: #1 seeded');
+
+    // Issue #2 — tests the hold/already_complete → stateOverride path.
+    // The health endpoint already exists at src/app/api/health/route.ts.
+    // When the research stage runs, the skill should detect this and emit
+    // hold/already_complete with targetState: 'complete'.
+    await db.insert(issue).values({
+      projectId: proj.id,
+      number: 2,
+      title: 'Add /api/health endpoint with build metadata',
+      bodyMd: [
+        '## Summary',
+        '',
+        'Add a `/api/health` endpoint that returns build metadata.',
+        '',
+        'Note: This endpoint already exists at `src/app/api/health/route.ts`',
+        'and fully meets the requirements.',
+        '',
+        '## Acceptance Criteria',
+        '',
+        '- [ ] `/api/health` returns JSON with status and build info',
+      ].join('\n'),
+      stateId: stateMap.get('research')!,
+      statusId: statusMap.get('open')!,
+      typeId: typeMap.get('task')!,
+      priorityId: priorityMap.get('medium')!,
+      author: 'seed',
+    });
+    console.log('  issue: #2 seeded (already_complete test case)');
   } else {
     console.log(`  issues: ${existingIssues.length} existing`);
   }

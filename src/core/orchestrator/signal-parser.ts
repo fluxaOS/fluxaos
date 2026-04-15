@@ -12,10 +12,15 @@ const VALID_VERDICTS = new Set<string>(Object.values(GATE_VERDICT));
 export interface SkillSignal {
   verdict: GateVerdict;
   summary?: string;
+  reason?: string;
   costUsd?: number;
   tokensIn?: number;
   tokensOut?: number;
-  meta?: Record<string, unknown>;
+  meta?: {
+    targetState?: string;
+    question?: string;
+    [key: string]: unknown;
+  };
 }
 
 /**
@@ -40,10 +45,11 @@ function parseSignalObject(parsed: Record<string, unknown>): SkillSignal | null 
   return {
     verdict: verdict as GateVerdict,
     summary: typeof data.summary === 'string' ? data.summary : undefined,
+    reason: typeof data.reason === 'string' ? data.reason : undefined,
     costUsd: typeof data.cost_usd === 'number' ? data.cost_usd : undefined,
     tokensIn: typeof data.tokens_in === 'number' ? Math.floor(data.tokens_in) : undefined,
     tokensOut: typeof data.tokens_out === 'number' ? Math.floor(data.tokens_out) : undefined,
-    meta: data.meta && typeof data.meta === 'object' ? (data.meta as Record<string, unknown>) : undefined,
+    meta: data.meta && typeof data.meta === 'object' ? (data.meta as { targetState?: string; question?: string; [key: string]: unknown }) : undefined,
   };
 }
 
