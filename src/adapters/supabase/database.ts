@@ -16,6 +16,7 @@ import type { Database } from '@/core/db/connection';
 
 export class SupabaseDatabaseProvider implements DatabaseProvider {
   private db: Database;
+  private client: ReturnType<typeof postgres>;
 
   constructor(connectionString: string) {
     if (!connectionString) {
@@ -23,8 +24,8 @@ export class SupabaseDatabaseProvider implements DatabaseProvider {
         'DATABASE_URL is required. Set it to your Supabase transaction pooler URL (port 6543).',
       );
     }
-    const client = postgres(connectionString, { prepare: false });
-    this.db = drizzle({ client, schema });
+    this.client = postgres(connectionString, { prepare: false });
+    this.db = drizzle({ client: this.client, schema });
   }
 
   getConnection(): Database {
@@ -38,5 +39,9 @@ export class SupabaseDatabaseProvider implements DatabaseProvider {
     } catch {
       return false;
     }
+  }
+
+  async close(): Promise<void> {
+    await this.client.end();
   }
 }
