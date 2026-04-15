@@ -67,7 +67,7 @@ done
 **Check the "Ready for Review" comment for functional verification evidence:**
 
 ```bash
-flu issue view <issue-number> --comments | grep -A 20 "Functional Verification"
+review the issue: <issue-number> --comments | grep -A 20 "Functional Verification"
 ```
 
 **Evaluate evidence quality:**

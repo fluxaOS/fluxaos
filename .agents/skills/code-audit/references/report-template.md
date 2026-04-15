@@ -50,7 +50,6 @@ Use this template to generate the audit report. Post as a comment on the issue.
 ## Remediation Guidance
 
 ### Helper Usage Violations
-- Consult `/mnt/dev/fh-commons/docs/python-functions-reference.md` for the full helper inventory
 - Each violation message includes the specific import path — use it directly
 - If no existing helper fits your use case, add one to `fh_commons/` rather than reimplementing inline
 - Reference `.claude/ARCHITECTURAL_STANDARDS.md` Helper Hierarchy section

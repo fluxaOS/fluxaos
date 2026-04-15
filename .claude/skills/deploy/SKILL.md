@@ -84,7 +84,7 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
 1. **DO NOT ask questions in the terminal** — no one is there to answer
 2. **Post a blocker comment** on the issue:
    ```bash
-   {{CLI}} issue comment <number> --body "## Pipeline Blocked
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Blocked
 
    **Stage:** <current stage>
    **Blocker:** <specific description of what is preventing progress>
@@ -93,11 +93,10 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
    ```
 3. **Set issue state to on-hold:**
    ```bash
-   {{CLI}} issue state <number> on-hold
    ```
 4. **Clean up worktrees** (mandatory — each agent owns its own teardown):
    ```bash
-   {{CLI}} git worktree-clean
+   git worktree prune
    ```
    These teardown steps are owned by the agent, not the orchestrator.
 5. **Exit the pipeline stage:**
@@ -124,7 +123,6 @@ Run this mode through one delegated subagent in a dedicated worktree unless `--i
 
 #### 1. List open issues
 ```bash
-{{CLI}} issue list
 ```
 
 #### 2. Filter for target-state issues
@@ -189,7 +187,7 @@ Proceed with merge for that specific issue.
 
 ### 1. Get Issue & Branch
 ```bash
-{{CLI}} issue view $ARGUMENTS
+review the issue: $ARGUMENTS
 # Find branch name from approval comment or "Ready for Review" comment
 ```
 
@@ -200,7 +198,7 @@ Proceed with merge for that specific issue.
 ```bash
 # Post entry comment (REQUIRED -- do this before any other work)
 IMPL_START_TIME=$(date +%s)
-{{CLI}} issue comment <number> --body "## Pipeline Activity
+log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
 | Field | Value |
 |-------|-------|
@@ -234,7 +232,6 @@ POST_REBASE_SHA=$(git rev-parse HEAD)
 
 If rebase conflicts arise:
 - Attempt to resolve automatically
-- If complex conflicts: set state to `rework` (`{{CLI}} issue state <number> rework`), comment with details, move to next issue
 
 **If `PRE_REBASE_SHA` equals `POST_REBASE_SHA` (rebase was a no-op — already up to date):**
 - Skip test re-run. Tests from implement/review phases are still valid for unchanged code.
@@ -261,14 +258,13 @@ python -m pytest tests/unit/test_<module>.py -v
 
 If tests fail after rebase:
 ```bash
-{{CLI}} issue comment <number> --body "## Merge Blocked -- Tests Fail After Rebase
+log to docs/superpowers/deferred-fixes.md: "## Merge Blocked -- Tests Fail After Rebase
 Tests failed after rebasing onto latest main:
 \`\`\`
 [paste test output]
 \`\`\`
 Returning to changes-requested for investigation."
 
-{{CLI}} issue state <number> rework
 ```
 **STOP** - Move to next approved issue.
 
@@ -280,8 +276,6 @@ git push --force-with-lease origin <branch>
 
 # Create PR and merge
 git checkout main
-{{CLI}} pr create --title "Description (#<issue>)" --head <branch>
-{{CLI}} pr merge <pr-number>
 git pull origin main
 ```
 
@@ -293,7 +287,6 @@ git pull origin main
 
 If `{{WEBAPP}}` is `true`:
 ```bash
-{{CLI}} service webapp restart
 ```
 
 #### 4a. Post-Restart Log Check -- MANDATORY (NO EXCEPTIONS, BLOCKING)
@@ -330,7 +323,6 @@ If `{{HAS_LOGS}}` is `true`:
 
 
 ```bash
-LOG_DIR=$({{CLI}} logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi
@@ -367,7 +359,7 @@ This is a homelab -- dev is production. "Command ran" is not enough. You must ve
 4. Document BOTH the command result AND the outcome verification:
 
 ```bash
-{{CLI}} issue comment <number> --body "### Post-Merge Verification
+log to docs/superpowers/deferred-fixes.md: "### Post-Merge Verification
 - **Log Check:** PASS/FAIL [any warnings noted]
 - **Command/Action:** [same as implementer's]
 - **Result:** [what happened in production]
@@ -398,13 +390,12 @@ Revert or coordinate fix with Implementer.
 ```bash
 # Version bump -- tag-based, no branch/PR needed
 git checkout main && git pull origin main
-{{CLI}} release tag --push
 ```
 
 ### 6. Clean Up Worktrees
 ```bash
 # Remove stale Claude agent worktrees and repair editable-install .pth files
-{{CLI}} git worktree-clean
+git worktree prune
 ```
 
 ### 7. Cleanup & Close
@@ -414,21 +405,17 @@ git branch -d <feature-branch>
 git push origin --delete <feature-branch>
 
 # Close and update state
-{{CLI}} issue comment <number> --body "Completed via PR #X (vX.X.X)"
-{{CLI}} issue close <number>
-{{CLI}} issue state <number> completed
+log to docs/superpowers/deferred-fixes.md: "Completed via PR #X (vX.X.X)"
 ```
 
 
 
 ### EPIC Auto-Close Check
 
-After closing an issue, the EPIC auto-close check runs automatically as part of `{{CLI}} issue close`. No manual step needed.
 
 If for any reason you closed an issue without using the CLI (e.g., via direct API call or Forgejo web UI), you can trigger the check by re-closing:
 
 ```bash
-{{CLI}} issue close <number>
 ```
 
 **What this does:**
@@ -462,7 +449,7 @@ There is no "happy path only" exception. If the agent session ends for any reaso
 
 #### Step 1: Worktree Removal (if running in a worktree)
 
-Run `{{CLI}} git worktree-clean` as the canonical cleanup entrypoint (or execute the equivalent checks/removal sequence below if needed in-context).
+Run `git worktree prune` as the canonical cleanup entrypoint (or execute the equivalent checks/removal sequence below if needed in-context).
 
 ```bash
 WORKTREE_DIR=$(git rev-parse --show-toplevel)
@@ -543,7 +530,7 @@ If merge or deployment fails at any point:
 
 ```bash
 # Post standardized blocker comment
-{{CLI}} issue comment <number> --body "## Pipeline Blocked
+log to docs/superpowers/deferred-fixes.md: "## Pipeline Blocked
 
 **Stage:** deploy
 **Blocker:** Merge/deploy failed — [which step failed]
@@ -551,7 +538,6 @@ If merge or deployment fails at any point:
 **What I tried:** [brief summary of steps attempted]"
 
 # Set issue to on-hold (not actively being worked on, review is still valid)
-{{CLI}} issue state <number> on-hold
 
 # Signal the manager so it doesn't hang on pat pipeline wait
 pat pipeline exit --stage "deploy" --issue <number> --start-time $IMPL_START_TIME --result "Blocked: Merge/Deploy Failed" --status "on-hold" --model "<model name and version>"
@@ -561,7 +547,6 @@ pat pipeline exit --stage "deploy" --issue <number> --start-time $IMPL_START_TIM
 
 ## Quick Reference
 
-> **Issue Backend:** All `{{CLI}} issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -569,7 +554,7 @@ pat pipeline exit --stage "deploy" --issue <number> --start-time $IMPL_START_TIM
 
 ```bash
 # Get issue
-{{CLI}} issue view <num>
+review the issue: <num>
 
 # Rebase and test
 git fetch origin
@@ -581,22 +566,16 @@ python -m pytest tests/unit/test_<module>.py -v
 # Merge (only after rebase + tests pass)
 git push --force-with-lease origin <branch>
 git checkout main
-{{CLI}} pr create --title "Title (#num)" --head <branch>
-{{CLI}} pr merge <pr>
 git pull origin main
 
 # Test Deployment (only if {{WEBAPP}} is true)
-{{CLI}} service webapp restart
 
 # Version bump -- tag-based
 git checkout main && git pull origin main
-{{CLI}} release tag --push
 
 # Clean up stale Claude agent worktrees
-{{CLI}} git worktree-clean
+git worktree prune
 
 # Close and update state
-{{CLI}} issue comment <num> --body "Completed via PR #X (vX.X.X)"
-{{CLI}} issue close <num>
-{{CLI}} issue state <num> completed
+log to docs/superpowers/deferred-fixes.md: "Completed via PR #X (vX.X.X)"
 ```

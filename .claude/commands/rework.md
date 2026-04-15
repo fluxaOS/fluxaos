@@ -69,7 +69,7 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
 1. **DO NOT ask questions in the terminal** — no one is there to answer
 2. **Post a blocker comment** on the issue:
    ```bash
-   flu issue comment <number> --body "## Pipeline Blocked
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Blocked
 
    **Stage:** <current stage>
    **Blocker:** <specific description of what is preventing progress>
@@ -78,11 +78,9 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
    ```
 3. **Set issue state to on-hold:**
    ```bash
-   flu issue state <number> on-hold
    ```
 4. **Clean up worktrees** (mandatory — each agent owns its own teardown):
    ```bash
-   flu git worktree-clean
    ```
    These teardown steps are owned by the agent, not the orchestrator.
 5. **Exit the pipeline stage:**
@@ -122,7 +120,7 @@ Run this mode through one delegated subagent in a dedicated worktree unless `--i
 
 #### 1. List open issues
 ```bash
-flu issue list
+check docs/superpowers/deferred-fixes.md
 ```
 
 #### 2. Filter for target-state issues
@@ -219,8 +217,8 @@ For each selected issue, use the **Task tool** with these parameters:
 
 **IMPORTANT:** Every agent prompt MUST include the teardown contract. The teardown contract applies to ALL terminal paths — success, failure, and blocked exit. Each agent is responsible for:
 1. Removing `state:in-progress` from its issue before exiting
-2. Cleaning its own worktree with `fhc git worktree-clean` before exiting
-3. The lead running one final `fhc git worktree-clean` safety sweep after all agents exit, only to catch stragglers
+2. Cleaning its own worktree with `git worktree prune` before exiting
+3. The lead running one final `git worktree prune` safety sweep after all agents exit, only to catch stragglers
 
 **Agent prompt template** (fill in per issue):
 ```
@@ -229,7 +227,7 @@ Rework issue #<NUMBER> for the fluxaos project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Follow the rework skill workflow:
-1. Run: flu issue view <NUMBER>
+1. Run: review the issue: <NUMBER>
 2. Find the "Changes Requested" comment from the reviewer
 3. Checkout EXISTING branch (do NOT create a new one)
 4. Create tasks from reviewer feedback
@@ -239,15 +237,12 @@ Follow the rework skill workflow:
 8. Functional verification
 9. Commit and push to same branch
 10. Post updated "Ready for Review" comment
-11. Update state: flu issue state <NUMBER> review
-12. Clean up worktree (MANDATORY — each agent owns its own teardown): fhc git worktree-clean
+12. Clean up worktree (MANDATORY — each agent owns its own teardown): git worktree prune
 13. Exit pipeline stage: pat pipeline exit --stage "rework" --issue <NUMBER> --start-time $IMPL_START_TIME --result "Ready for Review (rework complete). Branch: feature/issue-<NUMBER>-<desc>" --model "Claude Sonnet 4.6"
-14. Save learnings: flu memory digest --issue <NUMBER>
 
 FAILURE PATH: If you cannot complete rework for any reason (blocked, test failures, unresolvable conflicts):
 - Post a blocker comment explaining what failed and why
-- Set state to failed or on-hold: flu issue state <NUMBER> failed (or on-hold)
-- Run fhc git worktree-clean BEFORE exiting (step 12 is unconditional)
+- Run git worktree prune BEFORE exiting (step 12 is unconditional)
 - Do NOT leave the worktree unclean
 ```
 
@@ -272,7 +267,7 @@ Each agent cleans its own worktree before exiting. The final sweep is only a saf
 
 After all agents have reported and all agents have already exited, run a final safety sweep to catch any stragglers:
 ```bash
-fhc git worktree-clean
+git worktree prune
 ```
 
 This is a **safety net**, not the primary cleanup. Agents are responsible for cleaning their own worktrees before exiting.
@@ -300,7 +295,7 @@ This is a **safety net**, not the primary cleanup. Agents are responsible for cl
 
 ### 1. Get Issue & Read Reviewer Feedback
 ```bash
-flu issue view $ARGUMENTS
+review the issue: $ARGUMENTS
 ```
 
 **Find the reviewer's "Changes Requested" comment.** This comment contains the specific issues that must be addressed. Read ALL reviewer comments -- there may be multiple rounds of feedback.
@@ -332,7 +327,7 @@ If rebase conflicts arise:
 ```bash
 # Post entry comment (REQUIRED -- do this before any other work)
 IMPL_START_TIME=$(date +%s)
-flu issue comment <number> --body "## Pipeline Activity
+log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
 | Field | Value |
 |-------|-------|
@@ -394,7 +389,6 @@ ALL 3 test types are **MANDATORY**. There are **NO EXCEPTIONS**. Ever.
 |-------------|-------------|-------------------|
 | Code fix | Run the affected command | Confirm the reviewer's concern is resolved |
 | Test fix | Run the test suite | Confirm tests pass without mocks |
-| Config change | Run `flu sync` or equivalent | Check downstream targets |
 
 ### 8. Commit & Push
 
@@ -417,7 +411,7 @@ git push --force-with-lease origin <branch-name>
 ### 9. Signal Ready for Re-Review
 
 ```bash
-flu issue comment <number> --body "## Ready for Review (Rework)
+log to docs/superpowers/deferred-fixes.md: "## Ready for Review (Rework)
 **Branch:** \`<branch-name>\`
 ### Changes Requested -- Addressed
 1. [Reviewer concern]: [how it was addressed]
@@ -442,7 +436,6 @@ flu issue comment <number> --body "## Ready for Review (Rework)
 ### 10. Update State and Post Exit Comment
 
 ```bash
-flu issue state <number> review
 
 pat pipeline exit \
   --stage "rework" \
@@ -455,7 +448,6 @@ pat pipeline exit \
 ### 11. Save Learnings
 
 ```bash
-flu memory digest --issue <issue_number>
 ```
 
 ### 12. STOP
@@ -464,7 +456,6 @@ Wait for Reviewer. Do NOT create PR or merge.
 
 ## Quick Reference
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -472,7 +463,7 @@ Wait for Reviewer. Do NOT create PR or merge.
 
 ```bash
 # Get issue and read feedback
-flu issue view <num>
+review the issue: <num>
 
 # Checkout existing branch (NOT new)
 git fetch origin
@@ -490,8 +481,7 @@ git fetch origin && git rebase origin/main
 git push --force-with-lease origin <branch>
 
 # Signal ready
-flu issue comment <num> --body "Ready for re-review. Branch: <branch>"
-flu issue state <num> review
+log to docs/superpowers/deferred-fixes.md: "Ready for re-review. Branch: <branch>"
 
 # STOP - Wait for Reviewer
 ```

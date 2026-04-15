@@ -21,10 +21,8 @@ into a unified report, and presents it to the user for approval before taking an
 ## Critical Constraints
 
 **This repository uses Forgejo (NOT GitHub)**
-- ALWAYS use: `flu issue` / `flu pr` commands
 - NEVER use: `gh` or `tea` commands
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -166,9 +164,6 @@ For each approved action group, execute the changes:
 - Prune metadata: `git worktree prune`
 
 **Issue/PR actions** (from subagent C findings):
-- Stale PRs: `flu pr close <N> --comment "Closing due to inactivity (>30 days). Reopen if still needed."`
-- Stale review issues: `flu issue close <N>` or relabel as appropriate
-- Duplicate issues: `flu issue close <N> --comment "Closing as duplicate of #<other>"`
 
 Record every action taken and every item skipped.
 

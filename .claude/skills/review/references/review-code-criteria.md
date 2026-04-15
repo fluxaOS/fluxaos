@@ -19,17 +19,17 @@ git diff origin/main..origin/<branch-name>
 
 ### 1. Read the issue acceptance criteria
 ```bash
-flu issue view <issue-number>
+review the issue: <issue-number>
 ```
 
 ### 2. Read parent epic (if referenced in issue title, description, or labels)
 ```bash
-flu issue view <parent-epic-number>
+review the issue: <parent-epic-number>
 ```
 
 ### 3. Read dependency issues AND their comments
 ```bash
-flu issue view <dependency-number>
+review the issue: <dependency-number>
 ```
 Dependency issue comments often contain credentials, setup instructions, or constraints that affect whether the implementation is correct.
 
@@ -55,7 +55,7 @@ Checklist:
 **If ANY acceptance criterion is NOT MET, STOP.** Do not review code quality. Comment on the issue with unmet criteria:
 
 ```bash
-flu issue comment <number> --body "## Changes Requested — Requirements Not Met
+log to docs/superpowers/deferred-fixes.md: "## Changes Requested — Requirements Not Met
 The following acceptance criteria are NOT fulfilled:
 1. [criterion]: [why it is not met]
 
@@ -73,7 +73,7 @@ Please address these requirements before code review can proceed."
 1. Read the implementer's "Ready for Review" comment for a **"Pre-Existing Issues Filed"** section
 2. **If present**, verify each filed issue:
    ```bash
-   flu issue view <number>
+   review the issue: <number>
    ```
    - [ ] Issue exists and is open
    - [ ] Title is descriptive (not vague like "test fails")
@@ -102,7 +102,6 @@ Read the diff as if you have no idea what the issue asked for. Ask yourself:
 These are non-negotiable regardless of what the plan or issue specified:
 
 - [ ] **No hardcoded values.** All paths, URLs, file lists, magic numbers must come from config. Check string literals in the diff.
-- [ ] **No competing implementations.** New code uses canonical helpers from `docs/python-functions-reference.md`, not duplicates. If the diff implements something that already exists in fh-commons, reject.
 - [ ] **No carried-forward debt.** If modifying existing code, pre-existing violations in the touched code are fixed — not just worked around.
 - [ ] **Correct imports.** All imports use canonical modules per `docs/python-functions-reference.md`.
 - [ ] **File size.** No file exceeds ~500 lines. If the diff pushes a file over, it needs to be split.
@@ -164,11 +163,10 @@ This is a concrete, enumerated check, not a subjective judgment:
 - [ ] Comment includes a `### Requirements Fulfilled` section listing each acceptance criterion
 - [ ] Each listed criterion maps to a specific code change or test
 
-**Reject if the implementer only ran the command without verifying the outcome.** "Ran `flu sync`, no errors" is NOT functional verification. The implementer must show they checked that the change landed correctly in every affected system.
 
 **If the Requirements Fulfilled section is missing:**
 ```bash
-flu issue comment <number> --body "## Changes Requested
+log to docs/superpowers/deferred-fixes.md: "## Changes Requested
 Missing requirements fulfillment evidence. The Ready for Review comment must include:
 - **### Requirements Fulfilled** section
 - Each acceptance criterion from the issue
@@ -180,7 +178,7 @@ Listing acceptance criteria without mapping them to code is NOT sufficient."
 
 **If the Functional Verification section is missing, vague, or lacks outcome verification:**
 ```bash
-flu issue comment <number> --body "## Changes Requested
+log to docs/superpowers/deferred-fixes.md: "## Changes Requested
 Missing or incomplete functional verification evidence. The Ready for Review comment must include:
 - **Command/Action:** The exact command or action you ran
 - **Result:** What happened (paste output or describe behavior)

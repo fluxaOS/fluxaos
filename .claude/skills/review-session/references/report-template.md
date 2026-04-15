@@ -24,7 +24,6 @@
 ### 1. Tool Misuse (Priority: [LEVEL])
 
 **Observed:**
-- Line [X]: Used `gh` instead of `flu git`
 - Line [Y]: Used `cat` instead of Read tool
 
 **Impact:**
@@ -120,7 +119,7 @@ Add search strategy guidance...
 Line 604: gh pr create --title "..."
 Error: no GitHub host configured
 ```
-Fix: Use `flu pr create` instead, add `gh` to deny list.
+Fix: Use `git push -u origin $(git branch --show-current) && gh pr create` instead, add `gh` to deny list.
 
 [More examples]
 

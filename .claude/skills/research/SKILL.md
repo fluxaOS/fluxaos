@@ -76,28 +76,23 @@ Research and plan issue #<NUMBER> for the {{PROJECT}} project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Follow the research skill workflow:
-1. Run: {{CLI}} issue view <NUMBER>
-2. Search memory first: {{CLI}} memory search "<keywords>"
+1. Run: review the issue: <NUMBER>
 3. Check for existing design specs:
    - Glob: docs/**/specs/**/* and docs/**/plans/**/*
    - Grep spec content for keywords from the issue title/description
    - If issue references a parent EPIC, read the EPIC description
    - If specs exist, read them and incorporate all design requirements into the plan
-   - Run: {{CLI}} issue dependencies <NUMBER> to find parent EPICs
    - If issue scope is narrower than spec, either expand scope or justify the deviation in a comment
 4. If memory insufficient, research the codebase (Glob, Grep, Read)
 5. Create a detailed implementation plan with numbered steps, files to modify, key decisions, tests to write, and acceptance criteria
 6. Post the plan as an issue comment
 7. Evaluate scope (single issue vs EPIC decomposition)
-8. MANDATORY — update issue state: {{CLI}} issue state <NUMBER> implement
-9. Clean up worktree (MANDATORY — each agent owns its own teardown): {{CLI}} git worktree-clean
+9. Clean up worktree (MANDATORY — each agent owns its own teardown): git worktree prune
 10. Exit pipeline stage: pat pipeline exit --stage "research" --issue <NUMBER> --start-time $IMPL_START_TIME --result "Implementation plan posted." --model "<model name and version>"
-11. Save findings: {{CLI}} memory add investigation "<subject>" --body "<findings>"
 
 FAILURE PATH: If you cannot complete research for any reason:
 - Post a blocker comment explaining what is missing
-- Set state to on-hold: {{CLI}} issue state <NUMBER> on-hold
-- Run {{CLI}} git worktree-clean BEFORE exiting (unconditional)
+- Run git worktree prune BEFORE exiting (unconditional)
 - Do NOT leave the worktree unclean
 ```
 
@@ -190,7 +185,6 @@ See `references/capabilities-reference.md` — Section "0. Set In-Progress and E
 
 ### 0.5. Check Project Memory
 
-Run `{{CLI}} memory search "<topic>"` before codebase exploration. Rate every result. Skip exploration if results are sufficient.
 
 See `references/capabilities-reference.md` — Section "0.5. Check Project Memory" for full procedure.
 
@@ -208,7 +202,6 @@ Grep spec/plan filenames and content for keywords from the issue title and descr
 
 Also check for a parent EPIC:
 - Look for "EPIC #NNN" in the issue body
-- Run: `{{CLI}} issue dependencies <number>` to find parent EPICs
 - If a parent EPIC exists, read its description for original design intent
 
 **If specs or EPIC descriptions are found and the issue scope is narrower than the spec:**
@@ -224,8 +217,6 @@ Use Glob, Grep, and Read to understand the codebase. See `references/capabilitie
 Issue body must include: Summary, Current Behavior, Expected Behavior, Implementation Instructions (numbered steps), Files to Modify, Key Decisions, Spec Alignment (if specs found), Function Signatures, Tests to Write, Acceptance Criteria, Documentation Updates Required.
 
 ```bash
-{{CLI}} issue create --title "Component: Clear description" --body "..."
-{{CLI}} issue update <number> --type enhancement --priority medium --state research
 ```
 
 #### Issue Body: Spec Alignment Section
@@ -304,7 +295,6 @@ echo '{"flux:signal": {"verdict": "abort", "summary": "<why research failed>"}}'
 
 ## Quick Reference
 
-> **Issue Backend:** All `{{CLI}} issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -317,12 +307,9 @@ Grep: "search_term" --type py
 Read: /path/to/file.py
 
 # Create issue
-{{CLI}} issue create --title "Component: Description" --body "..."
-{{CLI}} issue update <num> --type enhancement --priority medium --state research
 
 # View issues
-{{CLI}} issue list
-{{CLI}} issue view <num>
+review the issue: <num>
 
 # Review branch (read-only)
 git fetch origin && git diff origin/main..origin/<branch>

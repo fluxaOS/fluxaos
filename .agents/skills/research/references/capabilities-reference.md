@@ -51,8 +51,8 @@ For each selected issue, use the **Task tool** with these parameters:
 
 **IMPORTANT:** Every agent prompt MUST include the teardown contract. The teardown contract applies to ALL terminal paths — success, failure, and blocked exit. Each agent is responsible for:
 1. Removing `state:in-progress` from its issue before exiting
-2. Cleaning its own worktree with `fhc git worktree-clean` before exiting
-3. The lead running one final `fhc git worktree-clean` safety sweep after all agents exit, only to catch stragglers
+2. Cleaning its own worktree with `git worktree prune` before exiting
+3. The lead running one final `git worktree prune` safety sweep after all agents exit, only to catch stragglers
 
 **Agent prompt template** (fill in per issue):
 ```
@@ -61,8 +61,7 @@ Research and plan issue #<NUMBER> for the fluxaos project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Follow the research skill workflow:
-1. Run: flu issue view <NUMBER>
-2. Search memory first: flu memory search "<keywords>"
+1. Run: review the issue: <NUMBER>
 3. Check for existing design specs:
    - Glob: docs/**/specs/**/* and docs/**/plans/**/*
    - Grep spec content for keywords from the issue title/description
@@ -80,15 +79,12 @@ Follow the research skill workflow:
 6. Post the plan as an issue comment
 7. Evaluate scope (single issue vs EPIC decomposition)
 8. MANDATORY — update issue state (do NOT skip):
-   - flu issue state <NUMBER> implement
-9. Clean up worktree (MANDATORY — each agent owns its own teardown): fhc git worktree-clean
+9. Clean up worktree (MANDATORY — each agent owns its own teardown): git worktree prune
 10. Exit pipeline stage: pat pipeline exit --stage "research" --issue <NUMBER> --start-time $IMPL_START_TIME --result "Implementation plan posted. Issue ready for implementation." --model "Claude Opus 4.6"
-11. Save findings: flu memory add investigation "<subject>" --body "<findings>" --tags "<tags>"
 
 FAILURE PATH: If you cannot complete research for any reason (blocked, insufficient context, ambiguous scope):
 - Post a blocker comment explaining what is missing
-- Set state to on-hold: flu issue state <NUMBER> on-hold
-- Run fhc git worktree-clean BEFORE exiting (step 9 is unconditional)
+- Run git worktree prune BEFORE exiting (step 9 is unconditional)
 - Do NOT leave the worktree unclean
 ```
 
@@ -113,7 +109,7 @@ Each agent cleans its own worktree before exiting. The final sweep is only a saf
 
 After all agents have reported and all agents have already exited, run a final safety sweep to catch any stragglers:
 ```bash
-fhc git worktree-clean
+git worktree prune
 ```
 
 This is a **safety net**, not the primary cleanup. Agents are responsible for cleaning their own worktrees before exiting.
@@ -126,7 +122,7 @@ This is a **safety net**, not the primary cleanup. Agents are responsible for cl
 
 ### 1. List open issues
 ```bash
-flu issue list
+check docs/superpowers/deferred-fixes.md
 ```
 
 ### 2. Filter for target-state issues
@@ -139,7 +135,6 @@ flu issue list
 | Missing target state | Does not have state `research` |
 | Already has R&D | Comments contain "Implementation Plan" or "Research Findings" |
 | Already has a feature branch | `git branch -r --list "origin/feature/issue-<num>-*"` returns results |
-| Blocked by open dependencies | `flu issue dependencies <num>` shows unresolved blockers |
 
 ### 3. Prioritize remaining issues
 
@@ -178,7 +173,7 @@ If no issues found, tell the user:
 
 ## Section D: Queue scan mode — Full Procedure
 
-1. List open issues: `flu issue list --state research`
+1. List open issues: `check docs/superpowers/deferred-fixes.md
 2. Categorize queue:
    - Issues with state `research` → need R&P
    - EPICs with uncreated child issues → need decomposition
@@ -195,11 +190,10 @@ If no issues found, tell the user:
 1. Parse description from $ARGUMENTS
 2. Check project memory for related work:
    ```bash
-   flu memory search "<keywords from description>"
    ```
 3. Search for duplicates:
    ```bash
-   flu issue list
+   check docs/superpowers/deferred-fixes.md
    ```
    Check for similar titles. If duplicate found, announce and ask user.
 4. Research the codebase to understand the affected area:
@@ -213,14 +207,11 @@ If no issues found, tell the user:
    Key Decisions, Tests to Write, Related Code Patterns, Acceptance Criteria, Documentation Updates.
 6. Set issue fields:
    ```bash
-   flu issue update <number> --type enhancement --priority medium --state research
    ```
 7. Evaluate for EPIC decomposition (3+ phases, multiple components, multi-session work)
 8. If EPIC warranted: create parent EPIC + child issues per the EPIC Pattern below
 9. Update state based on complexity:
    - Complex: `research` (leave for separate R&P session)
-   - Simple: `implement` (skip R&P): `flu issue state <number> implement`
-   - Trivial: `implement`: `flu issue state <number> implement`
 10. Announce: "Created issue #X: \<title\>. State: \<state\>."
 
 ---
@@ -234,7 +225,7 @@ If no issues found, tell the user:
 ```bash
 # Post entry comment (REQUIRED -- do this before any other work)
 IMPL_START_TIME=$(date +%s)
-flu issue comment <number> --body "## Pipeline Activity
+log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
 | Field | Value |
 |-------|-------|
@@ -249,10 +240,8 @@ Replace `<Stage>` with `Research`.
 
 ### 0.5. Check Project Memory
 
-Run `flu memory search "<topic>"` to check for prior knowledge before codebase exploration. If results are sufficient, skip to issue template section — do not re-explore code already analyzed in a previous session. If no results found, proceed directly to codebase research.
 
 **REQUIRED: Rate every search result** — After using (or deciding not to use) each result, run:
-`flu memory rate <entry_id> useful|not_useful|partial --query "<original query>"`
 
 ### 0.75. Check Existing Specs and Design Docs
 
@@ -268,7 +257,6 @@ Grep spec/plan filenames and content for keywords from the issue title and descr
 
 Also check for a parent EPIC:
 - Look for "EPIC #NNN" in the issue body
-- Run: `flu issue dependencies <number>` to find parent EPICs
 - If a parent EPIC exists, read its description for original design intent
 
 **If specs or EPIC descriptions are found and the issue scope is narrower than the spec:**
@@ -292,7 +280,7 @@ Read: /path/to/file.py
 ## Issue Template
 
 ```bash
-flu issue create --title "Component: Clear description" --body "$(cat <<'EOF'
+log to docs/superpowers/deferred-fixes.md
 ## Summary
 [One paragraph description]
 
@@ -343,7 +331,6 @@ def new_function(param: Type) -> ReturnType:
 EOF
 )"
 
-flu issue update <number> --type enhancement --priority medium --state research
 ```
 
 ---
@@ -362,14 +349,12 @@ flu issue update <number> --type enhancement --priority medium --state research
 
 1. Create the parent EPIC issue first:
 ```bash
-flu issue create --title "[EPIC] High-level feature description" --body "..."
-flu issue state <number> epic
+log to docs/superpowers/deferred-fixes.md
 ```
 
 2. Create child issues referencing the EPIC:
 ```bash
-flu issue create --title "[Phase 1] Specific task (EPIC #<parent>)" --body "Part of EPIC #<parent>. ..."
-flu issue update <number> --type enhancement --priority medium --state research
+log to docs/superpowers/deferred-fixes.md
 ```
 
 3. Each child issue MUST have its own complete implementation instructions (files, steps, tests, decisions). Do not put all instructions in the parent — the parent is for tracking only.
@@ -432,7 +417,6 @@ Include identified doc updates in the issue body's "Documentation Updates Requir
 > You MUST execute this state command. The issue will be stuck in the wrong state and block the pipeline if you skip this.
 
 ```bash
-flu issue state <number> implement
 ```
 
 
@@ -458,7 +442,6 @@ There is no "happy path only" exception. If the agent session ends for any reaso
 
 #### Step 1: Worktree Removal (if running in a worktree)
 
-Run `flu git worktree-clean` as the canonical cleanup entrypoint (or execute the equivalent checks/removal sequence below if needed in-context).
 
 ```bash
 WORKTREE_DIR=$(git rev-parse --show-toplevel)
@@ -528,10 +511,8 @@ After completing research, persist key findings for future sessions:
 
 ```bash
 # Save architectural decisions
-flu memory add decision "<brief subject>" --body "<findings and rationale>" --tags "<relevant,tags>"
 
 # Save investigation findings
-flu memory add investigation "<what was investigated>" --body "<key findings>" --tags "<component,area>"
 ```
 
 This ensures future R&P sessions on related topics can build on this research instead of starting from scratch.

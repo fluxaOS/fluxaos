@@ -2,7 +2,6 @@
 
 Audit open issues and PRs for staleness, duplicates, and combinability. Report findings only — do NOT close or modify anything.
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -15,7 +14,6 @@ Audit open issues and PRs for staleness, duplicates, and combinability. Report f
 PRs with no activity in 30+ days.
 
 ```bash
-flu pr list --state open
 ```
 
 For each open PR:
@@ -31,7 +29,7 @@ For each open PR:
 Issues with state `review` that have been in review for 7+ days.
 
 ```bash
-flu issue list --state review
+check docs/superpowers/deferred-fixes.md
 ```
 
 For each review issue:
@@ -53,7 +51,7 @@ git branch --merged main --format='%(refname:short)' | grep -i '<issue-number>'
 Open issues with no activity in 60+ days that may have been forgotten.
 
 ```bash
-flu issue list --state open
+check docs/superpowers/deferred-fixes.md
 ```
 
 For each open issue:
@@ -71,7 +69,7 @@ For each open issue:
 Scan open issues for potential duplicates or issues that could be combined.
 
 ```bash
-flu issue list --state open
+check docs/superpowers/deferred-fixes.md
 ```
 
 For each pair of open issues, check for:
@@ -106,7 +104,7 @@ Issues that reference PRs (or have branches) that were merged, but the issue its
 
 ```bash
 # Get all open issues
-flu issue list --state open
+check docs/superpowers/deferred-fixes.md
 ```
 
 For each open issue:

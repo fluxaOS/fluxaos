@@ -84,7 +84,7 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
 1. **DO NOT ask questions in the terminal** — no one is there to answer
 2. **Post a blocker comment** on the issue:
    ```bash
-   {{CLI}} issue comment <number> --body "## Pipeline Blocked
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Blocked
 
    **Stage:** <current stage>
    **Blocker:** <specific description of what is preventing progress>
@@ -93,11 +93,10 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
    ```
 3. **Set issue state to on-hold:**
    ```bash
-   {{CLI}} issue state <number> on-hold
    ```
 4. **Clean up worktrees** (mandatory — each agent owns its own teardown):
    ```bash
-   {{CLI}} git worktree-clean
+   git worktree prune
    ```
    These teardown steps are owned by the agent, not the orchestrator.
 5. **Exit the pipeline stage:**
@@ -124,7 +123,6 @@ Run this mode through one delegated subagent in a dedicated worktree unless `--i
 
 #### 1. List open issues
 ```bash
-{{CLI}} issue list
 ```
 
 #### 2. Filter for target-state issues
@@ -203,8 +201,8 @@ For each selected issue, use the **Task tool** with these parameters:
 
 **IMPORTANT:** Every agent prompt MUST include the teardown contract. The teardown contract applies to ALL terminal paths — success, failure, and blocked exit. Each agent is responsible for:
 1. Removing `state:in-progress` from its issue before exiting
-2. Cleaning its own worktree with `fhc git worktree-clean` before exiting
-3. The lead running one final `fhc git worktree-clean` safety sweep after all agents exit, only to catch stragglers
+2. Cleaning its own worktree with `git worktree prune` before exiting
+3. The lead running one final `git worktree prune` safety sweep after all agents exit, only to catch stragglers
 
 
 Use the agent prompt template from `references/parallel-mode.md`. After all agents have exited and torn down their own worktrees, report using the summary table format also in `references/parallel-mode.md`.
@@ -213,7 +211,7 @@ Use the agent prompt template from `references/parallel-mode.md`. After all agen
 
 After all agents have reported and all agents have already exited, run this **mandatory** safety sweep to catch any stragglers:
 ```bash
-fhc git worktree-clean
+git worktree prune
 ```
 
 This is a safety net — agents are responsible for cleaning their own worktrees before exiting (see agent prompt template in `references/parallel-mode.md`).
@@ -238,7 +236,7 @@ Read `references/blockers-checklist.md` for the full per-type blocking criteria.
 
 ### 1. Get Issue & Branch
 ```bash
-{{CLI}} issue view $ARGUMENTS
+review the issue: $ARGUMENTS
 # Find branch name from "Ready for Review" comment
 ```
 
@@ -249,7 +247,7 @@ Read `references/blockers-checklist.md` for the full per-type blocking criteria.
 ```bash
 # Post entry comment (REQUIRED -- do this before any other work)
 IMPL_START_TIME=$(date +%s)
-{{CLI}} issue comment <number> --body "## Pipeline Activity
+log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
 | Field | Value |
 |-------|-------|
@@ -298,7 +296,7 @@ git checkout main
 
 Post a comment:
 ```bash
-{{CLI}} issue comment <number> --body "Branch rebased onto current main (was $BEHIND commits behind). Proceeding with review."
+log to docs/superpowers/deferred-fixes.md: "Branch rebased onto current main (was $BEHIND commits behind). Proceeding with review."
 ```
 
 If rebase fails with complex conflicts, post changes-requested comment and move to next issue.
@@ -319,7 +317,7 @@ Read `references/review-code-criteria.md` (Pre-Existing Issue Reports section) f
 
 #### Check for Existing Verification
 ```bash
-{{CLI}} issue view <issue-number> --comments | grep -A 5 "Verification Report"
+review the issue: <issue-number> --comments | grep -A 5 "Verification Report"
 ```
 
 - **If no verification comment exists:** Run the verify-issue skill (required)
@@ -348,12 +346,11 @@ If `{{WEBAPP}}` is `true`, run the verify-webapp skill.
 
 #### 4a. If Changes Needed (Reject)
 ```bash
-{{CLI}} issue comment <number> --body "## Changes Requested
+log to docs/superpowers/deferred-fixes.md: "## Changes Requested
 1. [Issue]
 2. [Issue]"
 
 # State transition: review -> rework
-{{CLI}} issue state <number> rework
 
 # Exit pipeline stage (posts exit comment, notifies manager, kills session)
 pat pipeline exit --stage "review" --issue <number> --start-time $IMPL_START_TIME --result "Changes Requested" --model "<model name and version>"
@@ -363,7 +360,7 @@ pat pipeline exit --stage "review" --issue <number> --start-time $IMPL_START_TIM
 
 #### 4b. If Approved
 ```bash
-{{CLI}} issue comment <number> --body "## Approved
+log to docs/superpowers/deferred-fixes.md: "## Approved
 Review passed. Ready for merge.
 
 **Verified:**
@@ -374,7 +371,6 @@ Review passed. Ready for merge.
 - Test verification: PASS"
 
 # State transition: review -> deploy
-{{CLI}} issue state <number> deploy
 
 # Exit pipeline stage (posts exit comment, notifies manager, kills session)
 pat pipeline exit --stage "review" --issue <number> --start-time $IMPL_START_TIME --result "Approved. Ready for merge." --model "<model name and version>"
@@ -384,7 +380,6 @@ pat pipeline exit --stage "review" --issue <number> --start-time $IMPL_START_TIM
 
 ## Quick Reference
 
-> **Issue Backend:** All `{{CLI}} issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -399,10 +394,8 @@ git fetch origin && git diff origin/main..origin/<branch>
 # Run the verify-webapp skill (only if {{WEBAPP}} is true)
 
 # Approve
-{{CLI}} issue comment <num> --body "Approved. Ready for merge."
-{{CLI}} issue state <num> deploy
+log to docs/superpowers/deferred-fixes.md: "Approved. Ready for merge."
 
 # Reject
-{{CLI}} issue comment <num> --body "## Changes Requested\n1. [Issue]"
-{{CLI}} issue state <num> rework
+log to docs/superpowers/deferred-fixes.md: "## Changes Requested\n1. [Issue]"
 ```

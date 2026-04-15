@@ -34,13 +34,12 @@ Review issue #<NUMBER> for the fluxaos project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Follow the review skill workflow:
-1. Run: flu issue view <NUMBER>
+1. Run: review the issue: <NUMBER>
 2. Find the branch name from the "Ready for Review" comment
 3. Requirements Fulfillment Gate:
    - Read acceptance criteria from the issue
    - Read parent epic if referenced
    - Cross-reference each criterion against: git diff origin/main..origin/<branch>
-   - STOP if any criterion is unmet — comment and set state to rework: `flu issue state <NUMBER> rework`
 4. Review code:
    - git fetch origin && git diff origin/main..origin/<branch>
    - Check standards, no hardcoded values, canonical helpers used
@@ -48,13 +47,10 @@ Follow the review skill workflow:
 6. Check branch freshness and auto-rebase if stale
 7. Run the verify-issue skill with <NUMBER>
 8. Verdict:
-   - APPROVE: Comment "Approved", set state to deploy: `flu issue state <NUMBER> deploy`
-   - REJECT: Comment "Changes Requested", set state to rework: `flu issue state <NUMBER> rework`
 
 FAILURE PATH: If you cannot complete review for any reason (blocked, missing branch, unresolvable state):
 - Post a blocker comment explaining what failed and why
-- Set state to on-hold: flu issue state <NUMBER> on-hold
-- Run fhc git worktree-clean BEFORE exiting (mandatory — unconditional)
+- Run git worktree prune BEFORE exiting (mandatory — unconditional)
 - Do NOT leave the worktree unclean
 ```
 
@@ -79,7 +75,7 @@ Each agent cleans its own worktree before exiting. The final sweep is only a saf
 
 After all agents have reported and all agents have already exited, run a final safety sweep to catch any stragglers:
 ```bash
-fhc git worktree-clean
+git worktree prune
 ```
 
 This is a **safety net**, not the primary cleanup. Agents are responsible for cleaning their own worktrees before exiting.

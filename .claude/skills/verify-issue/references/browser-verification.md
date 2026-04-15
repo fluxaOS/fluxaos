@@ -118,7 +118,6 @@ ls -la "$SCREENSHOT_DIR" 2>/dev/null
 grep -l "screenshot" tests/browser/conftest.py 2>/dev/null
 ```
 
-- [ ] `config/shared.json` exists (synced from fh-commons) with `testing.browser_tests.screenshot_dir`
 - [ ] Screenshots exist in the configured directory showing the feature's key UI states
 - [ ] Screenshots show the actual rendered page (not just test output)
 - [ ] Screenshot-on-failure conftest fixture reads screenshot dir from `config/shared.json` (not hardcoded)

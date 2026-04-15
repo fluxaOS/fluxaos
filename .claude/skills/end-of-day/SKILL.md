@@ -20,7 +20,6 @@ Close out the session: recap what was built, clean the repo, capture work in mem
 Query memory for the most recent `start-of-day` session marker:
 
 ```bash
-flu memory search "start-of-day" --category session --limit 1 --format json | \
   python3 -c "
 import json, sys
 from datetime import datetime, timezone, timedelta
@@ -45,7 +44,6 @@ If no session marker exists (start-of-day was not run today), use 9 hours ago as
 
 ## Step 2: Session Recap
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -59,7 +57,7 @@ git log --since="$SOD_TIMESTAMP" --oneline
 git log --since="$SOD_TIMESTAMP" --oneline --merges
 
 # Issues closed since SOD
-flu issue list --state closed --since $SOD_DATE
+check docs/superpowers/deferred-fixes.md
 ```
 
 Present in this format:
@@ -102,13 +100,10 @@ The following issues were closed this session:
 - #NNN Title
 
 To capture this work in memory, run:
-  flu memory digest --issue NNN
-  flu memory digest --issue NNN
 
 Run these now? (y = run all / n = skip / enter specific numbers separated by spaces)
 ```
 
-- If **y**: run `flu memory digest --issue <N>` for each closed issue in sequence, report results.
 - If **n**: skip, note "Skipped — run manually when ready."
 - If numbers provided (e.g. "42 57"): run only those issue numbers.
 
@@ -121,7 +116,6 @@ If no issues were closed this session: skip this step silently.
 Record that the session ended:
 
 ```bash
-flu memory add session "end-of-day" \
   --tags "session-end" \
   --body "Session ended at $(date -Iseconds)"
 ```

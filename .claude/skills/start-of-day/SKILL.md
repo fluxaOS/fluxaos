@@ -62,7 +62,6 @@ Pull the counts from the sub-skill outputs:
 Record that the session started so `/end-of-day` can calculate the session window:
 
 ```bash
-flu memory add session "start-of-day" \
   --tags "session-start" \
   --body "Session started at $(date -Iseconds)"
 ```

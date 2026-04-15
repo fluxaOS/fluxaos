@@ -78,11 +78,10 @@ If fewer eligible issues than requested, reduce count and announce:
 For each selected issue, spawn a background subagent (Agent tool, `isolation: "worktree"`, `run_in_background: true`) with this prompt:
 
 ```
-You are a lifecycle manager for issue #<NUMBER> in the fh-commons project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Drive issue #<NUMBER> through its full lifecycle by running each stage skill in sequence.
-After each stage, re-read the issue state with: flu issue view <NUMBER>
+After each stage, re-read the issue state with: review the issue: <NUMBER>
 Use the state-to-skill mapping to determine the next stage.
 Stop when you reach state `completed`, `on-hold`, `failed`, or if a stage does not advance state.
 Maximum rework iterations: 3.
@@ -115,10 +114,8 @@ For each stage in the lifecycle loop, instead of running the stage skill inline:
 
 1. Spawn a foreground subagent (Agent tool, `isolation: "worktree"`) with this prompt:
    ```
-   Run the <STAGE> stage for issue #<NUMBER> in fh-commons.
    You are in an isolated worktree. Do NOT create another worktree.
    Invoke the <STAGE> skill with --inline so it runs directly in this session.
-   Exit when the stage is complete. Clean up your worktree before exiting: flu git worktree-clean
    ```
 2. Wait for the subagent to complete.
 3. Re-read issue state and determine next stage.
@@ -133,7 +130,7 @@ This keeps each stage isolated and the main session as a clean orchestrator.
 ### 1. List open issues
 
 ```bash
-flu issue list
+check docs/superpowers/deferred-fixes.md
 ```
 
 ### 2. Pick one actionable issue
@@ -183,7 +180,7 @@ If no issue is eligible, stop with:
 ### Step 1: Read issue
 
 ```bash
-flu issue view <number>
+review the issue: <number>
 ```
 
 ### Step 2: Validate state
@@ -202,7 +199,7 @@ Loop until terminal state:
 
 1. Read latest issue state:
 ```bash
-flu issue view <number>
+review the issue: <number>
 ```
 2. Determine next stage from mapping.
 3. If `gate:human-review` exists, pause and ask user before launching the stage.
@@ -234,7 +231,6 @@ If a stage run fails:
 
 ## Quick Reference
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -248,8 +244,8 @@ If a stage run fails:
 | Auto-select next issue, subagent stages | `manager --next --subagent` |
 | Run 3 issues in parallel | `manager --parallel 3` |
 | Auto-count parallel issues | `manager --parallel` |
-| Check current issue state | `flu issue view <number>` |
-| List open issues | `flu issue list` |
+| Check current issue state | `review the issue: <number>` |
+| List open issues | `check docs/superpowers/deferred-fixes.md|
 
 ## STOP — This Skill Does Not
 

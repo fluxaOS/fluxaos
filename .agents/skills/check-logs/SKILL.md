@@ -74,7 +74,6 @@ Discover and analyze file-based application logs.
 
 ```bash
 # Config-driven discovery via CLI
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi
@@ -244,7 +243,6 @@ No log sources found for analysis.
 
 Troubleshooting:
 1. Check if the service is running: systemctl status <service>
-2. Check if file logging is configured: flu logs list
 3. Check log directory permissions
 4. Verify the service name matches a running systemd unit
 ```

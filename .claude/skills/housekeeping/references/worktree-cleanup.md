@@ -66,7 +66,7 @@ For each worktree (skip the main repo entry):
    ```bash
    ISSUE_NUM=$(echo "<branch>" | grep -oP 'issue-\K[0-9]+')
    if [ -n "$ISSUE_NUM" ]; then
-     ISSUE_STATE=$(flu issue view "$ISSUE_NUM" --format json 2>/dev/null \
+     ISSUE_STATE=$(review the issue: "$ISSUE_NUM" --format json 2>/dev/null \
        | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['state'])" 2>/dev/null)
    fi
    ```

@@ -9,9 +9,7 @@
 Helper hierarchy compliance — use existing helpers before creating new ones.
 
 **Priority order (MANDATORY):**
-1. **fh-commons helpers first** — check `docs/python-functions-reference.md`
 2. **Existing app helpers second** — check the project's own helper modules
-3. **New helper only if truly needed** — consider adding to fh-commons instead
 
 No competing implementations — new code uses canonical helpers, not duplicates.
 
@@ -260,7 +258,6 @@ sudo journalctl -u <service-name> --since "15 minutes ago" --no-pager 2>/dev/nul
 
 
 ```bash
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi

@@ -88,8 +88,8 @@ For each selected issue, use the **Task tool** with these parameters:
 
 **IMPORTANT:** Every agent prompt MUST include the teardown contract. The teardown contract applies to ALL terminal paths — success, failure, and blocked exit. Each agent is responsible for:
 1. Removing `state:in-progress` from its issue before exiting
-2. Cleaning its own worktree with `fhc git worktree-clean` before exiting
-3. The lead running one final `fhc git worktree-clean` safety sweep after all agents exit, only to catch stragglers
+2. Cleaning its own worktree with `git worktree prune` before exiting
+3. The lead running one final `git worktree prune` safety sweep after all agents exit, only to catch stragglers
 
 **Agent prompt template** (fill in per issue):
 ```
@@ -98,28 +98,21 @@ Research and plan issue #<NUMBER> for the fluxaos project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Follow the research skill workflow:
-1. Run: flu issue view <NUMBER>
-2. Search memory first: flu memory search "<keywords>"
+1. Run: review the issue: <NUMBER>
 3. Check for existing design specs:
    - Glob: docs/**/specs/**/* and docs/**/plans/**/*
    - Grep spec content for keywords from the issue title/description
    - If issue references a parent EPIC, read the EPIC description
    - If specs exist, read them and incorporate all design requirements into the plan
-   - Run: flu issue dependencies <NUMBER> to find parent EPICs
    - If issue scope is narrower than spec, either expand scope or justify the deviation in a comment
 4. If memory insufficient, research the codebase (Glob, Grep, Read)
 5. Create a detailed implementation plan with numbered steps, files to modify, key decisions, tests to write, and acceptance criteria
 6. Post the plan as an issue comment
 7. Evaluate scope (single issue vs EPIC decomposition)
-8. MANDATORY — update issue state: flu issue state <NUMBER> implement
-9. Clean up worktree (MANDATORY — each agent owns its own teardown): flu git worktree-clean
 10. Exit pipeline stage: pat pipeline exit --stage "research" --issue <NUMBER> --start-time $IMPL_START_TIME --result "Implementation plan posted." --model "<model name and version>"
-11. Save findings: flu memory add investigation "<subject>" --body "<findings>"
 
 FAILURE PATH: If you cannot complete research for any reason:
 - Post a blocker comment explaining what is missing
-- Set state to on-hold: flu issue state <NUMBER> on-hold
-- Run flu git worktree-clean BEFORE exiting (unconditional)
 - Do NOT leave the worktree unclean
 ```
 
@@ -205,7 +198,7 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
 1. **DO NOT ask questions in the terminal** — no one is there to answer
 2. **Post a blocker comment** on the issue:
    ```bash
-   flu issue comment <number> --body "## Pipeline Blocked
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Blocked
 
    **Stage:** <current stage>
    **Blocker:** <specific description of what is preventing progress>
@@ -214,11 +207,9 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
    ```
 3. **Set issue state to on-hold:**
    ```bash
-   flu issue state <number> on-hold
    ```
 4. **Clean up worktrees** (mandatory — each agent owns its own teardown):
    ```bash
-   flu git worktree-clean
    ```
    These teardown steps are owned by the agent, not the orchestrator.
 5. **Exit the pipeline stage:**
@@ -242,7 +233,6 @@ See `references/capabilities-reference.md` — Section "0. Set In-Progress and E
 
 ### 0.5. Check Project Memory
 
-Run `flu memory search "<topic>"` before codebase exploration. Rate every result. Skip exploration if results are sufficient.
 
 See `references/capabilities-reference.md` — Section "0.5. Check Project Memory" for full procedure.
 
@@ -260,7 +250,6 @@ Grep spec/plan filenames and content for keywords from the issue title and descr
 
 Also check for a parent EPIC:
 - Look for "EPIC #NNN" in the issue body
-- Run: `flu issue dependencies <number>` to find parent EPICs
 - If a parent EPIC exists, read its description for original design intent
 
 **If specs or EPIC descriptions are found and the issue scope is narrower than the spec:**
@@ -276,8 +265,7 @@ Use Glob, Grep, and Read to understand the codebase. See `references/capabilitie
 Issue body must include: Summary, Current Behavior, Expected Behavior, Implementation Instructions (numbered steps), Files to Modify, Key Decisions, Spec Alignment (if specs found), Function Signatures, Tests to Write, Acceptance Criteria, Documentation Updates Required.
 
 ```bash
-flu issue create --title "Component: Clear description" --body "..."
-flu issue update <number> --type enhancement --priority medium --state research
+log to docs/superpowers/deferred-fixes.md
 ```
 
 #### Issue Body: Spec Alignment Section
@@ -329,7 +317,6 @@ See `references/capabilities-reference.md` — "Workflow: Creating Issues" steps
 
 ## Quick Reference
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -342,12 +329,11 @@ Grep: "search_term" --type py
 Read: /path/to/file.py
 
 # Create issue
-flu issue create --title "Component: Description" --body "..."
-flu issue update <num> --type enhancement --priority medium --state research
+log to docs/superpowers/deferred-fixes.md
 
 # View issues
-flu issue list
-flu issue view <num>
+check docs/superpowers/deferred-fixes.md
+review the issue: <num>
 
 # Review branch (read-only)
 git fetch origin && git diff origin/main..origin/<branch>

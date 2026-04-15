@@ -9,20 +9,17 @@ Complete the current work with a single command - handles commit, push, PR, merg
 
 ### Mode 1: Quick Fix (no issue, auto-stage)
 ```bash
-flu git finish -a -t "Fix typo in README"
 ```
 For quick fixes when you're not working on an issue.
 
 ### Mode 2: Issue Completion (manual stage)
 ```bash
 git add src/foo.py config/bar.json
-flu git finish 433
 ```
 For completing work started with the implement skill.
 
 ## Pre-PR Compliance Check
 
-**Before running `flu git finish`, verify ALL architectural standards are met:**
 
 - [ ] **No hardcoded values** - Paths, URLs, file lists all from config
 - [ ] **Fail-fast errors** - No silent defaults or fallbacks
@@ -42,12 +39,10 @@ The pre-commit hook will **block commits** containing hardcoded paths, URLs, or 
 
    For code changes (default — runs pre-commit hooks):
    ```bash
-   flu git finish -a -t "<title>"
    ```
 
    For non-code changes (markdown, templates, docs — skips pre-commit hooks):
    ```bash
-   flu git finish -a -n -t "<title>"
    ```
 
    The CLI handles: stash, update main, create branch, stage, commit, push, PR create, merge, and branch cleanup.
@@ -60,14 +55,14 @@ The pre-commit hook will **block commits** containing hardcoded paths, URLs, or 
 
 1. **Fetch issue details and post entry comment**
    ```bash
-   flu issue view <issue-number>
+   review the issue: <issue-number>
    ```
    Extract the issue title.
 
    ```bash
    # Post entry comment (REQUIRED — do this before any other work)
    IMPL_START_TIME=$(date +%s)
-   flu issue comment <issue-number> --body "## Pipeline Activity
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
    | Field | Value |
    |-------|-------|
@@ -86,12 +81,10 @@ The pre-commit hook will **block commits** containing hardcoded paths, URLs, or 
 
    For code changes (default):
    ```bash
-   flu git finish <issue-number>
    ```
 
    For non-code changes (markdown, templates, docs):
    ```bash
-   flu git finish <issue-number> -n
    ```
 
    The CLI handles: commit, push, PR create, merge, and branch cleanup.
@@ -102,7 +95,7 @@ The pre-commit hook will **block commits** containing hardcoded paths, URLs, or 
 
    Generate a detailed completion comment:
    ```bash
-   flu issue comment <issue-number> --body "$(cat <<'EOF'
+   log to docs/superpowers/deferred-fixes.md: "$(cat <<'EOF'
    Completed via PR #<pr-number>
 
    ## Changes Made
@@ -122,7 +115,6 @@ The pre-commit hook will **block commits** containing hardcoded paths, URLs, or 
    ## Usage (if applicable)
    [Show how to use the new feature or fix]
    ```bash
-   flu command --example
    ```
 
    ## Files Changed
@@ -134,20 +126,16 @@ The pre-commit hook will **block commits** containing hardcoded paths, URLs, or 
 
 6. **Close issue, update state, and post exit comment**
    ```bash
-   flu issue close <issue-number>
-   flu issue state <issue-number> completed
    ```
 
 
 
 ### EPIC Auto-Close Check
 
-After closing an issue, the EPIC auto-close check runs automatically as part of `flu issue close`. No manual step needed.
 
 If for any reason you closed an issue without using the CLI (e.g., via direct API call or Forgejo web UI), you can trigger the check by re-closing:
 
 ```bash
-flu issue close <number>
 ```
 
 **What this does:**
@@ -160,7 +148,7 @@ flu issue close <number>
    ```bash
    # Post exit comment (compute duration from IMPL_START_TIME captured at entry)
    IMPL_END_TIME=$(date +%s); DS=$((IMPL_END_TIME - IMPL_START_TIME))
-   flu issue comment <issue-number> --body "## Pipeline Activity
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
    | Field | Value |
    |-------|-------|
@@ -181,8 +169,6 @@ flu issue close <number>
 ### 1. Memory Digest
 
 ```bash
-flu memory digest --issue <issue_number>
-flu memory digest --pr <pr_number>
 ```
 
 ### 2. Log Verification — MANDATORY (NO EXCEPTIONS)
@@ -197,7 +183,6 @@ flu memory digest --pr <pr_number>
 
 If `false` is `true`:
 ```bash
-flu service webapp restart 2>/dev/null
 sleep 5
 ```
 
@@ -214,7 +199,6 @@ If `false` is `true`:
 
 
 ```bash
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi
@@ -230,7 +214,7 @@ fi
 | Finding | Action |
 |---------|--------|
 | Errors caused by your changes | **FIX before proceeding** — do NOT continue to cleanup |
-| Pre-existing errors | **File issue immediately** (`flu issue create --template quick-bug --title "[BUG] <component>: <what failed>" --body "<actual error output, file path, and details>"` then `flu issue update <number> --priority medium`) then proceed |
+| Pre-existing errors | **File issue immediately** (`log to docs/superpowers/deferred-fixes.md|
 | No errors | Proceed |
 | No log file / service not applicable | Proceed (not applicable) |
 
@@ -269,10 +253,6 @@ fi
 
 ```bash
 # Tag-based version bump — no branch or commit needed
-flu release tag --push             # Auto-increment
-flu release tag --bump patch --push  # Bug fixes (5.2.0 -> 5.2.1)
-flu release tag --bump minor --push  # New features (5.2.0 -> 5.3.0)
-flu release tag --bump major --push  # Breaking changes (5.2.0 -> 6.0.0)
 ```
 
 3. **Verify tag was pushed:**
@@ -282,7 +262,6 @@ flu release tag --bump major --push  # Breaking changes (5.2.0 -> 6.0.0)
 
 ---
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -303,13 +282,11 @@ flu release tag --bump major --push  # Breaking changes (5.2.0 -> 6.0.0)
 ### Quick Fix - Typo
 ```bash
 # Make your edit, then:
-flu git finish -a -t "Fix typo in README"
 ```
 
 ### Quick Fix - Doc Update (non-code)
 ```bash
 # Edit docs, then:
-flu git finish -a -n -t "Update installation instructions"
 ```
 
 ### Issue Completion
@@ -317,19 +294,15 @@ flu git finish -a -n -t "Update installation instructions"
 # After running the implement skill with 433 and making changes:
 git add config/  # Always stage config first (preserves web UI changes)
 git add src/parser.py tests/test_parser.py
-flu git finish 433
 ```
 
 ## Error Recovery
 
-If `flu git finish` fails partway through, use the `--force` flag to clean up the failed state and retry:
 
 ```bash
 # Quick fix retry:
-flu git finish -a -t "<title>" -f
 
 # Issue completion retry:
-flu git finish <issue-number> -f
 ```
 
 The `--force` flag drops any leftover stash entries and deletes partially-created branches before retrying from scratch.

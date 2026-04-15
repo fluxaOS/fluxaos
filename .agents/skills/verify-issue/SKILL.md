@@ -16,7 +16,6 @@ Run the verify-issue skill with <issue-number> --quick   # Skip detailed file an
 
 **Arguments:** `$ARGUMENTS`
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -33,10 +32,10 @@ Parse the issue number and optional flags:
 issue_number = $ARGUMENTS[0]
 
 # Fetch issue details
-flu issue view $issue_number
+review the issue: $issue_number
 
 # Check for existing verification report in comments
-flu issue view $issue_number --comments | grep -A 100 "Verification Report"
+review the issue: $issue_number --comments | grep -A 100 "Verification Report"
 ```
 
 **Required Information to Extract:**
@@ -147,7 +146,7 @@ Build the report using the template and guidelines in `references/report-templat
 
 Use the template in `references/report-template.md`. Post as a comment on the issue using:
 ```bash
-flu issue comment $issue_number --body "$(cat <<'EOF'
+log to docs/superpowers/deferred-fixes.md: "$(cat <<'EOF'
 [paste report here]
 EOF
 )"
@@ -322,9 +321,7 @@ After issues are fixed, always re-run the verify-issue skill with <issue-number>
 ## Integration Notes
 
 This command integrates with:
-- **Forgejo API** via `flu issue` commands
 - **Git repository** for file change analysis
 - **File system** for code and documentation scanning
 - **Configuration files** for architectural verification
 
-The command should work consistently across all projects that use the fh-commons template system.

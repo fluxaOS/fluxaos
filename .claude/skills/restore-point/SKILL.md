@@ -5,7 +5,6 @@ model: sonnet
 
 Create, list, restore, or clean git-based restore points (tagged snapshots) for safe rollback.
 
-**CRITICAL:** Use `flu git` commands for any non-restore-point git operations.
 
 ## Instructions
 

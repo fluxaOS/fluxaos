@@ -41,7 +41,6 @@ grep -iE "warning|error|exception|traceback" /tmp/verify-test-output.log | grep 
 
 
 ```bash
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi

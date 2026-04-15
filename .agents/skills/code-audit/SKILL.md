@@ -4,7 +4,6 @@ description: "Architectural compliance audit with issue creation."
 ---
 # Code Audit for Architectural Compliance
 
-Perform automated architectural compliance reviews against fh-commons standards defined in `.claude/ARCHITECTURAL_STANDARDS.md`.
 
 ## Usage
 
@@ -58,7 +57,7 @@ Before creating each issue, check for existing open `[AUDIT]` issues to avoid du
 
 ```bash
 # Search for existing open audit issues matching this category
-flu issue list --search "[AUDIT] Category:" --state open
+check docs/superpowers/deferred-fixes.md
 ```
 
 If a matching open issue exists for the same category + file pattern, **skip creation** and note "Skipped (existing: #NNN)" in the final report.
@@ -73,7 +72,7 @@ Group violations into issues by:
 ### Issue Template
 
 ```bash
-flu issue create --title "[AUDIT] Category: Brief description" --body "$(cat <<'EOF'
+log to docs/superpowers/deferred-fixes.md
 ## Code Audit Finding
 
 **Category:** [violation category]
@@ -104,7 +103,6 @@ EOF
 )"
 
 # Set required fields — note: state research, NOT implement
-flu issue update <issue-number> --type refactor --priority <high|medium|low> --state research
 ```
 
 ### Field Assignment
@@ -153,7 +151,6 @@ To exclude specific lines from audit:
 
 ```python
 # audit-ignore: hardcoded path for XDG spec compliance
-config_dir = Path.home() / '.config' / 'fh-commons'
 ```
 
 ```bash

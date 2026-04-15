@@ -5,7 +5,6 @@ model: sonnet
 
 Run browser-based verification of webapp functionality.
 
-**CRITICAL:** Use `flu git` commands (NOT `gh` or `tea`)
 
 ## Usage
 
@@ -214,7 +213,6 @@ sudo journalctl -u "*webapp*" --since "15 minutes ago" --no-pager 2>/dev/null | 
 
 
 ```bash
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi
@@ -242,7 +240,7 @@ fi
 |---------|---------|--------|
 | No errors in service or app logs | PASS | Include in report |
 | Errors related to the tested feature | **FAIL** | Report as blocking issue |
-| Pre-existing errors unrelated to current changes | PASS with note | **File issue immediately** (`flu issue create --template quick-bug --title "[BUG] <component>: <what failed>" --body "<actual error output, file path, and details>"` then `flu issue update <number> --priority medium`) then proceed |
+| Pre-existing errors unrelated to current changes | PASS with note | **File issue immediately** (`log to docs/superpowers/deferred-fixes.md|
 | No log file / service not running | PASS with note | Note unavailability in report |
 
 ## Graceful Degradation
@@ -267,8 +265,6 @@ Possible causes:
 3. Firewall blocking connection
 
 Try:
-- Start the webapp: flu webapp start (if available)
-- Check the URL: flu config get webapp.url (if available)
 - Test manually: curl [url]
 ```
 
@@ -295,4 +291,3 @@ This command integrates with:
 - **Project-specific browser module:** fluxaos.browser if available
 - **Claude Code workflows:** Called from the finish skill for webapp projects
 
-The command works across all projects that sync from fh-commons, respecting that browser testing is optional and project-specific.

@@ -207,7 +207,7 @@ The lead owns the teardown sequence. Perform these steps in order when all work 
 2. **Shut down teammates:** Ask the lead to shut down individual teammates when their teardown is complete.
 3. **Worktree cleanup:** After all teammates have exited, run from the main repo root:
    ```bash
-   fhc git worktree-clean
+   git worktree prune
    ```
 4. **Branch cleanup (conditional):** Only delete branches that are merged and safe to remove. Preserve branches that are open for review or have unpushed commits.
    ```bash

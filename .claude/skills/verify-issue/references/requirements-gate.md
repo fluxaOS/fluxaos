@@ -8,17 +8,17 @@
 
 ### 1. Read the issue acceptance criteria
 ```bash
-flu issue view <issue-number>
+review the issue: <issue-number>
 ```
 
 ### 2. Read parent epic (if referenced in issue title, description, or labels)
 ```bash
-flu issue view <parent-epic-number>
+review the issue: <parent-epic-number>
 ```
 
 ### 3. Read dependency issues AND their comments
 ```bash
-flu issue view <dependency-number>
+review the issue: <dependency-number>
 ```
 Dependency issue comments often contain credentials, setup instructions, or constraints that affect whether the implementation is correct.
 
@@ -44,7 +44,7 @@ Checklist:
 **If ANY acceptance criterion is NOT MET, STOP.** Do not review code quality. Comment on the issue with unmet criteria:
 
 ```bash
-flu issue comment <number> --body "## Changes Requested — Requirements Not Met
+log to docs/superpowers/deferred-fixes.md: "## Changes Requested — Requirements Not Met
 The following acceptance criteria are NOT fulfilled:
 1. [criterion]: [why it is not met]
 

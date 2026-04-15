@@ -7,8 +7,6 @@
 Before analyzing, query memory for patterns from past reviews:
 
 ```bash
-flu memory search "session analysis"
-flu memory search "workflow optimization"
 ```
 Look for:
 - Previous session analysis findings for this project
@@ -35,7 +33,6 @@ Read the entire session file to understand:
 Look for these patterns in the session:
 
 #### A. Tool Misuse
-- ❌ `gh` or `tea` commands (should use `flu git`)
 - ❌ Multiple `grep` or `find` Bash commands (should use Grep/Glob tools)
 - ❌ `cat`, `head`, `tail` for reading (should use Read tool)
 - ❌ `sed`, `awk` for editing (should use Edit tool)
@@ -200,13 +197,10 @@ Memory changes are safe and do not impact code — execute these automatically w
 #### 8a. Search for existing entries to update or delete
 
 ```bash
-flu memory search "<main topic from session>"
 ```
 
 For each result:
-- If the finding **contradicts** a memory entry → delete it: `flu memory delete <ID>`
 - If the finding **extends** a memory entry → update it (delete + re-add with merged content)
-- If the finding **confirms** a memory entry → rate it: `flu memory rate <ID> useful --query "<topic>"`
 - If no relevant entry exists → proceed to 8b
 
 #### 8b. Add new pattern/investigation entries
@@ -214,19 +208,16 @@ For each result:
 For each recurring pattern discovered (2+ occurrences across sessions, or user-corrected behavior):
 
 ```bash
-flu memory add pattern "<brief subject>" --body "<actionable guidance>"
 ```
 
 For CLI syntax learnings (e.g., correct argument order, required positional args):
 
 ```bash
-flu memory add pattern "<CLI command syntax>" --body "<correct usage with examples>"
 ```
 
 For investigation findings worth preserving:
 
 ```bash
-flu memory add investigation "<what was investigated>" --body "<key findings>"
 ```
 
 #### 8c. Rate all memory search results from Step 0
@@ -234,7 +225,6 @@ flu memory add investigation "<what was investigated>" --body "<key findings>"
 Go back to the memory results from Step 0 and rate each one:
 
 ```bash
-flu memory rate <ID> useful|not_useful|partial --query "<original search query>"
 ```
 
 ### Step 9: Analyze CLI Command Patterns
@@ -246,25 +236,20 @@ Review the session for opportunities to improve the project's CLI tool (`flu`).
 | Pattern | Example | Action |
 |---------|---------|--------|
 | **Non-existent subcommand attempted** | `pat pipeline eligible` (doesn't exist) | File issue to add subcommand or alias |
-| **Wrong argument order** | `flu db query "SELECT..."` (missing db name) | File issue to improve help text or add validation |
 | **Repeated long flag combinations** | `--format json --limit 10` used 5+ times | File issue to add shortcut or default |
-| **Guessed alias that failed** | `flu issue show` → error | File issue to add alias (argparse `aliases=[]` pattern exists — see `issue_parser.py` lines 128, 149, 216) |
 | **Confusing error messages** | Error doesn't suggest the correct command | File issue to improve error output |
 
 #### For Each CLI Issue Found
 
-1. Check if the subcommand/alias already exists: `flu <command> --help`
 2. Check existing aliases in the parser code (pattern: `add_parser('name', aliases=['alias'])`)
 3. If genuinely missing, file an issue:
 
 ```bash
-flu issue create --title "CLI: Add '<subcommand>' alias/subcommand to flu <parent>" --body "$(cat <<'EOF'
+log to docs/superpowers/deferred-fixes.md
 ## Summary
-During session review, the LLM attempted \`flu <parent> <subcommand>\` which does not exist.
 This is a natural/intuitive command that both LLMs and humans reach for.
 
 ## Current Behavior
-\`flu <parent> <subcommand>\` fails with: invalid choice
 
 ## Expected Behavior
 Add as [alias to existing command / new subcommand] that [description].
@@ -279,7 +264,6 @@ parser = subparsers.add_parser('<command>', aliases=['<new_alias>'], ...)
 - \`src/fh_commons/cli/<relevant_parser>.py\` — add alias
 
 ## Tests to Write
-- Test that \`flu <parent> <new_alias>\` works identically to \`flu <parent> <command>\`
 
 ## Acceptance Criteria
 - [ ] Alias/subcommand works
@@ -287,7 +271,6 @@ parser = subparsers.add_parser('<command>', aliases=['<new_alias>'], ...)
 - [ ] Existing command still works
 EOF
 )"
-flu issue update <number> --type enhancement --priority low --state ready-to-implement
 ```
 
 ### Step 10: File Issues for Actionable Recommendations
@@ -297,7 +280,7 @@ For each recommendation rated HIGH or CRITICAL that requires code, config, or te
 **DO NOT file issues for:**
 - Memory-only changes (already handled in Step 8)
 - Recommendations the user needs to evaluate first (present these in the report)
-- Duplicate issues (check `flu issue list` first)
+- Duplicate issues (check `check docs/superpowers/deferred-fixes.md
 
 **DO file issues for:**
 - Settings changes (deny rules, permission patterns)
@@ -309,12 +292,12 @@ For each recommendation rated HIGH or CRITICAL that requires code, config, or te
 
 1. **Check for duplicates:**
 ```bash
-flu issue list --state open 2>&1 | grep -i "<keyword>"
+check docs/superpowers/deferred-fixes.md| grep -i "<keyword>"
 ```
 
 2. **Create the issue:**
 ```bash
-flu issue create --template quick-bug --title "<Component>: <brief description>" --body "$(cat <<'EOF'
+log to docs/superpowers/deferred-fixes.md
 ## Summary
 Identified during session review on [date].
 
@@ -331,7 +314,6 @@ Identified during session review on [date].
 - [ ] [Measurable criterion]
 EOF
 )"
-flu issue update <number> --type enhancement --priority <level> --state ready-to-implement
 ```
 
 3. **Track filed issues in the report:**

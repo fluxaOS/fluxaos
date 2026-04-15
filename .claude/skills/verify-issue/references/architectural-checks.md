@@ -111,9 +111,7 @@ grep -r "^def\|^function\|^class" src/ --include="*.py" --include="*.js" | awk -
 Helper hierarchy compliance — use existing helpers before creating new ones.
 
 **Priority order (MANDATORY):**
-1. **fh-commons helpers first** — check `docs/python-functions-reference.md`
 2. **Existing app helpers second** — check the project's own helper modules
-3. **New helper only if truly needed** — consider adding to fh-commons instead
 
 No competing implementations — new code uses canonical helpers, not duplicates.
 

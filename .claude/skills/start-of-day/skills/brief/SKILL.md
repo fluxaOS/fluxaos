@@ -36,7 +36,7 @@ Count total commits and merged PRs. Group commits by EPIC or theme using issue r
 ## Step 2: Open Issues
 
 ```bash
-flu issue list --state open $REPO_FLAG
+check docs/superpowers/deferred-fixes.md
 ```
 
 List all open issues with number, title, and labels.
@@ -44,14 +44,12 @@ List all open issues with number, title, and labels.
 ## Step 3: Recent Memory Entries (past 72 hours)
 
 ```bash
-flu memory list --format json --limit 50
 ```
 
 Filter the JSON output to entries where `created_at` is within the past 72 hours:
 
 ```bash
 CUTOFF=$(date -d "72 hours ago" --iso-8601=seconds 2>/dev/null || date -v-72H -Iseconds)
-flu memory list --format json --limit 50 | \
   python3 -c "
 import json, sys
 from datetime import datetime, timezone, timedelta
@@ -104,7 +102,6 @@ git status --short
 git stash list
 
 # Open PRs
-flu pr list --state open $REPO_FLAG
 ```
 
 ## Step 6: Synthesize and Present

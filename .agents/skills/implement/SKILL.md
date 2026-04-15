@@ -127,8 +127,8 @@ For each selected issue, use the **Task tool** with these parameters:
 
 **IMPORTANT:** Every agent prompt MUST include the teardown contract. The teardown contract applies to ALL terminal paths — success, failure, and blocked exit. Each agent is responsible for:
 1. Removing `state:in-progress` from its issue before exiting
-2. Cleaning its own worktree with `fhc git worktree-clean` before exiting
-3. The lead running one final `fhc git worktree-clean` safety sweep after all agents exit, only to catch stragglers
+2. Cleaning its own worktree with `git worktree prune` before exiting
+3. The lead running one final `git worktree prune` safety sweep after all agents exit, only to catch stragglers
 
 **Agent prompt template** (fill in per issue):
 ```
@@ -137,10 +137,9 @@ Implement issue #<NUMBER> for the fluxaos project.
 You are in an isolated worktree. Do NOT create another worktree.
 
 Follow the implement skill workflow:
-1. Run: flu issue view <NUMBER>
+1. Run: review the issue: <NUMBER>
 2. Verify the issue has complete implementation instructions
 3. Read implementation context (parent epic, dependencies)
-4. Search memory: flu memory search "<keywords>"
 5. Create feature branch: git checkout -b feature/issue-<NUMBER>-<desc>
 6. Implement following ALL architectural standards (no hardcoded values, DRY, fail-fast)
 7. Run ruff on changed files: python -m ruff check $(git diff --name-only origin/main...HEAD -- '*.py')
@@ -149,14 +148,11 @@ Follow the implement skill workflow:
 10. Rebase: git fetch origin && git rebase origin/main
 11. Push: git push -u origin feature/issue-<NUMBER>-<desc>
 12. Post "Ready for Review" comment with Requirements Fulfilled, Functional Verification, and E2E Test Coverage sections
-13. Update state: flu issue state <NUMBER> review
-14. Clean up worktree (MANDATORY — each agent owns its own teardown): fhc git worktree-clean
-15. Save learnings: flu memory digest --issue <NUMBER>
+14. Clean up worktree (MANDATORY — each agent owns its own teardown): git worktree prune
 
 FAILURE PATH: If you cannot complete implementation for any reason (blocked, test failures, lint errors):
 - Post a blocker comment explaining what failed and why
-- Set state to failed or on-hold: flu issue state <NUMBER> failed (or on-hold)
-- Run fhc git worktree-clean BEFORE exiting (step 14 is unconditional)
+- Run git worktree prune BEFORE exiting (step 14 is unconditional)
 - Do NOT leave the worktree unclean
 ```
 
@@ -181,7 +177,7 @@ Each agent cleans its own worktree before exiting. The final sweep is only a saf
 
 After all agents have reported and all agents have already exited, run a final safety sweep to catch any stragglers:
 ```bash
-fhc git worktree-clean
+git worktree prune
 ```
 
 This is a **safety net**, not the primary cleanup. Agents are responsible for cleaning their own worktrees before exiting.
@@ -196,7 +192,7 @@ Run this mode through one delegated subagent in a dedicated worktree unless `--i
 
 #### 1. List open issues
 ```bash
-flu issue list
+check docs/superpowers/deferred-fixes.md
 ```
 
 #### 2. Filter for target-state issues
@@ -208,7 +204,6 @@ flu issue list
 | Is an EPIC | Title contains `[EPIC]` or has state `epic` |
 | Missing target state | Does not have state `implement` |
 | Already has a feature branch | `git branch -r --list "origin/feature/issue-<num>-*"` returns results |
-| Blocked by open dependencies | `flu issue dependencies <num>` shows unresolved blockers |
 
 #### 3. Prioritize remaining issues
 
@@ -252,7 +247,7 @@ If no issues found, tell the user:
 Run this mode through one delegated subagent in a dedicated worktree unless `--inline` is set.
 
 ```bash
-flu issue view $ARGUMENTS
+review the issue: $ARGUMENTS
 ```
 
 Examine the issue's state to determine the mode:
@@ -275,7 +270,6 @@ When `$ARGUMENTS` is free text (not a number, not a flag):
 1. Parse the task description from the arguments
 2. If the task involves a specific component, briefly search memory:
    ```bash
-   flu memory search "<component keywords>"
    ```
 3. Execute the task — read relevant files, make the change, keep it minimal
 4. Verify the change — review the diff to ensure only intended changes were made
@@ -283,19 +277,16 @@ When `$ARGUMENTS` is free text (not a number, not a flag):
 
 **If the change is non-code (markdown, templates, docs, config):**
 ```bash
-flu git finish -a -n -t "<task description>"
 ```
 
 **If the change touches code (.py, .js, etc.):**
 ```bash
-flu git finish -a -t "<task description>"
 ```
 
 **Scope:** Quick-task mode is for typos, grammar fixes, minor tweaks. Not for logic changes, refactoring, or new features.
 
 ---
 
-> **Issue Backend:** All `flu issue` commands accept `--backend BACKEND`
 > (`forgejo` | `psql`; default: `forgejo`). Projects using the psql backend
 > (e.g. PAT) should pass `--backend psql` or set `issue.backend_default`
 > in `.fhc-config.json`. Note: `bulk`, `move`, and `report` subcommands
@@ -319,7 +310,6 @@ done
 
 **If more than 3 outstanding branches:**
 > WARNING: There are $BRANCHES outstanding feature branches. New work will increase divergence risk.
-> Consider running the review skill to clear the review backlog, or `flu pr clean` to remove merged branches first.
 
 Ask the user whether to proceed or address the backlog.
 
@@ -376,7 +366,7 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
 1. **DO NOT ask questions in the terminal** — no one is there to answer
 2. **Post a blocker comment** on the issue:
    ```bash
-   flu issue comment <number> --body "## Pipeline Blocked
+   log to docs/superpowers/deferred-fixes.md: "## Pipeline Blocked
 
    **Stage:** <current stage>
    **Blocker:** <specific description of what is preventing progress>
@@ -385,11 +375,9 @@ If you encounter ANY situation where you cannot continue — ambiguity, missing 
    ```
 3. **Set issue state to on-hold:**
    ```bash
-   flu issue state <number> on-hold
    ```
 4. **Clean up worktrees** (mandatory — each agent owns its own teardown):
    ```bash
-   flu git worktree-clean
    ```
    These teardown steps are owned by the agent, not the orchestrator.
 5. **Exit the pipeline stage:**
@@ -411,7 +399,6 @@ Unless `--inline` is set, execute this workflow in a delegated subagent worktree
 
 **If ANY item is missing:**
 1. Comment on issue: "Implementation blocked: missing [specific items]. Returning to R&P."
-2. Change state: `flu issue state <number> research`
 3. Exit the stage: `pat pipeline exit --stage "implement" --issue <number> --start-time $IMPL_START_TIME --result "Blocked: incomplete instructions, returned to research" --model "<model name and version>"`
 4. **STOP** — do not proceed
 
@@ -421,18 +408,16 @@ Unless `--inline` is set, execute this workflow in a delegated subagent worktree
 
 ```bash
 # Check for parent epic
-flu issue view <parent-epic-number>
+review the issue: <parent-epic-number>
 
 # Check dependency issues (may contain credentials, setup, constraints)
-flu issue view <dependency-number>
+review the issue: <dependency-number>
 ```
 
 ### 3. Check Project Memory
 
-Run `flu memory search "<topic>"` to check for prior knowledge before implementation. If results are sufficient, use them directly.
 
 **REQUIRED: Rate every search result** — After using (or deciding not to use) each result, run:
-`flu memory rate <entry_id> useful|not_useful|partial --query "<original query>"`
 
 ### 4. Post Entry Comment
 
@@ -441,7 +426,7 @@ Run `flu memory search "<topic>"` to check for prior knowledge before implementa
 ```bash
 # Post entry comment (REQUIRED -- do this before any other work)
 IMPL_START_TIME=$(date +%s)
-flu issue comment <number> --body "## Pipeline Activity
+log to docs/superpowers/deferred-fixes.md: "## Pipeline Activity
 
 | Field | Value |
 |-------|-------|
@@ -501,8 +486,6 @@ git checkout -b feature/issue-123-add-feature origin/main
 - Parallel work possible (multiple LLMs on different issues)
 - Main repo stays clean on main branch
 
-**Worktree limitation — `flu sync` is a no-op in worktrees:**
-`flu sync` reads templates from the installed package location (via `get_package_root()`), not the worktree's working tree. Template changes made in a worktree will not be picked up by sync until after they merge to main. The correct workflow is: edit templates in the worktree → commit and push → merge to main → run `flu sync` from main. The pre-commit hook handles syncing `.claude/` destinations automatically within the main repo.
 
 ### 6. Verify Backups (if issue touches databases or infrastructure)
 
@@ -711,7 +694,6 @@ grep -iE "error|exception|traceback" /tmp/test-output.log | grep -v "PASSED"
 #### Capture Baseline (BEFORE running tests/commands)
 
 ```bash
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi
@@ -768,15 +750,12 @@ Every functional verification has TWO parts:
 |-------------|-------------|-------------------|
 | CLI feature | Run the command with real arguments | Confirm the result is correct (check files, repos, databases, services) |
 | Bug fix | Reproduce the original scenario | Confirm the bug is gone AND no regression in related behavior |
-| Config/template | Run `flu sync` or equivalent | Check EVERY downstream target — verify the synced content is correct |
 | Label/issue mgmt | Run the label or issue command | Verify labels exist in ALL target repos, verify ALL affected issues |
 | API change | Call the endpoint with real data | Verify response data is correct AND downstream consumers still work |
 | Multi-repo change | Run the command | Verify the change landed correctly in EVERY affected repo |
 
 **Example — label sync change:**
 ```
-BAD:  "Ran flu sync, no errors"               <- only step 1
-GOOD: "Ran flu sync. Then checked all 11 repos — verified labels exist
        in each. Checked 5 issues with labels — all correct."  <- both steps
 ```
 
@@ -826,17 +805,15 @@ git checkout - && git stash pop
 
 ```bash
 # File in current repo (uses template for auto-labels)
-flu issue create --template quick-bug --title "[BUG] <specific test or component>: <what failed>" --body "<actual error output or description of what went wrong. Include file path, test name, and error message.>"
-flu issue update <number> --priority medium
+log to docs/superpowers/deferred-fixes.md
 
 # File in a different repo (manual labels — template may not exist)
-flu issue create --title "[BUG] <specific test or component>: <what failed>" --body "<actual error output or description of what went wrong. Include file path, test name, and error message.>" --repo jpierce/<repo-name>
-flu issue update <number> --type bug --priority medium --state research
+log to docs/superpowers/deferred-fixes.md
 ```
 
 **Then update the working issue:**
 ```bash
-flu issue comment <number> --body "### Pre-Existing Issues Found
+log to docs/superpowers/deferred-fixes.md: "### Pre-Existing Issues Found
 During implementation, the following pre-existing issues were discovered and filed:
 - #XXXX - Brief description
 - #YYYY - Brief description (filed in jpierce/other-repo)
@@ -865,7 +842,7 @@ git push -u origin <branch-name>
 
 
 ```bash
-flu issue comment <number> --body "## Ready for Review
+log to docs/superpowers/deferred-fixes.md: "## Ready for Review
 **Branch:** \`<branch-name>\`
 ### Requirements Fulfilled
 - **Issue acceptance criteria:**
@@ -913,7 +890,6 @@ flu issue comment <number> --body "## Ready for Review
 ### 14. Update State, Post Exit Comment, and Save Context
 
 ```bash
-flu issue state <number> review
 ```
 
 
@@ -939,7 +915,6 @@ There is no "happy path only" exception. If the agent session ends for any reaso
 
 #### Step 1: Worktree Removal (if running in a worktree)
 
-Run `flu git worktree-clean` as the canonical cleanup entrypoint (or execute the equivalent checks/removal sequence below if needed in-context).
 
 ```bash
 WORKTREE_DIR=$(git rev-parse --show-toplevel)
@@ -1004,7 +979,6 @@ fi
 Replace `<stage>` with `implement`, `<number>` with the issue number, `<result summary>` with `Ready for Review. Branch: \`<branch-name>\``, and `<model name and version>` with the current model.
 
 ```bash
-flu memory digest --issue <number>
 ```
 
 ### 15. STOP
@@ -1020,7 +994,7 @@ Wait for Reviewer. Do NOT create PR or merge.
 ### 1. Review and Verify Issue
 
 ```bash
-flu issue view <issue-number>
+review the issue: <issue-number>
 ```
 
 Verify issue has implementation instructions (same checks as Pipeline step 1). If incomplete, return to R&P.
@@ -1080,8 +1054,6 @@ git checkout -b feature/issue-123-add-feature origin/main
 - Parallel work possible (multiple LLMs on different issues)
 - Main repo stays clean on main branch
 
-**Worktree limitation — `flu sync` is a no-op in worktrees:**
-`flu sync` reads templates from the installed package location (via `get_package_root()`), not the worktree's working tree. Template changes made in a worktree will not be picked up by sync until after they merge to main. The correct workflow is: edit templates in the worktree → commit and push → merge to main → run `flu sync` from main. The pre-commit hook handles syncing `.claude/` destinations automatically within the main repo.
 
 ### 5. Verify Backups (if applicable)
 
@@ -1290,7 +1262,6 @@ grep -iE "error|exception|traceback" /tmp/test-output.log | grep -v "PASSED"
 #### Capture Baseline (BEFORE running tests/commands)
 
 ```bash
-LOG_DIR=$(flu logs list 2>&1 | head -1 | sed -n 's/.*(\(.*\)).*/\1/p')
 if [ -z "$LOG_DIR" ] || [ ! -d "$LOG_DIR" ]; then
     LOG_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/logs"
 fi
@@ -1347,15 +1318,12 @@ Every functional verification has TWO parts:
 |-------------|-------------|-------------------|
 | CLI feature | Run the command with real arguments | Confirm the result is correct (check files, repos, databases, services) |
 | Bug fix | Reproduce the original scenario | Confirm the bug is gone AND no regression in related behavior |
-| Config/template | Run `flu sync` or equivalent | Check EVERY downstream target — verify the synced content is correct |
 | Label/issue mgmt | Run the label or issue command | Verify labels exist in ALL target repos, verify ALL affected issues |
 | API change | Call the endpoint with real data | Verify response data is correct AND downstream consumers still work |
 | Multi-repo change | Run the command | Verify the change landed correctly in EVERY affected repo |
 
 **Example — label sync change:**
 ```
-BAD:  "Ran flu sync, no errors"               <- only step 1
-GOOD: "Ran flu sync. Then checked all 11 repos — verified labels exist
        in each. Checked 5 issues with labels — all correct."  <- both steps
 ```
 
@@ -1405,17 +1373,15 @@ git checkout - && git stash pop
 
 ```bash
 # File in current repo (uses template for auto-labels)
-flu issue create --template quick-bug --title "[BUG] <specific test or component>: <what failed>" --body "<actual error output or description of what went wrong. Include file path, test name, and error message.>"
-flu issue update <number> --priority medium
+log to docs/superpowers/deferred-fixes.md
 
 # File in a different repo (manual labels — template may not exist)
-flu issue create --title "[BUG] <specific test or component>: <what failed>" --body "<actual error output or description of what went wrong. Include file path, test name, and error message.>" --repo jpierce/<repo-name>
-flu issue update <number> --type bug --priority medium --state research
+log to docs/superpowers/deferred-fixes.md
 ```
 
 **Then update the working issue:**
 ```bash
-flu issue comment <number> --body "### Pre-Existing Issues Found
+log to docs/superpowers/deferred-fixes.md: "### Pre-Existing Issues Found
 During implementation, the following pre-existing issues were discovered and filed:
 - #XXXX - Brief description
 - #YYYY - Brief description (filed in jpierce/other-repo)
@@ -1433,11 +1399,9 @@ git fetch origin && git rebase origin/main
 git push -u origin <branch-name>
 ```
 
-Then use the finish workflow (`flu git finish`) to create PR, merge, and close the issue.
 
 ### 11. Post Exit Comment and Save Context
 
-Same as Pipeline step 14 — post Pipeline Activity exit comment with `Stop Implement` action and result `Completed. PR merged and issue closed.`, then run `flu memory digest --issue <number>`.
 
 ---
 
@@ -1447,7 +1411,7 @@ Same as Pipeline step 14 — post Pipeline Activity exit comment with `Stop Impl
 
 ### 1. Get Issue
 ```bash
-flu issue view <issue-number>
+review the issue: <issue-number>
 ```
 
 ### 2. Execute the Fix
@@ -1460,12 +1424,10 @@ flu issue view <issue-number>
 
 **If the change is non-code (markdown, templates, docs, config):**
 ```bash
-flu git finish -a -n -t "<fix description> (#<issue-number>)"
 ```
 
 **If the change touches code (.py, .js, etc.):**
 ```bash
-flu git finish -a -t "<fix description> (#<issue-number>)"
 ```
 
 This creates a branch, commits, pushes, creates PR, merges, and cleans up automatically.
