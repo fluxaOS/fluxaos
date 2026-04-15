@@ -204,7 +204,7 @@ async function seed() {
       outputFormatFlag: '--output-format',
       issuePromptTemplate: '{{skill_name}}: {{issue_title}} — {{issue_description}}',
       queuePromptTemplate: '{{issue_title}}',
-      defaultArgs: ['--dangerously-skip-permissions'],
+      defaultArgs: ['-p', '--verbose', '--dangerously-skip-permissions'],
       envVars: {},
       contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
     })
