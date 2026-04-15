@@ -1,7 +1,16 @@
 {
-  "__meta": {
-    "managed_by": "fhc sync",
-    "note": "DO NOT EDIT \u2014 this file is overwritten by fhc sync. Edit templates/claude-settings/settings.json in fh-commons."
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(**/*.token)",
+      "Read(.forgejo_token)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(./secrets/**)",
+      "Edit(**/*.token)"
+    ]
   },
   "hooks": {
     "PostToolUse": [
@@ -18,19 +27,7 @@
     "SessionStart": []
   },
   "enabledPlugins": {
-    "codex@openai-codex": true
-  },
-  "permissions": {
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Read(./secrets/**)",
-      "Read(**/*.token)",
-      "Read(.forgejo_token)",
-      "Edit(./.env)",
-      "Edit(./.env.*)",
-      "Edit(./secrets/**)",
-      "Edit(**/*.token)"
-    ]
+    "codex@openai-codex": true,
+    "claude-md-management@claude-plugins-official": true
   }
 }

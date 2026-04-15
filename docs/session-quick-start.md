@@ -17,17 +17,23 @@ Issues found during verification go to `docs/superpowers/deferred-fixes.md` — 
 
 ## Database Access
 
-**`flu db query fluxaos` hits the WRONG database.** It queries a local Postgres instance registered in fh-commons, NOT the Supabase Cloud database that the app uses. These are completely different databases.
+Use npm scripts to query the app's Supabase database:
 
-To query the app's actual database, use the TS scripts in `src/core/db/scripts/` (TODO: being built). Until then, use Drizzle Studio: `npm run db:studio`.
+- `npm run db:issues` — issues with state/status/priority
+- `npm run db:runs` — pipeline runs with stage details and signals
+- `npm run db:gates` — gate results with verdicts
+- `npm run db:events` — events (all recent, or filtered by `--run <id>` / `--issue <id>`)
+- `npm run db:studio` — Drizzle Studio (visual DB browser)
+
+Note: These scripts are being built (R-INFRA-2). Until then, use `npm run db:studio`.
 
 ## Dev Server
 
 This is a headless box. The dev server runs at `http://192.168.54.101:3000` (or next available port if 3000 is busy — check the startup output). Browser verification requires a machine that can reach that IP.
 
-## fh-commons Integration
+## CLI Tools
 
-The `flu` CLI wrapper exists but is a Python shim for a TypeScript project. It provides `flu issue`, `flu memory`, `flu pr` commands that talk to Forgejo and local Postgres — useful for issue tracking but NOT for app database queries. The fh-commons decoupling is in progress (see roadmap R-INFRA).
+This is a standalone TypeScript project. Use npm scripts for all development tasks — see the Commands table in CLAUDE.md.
 
 ## Gotchas
 

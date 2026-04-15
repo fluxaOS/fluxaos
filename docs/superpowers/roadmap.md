@@ -13,6 +13,7 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R4-V — Gate Engine Verification | **Done** | [r4v-plan](superpowers/plans/2026-04-11-r4v-gate-engine-verification.md) | — |
 | R5-V — Pipeline Engine + Manual Execution | **Done — PR #20** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md), [cleanup-plan](superpowers/plans/2026-04-13-r5v-architectural-cleanup.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [cleanup-design](superpowers/specs/2026-04-13-r5v-architectural-cleanup-design.md) |
 | R5.5 — Skill-to-Orchestrator IPC | **Done — PR #23, #26, #29** | [r5.5-ipc-plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](superpowers/specs/2026-04-13-r5.5-ipc-protocol-design.md) |
+| R-INFRA — fh-commons Decoupling + Dev Tooling | **Done** | [r-infra-plan](superpowers/plans/2026-04-15-r-infra-implementation-plan.md) | [r-infra-design](superpowers/specs/2026-04-15-infra-decoupling-design.md) |
 | R-UI — Mockup Reconciliation | **Not started** | — | [ui-inventory](superpowers/specs/2026-04-11-ui-inventory.md) |
 | R6 — Polish + Ship | **Not started** | — | — |
 
@@ -33,10 +34,7 @@ New deferred issues filed in `docs/superpowers/deferred-fixes.md`: activity feed
 ## What's Next
 
 1. ~~**Update skills to emit flux:signal**~~ — **Done (PR #29).** Hold verdicts wired, gate results written for every run.
-2. **R-INFRA — Developer Tooling** — **Not started**
-   - Decouple fh-commons: `flu db` hits local Postgres, not Supabase Cloud. Need native TS query scripts.
-   - DB inspection scripts: `npm run db:issues`, `npm run db:runs`, `npm run db:gates`, `npm run db:events`
-   - Verification test suite: repeatable scripts for the 5 manual tests above
+2. ~~**R-INFRA — Developer Tooling**~~ — **Done.** fh-commons fully decoupled, native TS DB scripts (`db:issues`, `db:runs`, `db:gates`, `db:events`), seed verification suite (`verify:seed`), standalone git hooks.
 3. **R-UI** — reconcile UI with approved mockup at `docs/planning/mockups/dashboard-mockup.html`
    - Harness catalog management page (list/create/edit/delete harnesses)
    - Skill edit/delete in settings
