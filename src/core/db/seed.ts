@@ -226,6 +226,7 @@ async function seed() {
     { name: 'research', description: 'Unified research and planning — assess, decide, execute' },
     { name: 'implement', description: 'Implementation orchestrator — build features from plans' },
     { name: 'review', description: 'Code review — review only, no implementation' },
+    { name: 'rework', description: 'Rework — address review feedback and resubmit' },
     { name: 'deploy', description: 'Deploy — merge approved PRs' },
   ];
 
