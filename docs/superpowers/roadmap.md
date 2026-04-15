@@ -16,14 +16,32 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R-UI — Mockup Reconciliation | **Not started** | — | [ui-inventory](superpowers/specs/2026-04-11-ui-inventory.md) |
 | R6 — Polish + Ship | **Not started** | — | — |
 
+## R5.5 Verification Results (2026-04-15)
+
+Manual browser verification at `http://192.168.54.101:3003`:
+
+| Test | Result | Notes |
+|------|--------|-------|
+| 1. Seed — 2 issues exist | **PASS** | Both issues present, Research/Open |
+| 2. Gate results after run | **PARTIAL** | Gate result IS written (good). Issue advanced research→implement. Pipeline status shows "completed". Tense/casing inconsistencies in labels. |
+| 3. Hold/already_complete | **PASS (caveat)** | State moved to Complete correctly. But skill found real `/api/health/route.ts` in the fluxaOS repo — seed issue #2 is a bad test case since it matches real code. Workspace `cwd` doesn't prevent filesystem exploration. |
+| 4. Clean pipeline output | **Not verified** | |
+| 5. Hold/needs_human | **Deferred** | |
+
+New deferred issues filed in `docs/superpowers/deferred-fixes.md`: activity feed display, state/status tense inconsistency, text casing inconsistency.
+
 ## What's Next
 
-1. ~~**Update skills to emit flux:signal**~~ — **Done (PR #29).** Seed now uses lean `PIPELINE_PROMPT` that instructs Claude to emit `flux:signal` with `proceed`, `hold/already_complete`, or `hold/needs_human` verdicts. Hold verdicts are wired to `stateOverride` and status blocking. Gate results written for every run.
-2. **R-UI** — reconcile UI with approved mockup at `docs/planning/mockups/dashboard-mockup.html`
-   - Harness catalog management page (list/create/edit/delete harnesses — currently only visible in stage dropdowns)
+1. ~~**Update skills to emit flux:signal**~~ — **Done (PR #29).** Hold verdicts wired, gate results written for every run.
+2. **R-INFRA — Developer Tooling** — **Not started**
+   - Decouple fh-commons: `flu db` hits local Postgres, not Supabase Cloud. Need native TS query scripts.
+   - DB inspection scripts: `npm run db:issues`, `npm run db:runs`, `npm run db:gates`, `npm run db:events`
+   - Verification test suite: repeatable scripts for the 5 manual tests above
+3. **R-UI** — reconcile UI with approved mockup at `docs/planning/mockups/dashboard-mockup.html`
+   - Harness catalog management page (list/create/edit/delete harnesses)
    - Skill edit/delete in settings
    - Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates)
-3. **R6** — polish + ship
+4. **R6** — polish + ship
 
 ## RCAs
 

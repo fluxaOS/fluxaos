@@ -2,6 +2,8 @@
 
 AI orchestration OS — a config-driven engine that runs pipelines of AI-powered stages against issues. The engine is agnostic: it never knows stage names, provider names, or harness names. It reads config from the database and executes whatever the user configured.
 
+> **New session?** Read [Session Quick-Start](docs/session-quick-start.md) first — conventions, gotchas, and database access rules.
+
 ## Commands
 
 | Command | Description |
@@ -50,22 +52,13 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 - **Reset state:** `tsx src/core/db/nuke.ts` → `npm run db:seed`
 - **After schema changes:** `npm run db:generate` → `npm run db:migrate`
 
-## Gotchas
-
-- Requires `.env` with: `DATABASE_URL` (Supabase transaction pooler, port 6543), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- Migrations need `DIRECT_URL` (Supabase direct connection, port 5432) — pooler (6543) won't work for DDL
-- Optimistic concurrency required on all mutable entities (`WHERE version = $expected`)
-- Events tables are append-only (immutable audit trail)
-- Body HTML rendered at write time, never at read time
-- Multi-tenancy: Org → User → Project. URL: `/[org]/[user]/[project]/issues/1`
-- No production database — Supabase Cloud is the dev database. Nuke-and-seed freely.
-
 ## Reference
 
+- **[Session Quick-Start](docs/session-quick-start.md) — READ FIRST: conventions, gotchas, database access, deferred issues**
 - [Issue Lifecycle](docs/issue-lifecycle.md) — states, statuses, transitions, skill signal protocol
 - [Invariants & Verification](docs/invariants.md) — 24 hard constraints + verification script
 - [Session Protocol](docs/session-protocol.md) — 14-step checklist for implementation sessions
-- [Roadmap](docs/roadmap.md) — phase status, plans, specs, RCAs
+- [Roadmap](docs/superpowers/roadmap.md) — phase status, plans, specs, RCAs
 - [PAT reference](../pat/) — data models, seed data, API routes, frontend components
 - [Design spec v2](docs/superpowers/specs/2026-04-07-fluxaos-spec-v2.md)
 - [Rebuild spec](docs/superpowers/specs/2026-04-09-rebuild-spec.md)
