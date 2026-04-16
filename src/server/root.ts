@@ -12,7 +12,7 @@ import { pipelineRouter } from './routers/pipeline';
 import { gateRouter } from './routers/gate';
 import { providerRouter } from './routers/provider';
 import { routingRouter } from './routers/routing';
-import { harnessRouter } from './routers/harness';
+import { driverRouter } from './routers/driver';
 
 export const appRouter = router({
   organization: organizationRouter,
@@ -25,7 +25,7 @@ export const appRouter = router({
   gate: gateRouter,
   provider: providerRouter,
   routing: routingRouter,
-  harness: harnessRouter,
+  driver: driverRouter,
 });
 
 export type AppRouter = typeof appRouter;

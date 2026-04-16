@@ -1,11 +1,11 @@
 import { z } from 'zod/v4';
 import { eq, and } from 'drizzle-orm';
 import { router, publicProcedure } from '../trpc';
-import { harnessCatalog } from '@/core/db/schema';
+import { driver } from '@/core/db/schema';
 
-export const harnessRouter = router({
+export const driverRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(harnessCatalog).orderBy(harnessCatalog.name);
+    return ctx.db.select().from(driver).orderBy(driver.name);
   }),
 
   getBySlug: publicProcedure
@@ -13,9 +13,9 @@ export const harnessRouter = router({
     .query(async ({ ctx, input }) => {
       const [row] = await ctx.db
         .select()
-        .from(harnessCatalog)
-        .where(eq(harnessCatalog.slug, input.slug));
-      if (!row) throw new Error(`Harness not found: ${input.slug}`);
+        .from(driver)
+        .where(eq(driver.slug, input.slug));
+      if (!row) throw new Error(`Driver not found: ${input.slug}`);
       return row;
     }),
 
@@ -24,9 +24,9 @@ export const harnessRouter = router({
     .query(async ({ ctx, input }) => {
       const [row] = await ctx.db
         .select()
-        .from(harnessCatalog)
-        .where(eq(harnessCatalog.id, input.id));
-      if (!row) throw new Error(`Harness not found: ${input.id}`);
+        .from(driver)
+        .where(eq(driver.id, input.id));
+      if (!row) throw new Error(`Driver not found: ${input.id}`);
       return row;
     }),
 
@@ -41,21 +41,21 @@ export const harnessRouter = router({
         dirFlag: z.string().optional(),
         sessionNameFlag: z.string().optional(),
         promptTransport: z.string().optional(),
+        outputFormat: z.string().optional(),
+        outputFormatFlag: z.string().optional(),
         promptSendDelayMs: z.number().int().optional(),
         probeCommand: z.string().optional(),
         issuePromptTemplate: z.string().optional(),
         queuePromptTemplate: z.string().optional(),
         envVars: z.record(z.string(), z.string()).optional(),
         extraArgs: z.record(z.string(), z.unknown()).optional(),
+        contextLayout: z.unknown().optional(),
         isEnabled: z.boolean().optional(),
         notes: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .insert(harnessCatalog)
-        .values(input)
-        .returning();
+      const [row] = await ctx.db.insert(driver).values(input as any).returning();
       return row;
     }),
 
@@ -72,12 +72,15 @@ export const harnessRouter = router({
         dirFlag: z.string().nullable().optional(),
         sessionNameFlag: z.string().nullable().optional(),
         promptTransport: z.string().optional(),
+        outputFormat: z.string().optional(),
+        outputFormatFlag: z.string().nullable().optional(),
         promptSendDelayMs: z.number().int().optional(),
         probeCommand: z.string().nullable().optional(),
         issuePromptTemplate: z.string().nullable().optional(),
         queuePromptTemplate: z.string().nullable().optional(),
         envVars: z.record(z.string(), z.string()).optional(),
         extraArgs: z.record(z.string(), z.unknown()).optional(),
+        contextLayout: z.unknown().optional(),
         isEnabled: z.boolean().optional(),
         notes: z.string().nullable().optional(),
       }),
@@ -85,11 +88,9 @@ export const harnessRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
       const [row] = await ctx.db
-        .update(harnessCatalog)
-        .set({ ...data, version: version + 1, updatedAt: new Date() })
-        .where(
-          and(eq(harnessCatalog.id, id), eq(harnessCatalog.version, version)),
-        )
+        .update(driver)
+        .set({ ...(data as any), version: version + 1, updatedAt: new Date() })
+        .where(and(eq(driver.id, id), eq(driver.version, version)))
         .returning();
       if (!row) throw new Error('Optimistic concurrency conflict');
       return row;
@@ -99,10 +100,10 @@ export const harnessRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [row] = await ctx.db
-        .delete(harnessCatalog)
-        .where(eq(harnessCatalog.id, input.id))
+        .delete(driver)
+        .where(eq(driver.id, input.id))
         .returning();
-      if (!row) throw new Error(`Harness not found: ${input.id}`);
+      if (!row) throw new Error(`Driver not found: ${input.id}`);
       return row;
     }),
 });
