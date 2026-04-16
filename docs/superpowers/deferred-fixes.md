@@ -154,3 +154,10 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Medium — readonly in MVP limits driver reconfigurability for JSON-valued fields
 **Location:** `RecordEditor` + `driverDescriptor` — `defaultArgs`, `envVars`, `extraArgs`, `contextLayout` are currently rendered as `readonly` (display-only) because they're `jsonb` columns
 **What's needed:** A structured JSON editor field type — Monaco with JSON schema validation, or a form-builder keyed off each field's implied shape. Until this exists, changing those fields requires direct DB edits via `db:studio`. The R-UI-1 UI exposes them as readonly so users can see their contents; editing is a deferred upgrade.
+
+## DEF-007 — Canonical source for git hooks (track + install script)
+
+**Found:** 2026-04-16 during R-UI-1 Session A (rename phase)
+**Severity:** Medium — hooks are per-clone and drift silently across contributors
+**Location:** Today hooks live only in `.git/hooks/` (untracked). No canonical source in the repo.
+**What's needed:** Move canonical pre-commit / pre-push scripts into a tracked directory (e.g., `scripts/hooks/`) with a `scripts/install-hooks.sh` that copies them into `.git/hooks/`. Document in `CLAUDE.md`. The R-UI-1 Session A rename added a size-exemption list for `src/core/db/schema.ts` that only exists in the local clone — other contributors pulling this branch will still hit the 500-line check until they re-run the (currently nonexistent) install script.
