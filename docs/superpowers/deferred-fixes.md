@@ -112,3 +112,38 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Low (event-orchestrator not used in manual execution path)
 **Location:** Need `src/adapters/supabase/realtime.ts` implementing `RealtimeProvider` port
 **What's needed:** Wrap Supabase Realtime client to implement `subscribeToTable()` from `src/core/ports/realtime.ts`
+
+## DEF-001 — Feature: Openclaw-style preview gate (blur-until-viewed)
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** Low — privacy/demo affordance, not a GTM blocker
+**Location:** `RecordEditor` accepts a `previewGate` prop today (no-op default); wire real implementation when an auth/visibility model exists
+**What's needed:** When displaying sensitive record content (prompt templates, system prompts), render blurred by default with a "Preview" button that unblurs. Click "Editor" to switch to edit-in-place mode with unblurred content. Pattern reference: openclaw Agents settings page.
+
+## DEF-002 — Feature: Role-based edit/delete permissions for skills and harnesses
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** Medium — needed before beta, not blocking in-team dev
+**Location:** `src/server/routers/skill.ts` and `src/server/routers/harness.ts` delete mutations; `canEdit`/`canDelete` props on `RecordEditor` (currently return `true`); `hasFeature(user, Feature.ROLE_BASED_PERMISSIONS)` gate point in `src/core/features/features.ts`
+**What's needed:** Gate hard-delete and edit behind a role check (e.g., `admin` or `maintainer`). Non-privileged users see a soft-delete ("archive") option instead, or are blocked entirely. Requires auth role model — currently every user is effectively admin.
+
+## DEF-003 — Feature: Version history and revert for skills and harnesses
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** Medium — not a GTM blocker for beta, but a planned feature (Portainer Enterprise-style versioning)
+**Location:** Would add `skill_revision` and `harness_revision` tables (additive, no changes to existing tables). `RecordEditor` has `onEditSnapshot` prop hook that fires on every edit enter — wire it to a snapshot mutation when this ships.
+**What's needed:** On every edit save, snapshot the full row to a revision table with author + timestamp + monotonic `revision_number`. UI lists past revisions and allows revert (writes a new revision that restores the snapshotted fields). The existing `version` int continues to serve as the optimistic-concurrency lock; `revision_number` is the semantic history counter.
+
+## DEF-004 — Feature: Subscription tier model + runtime feature gating
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** High — GTM blocker for SaaS monetization
+**Location:** `src/core/features/features.ts` (`hasFeature()` today returns `true` for everything); need to add tier/subscription state on user or organization, plus tRPC middleware for backend enforcement
+**What's needed:** Open-core SaaS model — one codebase, runtime feature gating for enterprise tiers. Wire `hasFeature(user, feature)` to real subscription state on `user` or `organization`. Enforce in two layers: tRPC middleware rejects gated mutations; UI hides/disables affordances. Grandfather principle: users who were already using a feature when it becomes gated retain access (no take-away-to-monetize).
+
+## DEF-005 — Terminology glossary document
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming (harness/skill naming collision)
+**Severity:** High — prevents future "we've been talking about different things for four hours" incidents
+**Location:** `docs/terminology.md` (new file; seeded as part of R-UI-1)
+**What's needed:** A single glossary covering every domain entity and concept in fluxaOS. Each entry has: **field/entity name** (exact code identifier), **description** (plain-English meaning), **example** (concrete instance). Seed terms for R-UI-1: `coding_agent`, `skill`, `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `issue`, `issue_state`, `issue_status`, `gate`, `routing_profile`. Every future phase adds entries for new terms introduced. When a term is renamed, the old name stays in the doc as "formerly known as" for at least one milestone. Enforcement: PRs introducing new domain terms require a glossary entry in the same PR.
