@@ -94,13 +94,13 @@ export const pipelineStage = pgTable('pipeline_stage', {
   name: text('name').notNull(),
   sortOrder: integer('sort_order').notNull(),
   personaId: uuid('persona_id'),
-  harness: text('harness'),
+  driver: text('driver'),
   timeoutSec: integer('timeout_sec').default(300),
   maxRetries: integer('max_retries').default(0),
   gateMode: text('gate_mode').default('auto'),
   gateRules: jsonb('gate_rules'),
   skillId: uuid('skill_id').references(() => skill.id),
-  harnessId: uuid('harness_id').references(() => harnessCatalog.id),
+  driverId: uuid('driver_id').references(() => driver.id),
   createdAt,
   updatedAt,
 });
@@ -132,7 +132,7 @@ export const stageRun = pgTable('stage_run', {
   status: text('status').notNull().default('queued'),
   provider: text('provider'),
   model: text('model'),
-  harness: text('harness'),
+  driver: text('driver'),
   attempt: integer('attempt').notNull().default(1),
   pid: integer('pid'),
   exitCode: integer('exit_code'),
@@ -140,7 +140,7 @@ export const stageRun = pgTable('stage_run', {
   tokensIn: integer('tokens_in').default(0),
   tokensOut: integer('tokens_out').default(0),
   skillId: uuid('skill_id').references(() => skill.id),
-  harnessId: uuid('harness_id').references(() => harnessCatalog.id),
+  driverId: uuid('driver_id').references(() => driver.id),
   skillSignal: text('skill_signal'),
   skillMetadata: jsonb('skill_metadata'),
   trigger: text('trigger').notNull().default('manual'),
@@ -167,9 +167,9 @@ export const stageGateResult = pgTable('stage_gate_result', {
   createdAt,
 });
 
-// ─── Harness Catalog ──────────────────────────────────────────────────────
+// ─── Driver Catalog ──────────────────────────────────────────────────────
 
-export const harnessCatalog = pgTable('harness_catalog', {
+export const driver = pgTable('driver', {
   id,
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
@@ -600,8 +600,8 @@ export const routingRule = pgTable('routing_rule', {
     .references(() => routingProfile.id),
   stageName: text('stage_name'),
   allowedModelsPattern: text('allowed_models_pattern'),
-  preferredHarness: text('preferred_harness'),
-  fallbackHarness: text('fallback_harness'),
+  preferredDriver: text('preferred_driver'),
+  fallbackDriver: text('fallback_driver'),
   sortStrategy: text('sort_strategy').default('quality'),
   maxCostUsd: numeric('max_cost_usd', { precision: 10, scale: 6 }),
   createdAt,
@@ -785,7 +785,7 @@ export const pipelineRelations = relations(pipeline, ({ one, many }) => ({
   runs: many(pipelineRun),
 }));
 
-export const harnessCatalogRelations = relations(harnessCatalog, ({ many }) => ({
+export const driverRelations = relations(driver, ({ many }) => ({
   pipelineStages: many(pipelineStage),
   stageRuns: many(stageRun),
 }));
@@ -805,9 +805,9 @@ export const pipelineStageRelations = relations(
       fields: [pipelineStage.skillId],
       references: [skill.id],
     }),
-    harnessCatalogEntry: one(harnessCatalog, {
-      fields: [pipelineStage.harnessId],
-      references: [harnessCatalog.id],
+    driverEntry: one(driver, {
+      fields: [pipelineStage.driverId],
+      references: [driver.id],
     }),
     stageRuns: many(stageRun),
   })
@@ -838,9 +838,9 @@ export const stageRunRelations = relations(stageRun, ({ one, many }) => ({
     fields: [stageRun.skillId],
     references: [skill.id],
   }),
-  harnessCatalogEntry: one(harnessCatalog, {
-    fields: [stageRun.harnessId],
-    references: [harnessCatalog.id],
+  driverEntry: one(driver, {
+    fields: [stageRun.driverId],
+    references: [driver.id],
   }),
   events: many(event),
   gateResults: many(stageGateResult),
