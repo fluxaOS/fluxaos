@@ -29,6 +29,8 @@ import { parseLine } from '@/core/orchestrator/output-parser';
 import { materialize, cleanup } from '@/core/skills/materializer';
 import * as schema from '@/core/db/schema';
 import type { Database } from '@/core/db/connection';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import type { AnyColumn } from 'drizzle-orm';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -39,7 +41,7 @@ const db: Database = provider.getConnection();
 const RUN = Date.now();
 const cleanupList: { table: string; id: string }[] = [];
 
-const tableMap: Record<string, any> = {
+const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
   event: schema.event,
   stageGateResult: schema.stageGateResult,
   stageRun: schema.stageRun,

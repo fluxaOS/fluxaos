@@ -19,14 +19,16 @@ import {
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 // TODO: adapt test for event-orchestrator (was written for polling manager)
 // Stub to keep skipped tests compiling
-const createOrchestratorManager = (..._args: any[]) => ({ tick: async () => ({ queued: 0, launched: 0, advanced: 0, completed: 0, errors: [] }) });
+const createOrchestratorManager = (..._args: unknown[]) => ({ tick: async () => ({ queued: 0, launched: 0, advanced: 0, completed: 0, errors: [] as unknown[] }) });
 import { createStageJobHandler } from '@/core/orchestrator/stage-worker';
 import { createRoutingResolver } from '@/core/orchestrator/routing-resolver';
-import type { QueueProvider, Job, JobOptions } from '@/core/ports/queue';
+import type { QueueProvider, Job } from '@/core/ports/queue';
 import type { StageExecutor, ExecuteParams, ExecuteResult } from '@/core/ports/stage-executor';
 import type { StageJobPayload } from '@/core/orchestrator/types';
 import * as schema from '@/core/db/schema';
 import type { Database } from '@/core/db/connection';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import type { AnyColumn } from 'drizzle-orm';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -37,7 +39,7 @@ const db: Database = provider.getConnection();
 const RUN = Date.now();
 const cleanup: { table: string; id: string }[] = [];
 
-const tableMap: Record<string, any> = {
+const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
   event: schema.event,
   stageGateResult: schema.stageGateResult,
   stageRun: schema.stageRun,
@@ -67,9 +69,14 @@ afterAll(async () => {
 
 // ─── Mock Queue (in-memory, instant processing) ─────────────────────────────
 
-function createMockQueue(): QueueProvider & { jobs: Map<string, any>; processHandler: any } {
-  const jobs = new Map<string, any>();
-  let processHandler: any = null;
+type MockQueueHandler = (job: Job<unknown>) => Promise<void>;
+
+function createMockQueue(): QueueProvider & {
+  jobs: Map<string, Job<unknown>>;
+  processHandler: MockQueueHandler | null;
+} {
+  const jobs = new Map<string, Job<unknown>>();
+  let processHandler: MockQueueHandler | null = null;
 
   return {
     jobs,
@@ -78,10 +85,10 @@ function createMockQueue(): QueueProvider & { jobs: Map<string, any>; processHan
       jobs.set(jobId, { id: jobId, data, status: 'waiting', progress: 0, attempts: 0 });
     },
     process<T>(queueName: string, handler: (job: Job<T>) => Promise<void>): void {
-      processHandler = handler;
+      processHandler = handler as MockQueueHandler;
     },
     async getJob<T>(queueName: string, jobId: string): Promise<Job<T> | null> {
-      return jobs.get(jobId) ?? null;
+      return (jobs.get(jobId) as Job<T> | undefined) ?? null;
     },
     async cancelJob(queueName: string, jobId: string): Promise<void> {
       jobs.delete(jobId);
@@ -113,7 +120,7 @@ let orgId: string;
 let userId: string;
 let projectId: string;
 let pipelineId: string;
-let stageIds: string[] = [];
+const stageIds: string[] = [];
 let issueId: string;
 let typeId: string;
 let stateId: string;
