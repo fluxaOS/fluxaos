@@ -192,7 +192,7 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
                 <td className="pr-3 py-1 capitalize">{s.name}</td>
                 <td className="pr-3 py-1">{s.gateMode}</td>
                 <td className="pr-3 py-1">{skills.find((sk: typeof skills[number]) => sk.id === s.skillId)?.name ?? '—'}</td>
-                <td className="pr-3 py-1">{drivers.find((h: typeof drivers[number]) => h.id === s.driverId)?.name ?? '—'}</td>
+                <td className="pr-3 py-1">{drivers.find((d: typeof drivers[number]) => d.id === s.driverId)?.name ?? '—'}</td>
                 <td className="pr-3 py-1">{s.timeoutSec}s</td>
                 <td className="pr-3 py-1">{s.maxRetries}</td>
               </tr>
@@ -251,8 +251,8 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
               className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
             >
               <option value="">No driver</option>
-              {drivers.map((h: typeof drivers[number]) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
+              {drivers.map((d: typeof drivers[number]) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
             <button

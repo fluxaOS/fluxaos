@@ -120,18 +120,18 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `RecordEditor` accepts a `previewGate` prop today (no-op default); wire real implementation when an auth/visibility model exists
 **What's needed:** When displaying sensitive record content (prompt templates, system prompts), render blurred by default with a "Preview" button that unblurs. Click "Editor" to switch to edit-in-place mode with unblurred content. Pattern reference: openclaw Agents settings page.
 
-## DEF-002 — Feature: Role-based edit/delete permissions for skills and harnesses
+## DEF-002 — Feature: Role-based edit/delete permissions for skills and drivers
 
 **Found:** 2026-04-16 during R-UI-1 brainstorming
 **Severity:** Medium — needed before beta, not blocking in-team dev
-**Location:** `src/server/routers/skill.ts` and `src/server/routers/harness.ts` delete mutations; `canEdit`/`canDelete` props on `RecordEditor` (currently return `true`); `hasFeature(user, Feature.ROLE_BASED_PERMISSIONS)` gate point in `src/core/features/features.ts`
+**Location:** `src/server/routers/skill.ts` and `src/server/routers/driver.ts` delete mutations; `canEdit`/`canDelete` props on `RecordEditor` (currently return `true`); `hasFeature(user, Feature.ROLE_BASED_PERMISSIONS)` gate point in `src/core/features/features.ts`
 **What's needed:** Gate hard-delete and edit behind a role check (e.g., `admin` or `maintainer`). Non-privileged users see a soft-delete ("archive") option instead, or are blocked entirely. Requires auth role model — currently every user is effectively admin.
 
-## DEF-003 — Feature: Version history and revert for skills and harnesses
+## DEF-003 — Feature: Version history and revert for skills and drivers
 
 **Found:** 2026-04-16 during R-UI-1 brainstorming
 **Severity:** Medium — not a GTM blocker for beta, but a planned feature (Portainer Enterprise-style versioning)
-**Location:** Would add `skill_revision` and `harness_revision` tables (additive, no changes to existing tables). `RecordEditor` has `onEditSnapshot` prop hook that fires on every edit enter — wire it to a snapshot mutation when this ships.
+**Location:** Would add `skill_revision` and `driver_revision` tables (additive, no changes to existing tables). `RecordEditor` has `onEditSnapshot` prop hook that fires on every edit enter — wire it to a snapshot mutation when this ships.
 **What's needed:** On every edit save, snapshot the full row to a revision table with author + timestamp + monotonic `revision_number`. UI lists past revisions and allows revert (writes a new revision that restores the snapshotted fields). The existing `version` int continues to serve as the optimistic-concurrency lock; `revision_number` is the semantic history counter.
 
 ## DEF-004 — Feature: Subscription tier model + runtime feature gating
