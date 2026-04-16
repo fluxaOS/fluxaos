@@ -161,7 +161,7 @@ beforeAll(async () => {
   for (let i = 1; i <= 3; i++) {
     const [s] = await db.insert(schema.pipelineStage).values({
       pipelineId, name: `stage-${i}-${RUN}`, sortOrder: i,
-      gateMode: 'auto', gateRules: {}, harness: 'echo',
+      gateMode: 'auto', gateRules: {}, driver: 'echo',
       timeoutSec: 60, maxRetries: 0,
     }).returning();
     stageIds.push(s.id);
@@ -302,7 +302,7 @@ describe('routing resolver', () => {
     expect(routing).not.toBeNull();
     expect(routing!.providerName).toContain('test-provider');
     expect(routing!.modelIdentifier).toContain('test-model');
-    expect(routing!.harness).toBe('echo');
+    expect(routing!.driver).toBe('echo');
   });
 
   it('returns null for nonexistent stage', async () => {
@@ -479,7 +479,7 @@ describe('stage worker', () => {
           providerApiKeyRef: null,
           modelId: 'test',
           modelIdentifier: 'test-model',
-          harness: 'echo',
+          driver: 'echo',
           costPer1kInput: 0,
           costPer1kOutput: 0,
         },
@@ -531,7 +531,7 @@ describe('stage worker', () => {
           providerApiKeyRef: null,
           modelId: 'test',
           modelIdentifier: 'test-model',
-          harness: 'echo',
+          driver: 'echo',
           costPer1kInput: 0,
           costPer1kOutput: 0,
         },

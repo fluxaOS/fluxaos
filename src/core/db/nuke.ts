@@ -43,7 +43,7 @@ const tables = [
   'pipeline_stage',
   'pipeline',
   'config_entry',
-  'harness_catalog',
+  'driver',
   'persona_skill',
   'team_member',
   'memory',

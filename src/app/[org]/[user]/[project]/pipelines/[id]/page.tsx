@@ -147,7 +147,7 @@ interface StageRunData {
   status: string;
   provider: string | null;
   model: string | null;
-  harness: string | null;
+  driver: string | null;
   costUsd: string | null;
   tokensIn: number | null;
   tokensOut: number | null;
@@ -235,7 +235,7 @@ function StageRunCard({
             <div className="flex items-center gap-2 text-xs text-slate-500">
               {stageRun.provider && <span>{stageRun.provider}</span>}
               {stageRun.model && <span>/ {stageRun.model}</span>}
-              {stageRun.harness && <span>({stageRun.harness})</span>}
+              {stageRun.driver && <span>({stageRun.driver})</span>}
               {stageRun.costUsd && Number(stageRun.costUsd) > 0 && (
                 <span className="font-mono text-slate-400">${stageRun.costUsd}</span>
               )}

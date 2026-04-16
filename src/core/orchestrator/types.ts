@@ -34,7 +34,7 @@ export interface ResolvedRouting {
   providerApiKeyRef: string | null;
   modelId: string;
   modelIdentifier: string;
-  harness: string;
+  driver: string;
   costPer1kInput: number;
   costPer1kOutput: number;
 }

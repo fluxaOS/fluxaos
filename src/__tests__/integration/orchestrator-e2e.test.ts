@@ -23,7 +23,7 @@ import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-servi
 import {
   buildCommand,
   renderTemplate,
-  type HarnessConfig,
+  type DriverConfig,
 } from '@/core/orchestrator/command-builder';
 import { parseLine } from '@/core/orchestrator/output-parser';
 import { materialize, cleanup } from '@/core/skills/materializer';
@@ -117,20 +117,22 @@ beforeAll(async () => {
 // ─── Command Builder ─────────────────────────────────────────────────────
 
 describe('command builder', () => {
-  const harness: HarnessConfig = {
+  const driver: DriverConfig = {
     binary: 'claude',
     defaultArgs: ['--dangerously-skip-permissions'],
     modelFlag: '--model',
     dirFlag: '--add-dir',
     sessionNameFlag: '--session-name',
     promptTransport: 'argv',
+    outputFormat: 'stream-json',
+    outputFormatFlag: '--output-format',
     issuePromptTemplate: '{{skill_name}}: {{issue_title}}',
     queuePromptTemplate: '{{issue_title}}',
     envVars: { CLAUDE_ENV: 'test' },
   };
 
-  it('builds correct command array from harness config', () => {
-    const result = buildCommand(harness, {
+  it('builds correct command array from driver config', () => {
+    const result = buildCommand(driver, {
       model: 'claude-sonnet-4-20250514',
       workspacePath: '/tmp/test-workspace',
       prompt: 'Test prompt',

@@ -2,10 +2,10 @@
  * Skill Materializer — writes DB-stored skills and persona config to disk.
  *
  * At execution time, creates an isolated workspace directory with:
- * - Instructions file (persona prompt + skill content, filename from harness config)
+ * - Instructions file (persona prompt + skill content, filename from driver config)
  * - Context file (issue context: title, description, state, metadata)
  *
- * The harness reads these files as it normally would.
+ * The driver reads these files as it normally would.
  * After execution, the workspace is cleaned up.
  *
  * Zero vendor imports. Operates on plain objects, writes to filesystem.
@@ -50,7 +50,7 @@ const WORKSPACE_ROOT = join(tmpdir(), 'fluxaos-runs');
 
 /**
  * Materialize skill + persona + issue context to an isolated temp workspace.
- * Returns the workspace path for the harness to use.
+ * Returns the workspace path for the driver to use.
  */
 export async function materialize(
   options: MaterializeOptions,
@@ -61,7 +61,7 @@ export async function materialize(
   await mkdir(workspacePath, { recursive: true });
 
   // 1. Write instructions file — persona + skill instructions combined
-  //    Filename comes from harness config (e.g. CLAUDE.md, AGENTS.md, GEMINI.md)
+  //    Filename comes from driver config (e.g. CLAUDE.md, AGENTS.md, GEMINI.md)
   const parts: string[] = [];
   const personaContent = buildPersonaContent(options.persona);
   if (personaContent) {
@@ -150,7 +150,7 @@ function buildContextContent(
 
 /**
  * Atomic write: write to temp file then rename.
- * Prevents harness from reading partially-written files.
+ * Prevents driver from reading partially-written files.
  */
 async function atomicWrite(filePath: string, content: string): Promise<void> {
   const tmpPath = `${filePath}.tmp`;

@@ -39,8 +39,8 @@ export const routingRouter = router({
       profileId: z.string().uuid(),
       stageName: z.string().optional(),
       allowedModelsPattern: z.string().optional(),
-      preferredHarness: z.string().optional(),
-      fallbackHarness: z.string().optional(),
+      preferredDriver: z.string().optional(),
+      fallbackDriver: z.string().optional(),
       sortStrategy: z.string().optional(),
       maxCostUsd: z.string().optional(),
     }))

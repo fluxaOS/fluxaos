@@ -1,8 +1,8 @@
 /**
- * Routing Resolver — determines which provider/model/harness to use for a stage.
+ * Routing Resolver — determines which provider/model/driver to use for a stage.
  *
  * Reads routing rules from DB. No hardcoded provider names, model names, or
- * harness names. The resolver matches rules by stage name pattern, then picks
+ * driver names. The resolver matches rules by stage name pattern, then picks
  * the best model based on the sort strategy.
  *
  * Zero vendor imports. Receives Database via DI.
@@ -34,11 +34,11 @@ export interface RoutingResolver {
 export function createRoutingResolver(db: Database): RoutingResolver {
   return {
     async resolve(stageId: string, projectId: string): Promise<ResolvedRouting | null> {
-      // 1. Get the stage (for name and harness override)
+      // 1. Get the stage (for name and driver override)
       const [stage] = await db
         .select({
           name: pipelineStage.name,
-          harness: pipelineStage.harness,
+          driver: pipelineStage.driver,
           personaId: pipelineStage.personaId,
         })
         .from(pipelineStage)
@@ -62,8 +62,8 @@ export function createRoutingResolver(db: Database): RoutingResolver {
           id: routingRule.id,
           stageName: routingRule.stageName,
           allowedModelsPattern: routingRule.allowedModelsPattern,
-          preferredHarness: routingRule.preferredHarness,
-          fallbackHarness: routingRule.fallbackHarness,
+          preferredDriver: routingRule.preferredDriver,
+          fallbackDriver: routingRule.fallbackDriver,
           sortStrategy: routingRule.sortStrategy,
           maxCostUsd: routingRule.maxCostUsd,
           profileId: routingRule.profileId,
@@ -137,13 +137,13 @@ export function createRoutingResolver(db: Database): RoutingResolver {
 
       const pick = candidates[0];
 
-      // 7. Resolve harness: stage override > rule preferred > rule fallback (fail fast)
-      const harness =
-        stage.harness ??
-        rule?.preferredHarness ??
-        rule?.fallbackHarness;
-      if (!harness) {
-        return null; // No harness configured — caller must handle
+      // 7. Resolve driver: stage override > rule preferred > rule fallback (fail fast)
+      const driver =
+        stage.driver ??
+        rule?.preferredDriver ??
+        rule?.fallbackDriver;
+      if (!driver) {
+        return null; // No driver configured — caller must handle
       }
 
       return {
@@ -153,7 +153,7 @@ export function createRoutingResolver(db: Database): RoutingResolver {
         providerApiKeyRef: pick.apiKeyRef,
         modelId: pick.modelId,
         modelIdentifier: pick.modelIdentifier,
-        harness,
+        driver,
         costPer1kInput: Number(pick.costPer1kInput ?? 0),
         costPer1kOutput: Number(pick.costPer1kOutput ?? 0),
       };

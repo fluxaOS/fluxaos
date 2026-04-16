@@ -84,7 +84,7 @@ async function demo() {
   const stages = await runService.getStages(pipe.id);
   log('📋', `Pipeline: ${pipe.name} (${stages.length} stages)`);
   for (const s of stages) {
-    log('  ', `${s.sortOrder}. ${s.name} — gate: ${s.gateMode}, harness: ${s.harness}`);
+    log('  ', `${s.sortOrder}. ${s.name} — gate: ${s.gateMode}, driver: ${s.driver}`);
   }
 
   // Check for providers (routing needs at least one)

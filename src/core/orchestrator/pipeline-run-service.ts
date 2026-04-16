@@ -74,7 +74,7 @@ export interface PipelineRunService {
     results: {
       provider?: string;
       model?: string;
-      harness?: string;
+      driver?: string;
       costUsd?: string;
       tokensIn?: number;
       tokensOut?: number;
@@ -251,7 +251,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
           completedAt: new Date(),
           provider: results.provider,
           model: results.model,
-          harness: results.harness,
+          driver: results.driver,
           costUsd: results.costUsd ?? '0',
           tokensIn: results.tokensIn ?? 0,
           tokensOut: results.tokensOut ?? 0,
