@@ -140,11 +140,26 @@
 
 ## Settings — Skills (`src/app/[org]/[user]/[project]/settings/skills/page.tsx`)
 
-**Mutations:** skill.create
+**Queries:** skill.list, skill.countReferences
+**Mutations:** skill.create, skill.update, skill.delete
 
-1. **Header:** "Skills" + "New Skill"
-2. **Create Skill Form:** Name, Tags (comma-sep), Description, Prompt Template (textarea)
-3. **Skills List:** name + version + scope badges, description, tags, "Details" expand with prompt template display
+1. **Header:** "Skills" + description
+2. **New skill form:** (collapsed by default) Name*, Scope, Description, Prompt template
+3. **RecordEditor:** list of skills; no toggle (skills have no isEnabled field)
+4. **Detail panel:** Name, Description, Tags, Prompt template, Version (readonly)
+5. **Actions:** Edit → Save / Cancel / Delete (Delete checks FK references; meaningful error on conflict)
+
+---
+
+## Settings — Drivers (`src/app/[org]/[user]/[project]/settings/drivers/page.tsx`)
+
+**Queries:** driver.list
+**Mutations:** driver.update
+
+1. **Header:** "Drivers" + description
+2. **RecordEditor:** list of drivers with isEnabled toggle per row
+3. **Detail panel (on selection):** all driver fields (name, slug, binary, modelFlag, dirFlag, promptTransport, outputFormat, probeCommand, notes, issuePromptTemplate, queuePromptTemplate, version)
+4. **Actions:** Edit → Save / Cancel (no Delete — soft-disable via toggle instead)
 
 ---
 
