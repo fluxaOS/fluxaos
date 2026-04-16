@@ -36,7 +36,7 @@ New deferred issues filed in `docs/superpowers/deferred-fixes.md`: activity feed
 1. ~~**Update skills to emit flux:signal**~~ — **Done (PR #29).** Hold verdicts wired, gate results written for every run.
 2. ~~**R-INFRA — Developer Tooling**~~ — **Done.** fh-commons fully decoupled, native TS DB scripts (`db:issues`, `db:runs`, `db:gates`, `db:events`), seed verification suite (`verify:seed`), standalone git hooks.
 3. **R-UI** — reconcile UI with approved mockup at `docs/planning/mockups/dashboard-mockup.html`
-   - Harness catalog management page (list/create/edit/delete harnesses)
+   - Driver catalog management page (list/edit/toggle; formerly "harness" — renamed in R-UI-1)
    - Skill edit/delete in settings
    - Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates)
 4. **R6** — polish + ship

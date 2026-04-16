@@ -99,7 +99,7 @@
 3. **Stages Timeline:** StageRunCards with:
    - Step circle (CheckCircle if done, number if pending)
    - Stage name + StatusBadge + VerdictBadge (if gate checked)
-   - Provider/Model/Harness info, Cost, Token counts
+   - Provider/Model/Driver info, Cost, Token counts
    - **Gate Approval UI** (if pending): Approve/Rework/Abort buttons
    - **Events/Transcript:** scrollable event list (timestamp, type, payload)
 
@@ -165,7 +165,7 @@
 1. **Header:** "Routing Profiles" + "New Profile"
 2. **Create Profile Form:** Name, Description
 3. **Profiles List:** name + default badge + description + "Rules" expand
-4. **RulesEditor:** rules table (Stage, Models, Harness, Sort, Delete), "Add Rule" form
+4. **RulesEditor:** rules table (Stage, Models, Driver, Sort, Delete), "Add Rule" form
 
 ---
 
