@@ -146,4 +146,11 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Found:** 2026-04-16 during R-UI-1 brainstorming (harness/skill naming collision)
 **Severity:** High — prevents future "we've been talking about different things for four hours" incidents
 **Location:** `docs/terminology.md` (new file; seeded as part of R-UI-1)
-**What's needed:** A single glossary covering every domain entity and concept in fluxaOS. Each entry has: **field/entity name** (exact code identifier), **description** (plain-English meaning), **example** (concrete instance). Seed terms for R-UI-1: `coding_agent`, `skill`, `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `issue`, `issue_state`, `issue_status`, `gate`, `routing_profile`. Every future phase adds entries for new terms introduced. When a term is renamed, the old name stays in the doc as "formerly known as" for at least one milestone. Enforcement: PRs introducing new domain terms require a glossary entry in the same PR.
+**What's needed:** A single glossary covering every domain entity and concept in fluxaOS. Each entry has: **field/entity name** (exact code identifier), **description** (plain-English meaning), **example** (concrete instance). Seed terms for R-UI-1: `driver`, `skill`, `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `issue`, `issue_state`, `issue_status`, `gate`, `routing_profile`. Every future phase adds entries for new terms introduced. When a term is renamed, the old name stays in the doc as "formerly known as" for at least one milestone. Enforcement: PRs introducing new domain terms require a glossary entry in the same PR.
+
+## DEF-006 — Structured JSON editor for `jsonb` driver fields
+
+**Found:** 2026-04-16 during R-UI-1 design audit
+**Severity:** Medium — readonly in MVP limits driver reconfigurability for JSON-valued fields
+**Location:** `RecordEditor` + `driverDescriptor` — `defaultArgs`, `envVars`, `extraArgs`, `contextLayout` are currently rendered as `readonly` (display-only) because they're `jsonb` columns
+**What's needed:** A structured JSON editor field type — Monaco with JSON schema validation, or a form-builder keyed off each field's implied shape. Until this exists, changing those fields requires direct DB edits via `db:studio`. The R-UI-1 UI exposes them as readonly so users can see their contents; editing is a deferred upgrade.
