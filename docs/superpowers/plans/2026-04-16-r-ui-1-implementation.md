@@ -69,11 +69,23 @@ git commit --allow-empty -m "chore: start R-UI-1 implementation"
 ### Task 2: Rename schema in `src/core/db/schema.ts`
 
 **Files:**
-- Modify: `src/core/db/schema.ts` — all `harnessCatalog` references → `driver`; `harnessId` columns → `driverId`; `harness` text column on `stageRun` → `driver` (if kept)
+- Modify: `src/core/db/schema.ts`
 
-- [ ] **Step 1:** Open `src/core/db/schema.ts` and locate the `harnessCatalog = pgTable(...)` definition (line ~172).
+Full scope (every column and identifier that contains the word `harness`):
 
-- [ ] **Step 2:** Rename the export and the table name.
+| Before | After |
+|---|---|
+| `export const harnessCatalog = pgTable('harness_catalog', {` | `export const driver = pgTable('driver', {` |
+| `pipelineStage.harnessId` (`harness_id` column) | `pipelineStage.driverId` (`driver_id` column) |
+| `pipelineStage.harness` (`harness` text column) | `pipelineStage.driver` (`driver` text column) |
+| `stageRun.harnessId` (`harness_id` column) | `stageRun.driverId` (`driver_id` column) |
+| `stageRun.harness` (`harness` text column) | `stageRun.driver` (`driver` text column) |
+| `routingRule.preferredHarness` (`preferred_harness` column) | `routingRule.preferredDriver` (`preferred_driver` column) |
+| `routingRule.fallbackHarness` (`fallback_harness` column) | `routingRule.fallbackDriver` (`fallback_driver` column) |
+| `harnessCatalogRelations` (if present) | `driverRelations` |
+| Inside relations: `fields: [..harnessId], references: [harnessCatalog.id]` | `fields: [..driverId], references: [driver.id]` |
+
+- [ ] **Step 1:** Rename the `harness_catalog` table definition (line ~172).
 
 Change:
 ```ts
@@ -84,52 +96,37 @@ To:
 export const driver = pgTable('driver', {
 ```
 
-- [ ] **Step 3:** In the same file, find `harnessCatalogRelations` (if present) and rename to `driverRelations`.
+- [ ] **Step 2:** Rename FK columns on `pipelineStage`. Find `harnessId: uuid('harness_id').references(() => harnessCatalog.id),` — replace with `driverId: uuid('driver_id').references(() => driver.id),`.
 
-```bash
-grep -n "harnessCatalogRelations\|harnessCatalog" src/core/db/schema.ts
-```
+- [ ] **Step 3:** Rename the `harness` text column on `pipelineStage`. Find `harness: text('harness'),` inside `pipelineStage` definition — replace with `driver: text('driver'),`.
 
-Expected: every match replaced — no remaining references.
-
-- [ ] **Step 4:** Rename foreign-key columns on `pipelineStage` and `stageRun`.
-
-In the `pipelineStage` definition change:
-```ts
-harnessId: uuid('harness_id').references(() => harnessCatalog.id),
-```
-To:
-```ts
-driverId: uuid('driver_id').references(() => driver.id),
-```
-
-In the `stageRun` definition change:
+- [ ] **Step 4:** Rename FK + text columns on `stageRun`. Find:
 ```ts
 harness: text('harness'),
 harnessId: uuid('harness_id').references(() => harnessCatalog.id),
 ```
-To:
+Replace with:
 ```ts
 driver: text('driver'),
 driverId: uuid('driver_id').references(() => driver.id),
 ```
 
-- [ ] **Step 5:** Rename the `pipelineStage` and `stageRun` `relations(...)` blocks so they use `driver` instead of `harnessCatalog`.
+- [ ] **Step 5:** Rename `routingRule` columns.
 
-Inside each relation block:
+Find:
 ```ts
-fields: [pipelineStage.harnessId],
-references: [harnessCatalog.id],
+preferredHarness: text('preferred_harness'),
+fallbackHarness: text('fallback_harness'),
 ```
-Becomes:
+Replace with:
 ```ts
-fields: [pipelineStage.driverId],
-references: [driver.id],
+preferredDriver: text('preferred_driver'),
+fallbackDriver: text('fallback_driver'),
 ```
 
-(Same pattern for `stageRun.harnessId` relation.)
+- [ ] **Step 6:** Update relations blocks — any reference to `harnessCatalog`, `harnessId`, or `pipelineStage.harness` must become `driver`, `driverId`, `pipelineStage.driver`.
 
-- [ ] **Step 6:** Verify schema file no longer mentions `harness`.
+- [ ] **Step 7:** Verify schema file no longer mentions `harness`.
 
 ```bash
 grep -n "harness\|Harness" src/core/db/schema.ts
@@ -137,11 +134,11 @@ grep -n "harness\|Harness" src/core/db/schema.ts
 
 Expected: empty output.
 
-- [ ] **Step 7:** Commit.
+- [ ] **Step 8:** Commit.
 
 ```bash
 git add src/core/db/schema.ts
-git commit -m "refactor: rename harnessCatalog→driver in schema"
+git commit -m "refactor(schema): rename harness→driver (table, FK cols, text cols, routing_rule cols)"
 ```
 
 ---
@@ -159,22 +156,30 @@ npm run db:generate
 
 Expected: a new file in `drizzle/` named `0004_*.sql` containing `ALTER TABLE`/`RENAME` statements.
 
-- [ ] **Step 2:** Inspect the generated SQL. It should contain:
+- [ ] **Step 2:** Inspect the generated SQL. It should contain **all seven renames**:
   - `ALTER TABLE "harness_catalog" RENAME TO "driver";`
   - `ALTER TABLE "pipeline_stage" RENAME COLUMN "harness_id" TO "driver_id";`
+  - `ALTER TABLE "pipeline_stage" RENAME COLUMN "harness" TO "driver";`
   - `ALTER TABLE "stage_run" RENAME COLUMN "harness_id" TO "driver_id";`
   - `ALTER TABLE "stage_run" RENAME COLUMN "harness" TO "driver";`
-  - Constraint renames for the foreign keys
+  - `ALTER TABLE "routing_rule" RENAME COLUMN "preferred_harness" TO "preferred_driver";`
+  - `ALTER TABLE "routing_rule" RENAME COLUMN "fallback_harness" TO "fallback_driver";`
+  - Constraint renames (Postgres auto-renames FK constraints when columns are renamed)
 
-If drizzle-kit generated DROP+CREATE instead of RENAME (which would drop data), manually edit the SQL to use `RENAME` statements only. The PostgreSQL form is:
+If drizzle-kit generated DROP+CREATE instead of RENAME (which would drop data), manually edit the SQL to use `RENAME` statements only. The PostgreSQL form:
 
 ```sql
 ALTER TABLE "harness_catalog" RENAME TO "driver";
 ALTER TABLE "pipeline_stage" RENAME COLUMN "harness_id" TO "driver_id";
+ALTER TABLE "pipeline_stage" RENAME COLUMN "harness" TO "driver";
 ALTER TABLE "stage_run" RENAME COLUMN "harness_id" TO "driver_id";
 ALTER TABLE "stage_run" RENAME COLUMN "harness" TO "driver";
+ALTER TABLE "routing_rule" RENAME COLUMN "preferred_harness" TO "preferred_driver";
+ALTER TABLE "routing_rule" RENAME COLUMN "fallback_harness" TO "fallback_driver";
 -- Foreign key constraints auto-rename with column renames.
 ```
+
+**Migration safety:** `ALTER TABLE … RENAME` operations in PostgreSQL are non-destructive, metadata-only, and instantaneous. They preserve all data and existing FK constraints. DO NOT accept any drizzle-kit output that uses `DROP` + `CREATE` — that would delete data. If drizzle-kit produces that shape, hand-edit the migration to the seven RENAME statements above.
 
 - [ ] **Step 3:** Rename the migration file if drizzle-kit used a generic name.
 
@@ -260,18 +265,21 @@ export const driverRouter = router({
         dirFlag: z.string().optional(),
         sessionNameFlag: z.string().optional(),
         promptTransport: z.string().optional(),
+        outputFormat: z.string().optional(),
+        outputFormatFlag: z.string().optional(),
         promptSendDelayMs: z.number().int().optional(),
         probeCommand: z.string().optional(),
         issuePromptTemplate: z.string().optional(),
         queuePromptTemplate: z.string().optional(),
         envVars: z.record(z.string(), z.string()).optional(),
         extraArgs: z.record(z.string(), z.unknown()).optional(),
+        contextLayout: z.unknown().optional(),
         isEnabled: z.boolean().optional(),
         notes: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db.insert(driver).values(input).returning();
+      const [row] = await ctx.db.insert(driver).values(input as any).returning();
       return row;
     }),
 
@@ -288,12 +296,15 @@ export const driverRouter = router({
         dirFlag: z.string().nullable().optional(),
         sessionNameFlag: z.string().nullable().optional(),
         promptTransport: z.string().optional(),
+        outputFormat: z.string().optional(),
+        outputFormatFlag: z.string().nullable().optional(),
         promptSendDelayMs: z.number().int().optional(),
         probeCommand: z.string().nullable().optional(),
         issuePromptTemplate: z.string().nullable().optional(),
         queuePromptTemplate: z.string().nullable().optional(),
         envVars: z.record(z.string(), z.string()).optional(),
         extraArgs: z.record(z.string(), z.unknown()).optional(),
+        contextLayout: z.unknown().optional(),
         isEnabled: z.boolean().optional(),
         notes: z.string().nullable().optional(),
       }),
@@ -302,7 +313,7 @@ export const driverRouter = router({
       const { id, version, ...data } = input;
       const [row] = await ctx.db
         .update(driver)
-        .set({ ...data, version: version + 1, updatedAt: new Date() })
+        .set({ ...(data as any), version: version + 1, updatedAt: new Date() })
         .where(and(eq(driver.id, id), eq(driver.version, version)))
         .returning();
       if (!row) throw new Error('Optimistic concurrency conflict');
@@ -321,6 +332,8 @@ export const driverRouter = router({
     }),
 });
 ```
+
+**Why `outputFormatFlag` and `contextLayout` are included:** Both are runtime-consumed by the orchestrator. `command-builder.ts` uses `outputFormatFlag` to pass `--output-format stream-json`. `stage-runner.ts` uses `contextLayout` to decide which instructions file (`CLAUDE.md`, `AGENTS.md`, etc.) to write into the workspace. Omitting them from the router makes those behaviors silently locked at seed-time values and editable only via `db:studio`.
 
 - [ ] **Step 3:** Update `src/server/root.ts`. Change:
 
@@ -352,85 +365,128 @@ git commit -m "refactor: rename harnessRouter→driverRouter and register as dri
 
 ### Task 5: Rename identifiers across all other source files
 
-**Files:** ~20 source files under `src/` that reference `harness` / `Harness` / `harnessCatalog` / `harnessId` / `trpc.harness`. See list below.
+**Full file list** (every file the rename must touch; confirmed via `grep -l harness src/ tests/`):
 
-- [ ] **Step 1:** Enumerate remaining references.
+- `src/core/orchestrator/stage-runner.ts` — 8 occurrences (writes `stageRun.harness` column, reads `harnessRow.name`)
+- `src/core/orchestrator/stage-worker.ts` — uses `routing.harness`
+- `src/core/orchestrator/routing-resolver.ts` — reads `stage.harness`, `rule.preferredHarness`, `rule.fallbackHarness`
+- `src/core/orchestrator/command-builder.ts` — `HarnessConfig` interface + params
+- `src/core/orchestrator/output-parser.ts` — references
+- `src/core/orchestrator/event-orchestrator.ts` — event payloads
+- `src/core/orchestrator/manual-run.ts` — event payloads
+- `src/core/orchestrator/pipeline-run-service.ts` — event payload shapes
+- `src/core/orchestrator/types.ts` — `harness: string` in `ResolvedRouting` interface
+- `src/core/orchestrator/demo.ts` — log messages
+- `src/core/skills/materializer.ts` — any references
+- `src/core/pipeline/types.ts` — `harness?: string` on two interfaces
+- `src/core/db/seed.ts` — seeds Claude Code harness row
+- `src/core/db/nuke.ts` — table list references `harness_catalog`
+- `src/server/routers/pipeline.ts` — Zod input schemas use `harness: z.string().optional()`
+- `src/server/routers/routing.ts` — Zod input schemas use `preferredHarness`/`fallbackHarness`
+- `src/app/[org]/[user]/[project]/settings/page.tsx` — pipeline stage editor calls `trpc.harness.list`, uses `harnessId`, column header text
+- `src/app/[org]/[user]/[project]/settings/routing/page.tsx` — rule form fields for `preferredHarness`/`fallbackHarness`
+- `src/app/[org]/[user]/[project]/pipelines/[id]/page.tsx` — reads `stageRun.harness` for display
+- `src/components/pipeline/LiveOutput.tsx` — any references
+- `tests/verify/seed-check.ts` — asserts "1 harness" — update to "1 driver"
+- `src/__tests__/integration/orchestrator.test.ts` — uses `harness: 'echo'` in stage fixtures
+- `src/__tests__/integration/orchestrator-e2e.test.ts` — imports `HarnessConfig`
+
+- [ ] **Step 1:** Baseline grep (should match the list above).
 
 ```bash
-grep -rn "harness\|Harness" src/ tests/ --include="*.ts" --include="*.tsx" | grep -v schema.ts | grep -v routers/driver.ts | grep -v root.ts
+grep -rln "harness\|Harness" src/ tests/ --include="*.ts" --include="*.tsx" | grep -v schema.ts | grep -v routers/driver.ts | grep -v root.ts
 ```
 
-Expected: a list of ~20 files with remaining references. Record the list.
+Expected: exactly the files from the list above. If there are extras, add them to the sweep. If there are missing ones, they were already renamed earlier.
 
-- [ ] **Step 2:** Apply name substitutions across all source and test files. The substitutions, in the order they must be applied (most-specific first):
+- [ ] **Step 2:** Apply project-wide substitutions. The substitutions, in the order they must be applied (most-specific first — never apply `harness` → `driver` before the compound tokens are handled):
 
-| Find | Replace |
+| Find (regex-safe) | Replace |
 |---|---|
 | `harnessCatalog` | `driver` |
 | `harnessRouter` | `driverRouter` |
-| `harness_catalog` | `driver` (string literals in SQL/raw queries only) |
 | `harnessId` | `driverId` |
-| `harness_id` | `driver_id` (string literals only) |
-| `HarnessCatalog` type alias | `Driver` |
-| `Harness` (type/interface names) | `Driver` |
-| `trpc.harness` | `trpc.driver` |
-| `'harness'` / `"harness"` (string literals used as keys) | `'driver'` / `"driver"` |
+| `preferredHarness` | `preferredDriver` |
+| `fallbackHarness` | `fallbackDriver` |
+| `HarnessConfig` (interface name) | `DriverConfig` |
+| `HarnessCatalog` (type alias) | `Driver` |
+| `trpc\.harness` | `trpc.driver` |
+| `harness_id` (string literal) | `driver_id` |
+| `harness_catalog` (string literal) | `driver` |
+| `preferred_harness` (string literal) | `preferred_driver` |
+| `fallback_harness` (string literal) | `fallback_driver` |
+| `\bHarness\b` (standalone type/var) | `Driver` |
 
-Use your editor's project-wide find/replace or, if using the CLI:
+Run as a single sed pass over every file in the list (excluding schema.ts, routers/driver.ts, root.ts which are already correct):
 
 ```bash
-# Dry-run the most-specific substitutions first. Use sed per-file to avoid replacing in schema.ts (already renamed) or routers/driver.ts.
-for f in $(grep -rlE "harnessCatalog|harnessRouter|harnessId|trpc\.harness" src/ tests/ --include="*.ts" --include="*.tsx" | grep -v "schema.ts\|routers/driver.ts"); do
+FILES=$(grep -rln "harness\|Harness" src/ tests/ --include="*.ts" --include="*.tsx" | grep -v "schema.ts\|routers/driver.ts\|root.ts")
+
+for f in $FILES; do
   sed -i \
     -e 's/harnessCatalog/driver/g' \
     -e 's/harnessRouter/driverRouter/g' \
     -e 's/harnessId/driverId/g' \
-    -e 's/trpc\.harness/trpc.driver/g' \
+    -e 's/preferredHarness/preferredDriver/g' \
+    -e 's/fallbackHarness/fallbackDriver/g' \
+    -e 's/HarnessConfig/DriverConfig/g' \
     -e 's/\bHarnessCatalog\b/Driver/g' \
+    -e 's/trpc\.harness/trpc.driver/g' \
+    -e 's/harness_id/driver_id/g' \
+    -e 's/harness_catalog/driver/g' \
+    -e 's/preferred_harness/preferred_driver/g' \
+    -e 's/fallback_harness/fallback_driver/g' \
     "$f"
 done
 ```
 
-- [ ] **Step 3:** Apply remaining lowercase/identifier substitutions. Manual review required for these because `harness` might appear in user-facing strings that should stay:
+- [ ] **Step 3:** Apply remaining standalone `harness`/`Harness` substitutions. These are property names like `.harness`, object keys like `harness: routing.harness`, and type annotations like `harness: string`. Use project-wide search/replace, or:
 
 ```bash
-grep -rn "\bharness\b\|\bHarness\b" src/ tests/ --include="*.ts" --include="*.tsx" | grep -v routers/driver.ts
+FILES=$(grep -rln "\\bharness\\b\\|\\bHarness\\b" src/ tests/ --include="*.ts" --include="*.tsx" | grep -v "schema.ts\|routers/driver.ts\|root.ts")
+
+for f in $FILES; do
+  sed -i \
+    -e 's/\bharness\b/driver/g' \
+    -e 's/\bHarness\b/Driver/g' \
+    "$f"
+done
 ```
 
-For each match, decide:
-- **Code identifier** (variable, property, type) → rename to `driver` / `Driver`
-- **User-facing string** (button labels, error messages, prompt text) → rename to `driver` / `Driver` (we chose this name to be user-facing too)
-- **Comment** → update to reflect new name
+- [ ] **Step 4:** Manually inspect each file from Step 2's list for user-facing strings (labels, error messages) that should ALSO say "Driver" — these may need capitalization review because the sed in Step 3 produces lowercase `driver`. Focus especially on:
+  - `src/app/[org]/[user]/[project]/settings/page.tsx` — column header `"Harness"` → `"Driver"` (verify capital D)
+  - `src/app/[org]/[user]/[project]/settings/routing/page.tsx` — form labels
+  - `src/app/[org]/[user]/[project]/pipelines/[id]/page.tsx` — any visible text
 
-- [ ] **Step 4:** Special case — `stageRun.harness` was a text column; it is now `stageRun.driver`. Some code reads this column and stores human-readable values. Find and update:
+- [ ] **Step 5:** Update seed data deliberately — don't rely only on sed.
 
-```bash
-grep -rn "\.harness\b" src/ --include="*.ts" --include="*.tsx" | grep -v routers/driver.ts
-```
+Open `src/core/db/seed.ts`. Verify the seed insert uses `driver` (the exported schema table), the slug stays `'claude-code'`, the log message says "driver:", and any variable name like `claudeHarness` is now `claudeDriver`.
 
-Update each reference to `.driver`.
-
-- [ ] **Step 5:** Update seed data.
-
-Open `src/core/db/seed.ts` and replace all `harness` / `harnessCatalog` references with `driver`. The seed inserts one row into the table (name "Claude Code"). Ensure the insert statement uses the new schema export and that any log messages say "driver" not "harness".
-
-- [ ] **Step 6:** Update `src/core/db/nuke.ts` if it lists `harness_catalog` in its table truncation list — replace with `driver`.
+- [ ] **Step 6:** Update `src/core/db/nuke.ts` table-truncation list — confirm it lists `driver` not `harness_catalog`.
 
 ```bash
 grep -n "harness_catalog\|harnessCatalog" src/core/db/nuke.ts
 ```
 
-Expected: empty output after edits.
+Expected: empty output.
 
-- [ ] **Step 7:** Verify nothing remains in source/test code.
+- [ ] **Step 7:** Update `tests/verify/seed-check.ts` — the assertion message "1 harness" must become "1 driver" and the query must use `schema.driver`.
+
+```bash
+grep -n "harness\|Harness" tests/verify/seed-check.ts
+```
+
+Expected: empty output.
+
+- [ ] **Step 8:** Verify nothing remains in source/test code.
 
 ```bash
 grep -rn "harness\|Harness\|HARNESS" src/ tests/ --include="*.ts" --include="*.tsx"
 ```
 
-Expected: empty output.
+Expected: empty output. If anything remains, it's a sed miss — hand-fix and re-grep.
 
-- [ ] **Step 8:** Typecheck.
+- [ ] **Step 9:** Typecheck.
 
 ```bash
 npx tsc --noEmit
@@ -700,6 +756,13 @@ export type RecordEditorProps<TRecord extends RecordWithVersion> = {
     enabled: boolean,
     expectedVersion: number,
   ) => Promise<void>;
+
+  /**
+   * Called when the user clicks the "Refresh" button inside a conflict banner.
+   * Implementors should invalidate the list query so `records` arrives fresh
+   * from the server.
+   */
+  onRefresh?: () => Promise<void>;
 
   // Deferred-hook slots (no-ops today; wire to features later)
   /** DEF-001 — openclaw-style preview blur. Return a wrapping node. */
@@ -1095,7 +1158,10 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
   const [state, setState] = useState<ActionsState>({ kind: 'viewing' });
   const [draft, setDraft] = useState<Partial<TRecord>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [banner, setBanner] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
+  const [banner, setBanner] = useState<
+    | { kind: 'error' | 'info'; text: string; conflict?: boolean }
+    | null
+  >(null);
 
   const selected = useMemo(
     () => records.find((r) => r.id === selectedId) ?? null,
@@ -1167,13 +1233,31 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
       if (/optimistic|conflict|version/i.test(msg)) {
         setBanner({
           kind: 'error',
-          text: 'This record was updated elsewhere. Refresh to see the latest, or save again to retry.',
+          conflict: true,
+          text: 'This record was updated elsewhere. Click Refresh to load the latest, or continue editing and save again (will conflict until you refresh).',
         });
       } else {
         setBanner({ kind: 'error', text: `Save failed: ${msg}` });
       }
       setState({ kind: 'editing' });
     }
+  };
+
+  /**
+   * Called when the user clicks Refresh inside a conflict banner.
+   * The page owner supplies the actual refresh mechanism (e.g., tRPC query invalidation)
+   * via the `onRefresh` prop. Parent's onRefresh should invalidate the list query so
+   * `records` re-arrives with the latest server state; we then clear the draft and
+   * return to viewing.
+   */
+  const handleRefresh = async () => {
+    if (props.onRefresh) {
+      await props.onRefresh();
+    }
+    setDraft({});
+    setFieldErrors({});
+    setState({ kind: 'viewing' });
+    setBanner(null);
   };
 
   const handleDeleteRequest = () => setState({ kind: 'confirming-delete' });
@@ -1301,7 +1385,16 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
                   : 'bg-blue-600/10 text-blue-300 border border-blue-600/30'
               }`}
             >
-              {banner.text}
+              <div>{banner.text}</div>
+              {banner.conflict ? (
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  className="mt-2 px-3 py-1 rounded-md text-xs font-medium bg-red-600/20 text-red-200 hover:bg-red-600/30 border border-red-600/40"
+                >
+                  Refresh
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -1569,6 +1662,18 @@ export function createSkillService(db: Database) {
         personaSkills: Number(psk?.c ?? 0),
       };
     },
+
+    /**
+     * Optimistic-lock delete. Returns true if the row was deleted at the
+     * expected version; false if version was stale (no row deleted).
+     */
+    async deleteWithVersion(id: string, expectedVersion: number): Promise<boolean> {
+      const result = await db
+        .delete(skill)
+        .where(and(eq(skill.id, id), eq(skill.version, expectedVersion)))
+        .returning({ id: skill.id });
+      return result.length > 0;
+    },
   };
 }
 
@@ -1655,9 +1760,11 @@ export const skillRouter = router({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       const svc = createSkillService(ctx.db);
+
+      // 1. FK guard: reject with a meaningful message if anything still points here
       const refs = await svc.countReferences(input.id);
       const total = refs.pipelineStages + refs.stageRuns + refs.personaSkills;
       if (total > 0) {
@@ -1665,7 +1772,15 @@ export const skillRouter = router({
           `Cannot delete skill — referenced by ${refs.pipelineStages} pipeline stage(s), ${refs.stageRuns} stage run(s), and ${refs.personaSkills} persona binding(s). Remove references first.`,
         );
       }
-      await svc.remove(input.id);
+
+      // 2. Optimistic lock: only delete if version matches. Prevents deleting
+      // a skill that was edited in parallel since the user saw version N.
+      const ok = await svc.deleteWithVersion(input.id, input.version);
+      if (!ok) {
+        throw new Error(
+          'Optimistic concurrency conflict — skill was modified elsewhere.',
+        );
+      }
       return { id: input.id };
     }),
 });
@@ -1701,6 +1816,11 @@ git commit -m "feat(skill): optimistic locking + countReferences + FK-safe delet
 // src/app/[org]/[user]/[project]/settings/drivers/descriptor.ts
 import type { RecordDescriptor } from '@/components/record-editor/types';
 
+// DriverRecord must expose every runtime-consumed column:
+// - outputFormatFlag is read by command-builder.ts
+// - contextLayout is read by stage-runner.ts to choose instructions file name
+// JSON-valued fields (defaultArgs, envVars, extraArgs, contextLayout) are
+// displayed readonly for MVP; DEF-006 tracks a structured editor upgrade.
 export type DriverRecord = {
   id: string;
   version: number;
@@ -1709,13 +1829,21 @@ export type DriverRecord = {
   binary: string;
   modelFlag: string | null;
   dirFlag: string | null;
+  sessionNameFlag: string | null;
   promptTransport: string;
   outputFormat: string;
+  outputFormatFlag: string | null;
+  promptSendDelayMs: number;
   probeCommand: string | null;
   issuePromptTemplate: string | null;
   queuePromptTemplate: string | null;
   notes: string | null;
   isEnabled: boolean;
+  // JSON-valued columns — readonly in MVP (DEF-006)
+  defaultArgs: unknown;
+  envVars: unknown;
+  extraArgs: unknown;
+  contextLayout: unknown;
 };
 
 export const driverDescriptor: RecordDescriptor<DriverRecord> = {
@@ -1734,6 +1862,7 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
     },
     { key: 'modelFlag', label: 'Model flag', fieldType: 'text', placeholder: '--model' },
     { key: 'dirFlag', label: 'Directory flag', fieldType: 'text', placeholder: '--cwd' },
+    { key: 'sessionNameFlag', label: 'Session-name flag', fieldType: 'text' },
     {
       key: 'promptTransport',
       label: 'Prompt transport',
@@ -1745,6 +1874,17 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
       label: 'Output format',
       fieldType: 'text',
       placeholder: 'stream-json | text',
+    },
+    {
+      key: 'outputFormatFlag',
+      label: 'Output-format flag',
+      fieldType: 'text',
+      placeholder: '--output-format',
+    },
+    {
+      key: 'promptSendDelayMs',
+      label: 'Prompt send delay (ms)',
+      fieldType: 'text',
     },
     { key: 'probeCommand', label: 'Probe command', fieldType: 'text' },
     { key: 'notes', label: 'Notes', fieldType: 'textarea' },
@@ -1758,6 +1898,11 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
       label: 'Queue prompt template',
       fieldType: 'textarea-large',
     },
+    // JSON fields — readonly in MVP; DEF-006 adds a structured editor later
+    { key: 'defaultArgs', label: 'Default args (JSON)', fieldType: 'readonly' },
+    { key: 'envVars', label: 'Env vars (JSON)', fieldType: 'readonly' },
+    { key: 'extraArgs', label: 'Extra args (JSON)', fieldType: 'readonly' },
+    { key: 'contextLayout', label: 'Context layout (JSON)', fieldType: 'readonly' },
     { key: 'version', label: 'Version', fieldType: 'readonly' },
   ],
   toggleEnabledField: 'isEnabled',
@@ -1847,6 +1992,10 @@ export default function DriversSettingsPage() {
         isLoading={listQuery.isLoading}
         onSave={onSave}
         onToggleEnabled={onToggleEnabled}
+        onRefresh={async () => {
+          await utils.driver.list.invalidate();
+        }}
+        // DEF-002 role gates — today always true (see features.ts)
         canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
         canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
       />
@@ -2100,8 +2249,9 @@ export default function SkillsSettingsPage() {
     await utils.skill.list.invalidate();
   };
 
-  const onDelete = async (id: string, _expectedVersion: number) => {
-    await deleteMutation.mutateAsync({ id });
+  const onDelete = async (id: string, expectedVersion: number) => {
+    // Router enforces optimistic lock on delete as well — pass the version.
+    await deleteMutation.mutateAsync({ id, version: expectedVersion });
     await utils.skill.list.invalidate();
   };
 
@@ -2199,6 +2349,10 @@ export default function SkillsSettingsPage() {
         isLoading={listQuery.isLoading}
         onSave={onSave}
         onDelete={onDelete}
+        onRefresh={async () => {
+          await utils.skill.list.invalidate();
+        }}
+        // DEF-002 role gates — today always true (see features.ts)
         canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
         canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
       />
@@ -3123,6 +3277,11 @@ Second writer gets the conflict banner with their draft preserved; first writer'
 
 ```ts
 // e2e/conflict-on-save.spec.ts
+// Stability notes: both tabs must fully load the skills list AND open the
+// same record in edit mode before either tab clicks Save. Without the
+// waitForLoadState('networkidle') calls, one tab may still be fetching the
+// list or the Edit state when the other tab saves, producing spurious "no
+// version in state" failures that look like flake but are really races.
 import { test, expect, gotoSettings } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @concurrency', () => {
@@ -3133,15 +3292,25 @@ test.describe('@r-ui-1 @settings @concurrency', () => {
     const b = await ctxB.newPage();
 
     try {
+      // Both tabs load the list fully
       await gotoSettings(a, 'skills');
+      await a.waitForLoadState('networkidle');
       await gotoSettings(b, 'skills');
+      await b.waitForLoadState('networkidle');
 
+      // Both tabs select the same record, wait for the detail panel to render,
+      // then click Edit. Waiting on the Edit button (not arbitrary timing)
+      // guarantees the record is fully loaded before we mutate.
       await a.getByText('research', { exact: true }).first().click();
+      await expect(a.getByRole('button', { name: 'Edit' })).toBeVisible();
       await b.getByText('research', { exact: true }).first().click();
+      await expect(b.getByRole('button', { name: 'Edit' })).toBeVisible();
 
       await a.getByRole('button', { name: 'Edit' }).click();
       await b.getByRole('button', { name: 'Edit' }).click();
 
+      // Wait for the editable textarea in each tab so both tabs have the
+      // same version captured in local state before either saves.
       const aDesc = a
         .locator('label', { hasText: 'Description' })
         .locator('..')
@@ -3150,19 +3319,25 @@ test.describe('@r-ui-1 @settings @concurrency', () => {
         .locator('label', { hasText: 'Description' })
         .locator('..')
         .locator('textarea');
+      await expect(aDesc).toBeEditable();
+      await expect(bDesc).toBeEditable();
 
+      // Tab A saves first
       await aDesc.fill('A-change');
       await a.getByRole('button', { name: 'Save' }).click();
       await expect(a.getByRole('button', { name: 'Edit' })).toBeVisible();
+      await a.waitForLoadState('networkidle');
 
+      // Tab B saves second — expect a conflict
       await bDesc.fill('B-change');
       await b.getByRole('button', { name: 'Save' }).click();
 
-      // Conflict banner shown in B
+      // Conflict banner shown in B (with Refresh button per spec)
       await expect(b.getByText(/updated elsewhere|conflict/i)).toBeVisible();
+      await expect(b.getByRole('button', { name: 'Refresh' })).toBeVisible();
 
-      // B reloads and sees A's change
-      await b.reload();
+      // B clicks Refresh and sees A's change
+      await b.getByRole('button', { name: 'Refresh' }).click();
       await b.getByText('research', { exact: true }).first().click();
       await expect(b.getByText('A-change')).toBeVisible();
     } finally {
@@ -3224,13 +3399,25 @@ npx playwright test --grep @r-ui-1
 
 Expected: all six journeys pass.
 
-- [ ] **Step 4:** Residual-grep check.
+- [ ] **Step 4:** Residual-grep check (exhaustive).
 
 ```bash
-grep -rn "harness\|Harness\|HARNESS" src/ tests/ e2e/ CLAUDE.md docs/session-quick-start.md docs/invariants.md docs/superpowers/roadmap.md docs/terminology.md 2>/dev/null
+grep -rn "harness\|Harness\|HARNESS" \
+  src/ tests/ e2e/ drizzle/ \
+  CLAUDE.md docs/terminology.md docs/session-quick-start.md \
+  docs/invariants.md docs/superpowers/roadmap.md \
+  docs/superpowers/specs/2026-04-11-ui-inventory.md 2>/dev/null | \
+  grep -v "drizzle/meta/0000_snapshot.json" | \
+  grep -v "drizzle/meta/0003_snapshot.json" | \
+  grep -v "drizzle/0000_good_malice.sql" | \
+  grep -v "drizzle/0001_r5v_harness_catalog.sql" | \
+  grep -v "drizzle/0002_harness_context_layout.sql" | \
+  grep -v "drizzle/0003_ipc_signal_columns.sql"
 ```
 
-Expected: empty (or only intentional "formerly known as" clarifiers in `terminology.md`).
+Expected: empty, or exactly one match — the "formerly known as: harness" line in `docs/terminology.md` kept for continuity.
+
+**Why historical drizzle artifacts are excluded:** migrations are immutable history. Snapshots 0000 and 0003 were generated when the table was still named `harness_catalog` and the rename column changes happened in 0001/0002. Those files are frozen records of past schema states and MUST NOT be edited.
 
 - [ ] **Step 5:** Manual browser verification.
 
