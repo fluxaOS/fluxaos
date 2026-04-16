@@ -200,14 +200,11 @@ describe('skill materializer', () => {
 
     expect(existsSync(workspacePath)).toBe(true);
     expect(existsSync(join(workspacePath, 'CLAUDE.md'))).toBe(true);
-    expect(existsSync(join(workspacePath, 'skills', 'research', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(workspacePath, 'context.md'))).toBe(true);
 
-    const skillContent = readFileSync(
-      join(workspacePath, 'skills', 'research', 'SKILL.md'),
-      'utf-8',
-    );
-    expect(skillContent).toBe('Research the topic thoroughly.');
+    const claudeMd = readFileSync(join(workspacePath, 'CLAUDE.md'), 'utf-8');
+    expect(claudeMd).toContain('## Skill: research');
+    expect(claudeMd).toContain('Research the topic thoroughly.');
 
     const contextContent = readFileSync(
       join(workspacePath, 'context.md'),
