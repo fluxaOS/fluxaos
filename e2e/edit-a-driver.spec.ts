@@ -15,9 +15,12 @@ test.describe('@r-ui-1 @settings @drivers @crud', () => {
     // Step 3: Click row
     await page.getByText('Claude Code').first().click();
 
-    // Step 4: Detail panel visible with expected fields
+    // Step 4: Detail panel visible with expected fields.
+    // Use label-locator (the field label is "Binary" with an `*` sibling span
+    // that makes plain getByText non-unique — it also matches the page
+    // description "... AI CLI tool ... (binary, flags, transport, env)").
     await expect(page.getByRole('heading', { name: 'Claude Code' })).toBeVisible();
-    await expect(page.getByText('Binary', { exact: false })).toBeVisible();
+    await expect(page.locator('label', { hasText: 'Binary' })).toBeVisible();
 
     // Step 5: Click Edit
     await page.getByRole('button', { name: 'Edit' }).click();

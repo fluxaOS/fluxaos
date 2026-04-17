@@ -7,9 +7,16 @@ test.describe('@r-ui-1 @settings @skills @crud', () => {
 
     await gotoSettings(page, 'skills');
 
-    // Create
+    // Create.
+    // NOTE: The skills Create form renders its Name <label> as a sibling
+    // wrapping the <input> (no htmlFor/id pair), so Playwright's getByLabel
+    // can't resolve it. Use the label-parent-input locator pattern.
     await page.getByRole('button', { name: 'New skill' }).click();
-    await page.getByLabel('Name').fill(name);
+    await page
+      .locator('label', { hasText: 'Name' })
+      .locator('..')
+      .locator('input')
+      .fill(name);
     await page.getByRole('button', { name: 'Create' }).click();
 
     // Verify row
