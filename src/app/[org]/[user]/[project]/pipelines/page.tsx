@@ -42,12 +42,6 @@ export default function PipelinesPage() {
     { enabled: !!projectId },
   );
 
-  const defaultPipeline = pipelinesQuery.data?.find((p) => p.isDefault) ?? pipelinesQuery.data?.[0];
-
-  const triggerRun = trpc.pipeline.runs.trigger.useMutation({
-    onSuccess: () => runsQuery.refetch(),
-  });
-
   const runs = runsQuery.data ?? [];
 
   if (projectLoading) {
@@ -71,10 +65,6 @@ export default function PipelinesPage() {
           undefined /* Runs are triggered from issue detail with a specific stage */
         }
       />
-
-      {triggerRun.error && (
-        <p className="text-sm text-red-400">{triggerRun.error.message}</p>
-      )}
 
       {runsQuery.isLoading ? (
         <SkeletonTable />
@@ -111,7 +101,7 @@ export default function PipelinesPage() {
                     </Link>
                   </td>
                   <td className="px-6 py-3.5 text-slate-300 font-medium">
-                    {(run as any).pipelineName || run.pipelineId.slice(0, 8)}
+                    {run.pipelineName || run.pipelineId.slice(0, 8)}
                   </td>
                   <td className="px-6 py-3.5">
                     <StatusBadge status={run.status} />

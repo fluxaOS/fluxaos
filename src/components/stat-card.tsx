@@ -26,13 +26,11 @@ const accentClasses = {
 export function StatCard({
   label,
   value,
-  trend,
   icon: Icon,
   accent = 'violet',
 }: {
   label: string;
   value: number | string;
-  trend?: string;
   icon?: LucideIcon;
   accent?: keyof typeof accentClasses;
 }) {
@@ -48,9 +46,6 @@ export function StatCard({
       <p className="text-xs font-medium text-slate-400 mb-2.5">{label}</p>
       <div className="flex items-baseline gap-2">
         <span className="text-[28px] font-extrabold text-white leading-none">{value}</span>
-        {trend && (
-          <span className="text-xs font-semibold text-emerald-400">{trend}</span>
-        )}
       </div>
     </div>
   );

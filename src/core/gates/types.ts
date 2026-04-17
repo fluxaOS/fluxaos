@@ -116,7 +116,3 @@ export interface GateEvaluation {
 export function isRuleGroup(item: Rule | RuleGroup): item is RuleGroup {
   return 'logic' in item && 'rules' in item;
 }
-
-export function isRule(item: Rule | RuleGroup): item is Rule {
-  return 'field' in item && 'operator' in item;
-}

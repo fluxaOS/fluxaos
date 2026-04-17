@@ -15,4 +15,4 @@ export type {
   GroupResult,
   GateEvaluation,
 } from './types';
-export { isRule, isRuleGroup } from './types';
+export { isRuleGroup } from './types';
