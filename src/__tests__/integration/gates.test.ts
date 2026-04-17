@@ -8,7 +8,8 @@
  */
 import 'dotenv/config';
 import { describe, expect, it, afterAll, beforeAll } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, desc, type AnyColumn } from 'drizzle-orm';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import {
   createOrganizationService,
@@ -31,7 +32,7 @@ const db: Database = provider.getConnection();
 const RUN = Date.now();
 const cleanup: { table: string; id: string }[] = [];
 
-const tableMap: Record<string, any> = {
+const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
   stageGateResult: schema.stageGateResult,
   stageRun: schema.stageRun,
   pipelineRun: schema.pipelineRun,
@@ -568,14 +569,18 @@ describe('gate service — evaluateStageGate', () => {
       exit_code: 0,
     });
 
-    // Query the audit table directly
+    // Query the audit table directly, newest-first so the top row is
+    // always the evaluation we just made (prior tests in this file have
+    // already written to this stageRunId; Postgres doesn't guarantee
+    // insertion order on unordered selects).
     const results = await db
       .select()
       .from(schema.stageGateResult)
-      .where(eq(schema.stageGateResult.stageRunId, stageRunId));
+      .where(eq(schema.stageGateResult.stageRunId, stageRunId))
+      .orderBy(desc(schema.stageGateResult.createdAt));
 
     expect(results.length).toBeGreaterThan(0);
-    const latest = results[results.length - 1];
+    const latest = results[0];
     expect(latest.verdict).toBe('proceed');
     expect(latest.passed).toBe(true);
     expect(latest.reason).toBe('all rules passed');
