@@ -43,7 +43,8 @@ export async function updateSession(request: NextRequest) {
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    !isLanBypass(request)
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
@@ -51,4 +52,21 @@ export async function updateSession(request: NextRequest) {
   }
 
   return supabaseResponse;
+}
+
+/**
+ * Homelab-only auth bypass: when FLUXAOS_LAN_AUTH_BYPASS=1 is set AND the
+ * request comes from an allowlisted private CIDR, skip the login redirect.
+ * Default allowlist is 192.168.54.0/24 (override with FLUXAOS_LAN_AUTH_BYPASS_CIDR).
+ * Flag is unset in production; this is safe by default.
+ */
+function isLanBypass(request: NextRequest): boolean {
+  if (process.env.FLUXAOS_LAN_AUTH_BYPASS !== '1') return false;
+  const prefix = process.env.FLUXAOS_LAN_AUTH_BYPASS_CIDR ?? '192.168.54.';
+  const candidates = [
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim(),
+    request.headers.get('x-real-ip'),
+    request.headers.get('host')?.split(':')[0],
+  ].filter((v): v is string => Boolean(v));
+  return candidates.some((ip) => ip.startsWith(prefix));
 }
