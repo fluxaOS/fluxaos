@@ -6,6 +6,7 @@ import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { Feature, hasFeature } from '@/core/features/features';
+import { useCurrentUser } from '@/lib/auth/use-current-user';
 import { trpc } from '@/lib/trpc/client';
 import { skillDescriptor, type SkillRecord } from './descriptor';
 
@@ -57,7 +58,7 @@ export default function SkillsSettingsPage() {
     await utils.skill.list.invalidate();
   };
 
-  const userId = 'local-dev';
+  const { userId } = useCurrentUser();
 
   return (
     <div className="space-y-5">
