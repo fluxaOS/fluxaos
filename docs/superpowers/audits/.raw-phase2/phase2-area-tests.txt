@@ -1,0 +1,3 @@
+src/__tests__/integration/services.test.ts
+src/__tests__/integration/signal-parser.test.ts
+src/__tests__/integration/supabase-connection.test.ts
