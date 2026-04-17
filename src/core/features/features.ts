@@ -22,8 +22,10 @@ export enum Feature {
   REVISION_HISTORY = 'revision_history',
 }
 
-export function hasFeature(_userId: string, _feature: Feature): boolean {
+export function hasFeature(_userId: string | null, _feature: Feature): boolean {
   // DEF-004: wire to subscription/tier state when SaaS model exists.
-  // Today: every user has every feature.
+  // Today: every caller (signed-in or anonymous) has every feature.
+  // When real gating lands, null/anonymous callers should be treated as
+  // the most-restricted tier.
   return true;
 }
