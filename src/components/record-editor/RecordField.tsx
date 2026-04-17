@@ -81,9 +81,12 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
             {arr.length === 0 ? (
               <span className="text-sm text-slate-500">—</span>
             ) : (
-              arr.map((tag) => (
+              // Key includes index because the input doesn't dedupe — a
+              // user could type "react, react" and `key={tag}` alone would
+              // collide and produce React console warnings.
+              arr.map((tag, i) => (
                 <span
-                  key={tag}
+                  key={`${tag}-${i}`}
                   className="px-2 py-0.5 text-xs bg-electric-violet/15 text-soft-violet rounded-full"
                 >
                   {tag}
