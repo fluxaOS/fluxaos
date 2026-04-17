@@ -6,8 +6,16 @@ import { createCrudService } from './crud-factory';
 type SkillInsert = typeof skill.$inferInsert;
 type SkillSelect = typeof skill.$inferSelect;
 
-export function createSkillService(db: Database) {
-  const crud = createCrudService<SkillInsert, SkillSelect>(db, skill);
+/**
+ * The service accepts either a top-level Database handle or a transaction
+ * handle (from `db.transaction(async (tx) => ...)`). Callers that need
+ * atomicity across multiple service calls (e.g., skill.delete's FK guard
+ * + version-locked delete in `src/server/routers/skill.ts`) pass the tx.
+ */
+type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
+
+export function createSkillService(db: DbOrTx) {
+  const crud = createCrudService<SkillInsert, SkillSelect>(db as Database, skill);
 
   return {
     ...crud,
