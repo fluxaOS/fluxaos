@@ -55,18 +55,26 @@ export async function updateSession(request: NextRequest) {
 }
 
 /**
- * Homelab-only auth bypass: when FLUXAOS_LAN_AUTH_BYPASS=1 is set AND the
- * request comes from an allowlisted private CIDR, skip the login redirect.
- * Default allowlist is 192.168.54.0/24 (override with FLUXAOS_LAN_AUTH_BYPASS_CIDR).
- * Flag is unset in production; this is safe by default.
+ * Homelab-only auth bypass: when FLUXAOS_LAN_AUTH_BYPASS=1 is set, skip the
+ * /login redirect. Intended ONLY for dev servers on an isolated LAN where
+ * TCP reachability itself is the access boundary (the app is bound to a
+ * private IP behind a firewall; external clients can't open a socket at
+ * all). Do NOT set this flag in any environment reachable from the
+ * public internet.
+ *
+ * Design rationale: earlier versions of this check tried to match the
+ * client IP against a CIDR prefix using `x-forwarded-for` / `x-real-ip` /
+ * `host` headers. On our homelab setup there is no reverse proxy, so the
+ * forwarded headers are absent and `host` is the address the client
+ * dialed (client-controlled and therefore spoofable). A broken IP check
+ * is worse than no IP check — the flag itself is the access control.
+ *
+ * Flag is unset by default (including .env.example); production Vercel
+ * deployments inherit the unset default and behavior is unchanged.
+ *
+ * Unused `_request` kept for parity with updateSession's caller shape in
+ * case a future version needs per-request context.
  */
-function isLanBypass(request: NextRequest): boolean {
-  if (process.env.FLUXAOS_LAN_AUTH_BYPASS !== '1') return false;
-  const prefix = process.env.FLUXAOS_LAN_AUTH_BYPASS_CIDR ?? '192.168.54.';
-  const candidates = [
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim(),
-    request.headers.get('x-real-ip'),
-    request.headers.get('host')?.split(':')[0],
-  ].filter((v): v is string => Boolean(v));
-  return candidates.some((ip) => ip.startsWith(prefix));
+function isLanBypass(_request: NextRequest): boolean {
+  return process.env.FLUXAOS_LAN_AUTH_BYPASS === '1';
 }
