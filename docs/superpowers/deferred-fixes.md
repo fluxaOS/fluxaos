@@ -4,13 +4,10 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 
 ---
 
-## ARCH: Skill-to-orchestrator IPC protocol not defined
+## ~~ARCH: Skill-to-orchestrator IPC protocol not defined~~ — RESOLVED (R5.5)
 
 **Found:** 2026-04-13 during R5-V browser verification
-**Severity:** High — skills cannot communicate decisions (state transitions, exit status, results) back to the orchestrator
-**Context:** In PAT, skills call `pat pipeline exit --stage X --status Y --result Z` which writes to PAT's DB. The PAT manager reads those records. In fluxaOS, `pat pipeline exit` doesn't exist. The systemd daemon is the single DB writer — skills cannot write to the DB directly (race conditions, drift). Need an IPC mechanism for skills to signal completion/decisions back to the orchestrator.
-**Options discussed:** Structured stdout JSON protocol, file-based result in workspace, or a local API endpoint that only systemd listens on.
-**Blocked on:** Design session (brainstorming) to determine the right approach.
+**Resolved:** 2026-04-15 in R5.5 (PR #23, #26, #29) — `flux:signal` stdout protocol shipped. Skills emit structured JSON signals; the systemd daemon parses and applies state transitions. The orchestrator remains the single DB writer.
 
 ## ARCH: Manual-run does not auto-advance issue state (by design)
 
@@ -20,12 +17,10 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 
 ---
 
-## UI: Skill edit/delete missing
+## ~~UI: Skill edit/delete missing~~ — RESOLVED (R-UI-1)
 
 **Found:** 2026-04-13 during R5-V browser verification
-**Severity:** Medium — users can create skills but not edit or delete them
-**Location:** `src/app/[org]/[user]/[project]/settings/skills/page.tsx`
-**What's needed:** Add edit (inline or modal) and delete buttons to each skill card. Requires `skill.update` and `skill.delete` tRPC mutations.
+**Resolved:** 2026-04-16 in R-UI-1 (PR #31) — `src/app/[org]/[user]/[project]/settings/skills/page.tsx` rewritten to use `RecordEditor` primitive with Edit/Save/Cancel/Delete affordances. Skill router gained `update` (version-required optimistic lock) and `delete` (version-required + FK-safe via `countReferences`) mutations. Covered by journeys `edit-a-skill`, `delete-an-unreferenced-skill`, `delete-a-referenced-skill-fails-gracefully`.
 
 ## UI: GateResultsPanel rule details show empty dots
 
@@ -141,12 +136,10 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `src/core/features/features.ts` (`hasFeature()` today returns `true` for everything); need to add tier/subscription state on user or organization, plus tRPC middleware for backend enforcement
 **What's needed:** Open-core SaaS model — one codebase, runtime feature gating for enterprise tiers. Wire `hasFeature(user, feature)` to real subscription state on `user` or `organization`. Enforce in two layers: tRPC middleware rejects gated mutations; UI hides/disables affordances. Grandfather principle: users who were already using a feature when it becomes gated retain access (no take-away-to-monetize).
 
-## DEF-005 — Terminology glossary document
+## DEF-005 — Terminology glossary document (LIVING)
 
 **Found:** 2026-04-16 during R-UI-1 brainstorming (harness/skill naming collision)
-**Severity:** High — prevents future "we've been talking about different things for four hours" incidents
-**Location:** `docs/terminology.md` (new file; seeded as part of R-UI-1)
-**What's needed:** A single glossary covering every domain entity and concept in fluxaOS. Each entry has: **field/entity name** (exact code identifier), **description** (plain-English meaning), **example** (concrete instance). Seed terms for R-UI-1: `driver`, `skill`, `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `issue`, `issue_state`, `issue_status`, `gate`, `routing_profile`. Every future phase adds entries for new terms introduced. When a term is renamed, the old name stays in the doc as "formerly known as" for at least one milestone. Enforcement: PRs introducing new domain terms require a glossary entry in the same PR.
+**Status:** Seeded in R-UI-1 (PR #31) with 11 terms at `docs/terminology.md`: `driver`, `skill`, `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `issue`, `issue_state`, `issue_status`, `gate`, `routing_profile`. Every future phase adds entries for new domain terms. When a term is renamed, the old name stays as "formerly known as" for at least one milestone. Enforcement: PRs introducing new domain terms must include a glossary entry in the same PR. This entry stays open as a standing reminder, not a TODO.
 
 ## DEF-006 — Structured JSON editor for `jsonb` driver fields
 
