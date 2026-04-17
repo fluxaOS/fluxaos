@@ -19,7 +19,7 @@ import {
   stageRun,
   issue,
   skill,
-  harnessCatalog,
+  driver,
   persona,
   brand,
   pipeline,
@@ -52,7 +52,7 @@ export interface StageRunResult {
   exitCode: number;
   durationMs: number;
   stageName: string;
-  harnessName: string;
+  driverName: string;
   providerName: string | null;
   modelIdentifier: string | null;
   issueId: string | null;
@@ -99,25 +99,25 @@ export async function executeStageRun(
     .where(eq(pipelineStage.id, sRun.pipelineStageId));
   if (!stage) throw new Error(`Pipeline stage not found: ${sRun.pipelineStageId}`);
 
-  // Harness (required)
-  let harnessRow: typeof harnessCatalog.$inferSelect | null = null;
-  if (stage.harnessId) {
+  // Driver (required)
+  let driverRow: typeof driver.$inferSelect | null = null;
+  if (stage.driverId) {
     const [h] = await db
       .select()
-      .from(harnessCatalog)
-      .where(eq(harnessCatalog.id, stage.harnessId));
-    harnessRow = h ?? null;
+      .from(driver)
+      .where(eq(driver.id, stage.driverId));
+    driverRow = h ?? null;
   }
-  if (!harnessRow) {
+  if (!driverRow) {
     await runService.appendEvent(stageRunId, EVENT_TYPE.error, {
-      error: 'No harness configured for stage',
+      error: 'No driver configured for stage',
       stageName: stage.name,
     });
-    throw new Error(`No harness configured for stage: ${stage.name}`);
+    throw new Error(`No driver configured for stage: ${stage.name}`);
   }
 
-  if (!harnessRow.outputFormat) {
-    throw new Error(`Harness '${harnessRow.name}' has no output_format configured`);
+  if (!driverRow.outputFormat) {
+    throw new Error(`Driver '${driverRow.name}' has no output_format configured`);
   }
 
   // Skill (optional)
@@ -176,8 +176,8 @@ export async function executeStageRun(
 
   // ── Materialize + Build + Spawn ──────────────────────────────────
 
-  // Read contextLayout from harness config
-  const contextLayout = (harnessRow.contextLayout as { instructionsFile: string; contextFile: string }) ?? {
+  // Read contextLayout from driver config
+  const contextLayout = (driverRow.contextLayout as { instructionsFile: string; contextFile: string }) ?? {
     instructionsFile: 'CLAUDE.md',
     contextFile: 'context.md',
   };
@@ -209,7 +209,7 @@ export async function executeStageRun(
   try {
     // Build prompt
     const template =
-      harnessRow.issuePromptTemplate ?? '{{skill_name}}: {{issue_title}}';
+      driverRow.issuePromptTemplate ?? '{{skill_name}}: {{issue_title}}';
     const prompt = renderTemplate(template, {
       issue_number: issueRow?.number,
       issue_title: issueRow?.title ?? '',
@@ -219,7 +219,7 @@ export async function executeStageRun(
     });
 
     // Build command
-    const cmd = buildCommand(harnessRow, {
+    const cmd = buildCommand(driverRow, {
       model: routing?.modelIdentifier ?? '',
       workspacePath,
       prompt,
@@ -233,7 +233,7 @@ export async function executeStageRun(
     await runService.appendEvent(sRun.id, EVENT_TYPE.launched, {
       provider: routing?.providerName,
       model: routing?.modelIdentifier,
-      harness: harnessRow.name,
+      driver: driverRow.name,
       skill: skillRow?.name,
       attempt: sRun.attempt,
     });
@@ -247,7 +247,7 @@ export async function executeStageRun(
           stageRunId: sRun.id,
           stageName: stage.name,
           skillName: skillRow?.name,
-          harness: harnessRow.name,
+          driver: driverRow.name,
           attempt: sRun.attempt,
         },
         'stage-runner',
@@ -259,7 +259,7 @@ export async function executeStageRun(
     // Widened type so TS doesn't narrow to `never` after the null-check
     // (lastSignal is mutated inside the onStdout callback)
     let lastSignal = null as SkillSignal | null;
-    const lineParser = getParser(harnessRow.outputFormat as string);
+    const lineParser = getParser(driverRow.outputFormat as string);
 
     const result = await executor.execute({
       command: cmd.binary,
@@ -325,7 +325,7 @@ export async function executeStageRun(
       await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
         provider: routing?.providerName,
         model: routing?.modelIdentifier,
-        harness: harnessRow.name,
+        driver: driverRow.name,
         trigger: ctx.trigger,
         errorMessage: 'no skill signal emitted',
       });
@@ -355,7 +355,7 @@ export async function executeStageRun(
         exitCode: result.exitCode,
         durationMs: result.durationMs,
         stageName: stage.name,
-        harnessName: harnessRow.name,
+        driverName: driverRow.name,
         providerName: routing?.providerName ?? null,
         modelIdentifier: routing?.modelIdentifier ?? null,
         issueId: run.issueId,
@@ -379,7 +379,7 @@ export async function executeStageRun(
     await runService.completeStageRun(sRun.id, finalStatus, {
       provider: routing?.providerName,
       model: routing?.modelIdentifier,
-      harness: harnessRow.name,
+      driver: driverRow.name,
       costUsd: lastSignal.costUsd?.toFixed(6),
       tokensIn: lastSignal.tokensIn,
       tokensOut: lastSignal.tokensOut,
@@ -427,7 +427,7 @@ export async function executeStageRun(
       exitCode: result.exitCode,
       durationMs: result.durationMs,
       stageName: stage.name,
-      harnessName: harnessRow.name,
+      driverName: driverRow.name,
       providerName: routing?.providerName ?? null,
       modelIdentifier: routing?.modelIdentifier ?? null,
       issueId: run.issueId,
@@ -439,7 +439,7 @@ export async function executeStageRun(
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
-      harness: harnessRow.name,
+      driver: driverRow.name,
       trigger: ctx.trigger,
       errorMessage: err instanceof Error ? err.message : String(err),
     });

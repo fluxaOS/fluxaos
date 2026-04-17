@@ -62,7 +62,7 @@ export async function executeManualRun(
           tokens_out: 0,
           provider: result.providerName,
           model: result.modelIdentifier,
-          harness: result.harnessName,
+          driver: result.driverName,
           skill_signal: result.skillSignal,
         },
       );

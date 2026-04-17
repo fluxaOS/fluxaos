@@ -23,12 +23,14 @@ import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-servi
 import {
   buildCommand,
   renderTemplate,
-  type HarnessConfig,
+  type DriverConfig,
 } from '@/core/orchestrator/command-builder';
 import { parseLine } from '@/core/orchestrator/output-parser';
 import { materialize, cleanup } from '@/core/skills/materializer';
 import * as schema from '@/core/db/schema';
 import type { Database } from '@/core/db/connection';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import type { AnyColumn } from 'drizzle-orm';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -39,7 +41,7 @@ const db: Database = provider.getConnection();
 const RUN = Date.now();
 const cleanupList: { table: string; id: string }[] = [];
 
-const tableMap: Record<string, any> = {
+const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
   event: schema.event,
   stageGateResult: schema.stageGateResult,
   stageRun: schema.stageRun,
@@ -115,20 +117,22 @@ beforeAll(async () => {
 // ─── Command Builder ─────────────────────────────────────────────────────
 
 describe('command builder', () => {
-  const harness: HarnessConfig = {
+  const driver: DriverConfig = {
     binary: 'claude',
     defaultArgs: ['--dangerously-skip-permissions'],
     modelFlag: '--model',
     dirFlag: '--add-dir',
     sessionNameFlag: '--session-name',
     promptTransport: 'argv',
+    outputFormat: 'stream-json',
+    outputFormatFlag: '--output-format',
     issuePromptTemplate: '{{skill_name}}: {{issue_title}}',
     queuePromptTemplate: '{{issue_title}}',
     envVars: { CLAUDE_ENV: 'test' },
   };
 
-  it('builds correct command array from harness config', () => {
-    const result = buildCommand(harness, {
+  it('builds correct command array from driver config', () => {
+    const result = buildCommand(driver, {
       model: 'claude-sonnet-4-20250514',
       workspacePath: '/tmp/test-workspace',
       prompt: 'Test prompt',
@@ -196,14 +200,11 @@ describe('skill materializer', () => {
 
     expect(existsSync(workspacePath)).toBe(true);
     expect(existsSync(join(workspacePath, 'CLAUDE.md'))).toBe(true);
-    expect(existsSync(join(workspacePath, 'skills', 'research', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(workspacePath, 'context.md'))).toBe(true);
 
-    const skillContent = readFileSync(
-      join(workspacePath, 'skills', 'research', 'SKILL.md'),
-      'utf-8',
-    );
-    expect(skillContent).toBe('Research the topic thoroughly.');
+    const claudeMd = readFileSync(join(workspacePath, 'CLAUDE.md'), 'utf-8');
+    expect(claudeMd).toContain('## Skill: research');
+    expect(claudeMd).toContain('Research the topic thoroughly.');
 
     const contextContent = readFileSync(
       join(workspacePath, 'context.md'),

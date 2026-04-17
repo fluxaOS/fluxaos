@@ -14,7 +14,8 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R5-V — Pipeline Engine + Manual Execution | **Done — PR #20** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md), [cleanup-plan](superpowers/plans/2026-04-13-r5v-architectural-cleanup.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [cleanup-design](superpowers/specs/2026-04-13-r5v-architectural-cleanup-design.md) |
 | R5.5 — Skill-to-Orchestrator IPC | **Done — PR #23, #26, #29** | [r5.5-ipc-plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](superpowers/specs/2026-04-13-r5.5-ipc-protocol-design.md) |
 | R-INFRA — fh-commons Decoupling + Dev Tooling | **Done** | [r-infra-plan](superpowers/plans/2026-04-15-r-infra-implementation-plan.md) | [r-infra-design](superpowers/specs/2026-04-15-infra-decoupling-design.md) |
-| R-UI — Mockup Reconciliation | **Not started** | — | [ui-inventory](superpowers/specs/2026-04-11-ui-inventory.md) |
+| R-UI-1 — Settings CRUD + harness→driver rename | **Done** | [r-ui-1-plan](superpowers/plans/2026-04-16-r-ui-1-implementation.md) | [r-ui-1-design](superpowers/specs/2026-04-16-r-ui-1-design.md) |
+| R-UI-2 — Real-time updates | **Not started** | — | — |
 | R6 — Polish + Ship | **Not started** | — | — |
 
 ## R5.5 Verification Results (2026-04-15)
@@ -35,11 +36,9 @@ New deferred issues filed in `docs/superpowers/deferred-fixes.md`: activity feed
 
 1. ~~**Update skills to emit flux:signal**~~ — **Done (PR #29).** Hold verdicts wired, gate results written for every run.
 2. ~~**R-INFRA — Developer Tooling**~~ — **Done.** fh-commons fully decoupled, native TS DB scripts (`db:issues`, `db:runs`, `db:gates`, `db:events`), seed verification suite (`verify:seed`), standalone git hooks.
-3. **R-UI** — reconcile UI with approved mockup at `docs/planning/mockups/dashboard-mockup.html`
-   - Harness catalog management page (list/create/edit/delete harnesses)
-   - Skill edit/delete in settings
-   - Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates)
-4. **R6** — polish + ship
+3. ~~**R-UI-1** — Settings CRUD + harness→driver rename~~ — **Done.** Driver and skill settings pages with edit/delete via RecordEditor primitive, optimistic locking, FK-safe delete, terminology glossary seeded, six Playwright journeys under `@r-ui-1`.
+4. **R-UI-2** — Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates, `RealtimeProvider` adapter at `src/adapters/supabase/realtime.ts`)
+5. **R6** — polish + ship
 
 ## RCAs
 

@@ -12,6 +12,7 @@ import {
   Sparkles,
   Route,
   Server,
+  Terminal,
 } from 'lucide-react';
 
 function useBasePath() {
@@ -35,6 +36,7 @@ export function Nav() {
     { href: `${basePath}/settings`, label: 'Pipelines', exact: true, icon: Workflow },
     { href: `${basePath}/settings/personas`, label: 'Personas', icon: Users },
     { href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
+    { href: `${basePath}/settings/drivers`, label: 'Drivers', icon: Terminal },
     { href: `${basePath}/settings/routing`, label: 'Routing', icon: Route },
     { href: `${basePath}/settings/providers`, label: 'Providers', icon: Server },
   ];

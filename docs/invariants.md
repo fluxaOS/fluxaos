@@ -46,7 +46,7 @@ AI workers do NOT: know what pipeline stage they're in, know the issue's state/s
 
 2. **No provider or model name appears in application code.** The words "anthropic," "openai," "claude," "gpt" must never appear in src/ except in adapter registration (src/adapters/) and seed data. The engine references `configuredProvider`, `resolvedModel` — never a literal provider name.
 
-3. **No harness name appears in application code.** The words "claude-code," "aider," "codex" must never appear in src/ except in adapter registration and seed data.
+3. **No driver name appears in application code.** The words "claude-code," "aider," "codex" must never appear in src/ except in adapter registration and seed data. (Driver is the entity formerly known as "harness" — renamed in R-UI-1 to avoid industry-terminology collision.)
 
 4. **No hardcoded enums for user-configurable data.** Issue types, states, statuses, priorities, labels, transitions, gate rules, routing rules — all come from database tables. If a value should be configurable by the user, it lives in the database, not in code.
 
@@ -86,7 +86,7 @@ AI workers do NOT: know what pipeline stage they're in, know the issue's state/s
 
 19. **CLI must pass the same journey.** Everything the browser can do, the CLI can do. Same operations, same results, same database.
 
-20. **Provider/harness swap must not break the journey.** If you change one configuration value (swap providers or harnesses), the entire journey test must still pass.
+20. **Provider/driver swap must not break the journey.** If you change one configuration value (swap providers or drivers), the entire journey test must still pass.
 
 ## Process
 
@@ -105,7 +105,7 @@ AI workers do NOT: know what pipeline stage they're in, know the issue's state/s
 Run before claiming any work is complete:
 
 ```bash
-# Invariant 1-3: No hardcoded stage/provider/harness names in application code
+# Invariant 1-3: No hardcoded stage/provider/driver names in application code
 grep -rn '"research"\|"implement"\|"review"\|"deploy"\|"complete"\|"rework"' src/ \
   --include='*.ts' --include='*.tsx' \
   --exclude-dir=__tests__ --exclude-dir=adapters \

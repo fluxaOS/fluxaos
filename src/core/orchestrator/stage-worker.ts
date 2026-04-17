@@ -3,7 +3,7 @@
  *
  * The worker is a dumb pipe. It:
  * 1. Receives a job with routing + prompt + config
- * 2. Builds the command from the resolved harness
+ * 2. Builds the command from the resolved driver
  * 3. Calls StageExecutor.execute()
  * 4. Streams output events
  * 5. Records completion (exit code, cost, tokens)
@@ -48,10 +48,10 @@ export function createStageJobHandler(deps: StageWorkerDeps) {
     await runService.appendEvent(stageRunId, 'launched', {
       provider: routing.providerName,
       model: routing.modelIdentifier,
-      harness: routing.harness,
+      driver: routing.driver,
     });
 
-    // 2. Build execution command from harness config
+    // 2. Build execution command from driver config
     const { command, args, env } = buildCommand(routing, prompt);
 
     try {
@@ -85,7 +85,7 @@ export function createStageJobHandler(deps: StageWorkerDeps) {
       await runService.completeStageRun(stageRunId, status, {
         provider: routing.providerName,
         model: routing.modelIdentifier,
-        harness: routing.harness,
+        driver: routing.driver,
         costUsd: costUsd.toFixed(6),
         tokensIn: 0, // TODO: parse from provider output
         tokensOut: 0,
@@ -107,7 +107,7 @@ export function createStageJobHandler(deps: StageWorkerDeps) {
       await runService.completeStageRun(stageRunId, status, {
         provider: routing.providerName,
         model: routing.modelIdentifier,
-        harness: routing.harness,
+        driver: routing.driver,
       });
 
       await runService.appendEvent(stageRunId, isTimeout ? 'timed_out' : 'error', {
@@ -121,8 +121,8 @@ export function createStageJobHandler(deps: StageWorkerDeps) {
 
 /**
  * Build the execution command from routing config.
- * The harness name determines the command structure.
- * This is the ONLY place where harness names are interpreted.
+ * The driver name determines the command structure.
+ * This is the ONLY place where driver names are interpreted.
  */
 function buildCommand(
   routing: StageJobPayload['routing'],
@@ -143,11 +143,11 @@ function buildCommand(
     }
   }
 
-  // The harness is just a command name.
-  // The user configures what command each harness maps to.
-  // For now: the harness IS the command.
+  // The driver is just a command name.
+  // The user configures what command each driver maps to.
+  // For now: the driver IS the command.
   return {
-    command: routing.harness,
+    command: routing.driver,
     args: ['--prompt', prompt, '--model', routing.modelIdentifier],
     env,
   };

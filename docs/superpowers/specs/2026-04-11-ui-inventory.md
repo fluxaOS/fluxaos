@@ -99,7 +99,7 @@
 3. **Stages Timeline:** StageRunCards with:
    - Step circle (CheckCircle if done, number if pending)
    - Stage name + StatusBadge + VerdictBadge (if gate checked)
-   - Provider/Model/Harness info, Cost, Token counts
+   - Provider/Model/Driver info, Cost, Token counts
    - **Gate Approval UI** (if pending): Approve/Rework/Abort buttons
    - **Events/Transcript:** scrollable event list (timestamp, type, payload)
 
@@ -140,11 +140,26 @@
 
 ## Settings — Skills (`src/app/[org]/[user]/[project]/settings/skills/page.tsx`)
 
-**Mutations:** skill.create
+**Queries:** skill.list, skill.countReferences
+**Mutations:** skill.create, skill.update, skill.delete
 
-1. **Header:** "Skills" + "New Skill"
-2. **Create Skill Form:** Name, Tags (comma-sep), Description, Prompt Template (textarea)
-3. **Skills List:** name + version + scope badges, description, tags, "Details" expand with prompt template display
+1. **Header:** "Skills" + description
+2. **New skill form:** (collapsed by default) Name*, Scope, Description, Prompt template
+3. **RecordEditor:** list of skills; no toggle (skills have no isEnabled field)
+4. **Detail panel:** Name, Description, Tags, Prompt template, Version (readonly)
+5. **Actions:** Edit → Save / Cancel / Delete (Delete checks FK references; meaningful error on conflict)
+
+---
+
+## Settings — Drivers (`src/app/[org]/[user]/[project]/settings/drivers/page.tsx`)
+
+**Queries:** driver.list
+**Mutations:** driver.update
+
+1. **Header:** "Drivers" + description
+2. **RecordEditor:** list of drivers with isEnabled toggle per row
+3. **Detail panel (on selection):** all driver fields (name, slug, binary, modelFlag, dirFlag, promptTransport, outputFormat, probeCommand, notes, issuePromptTemplate, queuePromptTemplate, version)
+4. **Actions:** Edit → Save / Cancel (no Delete — soft-disable via toggle instead)
 
 ---
 
@@ -165,7 +180,7 @@
 1. **Header:** "Routing Profiles" + "New Profile"
 2. **Create Profile Form:** Name, Description
 3. **Profiles List:** name + default badge + description + "Rules" expand
-4. **RulesEditor:** rules table (Stage, Models, Harness, Sort, Delete), "Add Rule" form
+4. **RulesEditor:** rules table (Stage, Models, Driver, Sort, Delete), "Add Rule" form
 
 ---
 

@@ -159,7 +159,7 @@ function RulesEditor({ profileId }: { profileId: string }) {
 
   const [stageName, setStageName] = useState('');
   const [modelsPattern, setModelsPattern] = useState('');
-  const [harness, setHarness] = useState('');
+  const [driver, setDriver] = useState('');
   const [sortStrategy, setSortStrategy] = useState('quality');
 
   return (
@@ -172,7 +172,7 @@ function RulesEditor({ profileId }: { profileId: string }) {
             <tr className="text-slate-400 text-left">
               <th className="pr-3 py-1 font-medium">Stage</th>
               <th className="pr-3 py-1 font-medium">Models</th>
-              <th className="pr-3 py-1 font-medium">Harness</th>
+              <th className="pr-3 py-1 font-medium">Driver</th>
               <th className="pr-3 py-1 font-medium">Sort</th>
               <th className="pr-3 py-1 font-medium" />
             </tr>
@@ -182,7 +182,7 @@ function RulesEditor({ profileId }: { profileId: string }) {
               <tr key={r.id} className="text-slate-300">
                 <td className="pr-3 py-1">{r.stageName ?? '*'}</td>
                 <td className="pr-3 py-1">{r.allowedModelsPattern ?? '*'}</td>
-                <td className="pr-3 py-1">{r.preferredHarness ?? '-'}</td>
+                <td className="pr-3 py-1">{r.preferredDriver ?? '-'}</td>
                 <td className="pr-3 py-1">{r.sortStrategy}</td>
                 <td className="pr-3 py-1">
                   <button
@@ -207,7 +207,7 @@ function RulesEditor({ profileId }: { profileId: string }) {
               profileId,
               stageName: stageName.trim() || undefined,
               allowedModelsPattern: modelsPattern.trim() || undefined,
-              preferredHarness: harness.trim() || undefined,
+              preferredDriver: driver.trim() || undefined,
               sortStrategy,
             });
           }}
@@ -229,9 +229,9 @@ function RulesEditor({ profileId }: { profileId: string }) {
           />
           <input
             type="text"
-            value={harness}
-            onChange={(e) => setHarness(e.target.value)}
-            placeholder="Harness"
+            value={driver}
+            onChange={(e) => setDriver(e.target.value)}
+            placeholder="Driver"
             className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground w-24"
           />
           <select

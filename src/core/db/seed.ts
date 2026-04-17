@@ -23,7 +23,7 @@ import {
   issueLabel,
   issueTransition,
   configEntry,
-  harnessCatalog,
+  driver,
   skill,
   issue,
   provider,
@@ -171,11 +171,11 @@ async function seed() {
           name: stage.name,
           sortOrder: stage.sortOrder,
           gateMode: stage.gateMode,
-          harness: 'claude-code',
+          driver: 'claude-code',
           timeoutSec: 300,
           maxRetries: 1,
           gateRules: stage.gateRules,
-          // FKs set in 5d after harness + skill are seeded
+          // FKs set in 5d after driver + skill are seeded
         })
         .returning();
     }
@@ -187,9 +187,9 @@ async function seed() {
     .where(eq(pipelineStage.pipelineId, pipe.id));
   console.log(`  pipeline stages: ${allStages.length}`);
 
-  // ── 5b. Harness catalog ────────────────────────────────────────────────
-  let [claudeHarness] = await db
-    .insert(harnessCatalog)
+  // ── 5b. Driver catalog ────────────────────────────────────────────────
+  let [claudeDriver] = await db
+    .insert(driver)
     .values({
       name: 'Claude Code',
       slug: 'claude-code',
@@ -206,16 +206,16 @@ async function seed() {
       envVars: {},
       contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
     })
-    .onConflictDoNothing({ target: harnessCatalog.slug })
+    .onConflictDoNothing({ target: driver.slug })
     .returning();
 
-  if (!claudeHarness) {
-    [claudeHarness] = await db
+  if (!claudeDriver) {
+    [claudeDriver] = await db
       .select()
-      .from(harnessCatalog)
-      .where(eq(harnessCatalog.slug, 'claude-code'));
+      .from(driver)
+      .where(eq(driver.slug, 'claude-code'));
   }
-  console.log(`  harness: ${claudeHarness.name} (${claudeHarness.id})`);
+  console.log(`  driver: ${claudeDriver.name} (${claudeDriver.id})`);
 
   // ── 5c. Skills ─────────────────────────────────────────────────────────
   // Lean pipeline prompts — designed for headless --print mode in isolated workspaces.
@@ -275,19 +275,19 @@ Do not ask questions. Do not use slash commands. Do not run CLI tools beyond wha
     console.log(`  skill: ${row.name} (${row.id})`);
   }
 
-  // ── 5d. Update pipeline stages with harness + skill FKs ───────────────
+  // ── 5d. Update pipeline stages with driver + skill FKs ───────────────
   if (allStages.length > 0) {
     for (const stage of allStages) {
       const skillId = skillMap.get(stage.name) ?? null;
       await db
         .update(pipelineStage)
         .set({
-          harnessId: claudeHarness.id,
+          driverId: claudeDriver.id,
           ...(skillId ? { skillId } : {}),
         })
         .where(eq(pipelineStage.id, stage.id));
     }
-    console.log('  updated pipeline stages with harness/skill FKs');
+    console.log('  updated pipeline stages with driver/skill FKs');
   }
 
   // ── 5e. Provider + Model + Routing ─────────────────────────────────────
@@ -357,7 +357,7 @@ Do not ask questions. Do not use slash commands. Do not run CLI tools beyond wha
         .values({
           profileId: defaultProfile.id,
           stageName: null, // wildcard — matches all stages
-          preferredHarness: 'claude-code',
+          preferredDriver: 'claude-code',
           sortStrategy: 'quality',
         })
         .onConflictDoNothing();

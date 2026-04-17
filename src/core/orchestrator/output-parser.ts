@@ -1,7 +1,7 @@
 /**
- * Output Parser — converts harness stdout lines into typed transcript entries.
+ * Output Parser — converts driver stdout lines into typed transcript entries.
  *
- * The harness writes JSON events to stdout. This parser converts each line
+ * The driver writes JSON events to stdout. This parser converts each line
  * into a TranscriptEntry with a kind (text, tool_call, tool_result, result,
  * system, raw) and structured fields.
  *
@@ -32,7 +32,7 @@ export interface TranscriptEntry {
 /**
  * Parse a single stdout line into one or more TranscriptEntries.
  *
- * The harness outputs one JSON object per line. The `type` field determines
+ * The driver outputs one JSON object per line. The `type` field determines
  * the entry kind:
  * - "assistant" with content[].type="text" → text
  * - "assistant" with content[].type="tool_use" → tool_call
@@ -158,7 +158,7 @@ export function parseLine(
 
 /**
  * Parse a plain-text stdout line into a single text TranscriptEntry.
- * Used for harnesses with output_format='text'.
+ * Used for drivers with output_format='text'.
  */
 export function parseTextLine(
   line: string,
@@ -170,9 +170,9 @@ export function parseTextLine(
 }
 
 /**
- * Select the appropriate line parser based on harness output format.
+ * Select the appropriate line parser based on driver output format.
  *
- * @param outputFormat - The output_format value from harness_catalog
+ * @param outputFormat - The output_format value from driver
  * @returns A parser function with the same signature as parseLine
  */
 export function getParser(

@@ -151,9 +151,9 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
   const stages = stagesQuery.data ?? [];
 
   const skillsQuery = trpc.skill.list.useQuery();
-  const harnessQuery = trpc.harness.list.useQuery();
+  const driverQuery = trpc.driver.list.useQuery();
   const skills = skillsQuery.data ?? [];
-  const harnesses = harnessQuery.data ?? [];
+  const drivers = driverQuery.data ?? [];
 
   const createStage = trpc.pipeline.stages.create.useMutation({
     onSuccess: () => {
@@ -166,7 +166,7 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
   const [newGateMode, setNewGateMode] = useState<string>('auto');
   const [newGateRules, setNewGateRules] = useState<RuleGroup | null>(null);
   const [newSkillId, setNewSkillId] = useState('');
-  const [newHarnessId, setNewHarnessId] = useState('');
+  const [newDriverId, setNewDriverId] = useState('');
 
   return (
     <div className="mt-3 pt-3 border-t border-slate-700/20 space-y-2">
@@ -180,7 +180,7 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
               <th className="pr-3 py-1 font-medium">Name</th>
               <th className="pr-3 py-1 font-medium">Gate</th>
               <th className="pr-3 py-1 font-medium">Skill</th>
-              <th className="pr-3 py-1 font-medium">Harness</th>
+              <th className="pr-3 py-1 font-medium">Driver</th>
               <th className="pr-3 py-1 font-medium">Timeout</th>
               <th className="pr-3 py-1 font-medium">Retries</th>
             </tr>
@@ -192,7 +192,7 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
                 <td className="pr-3 py-1 capitalize">{s.name}</td>
                 <td className="pr-3 py-1">{s.gateMode}</td>
                 <td className="pr-3 py-1">{skills.find((sk: typeof skills[number]) => sk.id === s.skillId)?.name ?? '—'}</td>
-                <td className="pr-3 py-1">{harnesses.find((h: typeof harnesses[number]) => h.id === s.harnessId)?.name ?? '—'}</td>
+                <td className="pr-3 py-1">{drivers.find((d: typeof drivers[number]) => d.id === s.driverId)?.name ?? '—'}</td>
                 <td className="pr-3 py-1">{s.timeoutSec}s</td>
                 <td className="pr-3 py-1">{s.maxRetries}</td>
               </tr>
@@ -214,7 +214,7 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
                 gateMode: newGateMode,
                 gateRules: newGateMode === 'rules' ? newGateRules : undefined,
                 skillId: newSkillId || undefined,
-                harnessId: newHarnessId || undefined,
+                driverId: newDriverId || undefined,
               });
             }}
             className="flex gap-2 items-end"
@@ -246,13 +246,13 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
               ))}
             </select>
             <select
-              value={newHarnessId}
-              onChange={(e) => setNewHarnessId(e.target.value)}
+              value={newDriverId}
+              onChange={(e) => setNewDriverId(e.target.value)}
               className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
             >
-              <option value="">No harness</option>
-              {harnesses.map((h: typeof harnesses[number]) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
+              <option value="">No driver</option>
+              {drivers.map((d: typeof drivers[number]) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
             <button

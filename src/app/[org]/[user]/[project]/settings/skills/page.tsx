@@ -1,198 +1,149 @@
+// src/app/[org]/[user]/[project]/settings/skills/page.tsx
 'use client';
 
 import { useState } from 'react';
-import { EmptyState } from '@/components/empty-state';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
+import { RecordEditor } from '@/components/record-editor/RecordEditor';
+import { Feature, hasFeature } from '@/core/features/features';
 import { trpc } from '@/lib/trpc/client';
+import { skillDescriptor, type SkillRecord } from './descriptor';
 
-export default function SkillSettingsPage() {
+export default function SkillsSettingsPage() {
+  const utils = trpc.useUtils();
+  const listQuery = trpc.skill.list.useQuery();
+  const updateMutation = trpc.skill.update.useMutation();
+  const deleteMutation = trpc.skill.delete.useMutation();
+  const createMutation = trpc.skill.create.useMutation();
+
+  const records = (listQuery.data ?? []) as unknown as SkillRecord[];
+
   const [showCreate, setShowCreate] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newScope, setNewScope] = useState<'global' | 'project'>('global');
+  const [newDescription, setNewDescription] = useState('');
+  const [newPrompt, setNewPrompt] = useState('');
 
-  const skillsQuery = trpc.skill.list.useQuery();
-  const skills = skillsQuery.data ?? [];
+  const onSave = async (
+    id: string,
+    patch: Partial<SkillRecord>,
+    expectedVersion: number,
+  ) => {
+    await updateMutation.mutateAsync({
+      id,
+      version: expectedVersion,
+      ...(patch as Record<string, unknown>),
+    });
+    await utils.skill.list.invalidate();
+  };
+
+  const onDelete = async (id: string, expectedVersion: number) => {
+    // Router enforces optimistic lock on delete as well — pass the version.
+    await deleteMutation.mutateAsync({ id, version: expectedVersion });
+    await utils.skill.list.invalidate();
+  };
+
+  const onCreate = async () => {
+    await createMutation.mutateAsync({
+      scope: newScope,
+      name: newName,
+      description: newDescription || undefined,
+      promptTemplate: newPrompt || undefined,
+    });
+    setNewName('');
+    setNewDescription('');
+    setNewPrompt('');
+    setShowCreate(false);
+    await utils.skill.list.invalidate();
+  };
+
+  const userId = 'local-dev';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Skills"
-        action={
-          <button
-            type="button"
-            onClick={() => setShowCreate(!showCreate)}
-            className="px-4 py-2 bg-electric-violet hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
-          >
-            {showCreate ? 'Cancel' : 'New Skill'}
-          </button>
-        }
+        description="Job definitions (research, implement, review, etc.) with their prompt templates."
       />
 
-      {showCreate && (
-        <CreateSkillForm
-          onCreated={() => {
-            setShowCreate(false);
-            skillsQuery.refetch();
-          }}
-        />
-      )}
-
-      {skills.length === 0 ? (
-        <EmptyState title="No skills configured" />
-      ) : (
-        <div className="space-y-3">
-          {skills.map((s) => (
-            <div
-              key={s.id}
-              className="card-static p-4"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">{s.name}</span>
-                  <span className="ml-2 text-xs text-slate-400">
-                    v{s.version} &middot; {s.scope}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedId(expandedId === s.id ? null : s.id)
-                  }
-                  className="text-xs text-slate-400 hover:text-slate-300"
-                >
-                  {expandedId === s.id ? 'Close' : 'Details'}
-                </button>
-              </div>
-              {s.description && (
-                <p className="text-xs text-slate-400 mt-1">{s.description}</p>
-              )}
-              {s.tags != null && Array.isArray(s.tags) && (
-                <div className="flex gap-1 mt-1">
-                  {(s.tags as string[]).map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-1.5 py-0.5 bg-white/[0.04] rounded text-xs text-slate-400"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {expandedId === s.id && (
-                <div className="mt-3 pt-3 border-t border-slate-700/20">
-                  {s.promptTemplate != null && (
-                    <div>
-                      <span className="text-xs text-slate-400">
-                        Prompt Template:
-                      </span>
-                      <pre className="text-xs text-slate-400 mt-1 bg-background rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-48">
-                        {String(s.promptTemplate)}
-                      </pre>
-                    </div>
-                  )}
-                  {s.inputSchema != null && (
-                    <div className="mt-2">
-                      <span className="text-xs text-slate-400">Input Schema:</span>
-                      <pre className="text-xs text-slate-400 mt-1 bg-background rounded p-2 overflow-x-auto">
-                        {JSON.stringify(s.inputSchema, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CreateSkillForm({ onCreated }: { onCreated: () => void }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [promptTemplate, setPromptTemplate] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
-
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId },
-  );
-  const projectId = projectsQuery.data?.[0]?.id;
-
-  const createMutation = trpc.skill.create.useMutation({
-    onSuccess: () => onCreated(),
-  });
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        const tags = tagsInput
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-        createMutation.mutate({
-          scope: 'project',
-          name: name.trim(),
-          description: description.trim() || undefined,
-          promptTemplate: promptTemplate.trim() || undefined,
-          tags: tags.length > 0 ? tags : undefined,
-          projectId,
-        });
-      }}
-      className="card-static p-4 space-y-3"
-    >
-      <div className="flex gap-3">
-        <label className="flex-1">
-          <span className="text-xs text-slate-400">Name</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-          />
-        </label>
-        <label className="flex-1">
-          <span className="text-xs text-slate-400">Tags (comma-separated)</span>
-          <input
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            placeholder="coding, review, docs"
-            className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-          />
-        </label>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all"
+          onClick={() => setShowCreate((v) => !v)}
+        >
+          {showCreate ? 'Cancel new skill' : 'New skill'}
+        </button>
       </div>
-      <label>
-        <span className="text-xs text-slate-400">Description</span>
-        <input
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-        />
-      </label>
-      <label>
-        <span className="text-xs text-slate-400">Prompt Template</span>
-        <textarea
-          value={promptTemplate}
-          onChange={(e) => setPromptTemplate(e.target.value)}
-          rows={5}
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground mt-1 font-mono resize-none"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={!name.trim() || createMutation.isPending}
-        className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
-      >
-        {createMutation.isPending ? 'Creating...' : 'Create'}
-      </button>
-    </form>
+
+      {showCreate ? (
+        <Card padding="p-6">
+          <h3 className="text-sm font-semibold text-white mb-3">New skill</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">Scope</label>
+              <select
+                className="bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newScope}
+                onChange={(e) => setNewScope(e.target.value as 'global' | 'project')}
+              >
+                <option value="global">global</option>
+                <option value="project">project</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">Description</label>
+              <textarea
+                rows={3}
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">Prompt template</label>
+              <textarea
+                rows={8}
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"
+                value={newPrompt}
+                onChange={(e) => setNewPrompt(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
+              disabled={!newName.trim()}
+              onClick={onCreate}
+            >
+              Create
+            </button>
+          </div>
+        </Card>
+      ) : null}
+
+      <RecordEditor<SkillRecord>
+        descriptor={skillDescriptor}
+        records={records}
+        isLoading={listQuery.isLoading}
+        onSave={onSave}
+        onDelete={onDelete}
+        onRefresh={async () => {
+          await utils.skill.list.invalidate();
+        }}
+        // DEF-002 role gates — today always true (see features.ts)
+        canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
+        canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
+      />
+    </div>
   );
 }

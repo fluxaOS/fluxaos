@@ -11,7 +11,7 @@ import {
   issueStatus,
   pipelineStage,
   skill,
-  harnessCatalog,
+  driver,
 } from '@/core/db/schema';
 
 let failures = 0;
@@ -73,9 +73,9 @@ async function main() {
   const skills = await db.select().from(skill);
   assert(skills.length === 5, `5 skills (got ${skills.length})`);
 
-  // --- Harnesses ---
-  const harnesses = await db.select().from(harnessCatalog);
-  assert(harnesses.length === 1, `1 harness (got ${harnesses.length})`);
+  // --- Drivers ---
+  const drivers = await db.select().from(driver);
+  assert(drivers.length === 1, `1 driver (got ${drivers.length})`);
 
   // --- Summary ---
   console.log('');

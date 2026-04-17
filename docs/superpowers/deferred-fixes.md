@@ -4,13 +4,10 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 
 ---
 
-## ARCH: Skill-to-orchestrator IPC protocol not defined
+## ~~ARCH: Skill-to-orchestrator IPC protocol not defined~~ — RESOLVED (R5.5)
 
 **Found:** 2026-04-13 during R5-V browser verification
-**Severity:** High — skills cannot communicate decisions (state transitions, exit status, results) back to the orchestrator
-**Context:** In PAT, skills call `pat pipeline exit --stage X --status Y --result Z` which writes to PAT's DB. The PAT manager reads those records. In fluxaOS, `pat pipeline exit` doesn't exist. The systemd daemon is the single DB writer — skills cannot write to the DB directly (race conditions, drift). Need an IPC mechanism for skills to signal completion/decisions back to the orchestrator.
-**Options discussed:** Structured stdout JSON protocol, file-based result in workspace, or a local API endpoint that only systemd listens on.
-**Blocked on:** Design session (brainstorming) to determine the right approach.
+**Resolved:** 2026-04-15 in R5.5 (PR #23, #26, #29) — `flux:signal` stdout protocol shipped. Skills emit structured JSON signals; the systemd daemon parses and applies state transitions. The orchestrator remains the single DB writer.
 
 ## ARCH: Manual-run does not auto-advance issue state (by design)
 
@@ -20,12 +17,10 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 
 ---
 
-## UI: Skill edit/delete missing
+## ~~UI: Skill edit/delete missing~~ — RESOLVED (R-UI-1)
 
 **Found:** 2026-04-13 during R5-V browser verification
-**Severity:** Medium — users can create skills but not edit or delete them
-**Location:** `src/app/[org]/[user]/[project]/settings/skills/page.tsx`
-**What's needed:** Add edit (inline or modal) and delete buttons to each skill card. Requires `skill.update` and `skill.delete` tRPC mutations.
+**Resolved:** 2026-04-16 in R-UI-1 (PR #31) — `src/app/[org]/[user]/[project]/settings/skills/page.tsx` rewritten to use `RecordEditor` primitive with Edit/Save/Cancel/Delete affordances. Skill router gained `update` (version-required optimistic lock) and `delete` (version-required + FK-safe via `countReferences`) mutations. Covered by journeys `edit-a-skill`, `delete-an-unreferenced-skill`, `delete-a-referenced-skill-fails-gracefully`.
 
 ## UI: GateResultsPanel rule details show empty dots
 
@@ -112,3 +107,52 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Low (event-orchestrator not used in manual execution path)
 **Location:** Need `src/adapters/supabase/realtime.ts` implementing `RealtimeProvider` port
 **What's needed:** Wrap Supabase Realtime client to implement `subscribeToTable()` from `src/core/ports/realtime.ts`
+
+## DEF-001 — Feature: Openclaw-style preview gate (blur-until-viewed)
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** Low — privacy/demo affordance, not a GTM blocker
+**Location:** `RecordEditor` accepts a `previewGate` prop today (no-op default); wire real implementation when an auth/visibility model exists
+**What's needed:** When displaying sensitive record content (prompt templates, system prompts), render blurred by default with a "Preview" button that unblurs. Click "Editor" to switch to edit-in-place mode with unblurred content. Pattern reference: openclaw Agents settings page.
+
+## DEF-002 — Feature: Role-based edit/delete permissions for skills and drivers
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** Medium — needed before beta, not blocking in-team dev
+**Location:** `src/server/routers/skill.ts` and `src/server/routers/driver.ts` delete mutations; `canEdit`/`canDelete` props on `RecordEditor` (currently return `true`); `hasFeature(user, Feature.ROLE_BASED_PERMISSIONS)` gate point in `src/core/features/features.ts`
+**What's needed:** Gate hard-delete and edit behind a role check (e.g., `admin` or `maintainer`). Non-privileged users see a soft-delete ("archive") option instead, or are blocked entirely. Requires auth role model — currently every user is effectively admin.
+
+## DEF-003 — Feature: Version history and revert for skills and drivers
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** Medium — not a GTM blocker for beta, but a planned feature (Portainer Enterprise-style versioning)
+**Location:** Would add `skill_revision` and `driver_revision` tables (additive, no changes to existing tables). `RecordEditor` has `onEditSnapshot` prop hook that fires on every edit enter — wire it to a snapshot mutation when this ships.
+**What's needed:** On every edit save, snapshot the full row to a revision table with author + timestamp + monotonic `revision_number`. UI lists past revisions and allows revert (writes a new revision that restores the snapshotted fields). The existing `version` int continues to serve as the optimistic-concurrency lock; `revision_number` is the semantic history counter.
+
+## DEF-004 — Feature: Subscription tier model + runtime feature gating
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming
+**Severity:** High — GTM blocker for SaaS monetization
+**Location:** `src/core/features/features.ts` (`hasFeature()` today returns `true` for everything); need to add tier/subscription state on user or organization, plus tRPC middleware for backend enforcement
+**What's needed:** Open-core SaaS model — one codebase, runtime feature gating for enterprise tiers. Wire `hasFeature(user, feature)` to real subscription state on `user` or `organization`. Enforce in two layers: tRPC middleware rejects gated mutations; UI hides/disables affordances. Grandfather principle: users who were already using a feature when it becomes gated retain access (no take-away-to-monetize).
+
+## DEF-005 — Terminology glossary document (LIVING)
+
+**Found:** 2026-04-16 during R-UI-1 brainstorming (harness/skill naming collision)
+**Status:** Seeded in R-UI-1 (PR #31) with 11 terms at `docs/terminology.md`: `driver`, `skill`, `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `issue`, `issue_state`, `issue_status`, `gate`, `routing_profile`. Every future phase adds entries for new domain terms. When a term is renamed, the old name stays as "formerly known as" for at least one milestone. Enforcement: PRs introducing new domain terms must include a glossary entry in the same PR. This entry stays open as a standing reminder, not a TODO.
+
+## DEF-006 — Structured JSON editor for `jsonb` driver fields
+
+**Found:** 2026-04-16 during R-UI-1 design audit
+**Severity:** Medium — readonly in MVP limits driver reconfigurability for JSON-valued fields
+**Location:** `RecordEditor` + `driverDescriptor` — `defaultArgs`, `envVars`, `extraArgs`, `contextLayout` are currently rendered as `readonly` (display-only) because they're `jsonb` columns
+**What's needed:** A structured JSON editor field type — Monaco with JSON schema validation, or a form-builder keyed off each field's implied shape. Until this exists, changing those fields requires direct DB edits via `db:studio`. The R-UI-1 UI exposes them as readonly so users can see their contents; editing is a deferred upgrade.
+
+## DEF-007 — Canonical source for git hooks (track + install script)
+
+**Found:** 2026-04-16 during R-UI-1 Session A (rename phase)
+**Severity:** Medium — hooks are per-clone and drift silently across contributors
+**Location:** Today hooks live only in `.git/hooks/` (untracked). No canonical source in the repo.
+**What's needed:** Move canonical pre-commit / pre-push scripts into a tracked directory (e.g., `scripts/hooks/`) with a `scripts/install-hooks.sh` that copies them into `.git/hooks/`. Document in `CLAUDE.md`. The R-UI-1 Session A rename added a size-exemption list for `src/core/db/schema.ts` that only exists in the local clone — other contributors pulling this branch will still hit the 500-line check until they re-run the (currently nonexistent) install script.
+
+**Local-clone exemptions added in Session B (Task 5 prep commit):** beyond `src/core/db/schema.ts`, the local pre-commit hook now also exempts `src/__tests__/integration/orchestrator.test.ts` (550 lines) and `src/core/db/seed.ts` (587 lines). These two are DEF-008 candidates — split later if a clean seam emerges. Until DEF-007 ships an install script, fresh clones must re-add these exemptions manually.

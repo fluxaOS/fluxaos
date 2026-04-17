@@ -55,7 +55,7 @@ export interface CreatePipelineStageInput {
   name: string;
   sortOrder: number;
   personaId?: string;
-  harness?: string;
+  driver?: string;
   timeoutSec?: number;
   maxRetries?: number;
   gateMode?: string;
@@ -65,7 +65,7 @@ export interface CreatePipelineStageInput {
 export interface StageRunMetadata {
   provider?: string;
   model?: string;
-  harness?: string;
+  driver?: string;
   costUsd?: string;
   tokensIn?: number;
   tokensOut?: number;

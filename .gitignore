@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+reports/
 
 # next.js
 /.next/
@@ -50,3 +51,8 @@ next-env.d.ts
 .paul
 .trash
 worktrees/
+.superpowers/
+
+# Playwright
+/playwright-report
+/test-results

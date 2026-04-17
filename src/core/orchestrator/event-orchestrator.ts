@@ -3,7 +3,7 @@
  *
  * Subscribes to Realtime for pipeline_run and stage_run changes.
  * Reads all config from DB. Writes all state via PipelineRunService.
- * The harness never touches the database.
+ * The driver never touches the database.
  *
  * State machine:
  *   pipeline_run created → read first stage → create stage_run
@@ -198,7 +198,7 @@ export function createEventOrchestrator(
           tokens_out: 0,
           provider: result.providerName,
           model: result.modelIdentifier,
-          harness: result.harnessName,
+          driver: result.driverName,
           skill_signal: result.skillSignal,
         },
       );

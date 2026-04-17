@@ -104,7 +104,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
     const parsed: TranscriptEntry[] = [];
     for (const line of rawLines) {
       if (line.type === EVENT_TYPE.output) {
-        // Try JSON parsing first (streaming harness output)
+        // Try JSON parsing first (streaming driver output)
         const results = parseLine(line.content, line.lineNumber);
         // If parseLine only produced raw entries, promote to text for readability
         const promoted = results.map((entry) =>

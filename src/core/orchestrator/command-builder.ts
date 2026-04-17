@@ -1,14 +1,14 @@
 /**
- * Command Builder — assembles CLI commands from harness_catalog entries.
+ * Command Builder — assembles CLI commands from driver entries.
  *
- * Reads a harness catalog entry and builds the full command array + env.
+ * Reads a driver catalog entry and builds the full command array + env.
  * No hardcoded flags, paths, or arguments. Everything from the DB record.
  *
- * Zero vendor imports. Zero domain concepts beyond "harness config → command."
+ * Zero vendor imports. Zero domain concepts beyond "driver config → command."
  */
 
-/** Harness config shape — matches harness_catalog table columns. */
-export interface HarnessConfig {
+/** Driver config shape — matches driver table columns. */
+export interface DriverConfig {
   binary: string;
   defaultArgs: string[] | unknown;
   modelFlag: string | null;
@@ -64,59 +64,59 @@ export function renderTemplate(
 }
 
 /**
- * Build a CLI command from a harness_catalog entry and execution options.
+ * Build a CLI command from a driver entry and execution options.
  *
  * Follows PAT's build_tool_interactive_command pattern:
  * binary + defaultArgs + modelFlag + dirFlag + sessionNameFlag + '--' + prompt
  */
 export function buildCommand(
-  harness: HarnessConfig,
+  driver: DriverConfig,
   options: CommandOptions,
 ): BuiltCommand {
   const args: string[] = [];
 
-  // 1. Default args from harness config
-  const defaultArgs = Array.isArray(harness.defaultArgs)
-    ? (harness.defaultArgs as string[])
+  // 1. Default args from driver config
+  const defaultArgs = Array.isArray(driver.defaultArgs)
+    ? (driver.defaultArgs as string[])
     : [];
   args.push(...defaultArgs);
 
   // 2. Output format flag
-  if (harness.outputFormatFlag && harness.outputFormat) {
-    args.push(harness.outputFormatFlag, harness.outputFormat);
+  if (driver.outputFormatFlag && driver.outputFormat) {
+    args.push(driver.outputFormatFlag, driver.outputFormat);
   }
 
   // 3. Model flag + resolved model
-  if (harness.modelFlag && options.model) {
-    args.push(harness.modelFlag, options.model);
+  if (driver.modelFlag && options.model) {
+    args.push(driver.modelFlag, options.model);
   }
 
   // 4. Session name flag
-  if (harness.sessionNameFlag && options.sessionName) {
-    args.push(harness.sessionNameFlag, options.sessionName);
+  if (driver.sessionNameFlag && options.sessionName) {
+    args.push(driver.sessionNameFlag, options.sessionName);
   }
 
   // 5. Dir flag + workspace path
-  if (harness.dirFlag && options.workspacePath) {
-    args.push(harness.dirFlag, options.workspacePath);
+  if (driver.dirFlag && options.workspacePath) {
+    args.push(driver.dirFlag, options.workspacePath);
   }
 
   // 6. Additional directories
-  if (harness.dirFlag && options.additionalDirs) {
+  if (driver.dirFlag && options.additionalDirs) {
     for (const dir of options.additionalDirs) {
-      args.push(harness.dirFlag, dir);
+      args.push(driver.dirFlag, dir);
     }
   }
 
-  // 7. Env vars from harness config
+  // 7. Env vars from driver config
   const env: Record<string, string> =
-    harness.envVars && typeof harness.envVars === 'object' && !Array.isArray(harness.envVars)
-      ? { ...(harness.envVars as Record<string, string>) }
+    driver.envVars && typeof driver.envVars === 'object' && !Array.isArray(driver.envVars)
+      ? { ...(driver.envVars as Record<string, string>) }
       : {};
 
   // 8. Handle prompt based on transport
   let stdin: string | undefined;
-  const transport = harness.promptTransport || 'argv';
+  const transport = driver.promptTransport || 'argv';
 
   if (transport === 'argv') {
     // PAT pattern: '--' separator then positional prompt
@@ -124,12 +124,12 @@ export function buildCommand(
   } else if (transport === 'stdin') {
     stdin = options.prompt;
   } else if (transport === 'flag') {
-    // promptFlag not in current harness_catalog but reserved for future
+    // promptFlag not in current driver but reserved for future
     args.push('--prompt', options.prompt);
   }
 
   return {
-    binary: harness.binary,
+    binary: driver.binary,
     args,
     env,
     stdin,

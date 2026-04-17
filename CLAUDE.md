@@ -1,6 +1,6 @@
 # fluxaOS
 
-AI orchestration OS — a config-driven engine that runs pipelines of AI-powered stages against issues. The engine is agnostic: it never knows stage names, provider names, or harness names. It reads config from the database and executes whatever the user configured.
+AI orchestration OS — a config-driven engine that runs pipelines of AI-powered stages against issues. The engine is agnostic: it never knows stage names, provider names, or driver names. It reads config from the database and executes whatever the user configured.
 
 > **New session?** Read [Session Quick-Start](docs/session-quick-start.md) first — conventions, gotchas, and database access rules.
 
@@ -44,7 +44,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 ## Key Principles
 
-- **Agnostic engine** — no stage/provider/harness/enum literals in app code (seed data and adapters only)
+- **Agnostic engine** — no stage/provider/driver/enum literals in app code (seed data and adapters only)
 - **Config-driven** — fail fast on missing config, no silent defaults
 - **DI everywhere** — services are factories receiving `Database`, zero vendor imports in `src/core/`
 - **Orchestrator vs Workers** — systemd daemon manages pipeline state; AI workers are read-only executors that report via comments

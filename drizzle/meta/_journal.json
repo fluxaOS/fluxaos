@@ -22,6 +22,13 @@
       "when": 1776083056945,
       "tag": "0003_ipc_signal_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776377142687,
+      "tag": "0004_harness_to_driver",
+      "breakpoints": true
     }
   ]
 }
