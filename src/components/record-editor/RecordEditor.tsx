@@ -99,7 +99,16 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
     setFieldErrors({});
     setState({ kind: 'saving' });
     try {
-      await onSave(selected.id, draft, selected.version);
+      // Strip id and version from the patch: id is passed separately as
+      // the target, version is the optimistic-lock token (handed in as
+      // expectedVersion). Leaving them in the patch would rely on the
+      // server-side Zod schema silently stripping unknown keys, which is
+      // an invisible correctness dependency — make it explicit here.
+      const { id: _draftId, version: _draftVersion, ...patch } =
+        draft as Partial<TRecord> & { id?: string; version?: number };
+      void _draftId;
+      void _draftVersion;
+      await onSave(selected.id, patch as Partial<TRecord>, selected.version);
       setDraft({});
       setState({ kind: 'viewing' });
       setBanner(null);
