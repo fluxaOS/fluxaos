@@ -1,0 +1,11 @@
+src/adapters/subprocess/executor.ts
+src/adapters/supabase/auth.ts
+src/adapters/supabase/database.ts
+src/config/bootstrap.ts
+src/config/registry.ts
+src/lib/resolve-context.ts
+src/lib/supabase/client.ts
+src/lib/supabase/server.ts
+src/lib/trpc/client.ts
+src/lib/trpc/provider.tsx
+src/proxy.ts

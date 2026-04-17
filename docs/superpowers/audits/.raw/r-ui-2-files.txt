@@ -1,0 +1,13 @@
+src/__tests__/integration/orchestrator.test.ts
+src/__tests__/integration/realtime-adapter.test.ts
+src/adapters/bullmq/queue.ts
+src/adapters/supabase/realtime.ts
+src/adapters/supabase/server-client.ts
+src/app/[org]/[user]/[project]/layout.tsx
+src/components/pipeline/LiveOutput.tsx
+src/components/pipeline/RunDetailModal.tsx
+src/core/ports/queue.ts
+src/core/ports/realtime.ts
+src/lib/realtime/context.tsx
+src/lib/realtime/use-now.ts
+src/lib/realtime/use-realtime.ts
