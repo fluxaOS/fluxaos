@@ -32,11 +32,6 @@ export default function PipelinesPage() {
   const basePath = useBasePath();
   const { projectId, isLoading: projectLoading } = useProjectId();
 
-  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
-    { projectId: projectId! },
-    { enabled: !!projectId },
-  );
-
   const runsQuery = trpc.pipeline.runs.listByProject.useQuery(
     { projectId: projectId! },
     { enabled: !!projectId },
