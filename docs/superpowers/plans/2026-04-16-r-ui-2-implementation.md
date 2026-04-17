@@ -37,7 +37,7 @@
 | `e2e/activity-feed-auto-refreshes.spec.ts` | Playwright: issue events surface without reload. |
 | `e2e/cancel-running-stage.spec.ts` | Playwright: cancel transitions stage and pipeline. |
 | `e2e/orchestrator-recovers-after-restart.spec.ts` | Playwright: orchestrator restart reconciles orphans. |
-| `e2e/bullmq-requeues-on-worker-crash.spec.ts` | Playwright: BullMQ redelivers job on worker SIGKILL. |
+| `e2e/bullmq-requeues-on-worker-restart.spec.ts` | Playwright: BullMQ redelivers job on graceful worker restart (lockDuration-safe). |
 
 ### Modified files (EDIT ONLY)
 
@@ -175,23 +175,53 @@ git commit -m "feat(queue): return QueueWorker from process() for clean shutdown
 
 - [ ] **Step 1: Create the test**
 
+**IMPORTANT — v3 correction:** `event.stageRunId` is `NOT NULL` per `schema.ts:158`. The test MUST create a real `stage_run` FK first. Use the existing seed (1 pipeline, 4 stages) and create a `pipeline_run` + `stage_run` row to hang events off.
+
 ```typescript
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { createSupabaseRealtimeAdapter } from '@/adapters/supabase/realtime';
 import { getDatabase } from '@/core/db/connection';
-import { event } from '@/core/db/schema';
+import { event, pipelineRun, stageRun, pipelineStage, pipeline } from '@/core/db/schema';
 import type { RealtimeProvider } from '@/core/ports/realtime';
+import { eq } from 'drizzle-orm';
 
 describe('Supabase Realtime adapter (integration)', () => {
   let adapter: RealtimeProvider;
+  let testStageRunId: string;
+  let testPipelineRunId: string;
   const db = getDatabase();
 
-  beforeAll(() => {
+  beforeAll(async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (!url || !key) throw new Error('Supabase env missing');
     adapter = createSupabaseRealtimeAdapter(createClient(url, key));
+
+    // Create a real pipeline_run + stage_run to satisfy event.stageRunId FK.
+    const [pipe] = await db.select().from(pipeline).limit(1);
+    if (!pipe) throw new Error('Seed missing: no pipeline');
+    const [stage] = await db.select().from(pipelineStage).where(eq(pipelineStage.pipelineId, pipe.id)).limit(1);
+    if (!stage) throw new Error('Seed missing: no pipeline_stage');
+
+    const [run] = await db
+      .insert(pipelineRun)
+      .values({ pipelineId: pipe.id, status: 'pending' })
+      .returning();
+    testPipelineRunId = run.id;
+
+    const [sr] = await db
+      .insert(stageRun)
+      .values({ pipelineRunId: run.id, pipelineStageId: stage.id, status: 'queued' })
+      .returning();
+    testStageRunId = sr.id;
+  });
+
+  afterAll(async () => {
+    // Clean up in reverse FK order.
+    await db.delete(event).where(eq(event.stageRunId, testStageRunId));
+    await db.delete(stageRun).where(eq(stageRun.id, testStageRunId));
+    await db.delete(pipelineRun).where(eq(pipelineRun.id, testPipelineRunId));
   });
 
   it('delivers INSERT payloads via subscribeToTable (unfiltered)', async () => {
@@ -206,7 +236,7 @@ describe('Supabase Realtime adapter (integration)', () => {
 
     const [inserted] = await db
       .insert(event)
-      .values({ stageRunId: null, type: 'test', payload: { marker: 'unfiltered' } })
+      .values({ stageRunId: testStageRunId, type: 'test', payload: { marker: 'unfiltered' } })
       .returning();
 
     const deadline = Date.now() + 3000;
@@ -219,8 +249,6 @@ describe('Supabase Realtime adapter (integration)', () => {
 
   it('respects filter — only delivers matching rows', async () => {
     const received: Array<{ id: string }> = [];
-    // Insert a sentinel row first so we have a specific stage_run_id to filter on.
-    // (In practice, filter on type to avoid needing a real stage_run FK.)
     const unsub = adapter.subscribeToTable<typeof event.$inferSelect>(
       'test-filtered',
       'event',
@@ -230,9 +258,9 @@ describe('Supabase Realtime adapter (integration)', () => {
     );
     await new Promise((r) => setTimeout(r, 1500));
 
-    await db.insert(event).values({ stageRunId: null, type: 'test-filter-miss', payload: {} });
+    await db.insert(event).values({ stageRunId: testStageRunId, type: 'test-filter-miss', payload: {} });
     const [matched] = await db.insert(event).values({
-      stageRunId: null, type: 'test-filter-match', payload: {},
+      stageRunId: testStageRunId, type: 'test-filter-match', payload: {},
     }).returning();
 
     const deadline = Date.now() + 3000;
@@ -256,7 +284,7 @@ describe('Supabase Realtime adapter (integration)', () => {
     unsub();
     await new Promise((r) => setTimeout(r, 300));
     const before = received.length;
-    await db.insert(event).values({ stageRunId: null, type: 'test', payload: {} });
+    await db.insert(event).values({ stageRunId: testStageRunId, type: 'test', payload: {} });
     await new Promise((r) => setTimeout(r, 1000));
     expect(received.length).toBe(before);
   });
@@ -401,11 +429,16 @@ Expected: 4 entries with `idx` 0, 1, 2, 3. Last `tag` = `0004_harness_to_driver`
 
 - [ ] **Step 2: Write the SQL migration**
 
+This migration does TWO things (v3 update): (1) enables Supabase Realtime publication on the four tables the UI and orchestrator subscribe to, and (2) adds a partial unique index enforcing exactly-once gate evaluation per stage_run. Both are DDL-only, no schema change. Together in one migration because they're both infrastructure-reliability concerns for R-UI-2.
+
 ```sql
 -- drizzle/0005_realtime_publication.sql
--- Explicitly enable Supabase Realtime on the tables the UI and orchestrator
--- subscribe to. Idempotent; safe on fresh DB where publication auto-includes.
+-- Two DDL changes:
+--   (1) enable Supabase Realtime on event, stage_run, pipeline_run, issue_event
+--   (2) partial unique index for exactly-once gate-eval idempotency
+-- Both idempotent; safe on fresh DB and on re-apply.
 
+-- ─── (1) Realtime publication ──────────────────────────────────────────────
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
@@ -421,6 +454,16 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN NULL; END;
   END IF;
 END $$;
+
+-- ─── (2) Gate-eval idempotency index ──────────────────────────────────────
+-- Partial unique index on event(stage_run_id) WHERE type='gate_checked'.
+-- Ensures exactly-once terminal-state handling across orchestrator instances
+-- and across restarts. The INSERT of a second gate_checked event will fail
+-- with unique_violation (SQLSTATE 23505), which handleStageTerminalStatus
+-- catches and treats as "another instance handled this."
+CREATE UNIQUE INDEX IF NOT EXISTS event_gate_checked_per_stage_run
+  ON event (stage_run_id)
+  WHERE type = 'gate_checked';
 ```
 
 - [ ] **Step 3: Append journal entry**
@@ -625,36 +668,60 @@ git commit -m "feat(realtime): useNow hook for live-duration re-renders"
 
 ---
 
-### Task 9: Mount RealtimeContextProvider at App Router root
+### Task 9: Mount RealtimeContextProvider inside project-scoped layout
+
+**NOT the root layout.** `src/app/layout.tsx` is a pure Server Component (exports `metadata`). The tRPC client provider lives at `src/app/[org]/[user]/[project]/layout.tsx` — a Client Component wrapper (`TRPCProvider`). `RealtimeContextProvider` must be mounted there, inside `TRPCProvider`, so (a) both providers are in a client-component boundary, and (b) realtime is scoped to authenticated project pages (pages outside that tree don't need it).
 
 **Files:**
-- Modify: `src/app/layout.tsx`
+- Modify: `src/app/[org]/[user]/[project]/layout.tsx`
 
-- [ ] **Step 1: Read current layout**
+- [ ] **Step 1: Read current project-scoped layout**
 
 ```bash
-cat src/app/layout.tsx
+cat "src/app/[org]/[user]/[project]/layout.tsx"
 ```
 
-- [ ] **Step 2: Add the provider**
+Expected shape (pre-edit):
 
-Import:
+```tsx
+import { TRPCProvider } from '@/lib/trpc/provider';
+// ... other imports ...
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <TRPCProvider>
+      {/* ... existing children render ... */}
+      {children}
+      {/* ... */}
+    </TRPCProvider>
+  );
+}
+```
+
+- [ ] **Step 2: Add the RealtimeContextProvider import and wrap children**
+
+Add:
+
 ```typescript
 import { RealtimeContextProvider } from '@/lib/realtime/context';
 ```
 
-Wrap the existing children render (inside tRPC provider, outside UI chrome):
+Wrap `{children}` INSIDE `TRPCProvider`:
+
 ```tsx
-<RealtimeContextProvider>
-  {children}
-</RealtimeContextProvider>
+<TRPCProvider>
+  <RealtimeContextProvider>
+    {children}
+  </RealtimeContextProvider>
+</TRPCProvider>
 ```
 
-- [ ] **Step 3: Verify app still renders**
+If there are other client-side wrappers between `TRPCProvider` and `{children}` (theme, layout chrome, etc.), place `RealtimeContextProvider` immediately wrapping `{children}` — its position doesn't matter for correctness, as long as it's somewhere between `TRPCProvider` and `{children}`.
+
+- [ ] **Step 3: Verify**
 
 ```bash
-# Check the layout file compiles; dev server smoke test is Task 24+
-npx tsc --noEmit 2>&1 | grep "layout.tsx" | head -5
+npx tsc --noEmit 2>&1 | grep "\[org\]/\[user\]/\[project\]/layout.tsx" | head -5
 ```
 
 Expected: no errors.
@@ -662,8 +729,8 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/app/layout.tsx
-git commit -m "feat(realtime): mount RealtimeContextProvider at App Router root"
+git add "src/app/[org]/[user]/[project]/layout.tsx"
+git commit -m "feat(realtime): mount RealtimeContextProvider inside TRPCProvider at project-scoped layout"
 ```
 
 ---
@@ -691,7 +758,9 @@ import { createClient } from '@/lib/supabase/client';
 Add:
 ```typescript
 import { useRealtime } from '@/lib/realtime/use-realtime';
-import type { event } from '@/core/db/schema';
+// Value import — `event` is a Drizzle table constant, not a type.
+// We use it as `typeof event.$inferSelect` below; `import type` would erase it.
+import { event } from '@/core/db/schema';
 ```
 
 - [ ] **Step 3: Replace subscription block**
@@ -772,7 +841,8 @@ Add:
 ```typescript
 import { useRealtime } from '@/lib/realtime/use-realtime';
 import { useNow } from '@/lib/realtime/use-now';
-import type { stageRun } from '@/core/db/schema';
+// Value import — `stageRun` is a Drizzle table constant, not a type.
+import { stageRun } from '@/core/db/schema';
 ```
 
 - [ ] **Step 3: Replace subscription block**
@@ -875,7 +945,8 @@ grep -n "activity-item\|eventsQuery\|events\.map" "src/app/[org]/[user]/[project
 ```typescript
 import { useEffect } from 'react';  // if not already imported
 import { useRealtime } from '@/lib/realtime/use-realtime';
-import type { issueEvent } from '@/core/db/schema';
+// Value import — `issueEvent` is a Drizzle table constant, not a type.
+import { issueEvent } from '@/core/db/schema';
 ```
 
 - [ ] **Step 3: Add subscription after eventsQuery**
@@ -932,23 +1003,81 @@ git commit -m "feat(issue-detail): subscribe to issue_event INSERTs; add activit
 **Files:**
 - Modify: `src/components/pipeline/GateResultsPanel.tsx`
 
-- [ ] **Step 1: Locate bad accessors**
+**Verified data shape (v3 update):** the stored `ruleResults` JSON is an array of `RuleResult` — see `src/core/gates/types.ts:87`: `{ rule: Rule, passed: boolean, ... }`. The `Rule` object carries `field`, `operator`, `value`, `expected`, `label`. So a result row at `ruleResults[i]` has shape `{ rule: { field, operator, value, label }, passed, actual, ... }`. The current component (lines 30-37) declares a flat type `{ field?, operator?, expected?, passed?, label? }` and reads `rule.field` / `rule.operator` / `rule.expected` — this is BROKEN because it reads from the `RuleResult`, not its nested `rule`. That's why the dots render empty in prod. The fix: update both the TypeScript cast AND the accessors.
+
+- [ ] **Step 1: Read the current file**
 
 ```bash
-grep -n "\.field\|\.operator\|\.value" src/components/pipeline/GateResultsPanel.tsx
+cat src/components/pipeline/GateResultsPanel.tsx
 ```
 
-- [ ] **Step 2: For each match in a `ruleResults` iteration context**, change `r.field` → `r.rule.field`, `r.operator` → `r.rule.operator`, `r.value` → `r.rule.value`. Do NOT change accessors on unrelated variables.
+Note the cast at line 30-37 and the accessors at lines 62-66.
 
-- [ ] **Step 3: Visual verification**
+- [ ] **Step 2: Update the TypeScript cast**
 
-Trigger a pipeline run with gate rules (the seed data includes one). Open run detail modal, click Gates tab, confirm per-rule lines show `field operator value` text rather than empty dots.
+Replace the flat cast:
 
-- [ ] **Step 4: Commit**
+```typescript
+const ruleResults = (g.ruleResults ?? []) as Array<{
+  field?: string;
+  operator?: string;
+  expected?: unknown;
+  actual?: unknown;
+  passed?: boolean;
+  label?: string;
+}>;
+```
+
+with the nested cast matching the actual RuleResult shape:
+
+```typescript
+const ruleResults = (g.ruleResults ?? []) as Array<{
+  rule: {
+    field?: string;
+    operator?: string;
+    value?: unknown;
+    label?: string;
+  };
+  passed?: boolean;
+  actual?: unknown;
+}>;
+```
+
+- [ ] **Step 3: Update accessors at lines ~62-66**
+
+Change:
+
+```tsx
+<span className="font-mono">
+  {rule.field} {rule.operator} {String(rule.expected ?? '')}
+</span>
+{rule.label && (
+  <span className="text-slate-500">&mdash; {rule.label}</span>
+)}
+```
+
+to:
+
+```tsx
+<span className="font-mono">
+  {rule.rule.field} {rule.rule.operator} {String(rule.rule.value ?? '')}
+</span>
+{rule.rule.label && (
+  <span className="text-slate-500">&mdash; {rule.rule.label}</span>
+)}
+```
+
+Note: the original code used `expected` but the `Rule` type has `value`. Use `value`.
+
+- [ ] **Step 4: Visual verification**
+
+Trigger a pipeline run that produces gate results (seed includes a gate). Open run detail modal → Gates tab → confirm each rule row shows `field operator value` text with optional label, instead of empty dots.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/components/pipeline/GateResultsPanel.tsx
-git commit -m "fix(gate-results): read rule.field/operator/value from nested rule object"
+git commit -m "fix(gate-results): read rule.field/operator/value from nested RuleResult shape"
 ```
 
 ---
@@ -988,13 +1117,28 @@ git commit -m "refactor(orchestrator): StageJobPayload reduced to { stageRunId, 
 **Files:**
 - Modify: `src/core/orchestrator/pipeline-run-service.ts`
 
+**v3 design note:** Idempotency for gate-evaluation is enforced by a partial unique index on `event(stage_run_id) WHERE type = 'gate_checked'` (added by the migration in Task 5). `hasGateBeenEvaluated` is a cheap pre-flight check; the index is the real atomicity guarantee. `handleStageTerminalStatus` (Task 17) wraps the `appendEvent(gate_checked, ...)` in try/catch — on unique-violation, treat as "already handled" and return cleanly.
+
 - [ ] **Step 1: Read current service**
 
 ```bash
 grep -n "^export\|^  async function\|^  function\|return {" src/core/orchestrator/pipeline-run-service.ts | head -40
+grep -n "^import" src/core/orchestrator/pipeline-run-service.ts | head -10
 ```
 
-- [ ] **Step 2: Add four helper methods**
+Note the existing Drizzle imports — likely `{ eq, and, asc, sql }`. You will need to add `or`.
+
+- [ ] **Step 2: Add `or` to the Drizzle import**
+
+Edit the existing import line:
+
+```typescript
+import { eq, and, or, asc, sql } from 'drizzle-orm';
+```
+
+(Keep whatever else is in the existing list — just add `or`.)
+
+- [ ] **Step 3: Add four helper methods**
 
 Add the following methods (adapt to the service's factory style — see existing methods like `getRun`, `appendEvent` for the pattern):
 
@@ -1021,43 +1165,12 @@ async function getStage(stageId: string) {
   return row ?? null;
 }
 
-// Idempotency claim for terminal-state handling.
-// Returns true if this instance successfully claimed the stage_run for
-// post-execution work (gate eval + verdict application). False means another
-// instance already claimed it.
-//
-// Uses a conditional UPDATE: only transitions if status is still the terminal
-// status the caller observed. Zero rows affected = already claimed.
-async function tryClaimStageForTerminalHandling(
-  stageRunId: string,
-  observedStatus: 'completed' | 'failed' | 'timed_out',
-): Promise<boolean> {
-  const result = await db
-    .update(stageRun)
-    .set({ /* no-op update, but conditional */ updatedAt: new Date() })
-    .where(and(
-      eq(stageRun.id, stageRunId),
-      eq(stageRun.status, observedStatus),
-      // Use a claim marker — add a `terminalHandled` flag? OR simpler:
-      // use a dedicated status 'gate_evaluating' only we write to,
-      // transitioning back to the observed status when done.
-      // For v2 of this plan: use an IN-MEMORY Set<stageRunId> as fallback
-      // AND a DB claim via UPSERT on an event row of type 'terminal_claim'.
-    ))
-    .returning({ id: stageRun.id });
-  return result.length > 0;
-}
-```
-
-**Note on `tryClaimStageForTerminalHandling`:** the cleanest implementation requires either (a) a dedicated claim-marker column on `stage_run` (schema change, not desired in R-UI-2), or (b) using an event-insert with a UNIQUE constraint as the claim mechanism. For R-UI-2, use (b): attempt to `INSERT INTO event (stage_run_id, type, payload) VALUES (..., 'terminal_claim', {...})` with a partial unique index on `(stage_run_id)` where `type = 'terminal_claim'`. The unique-violation is the signal that another instance already claimed.
-
-However, adding a unique index is also a schema change. The pragmatic compromise: use an in-memory `Set<stageRunId>` on the orchestrator instance for single-instance idempotency (covers the common case — one orchestrator), AND check `stage_run.updatedAt` timestamps in `handleStageTerminalStatus` to detect "someone already processed this within the last N seconds." The check is: "if the stage has a subsequent `gate_checked` event, it's been handled — skip."
-
-**Actual minimal implementation** (use this, not the pseudocode above):
-
-```typescript
-// Checks if a gate_checked event already exists for this stage_run.
-// Used as an idempotency guard in handleStageTerminalStatus.
+// Cheap pre-flight check — is there already a gate_checked event for this
+// stage_run? Used by handleStageTerminalStatus to avoid an unnecessary gate
+// evaluation + insert round-trip. The REAL idempotency guarantee is the
+// partial unique index on event(stage_run_id) WHERE type='gate_checked'
+// (see migration 0005). The insert will throw on race; the caller must
+// handle that in try/catch.
 async function hasGateBeenEvaluated(stageRunId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: event.id })
@@ -1068,9 +1181,7 @@ async function hasGateBeenEvaluated(stageRunId: string): Promise<boolean> {
 }
 ```
 
-Replace `tryClaimStageForTerminalHandling` in this task with `hasGateBeenEvaluated`. The orchestrator checks this BEFORE evaluating the gate; if true, skip. This is effectively a DB-backed idempotency guard without schema change.
-
-- [ ] **Step 3: Export new methods**
+- [ ] **Step 4: Export new methods**
 
 Add to the returned service object:
 
@@ -1086,7 +1197,7 @@ return {
 
 Update the exported `PipelineRunService` type to include the new method signatures.
 
-- [ ] **Step 4: Typecheck + commit**
+- [ ] **Step 5: Typecheck + commit**
 
 ```bash
 npx tsc --noEmit 2>&1 | grep "pipeline-run-service"
@@ -1159,6 +1270,71 @@ npx tsc --noEmit 2>&1 | grep "stage-worker" | head -10
 ```bash
 git add src/core/orchestrator/stage-worker.ts
 git commit -m "refactor(stage-worker): call executeStageRun; remove duplicated execution logic"
+```
+
+---
+
+### Task 16b: Add re-entry guard to executeStageRun (v3 CRITICAL)
+
+**Files:**
+- Modify: `src/core/orchestrator/stage-runner.ts`
+
+**Why:** BullMQ with `attempts: 3` may redeliver the same stageRunId on worker crash. Today `executeStageRun` has no guard — it re-marks the row `running`, re-materializes workspace, re-spawns subprocess. This produces duplicate `launched`/`completed` events and corrupts audit trail on any redelivery.
+
+Fix: at the top of `executeStageRun`, after loading `sRun`, check status. If not `queued` or `launching`, return a zero-duration empty result and log.
+
+- [ ] **Step 1: Read current stage-runner**
+
+```bash
+grep -n "const \[sRun\]\|stageRun.status\|STAGE_RUN_STATUS" src/core/orchestrator/stage-runner.ts | head -10
+```
+
+Current loading block is at lines ~90-94 (per earlier exploration).
+
+- [ ] **Step 2: Add the guard**
+
+Immediately after the `const [sRun] = ...; if (!sRun) throw ...` block at line ~90-94, insert:
+
+```typescript
+// v3 re-entry guard. BullMQ redelivery (attempts: 3) can invoke executeStageRun
+// multiple times on the same stageRunId. Only fresh jobs (queued/launching)
+// may proceed; anything else is a stale redelivery — return cleanly as no-op.
+if (
+  sRun.status !== STAGE_RUN_STATUS.queued &&
+  sRun.status !== STAGE_RUN_STATUS.launching
+) {
+  console.log(
+    `[stage-runner] skipping stale redelivery for ${stageRunId} (status=${sRun.status})`,
+  );
+  return {
+    exitCode: 0,
+    durationMs: 0,
+    stageName: '',
+    driverName: '',
+    providerName: null,
+    modelIdentifier: null,
+    issueId: null,
+    stageId: sRun.pipelineStageId,
+    skillSignal: null,
+    skillSignalReason: null,
+    skillMetadata: null,
+  };
+}
+```
+
+- [ ] **Step 3: Typecheck**
+
+```bash
+npx tsc --noEmit 2>&1 | grep "stage-runner" | head -10
+```
+
+Expected: clean.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/core/orchestrator/stage-runner.ts
+git commit -m "feat(stage-runner): re-entry guard for BullMQ redelivery (v3 crash-safety)"
 ```
 
 ---
@@ -1246,16 +1422,16 @@ unsubscribeStageCompletion?.();
 unsubscribeStageCompletion = null;
 ```
 
-- [ ] **Step 4: Implement handleStageTerminalStatus with idempotency guard**
+- [ ] **Step 4: Implement handleStageTerminalStatus with two-layer idempotency guard**
+
+**v3 update:** cross-instance safety is enforced by the partial unique index on `event(stage_run_id) WHERE type='gate_checked'` (added in Task 5 migration). `hasGateBeenEvaluated` is a CHEAP pre-flight; the index is the atomicity guarantee. The `appendEvent(gate_checked, ...)` INSERT is wrapped in try/catch — unique-violation means another instance won the race, so return cleanly.
 
 ```typescript
 async function handleStageTerminalStatus(
   sr: typeof stageRun.$inferSelect,
 ): Promise<void> {
-  // Idempotency: skip if gate already evaluated (cross-instance safe).
-  if (await runService.hasGateBeenEvaluated(sr.id)) {
-    return;
-  }
+  // Layer 1: cheap pre-flight. Avoid gate eval if already done.
+  if (await runService.hasGateBeenEvaluated(sr.id)) return;
 
   // Cancelled stages do not advance.
   if (sr.status === STAGE_RUN_STATUS.cancelled) return;
@@ -1265,7 +1441,9 @@ async function handleStageTerminalStatus(
   if (!stage || !run) return;
 
   if (sr.status === STAGE_RUN_STATUS.completed) {
-    // Gate evaluation
+    // Gate evaluation (safe to call multiple times — evaluateStageGate is a pure
+    // read of current DB state + writes a stage_gate_result row. The race is
+    // specifically around the 'gate_checked' event insert below.)
     const gateResult = await gateService.evaluateStageGate(stage.id, sr.id, {
       exit_code: sr.exitCode ?? 0,
       cost_usd: Number(sr.costUsd ?? 0),
@@ -1277,18 +1455,27 @@ async function handleStageTerminalStatus(
       skill_signal: sr.skillSignal ?? null,
     });
 
-    await runService.appendEvent(sr.id, EVENT_TYPE.gate_checked, {
-      verdict: gateResult.verdict,
-      passed: gateResult.passed,
-      reason: gateResult.reason,
-    });
+    // Layer 2: atomic claim. Partial unique index on event(stage_run_id)
+    // WHERE type='gate_checked' enforces exactly-once. Unique-violation means
+    // another instance beat us to it — return cleanly without applying verdict.
+    try {
+      await runService.appendEvent(sr.id, EVENT_TYPE.gate_checked, {
+        verdict: gateResult.verdict,
+        passed: gateResult.passed,
+        reason: gateResult.reason,
+      });
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === '23505') {
+        // Postgres unique_violation. Another instance handled this stage.
+        console.log(`[orchestrator] stage_run ${sr.id}: terminal-handling claimed elsewhere`);
+        return;
+      }
+      throw err;
+    }
 
-    // skillSignalReason is NOT a column on stage_run — only exists as a
-    // return value from executeStageRun (which this handler doesn't have
-    // access to). For the Realtime-driven path, we read the signal_reason
-    // from the most recent 'completed'-type event's payload, if present.
-    const skillSignalReason = await getSkillSignalReason(sr.id); // helper; see note below
-
+    // If we got here, this instance won the claim. Proceed to verdict.
+    const skillSignalReason = await getSkillSignalReason(sr.id);
     const effectiveVerdict = sr.skillSignal ?? gateResult.verdict;
     await applyVerdict(
       run,
@@ -1299,7 +1486,29 @@ async function handleStageTerminalStatus(
       sr.skillMetadata as Record<string, unknown> | undefined,
     );
   } else {
-    // failed / timed_out → retry budget check via existing handleStageFailed
+    // failed / timed_out → retry budget check via existing handleStageFailed.
+    // Note: handleStageFailed also needs idempotency. For v3 R-UI-2 we rely on
+    // the same pre-flight + the fact that handleStageFailed's primary write is
+    // a new stage_run creation (which is not idempotent, but the hasGateBeenEvaluated
+    // check at the top of this function provides the same guard because a
+    // failed stage_run reaching handleStageFailed also writes a 'gate_checked'
+    // event via this path's first run).
+    //
+    // If handleStageFailed does NOT write a gate_checked event, add a manual
+    // idempotency write here: appendEvent(sr.id, EVENT_TYPE.gate_checked, ...)
+    // with a synthetic payload indicating "failure — retry logic only."
+    try {
+      await runService.appendEvent(sr.id, EVENT_TYPE.gate_checked, {
+        verdict: 'failed-path',
+        passed: false,
+        reason: `stage ${sr.status}`,
+      });
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === '23505') return;
+      throw err;
+    }
+
     await handleStageFailed(run, stage, sr);
   }
 }
@@ -1394,13 +1603,24 @@ async function recoverOnStartup(): Promise<void> {
     const attempt = sr.attempt ?? 1;
 
     if (attempt < maxRetries + 1) {
-      console.log(`[orchestrator] stage_run ${sr.id}: requeuing (attempt ${attempt + 1})`);
+      // v3 fix: use a fresh jobId to avoid BullMQ deduplication against the
+      // prior (now in failed set) job with id=sr.id. BullMQ's Queue.add()
+      // treats jobId as a dedup key — re-adding the same jobId is silently
+      // rejected if the job exists in ANY state, including the failed set.
+      // A recovery-scoped jobId guarantees a brand-new entry is created.
+      const recoveryJobId = `${sr.id}-recovery-${Date.now()}`;
+      console.log(`[orchestrator] stage_run ${sr.id}: requeuing as ${recoveryJobId} (attempt ${attempt + 1})`);
       await queue.enqueue<StageJobPayload>(
         'stage-runs',
-        sr.id,
+        recoveryJobId,
         { stageRunId: sr.id, attempt: attempt + 1 },
         { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
       );
+      // Bump stage_run.attempt on the row so downstream observers see the new count.
+      await db
+        .update(stageRun)
+        .set({ attempt: attempt + 1, updatedAt: new Date() })
+        .where(eq(stageRun.id, sr.id));
     } else {
       console.log(`[orchestrator] stage_run ${sr.id}: retry budget exhausted`);
       await runService.completeStageRun(sr.id, STAGE_RUN_STATUS.failed, {});
@@ -1679,7 +1899,11 @@ set -euo pipefail
 
 REPO_PATH="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_PATH="${FLUXAOS_ENV_PATH:-${REPO_PATH}/.env}"
-UNIT_DIR="${HOME}/.config/systemd/user"
+# Install target parameterized via env var. Defaults to user-level systemd
+# for dev; override with FLUXAOS_SYSTEMD_DIR=/etc/systemd/system for GTM.
+# The $HOME reference here is install-time only; application code never
+# touches $HOME (per D2 in the spec).
+UNIT_DIR="${FLUXAOS_SYSTEMD_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user}"
 
 mkdir -p "${UNIT_DIR}"
 
@@ -1786,7 +2010,12 @@ curl -s -o /dev/null -w "%{http_code}\n" http://192.168.54.101:3003/default/admi
 # Expected: 200
 ```
 
-Leave running for all of Phase 4. Kill after Phase 4 + Phase 5 complete.
+**Dev-server lifecycle (v3 update):** Leave running for all of Phase 4 (journeys 24-28). **Kill before Phase 5 Task 29** — the vitest rewrite runs `nuke.ts && npm run db:seed`, which will drop rows the dev server's tRPC queries had cached. Kill the dev server BEFORE the nuke; if Phase 5 needs a re-run of any journey, restart the dev server manually at that point.
+
+```bash
+# After Phase 4 completes, before Phase 5 Task 29 starts:
+kill $DEV_PID 2>/dev/null; wait $DEV_PID 2>/dev/null
+```
 
 - [ ] **Step 1: Write journey**
 
@@ -1915,20 +2144,55 @@ git commit -m "test(e2e): @r-ui-2 orchestrator-recovers-after-restart (systemctl
 
 ---
 
-### Task 28: Journey — bullmq-requeues-on-worker-crash
+### Task 28: Journey — bullmq-requeues-on-worker-restart
+
+**v3 change:** Renamed from `bullmq-requeues-on-worker-crash`. The test uses `systemctl --user restart` (graceful shutdown) NOT `kill -SIGKILL` (unclean). Reason: SIGKILL leaves the BullMQ job lock held until `lockDuration` expires (5 min); a test with <60s window would time out. Graceful restart closes the BullMQ worker cleanly, returning the lock immediately for redelivery. This exercises the COMMON-CASE restart scenario, which is what exit criterion 8 actually tests. The SIGKILL+lock-expiry path remains a manual-testing exercise only.
 
 **Files:**
-- Create: `e2e/bullmq-requeues-on-worker-crash.spec.ts`
+- Create: `e2e/bullmq-requeues-on-worker-restart.spec.ts`
 
 Same DBUS guard as Task 27.
 
-- [ ] **Step 1: Write the journey** (per v1 plan Task 26 shape, with the DBUS skip guard copied from Task 27)
+- [ ] **Step 1: Write the journey**
+
+```typescript
+import { test, expect } from './helpers/setup';
+import { execSync } from 'node:child_process';
+
+const hasSystemdUser = (() => {
+  try {
+    execSync('systemctl --user is-active fluxaos-stage-worker', { encoding: 'utf8', stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+test.describe('@r-ui-2 BullMQ redelivers on worker restart', () => {
+  test.skip(!hasSystemdUser, 'systemctl --user unavailable — run from interactive shell on homelab');
+
+  test('graceful worker restart mid-run → stage completes via BullMQ redelivery', async ({ page }) => {
+    await page.goto('/default/admin/fluxaos/issues/1');
+    await page.getByRole('button', { name: /run stage/i }).click();
+    await expect(page.getByText(/running/i)).toBeVisible({ timeout: 15000 });
+
+    // Graceful restart — the worker's SIGTERM handler closes BullMQ cleanly,
+    // which returns the job lock to the queue. Restart=always brings it back
+    // within RestartSec (2s). The new worker picks up the un-ack'd job.
+    execSync('systemctl --user restart fluxaos-stage-worker');
+
+    // Stage completes within 60s (typical test stage runs in well under this).
+    await expect(page.getByText(/completed/i)).toBeVisible({ timeout: 60000 });
+  });
+});
+```
 
 - [ ] **Step 2: Run + commit**
 
 ```bash
-git add e2e/bullmq-requeues-on-worker-crash.spec.ts
-git commit -m "test(e2e): @r-ui-2 bullmq-requeues-on-worker-crash (systemctl-gated)"
+PLAYWRIGHT_BASE_URL=http://192.168.54.101:3003 npx playwright test e2e/bullmq-requeues-on-worker-restart.spec.ts --reporter=list
+git add e2e/bullmq-requeues-on-worker-restart.spec.ts
+git commit -m "test(e2e): @r-ui-2 bullmq-requeues-on-worker-restart (graceful, lockDuration-safe)"
 ```
 
 ---
@@ -2113,7 +2377,7 @@ systemctl --user status fluxaos-orchestrator fluxaos-stage-worker  # both active
 2. Duration ticks up every second during the run.
 3. Open same issue in tab 2. Add comment in tab 1. Tab 2's activity feed updates without reload.
 4. Trigger another run. Click Cancel Run during execution. Stage + pipeline transition to Cancelled. Restart orchestrator: cancelled stage does NOT re-launch.
-5. While a run is active, `systemctl --user kill -s SIGKILL fluxaos-stage-worker`. Wait. The stage eventually completes (BullMQ redelivered via attempts: 3 after Restart=always revived the worker).
+5. While a run is active, `systemctl --user restart fluxaos-stage-worker` (graceful). Within seconds the revived worker picks up the un-ack'd BullMQ job and the stage completes. Also test the uncommon SIGKILL path manually (not automated — 5-minute `lockDuration` wait is impractical for CI): `systemctl --user kill -s SIGKILL fluxaos-stage-worker; sleep 310` → stage eventually completes via lock-expiry redelivery.
 6. Run detail → Gates tab → per-rule dots show field/operator/value text.
 
 If any step misbehaves, do NOT merge. Fix and re-verify.
