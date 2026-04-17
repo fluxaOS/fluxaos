@@ -15,6 +15,7 @@ import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 
 type WithIdColumn = { id: PgColumn };
 type WithVersionColumn = { version: PgColumn };
+type WithUpdatedAtColumn = { updatedAt: PgColumn };
 
 export interface CrudService<TInsert, TSelect> {
   list(): Promise<TSelect[]>;
@@ -36,7 +37,7 @@ export interface VersionedCrudService<TInsert, TSelect>
 
 export function createCrudService<TInsert, TSelect>(
   db: Database,
-  table: PgTable & WithIdColumn,
+  table: PgTable & WithIdColumn & WithUpdatedAtColumn,
 ): CrudService<TInsert, TSelect> {
   return {
     async list(): Promise<TSelect[]> {
@@ -76,7 +77,7 @@ export function createCrudService<TInsert, TSelect>(
 
 export function createVersionedCrudService<TInsert, TSelect>(
   db: Database,
-  table: PgTable & WithIdColumn & WithVersionColumn,
+  table: PgTable & WithIdColumn & WithVersionColumn & WithUpdatedAtColumn,
 ): VersionedCrudService<TInsert, TSelect> {
   const base = createCrudService<TInsert, TSelect>(db, table);
 
