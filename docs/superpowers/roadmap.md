@@ -15,7 +15,7 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 | R5.5 — Skill-to-Orchestrator IPC | **Done — PR #23, #26, #29** | [r5.5-ipc-plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](superpowers/specs/2026-04-13-r5.5-ipc-protocol-design.md) |
 | R-INFRA — fh-commons Decoupling + Dev Tooling | **Done** | [r-infra-plan](superpowers/plans/2026-04-15-r-infra-implementation-plan.md) | [r-infra-design](superpowers/specs/2026-04-15-infra-decoupling-design.md) |
 | R-UI-1 — Settings CRUD + harness→driver rename | **Done** | [r-ui-1-plan](superpowers/plans/2026-04-16-r-ui-1-implementation.md) | [r-ui-1-design](superpowers/specs/2026-04-16-r-ui-1-design.md) |
-| R-UI-2 — Real-time updates | **Not started** | — | — |
+| R-UI-2 — Real-time updates | **Plan ready** | [r-ui-2-plan](superpowers/plans/2026-04-16-r-ui-2-implementation.md) | [r-ui-2-design](superpowers/specs/2026-04-16-r-ui-2-design.md) |
 | R6 — Polish + Ship | **Not started** | — | — |
 
 ## R5.5 Verification Results (2026-04-15)
@@ -37,7 +37,7 @@ New deferred issues filed in `docs/superpowers/deferred-fixes.md`: activity feed
 1. ~~**Update skills to emit flux:signal**~~ — **Done (PR #29).** Hold verdicts wired, gate results written for every run.
 2. ~~**R-INFRA — Developer Tooling**~~ — **Done.** fh-commons fully decoupled, native TS DB scripts (`db:issues`, `db:runs`, `db:gates`, `db:events`), seed verification suite (`verify:seed`), standalone git hooks.
 3. ~~**R-UI-1** — Settings CRUD + harness→driver rename~~ — **Done.** Driver and skill settings pages with edit/delete via RecordEditor primitive, optimistic locking, FK-safe delete, terminology glossary seeded, six Playwright journeys under `@r-ui-1`.
-4. **R-UI-2** — Real-time updates (LiveOutput streaming, activity feed auto-refresh, duration updates, `RealtimeProvider` adapter at `src/adapters/supabase/realtime.ts`)
+4. **R-UI-2** — Real-time updates — **Plan ready, not executed.** Spec + implementation plan complete and survived two rounds of DA review (33 findings addressed across v2 + v3). 32 tasks across 7 phases: `RealtimeProvider` adapter, client-side port migration, activity feed + duration tick, orchestrator + stage-worker as user-level systemd services, BullMQ-backed dispatch (Celery-equivalent durability), `recoverOnStartup` replacement, crash-recovery journey tests. Next session executes via `superpowers:subagent-driven-development`.
 5. **R6** — polish + ship
 
 ## RCAs
