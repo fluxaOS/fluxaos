@@ -14,11 +14,15 @@ test.describe('@r-ui-1 @settings @concurrency', () => {
     const b = await ctxB.newPage();
 
     try {
-      // Both tabs load the list fully
+      // Both tabs load the list fully. Use a deterministic signal (seeded
+      // skill name visible) rather than waitForLoadState('networkidle'):
+      // networkidle will never fire once Supabase Realtime (R-UI-2) opens
+      // a persistent WebSocket subscription, so switching now avoids a
+      // latent 60s-timeout bug.
       await gotoSettings(a, 'skills');
-      await a.waitForLoadState('networkidle');
+      await expect(a.getByText('research', { exact: true }).first()).toBeVisible();
       await gotoSettings(b, 'skills');
-      await b.waitForLoadState('networkidle');
+      await expect(b.getByText('research', { exact: true }).first()).toBeVisible();
 
       // Both tabs select the same record, wait for the detail panel to render,
       // then click Edit. Waiting on the Edit button (not arbitrary timing)
@@ -44,11 +48,15 @@ test.describe('@r-ui-1 @settings @concurrency', () => {
       await expect(aDesc).toBeEditable();
       await expect(bDesc).toBeEditable();
 
-      // Tab A saves first
+      // Tab A saves first. Wait for the save to fully settle by checking
+      // (a) the state machine returned to viewing (Edit button visible)
+      // and (b) the saved value is reflected in the detail view.
+      // Deterministic — avoids waitForLoadState('networkidle') which
+      // won't fire once Realtime opens a persistent WebSocket.
       await aDesc.fill('A-change');
       await a.getByRole('button', { name: 'Save' }).click();
       await expect(a.getByRole('button', { name: 'Edit' })).toBeVisible();
-      await a.waitForLoadState('networkidle');
+      await expect(a.getByText('A-change')).toBeVisible();
 
       // Tab B saves second — expect a conflict
       await bDesc.fill('B-change');
