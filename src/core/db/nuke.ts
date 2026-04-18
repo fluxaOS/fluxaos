@@ -23,9 +23,6 @@ const db = provider.getConnection();
 const tables = [
   'issue_event',
   'issue_comment',
-  'issue_attachment',
-  'issue_dependency',
-  'issue_saved_view',
   'issue_branch',
   'issue_pull_request',
   'issue_commit',

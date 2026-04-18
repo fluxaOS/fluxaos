@@ -29,6 +29,13 @@
       "when": 1776377142687,
       "tag": "0004_harness_to_driver",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776585600000,
+      "tag": "0006_drop_dead_tables",
+      "breakpoints": true
     }
   ]
 }

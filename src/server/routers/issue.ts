@@ -83,34 +83,6 @@ export const issueRouter = router({
     .mutation(({ ctx, input }) =>
       createIssueService(ctx.db).transition(input.id, input.toStateId, input.version, input.userId)),
 
-  stateOverride: publicProcedure
-    .input(z.object({
-      id: z.string().uuid(),
-      toStateId: z.string().uuid(),
-      version: z.number().int(),
-      userId: z.string().optional(),
-    }))
-    .mutation(({ ctx, input }) =>
-      createIssueService(ctx.db).stateOverride(input.id, input.toStateId, input.version, input.userId)),
-
-  close: publicProcedure
-    .input(z.object({
-      id: z.string().uuid(),
-      version: z.number().int(),
-      userId: z.string().optional(),
-    }))
-    .mutation(({ ctx, input }) =>
-      createIssueService(ctx.db).close(input.id, input.version, input.userId)),
-
-  reopen: publicProcedure
-    .input(z.object({
-      id: z.string().uuid(),
-      version: z.number().int(),
-      userId: z.string().optional(),
-    }))
-    .mutation(({ ctx, input }) =>
-      createIssueService(ctx.db).reopen(input.id, input.version, input.userId)),
-
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(({ ctx, input }) => createIssueService(ctx.db).delete(input.id)),
@@ -118,20 +90,6 @@ export const issueRouter = router({
   transitions: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => createIssueService(ctx.db).getValidTransitions(input.id)),
-
-  users: publicProcedure
-    .input(z.object({ projectId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const { sql } = await import('drizzle-orm');
-      const rows = await ctx.db.execute(
-        sql`SELECT DISTINCT val FROM (
-          SELECT assignee AS val FROM issue WHERE project_id = ${input.projectId} AND assignee IS NOT NULL
-          UNION
-          SELECT author AS val FROM issue WHERE project_id = ${input.projectId}
-        ) AS users ORDER BY val`
-      );
-      return (rows as unknown as Array<{ val: string }>).map(r => r.val);
-    }),
 
   // ─── Comment sub-router ─────────────────────────────────────────────────────
 

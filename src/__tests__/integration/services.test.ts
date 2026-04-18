@@ -38,9 +38,6 @@ const cleanup: { table: string; id: string }[] = [];
 const tableMap: Record<string, any> = {
   issueEvent: schema.issueEvent,
   issueComment: schema.issueComment,
-  issueAttachment: schema.issueAttachment,
-  issueDependency: schema.issueDependency,
-  issueSavedView: schema.issueSavedView,
   issue: schema.issue,
   issueTransition: schema.issueTransition,
   issueType: schema.issueType,

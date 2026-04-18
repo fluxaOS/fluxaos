@@ -444,63 +444,6 @@ export const issueComment = pgTable('issue_comment', {
   updatedAt,
 });
 
-export const issueAttachment = pgTable('issue_attachment', {
-  id,
-  issueId: uuid('issue_id')
-    .notNull()
-    .references(() => issue.id, { onDelete: 'cascade' }),
-  fileName: text('file_name').notNull(),
-  contentType: text('content_type').notNull(),
-  sizeBytes: integer('size_bytes').notNull(),
-  storageUrl: text('storage_url').notNull(),
-  uploadedBy: text('uploaded_by'),
-  createdAt,
-  updatedAt,
-});
-
-export const issueDependency = pgTable(
-  'issue_dependency',
-  {
-    id,
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => project.id),
-    issueId: uuid('issue_id')
-      .notNull()
-      .references(() => issue.id, { onDelete: 'cascade' }),
-    dependsOnIssueId: uuid('depends_on_issue_id')
-      .notNull()
-      .references(() => issue.id, { onDelete: 'cascade' }),
-    dependencyType: text('dependency_type').notNull().default('blocks'),
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt,
-    updatedAt,
-  },
-  (t) => [
-    uniqueIndex('issue_dependency_unique_idx').on(
-      t.projectId,
-      t.issueId,
-      t.dependsOnIssueId
-    ),
-  ]
-);
-
-export const issueSavedView = pgTable('issue_saved_view', {
-  id,
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => project.id),
-  name: text('name').notNull(),
-  filters: jsonb('filters').notNull(),
-  sortField: text('sort_field'),
-  sortOrder: text('sort_order'),
-  limit: integer('limit'),
-  isDefault: boolean('is_default').notNull().default(false),
-  createdBy: text('created_by'),
-  createdAt,
-  updatedAt,
-});
-
 // ─── Issue Git Placeholders (no CRUD until R5) ────────────────────────────
 
 export const issueBranch = pgTable('issue_branch', {
@@ -886,7 +829,6 @@ export const issueRelations = relations(issue, ({ one, many }) => ({
   }),
   events: many(issueEvent),
   comments: many(issueComment),
-  attachments: many(issueAttachment),
   pipelineRuns: many(pipelineRun),
 }));
 
@@ -903,46 +845,6 @@ export const issueCommentRelations = relations(issueComment, ({ one }) => ({
     references: [issue.id],
   }),
 }));
-
-export const issueAttachmentRelations = relations(
-  issueAttachment,
-  ({ one }) => ({
-    issue: one(issue, {
-      fields: [issueAttachment.issueId],
-      references: [issue.id],
-    }),
-  })
-);
-
-export const issueDependencyRelations = relations(
-  issueDependency,
-  ({ one }) => ({
-    project: one(project, {
-      fields: [issueDependency.projectId],
-      references: [project.id],
-    }),
-    issue: one(issue, {
-      fields: [issueDependency.issueId],
-      references: [issue.id],
-      relationName: 'dependentIssue',
-    }),
-    dependsOn: one(issue, {
-      fields: [issueDependency.dependsOnIssueId],
-      references: [issue.id],
-      relationName: 'blockingIssue',
-    }),
-  })
-);
-
-export const issueSavedViewRelations = relations(
-  issueSavedView,
-  ({ one }) => ({
-    project: one(project, {
-      fields: [issueSavedView.projectId],
-      references: [project.id],
-    }),
-  })
-);
 
 export const issueTypeRelations = relations(issueType, ({ many }) => ({
   issues: many(issue),
