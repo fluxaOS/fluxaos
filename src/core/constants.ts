@@ -113,11 +113,3 @@ export const TRIGGER_TYPE = {
 } as const;
 
 export type TriggerType = (typeof TRIGGER_TYPE)[keyof typeof TRIGGER_TYPE];
-
-// ── Output Formats ────────────────────────────────────────
-export const OUTPUT_FORMAT = {
-  stream_json: 'stream-json',
-  text: 'text',
-} as const;
-
-export type OutputFormat = (typeof OUTPUT_FORMAT)[keyof typeof OUTPUT_FORMAT];

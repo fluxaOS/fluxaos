@@ -56,7 +56,7 @@ AI workers do NOT: know what pipeline stage they're in, know the issue's state/s
 
 ## Architecture
 
-7. **Zero vendor imports in src/core/.** No Supabase, no Drizzle (except `import type` and schema definitions), no BullMQ, no provider SDKs. Core services receive dependencies via injection. The adapter registry is the only resolution path.
+7. **Vendor coupling boundary.** `src/core/` may import from the **core stack** (TypeScript, Node.js, Next.js, React, tRPC, Tailwind, Drizzle ORM, Postgres) — these are locked-in infrastructure, not swappable vendors. `src/core/` may NOT import from **pluggable integrations** (AI providers, Git hosts, Issue trackers, Auth backends, Realtime transports, Queue providers, Storage, Subprocess executors); those are accessed only via port interfaces in `src/core/ports/` resolved through the adapter registry. Naming within `src/core/` should prefer generic terms (`db.select()` not `drizzleDb.select()`, `QueryProvider` not `DrizzleProvider`) so the code reads as infrastructure, not as coupling to a specific vendor.
 
 8. **All services use dependency injection.** Services are factory functions that receive `Database` as a parameter. No singletons. No direct imports of adapters or connections.
 
@@ -121,7 +121,8 @@ grep -rn "type IssueState\|type IssuePriority\|type IssueType" src/core/ \
   | grep -v 'import\|\.test\.' && echo "FAIL: Hardcoded issue enums found" \
   || echo "PASS: No hardcoded issue enums"
 
-# Invariant 7: No vendor imports in core
+# Invariant 7: No pluggable-integration vendor imports in core.
+# Core-stack imports (drizzle-orm, next/*, react, etc.) are permitted per the two-category rule.
 grep -rn "from '@supabase\|from 'bullmq\|from 'ioredis\|from '@anthropic\|from 'openai" src/core/ \
   | grep -v 'import type' && echo "FAIL: Vendor imports in core" \
   || echo "PASS: No vendor imports in core"

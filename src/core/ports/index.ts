@@ -27,10 +27,6 @@ export type {
   IssueProvider,
 } from './issue';
 export type {
-  NotificationParams,
-  NotificationProvider,
-} from './notification';
-export type {
   Job,
   JobOptions,
   JobStatus,
@@ -42,5 +38,3 @@ export type {
   ExecuteResult,
   StageExecutor,
 } from './stage-executor';
-
-export type { StorageProvider } from './storage';

@@ -51,13 +51,6 @@ class AdapterRegistry {
   }
 
   /**
-   * Check if an adapter is registered (without resolving it).
-   */
-  has(name: string): boolean {
-    return this.adapters.has(name);
-  }
-
-  /**
    * List all registered adapter names.
    */
   names(): string[] {
