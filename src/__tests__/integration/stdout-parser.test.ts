@@ -45,6 +45,55 @@ describe('stdout parser adapter', () => {
     expect(entries[0].toolCommand).toBe('ls');
   });
 
+  it('stream-json parser produces a tool_result entry', () => {
+    const p = registry.get<StdoutParser>('stdoutParser');
+    const parse = p.getParser('stream-json');
+    const line = JSON.stringify({
+      type: 'user',
+      message: {
+        content: [
+          { type: 'tool_result', tool_use_id: 'tool_1', content: 'file contents', is_error: false },
+        ],
+      },
+    });
+    const entries = parse(line, 2);
+    expect(entries.length).toBe(1);
+    expect(entries[0].kind).toBe('tool_result');
+    expect(entries[0].toolOutput).toBe('file contents');
+    expect(entries[0].isError).toBe(false);
+  });
+
+  it('stream-json parser produces a result entry with cost', () => {
+    const p = registry.get<StdoutParser>('stdoutParser');
+    const parse = p.getParser('stream-json');
+    const line = JSON.stringify({
+      type: 'result',
+      result: 'Task completed',
+      is_error: false,
+      total_cost_usd: 0.0523,
+    });
+    const entries = parse(line, 3);
+    expect(entries.length).toBe(1);
+    expect(entries[0].kind).toBe('result');
+    expect(entries[0].text).toBe('Task completed');
+    expect(entries[0].isError).toBe(false);
+    expect(entries[0].cost).toBe(0.0523);
+  });
+
+  it('stream-json parser produces a system entry', () => {
+    const p = registry.get<StdoutParser>('stdoutParser');
+    const parse = p.getParser('stream-json');
+    const line = JSON.stringify({
+      type: 'system',
+      subtype: 'init',
+      message: 'Session started',
+    });
+    const entries = parse(line, 4);
+    expect(entries.length).toBe(1);
+    expect(entries[0].kind).toBe('system');
+    expect(entries[0].text).toBe('Session started');
+  });
+
   it('text parser produces a single text entry', () => {
     const p = registry.get<StdoutParser>('stdoutParser');
     const parse = p.getParser('text');
@@ -66,5 +115,12 @@ describe('stdout parser adapter', () => {
     expect(entries.length).toBe(1);
     expect(entries[0].kind).toBe('raw');
     expect(entries[0].text).toBe('not json');
+  });
+
+  it('stream-json parser returns empty array for empty line', () => {
+    const p = registry.get<StdoutParser>('stdoutParser');
+    const parse = p.getParser('stream-json');
+    const entries = parse('', 6);
+    expect(entries.length).toBe(0);
   });
 });
