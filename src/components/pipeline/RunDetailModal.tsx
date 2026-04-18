@@ -7,7 +7,8 @@ import { StageTimeline } from './StageTimeline';
 import { LiveOutput } from './LiveOutput';
 import { GateResultsPanel } from './GateResultsPanel';
 import { trpc } from '@/lib/trpc/client';
-import { createClient } from '@/lib/supabase/client';
+import { registry } from '@/config/registry';
+import type { RealtimeProvider } from '@/core/ports/realtime';
 
 // ── Types ─────────────────────────────────────────────────────────────────���──
 
@@ -119,29 +120,22 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
     setSelectedStageRunId(stageRuns[stageRuns.length - 1].id);
   }, [stageRuns, initialStageName]);
 
-  // Subscribe to Realtime for stage_run status changes
+  // Subscribe to Realtime for stage_run status changes (resolved via adapter registry)
   useEffect(() => {
     if (!isOpen || !runId) return;
 
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`run-detail-${runId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'stage_run',
-          filter: `pipeline_run_id=eq.${runId}`,
-        },
-        () => {
-          runQuery.refetch();
-        },
-      )
-      .subscribe();
+    const realtime = registry.get<RealtimeProvider>('realtime');
+    const unsubscribe = realtime.subscribeToTable<unknown>(
+      `run-detail-${runId}`,
+      'stage_run',
+      '*',
+      () => {
+        runQuery.refetch();
+      },
+    );
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [runId, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
