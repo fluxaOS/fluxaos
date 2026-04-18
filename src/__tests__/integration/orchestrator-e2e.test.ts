@@ -25,7 +25,6 @@ import {
   renderTemplate,
   type DriverConfig,
 } from '@/core/orchestrator/command-builder';
-import { parseLine } from '@/core/orchestrator/output-parser';
 import { materialize, cleanup } from '@/core/skills/materializer';
 import * as schema from '@/core/db/schema';
 import type { Database } from '@/core/db/connection';
@@ -221,87 +220,8 @@ describe('skill materializer', () => {
   });
 });
 
-// ─── Output Parser ────────────────────────────────────────────────────────
-
-describe('output parser', () => {
-  it('parses assistant text message', () => {
-    const line = JSON.stringify({
-      type: 'assistant',
-      message: {
-        id: 'msg_001',
-        content: [{ type: 'text', text: 'Hello world' }],
-      },
-    });
-    const entries = parseLine(line, 0);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('text');
-    expect(entries[0].text).toBe('Hello world');
-  });
-
-  it('parses tool_use message', () => {
-    const line = JSON.stringify({
-      type: 'assistant',
-      message: {
-        id: 'msg_002',
-        content: [{ type: 'tool_use', id: 'tool_1', name: 'Read', input: { command: 'cat file.ts' } }],
-      },
-    });
-    const entries = parseLine(line, 1);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('tool_call');
-    expect(entries[0].toolName).toBe('Read');
-  });
-
-  it('parses tool_result message', () => {
-    const line = JSON.stringify({
-      type: 'user',
-      message: {
-        content: [{ type: 'tool_result', tool_use_id: 'tool_1', content: 'file contents', is_error: false }],
-      },
-    });
-    const entries = parseLine(line, 2);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('tool_result');
-    expect(entries[0].toolOutput).toBe('file contents');
-    expect(entries[0].isError).toBe(false);
-  });
-
-  it('parses result message with cost', () => {
-    const line = JSON.stringify({
-      type: 'result',
-      result: 'Task completed',
-      is_error: false,
-      total_cost_usd: 0.0523,
-    });
-    const entries = parseLine(line, 3);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('result');
-    expect(entries[0].cost).toBe(0.0523);
-  });
-
-  it('parses system message', () => {
-    const line = JSON.stringify({
-      type: 'system',
-      subtype: 'init',
-      message: 'Session started',
-    });
-    const entries = parseLine(line, 4);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('system');
-  });
-
-  it('treats non-JSON as raw entry', () => {
-    const entries = parseLine('This is not JSON', 5);
-    expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('raw');
-    expect(entries[0].text).toBe('This is not JSON');
-  });
-
-  it('treats empty lines as empty array', () => {
-    const entries = parseLine('', 6);
-    expect(entries).toHaveLength(0);
-  });
-});
+// Output parser coverage moved to src/__tests__/integration/stdout-parser.test.ts
+// (exercises the SubprocessStdoutParser adapter via registry.get('stdoutParser')).
 
 // ─── Orchestrator DB operations ──────────────────────────────────────────
 

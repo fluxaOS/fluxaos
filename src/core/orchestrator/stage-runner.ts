@@ -26,7 +26,8 @@ import {
 } from '@/core/db/schema';
 import { materialize, cleanup } from '@/core/skills/materializer';
 import { buildCommand, renderTemplate } from './command-builder';
-import { getParser } from './output-parser';
+import { registry } from '@/config/registry';
+import type { StdoutParser } from '@/core/ports/stdout-parser';
 import { parseSignalLine, type SkillSignal } from './signal-parser';
 import { createRoutingResolver } from './routing-resolver';
 import type { TriggerType } from '@/core/constants';
@@ -259,7 +260,9 @@ export async function executeStageRun(
     // Widened type so TS doesn't narrow to `never` after the null-check
     // (lastSignal is mutated inside the onStdout callback)
     let lastSignal = null as SkillSignal | null;
-    const lineParser = getParser(driverRow.outputFormat as string);
+    const lineParser = registry
+      .get<StdoutParser>('stdoutParser')
+      .getParser(driverRow.outputFormat as string);
 
     const result = await executor.execute({
       command: cmd.binary,

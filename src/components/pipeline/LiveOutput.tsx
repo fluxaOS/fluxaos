@@ -5,8 +5,7 @@ import { Copy, Check, Terminal, MessageSquare, Zap } from 'lucide-react';
 import { registry } from '@/config/registry';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import { trpc } from '@/lib/trpc/client';
-import type { TranscriptEntry, EntryKind } from '@/core/orchestrator/output-parser';
-import { parseLine } from '@/core/orchestrator/output-parser';
+import type { TranscriptEntry, EntryKind, StdoutParser } from '@/core/ports/stdout-parser';
 import { EVENT_TYPE } from '@/core/constants';
 
 interface LiveOutputProps {
@@ -79,6 +78,12 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Resolve the stdout parser once per mount via the adapter registry
+  const parseLine = useMemo(
+    () => registry.get<StdoutParser>('stdoutParser').getParser('stream-json'),
+    [],
+  );
+
   // Fetch existing events
   const eventsQuery = trpc.pipeline.runs.events.useQuery(
     { stageRunId },
@@ -123,7 +128,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       }
     }
     return verbose ? parsed : parsed.filter((e) => e.kind !== 'system');
-  }, [rawLines, verbose]);
+  }, [rawLines, verbose, parseLine]);
 
   // Subscribe to Realtime for live updates (resolved via adapter registry)
   useEffect(() => {
