@@ -1,7 +1,7 @@
 /**
  * Nuke script — deletes all data from every table in FK-safe order.
  *
- * Usage: npx tsx src/core/db/nuke.ts
+ * Usage: npx tsx src/scripts/db/nuke.ts
  * Requires: DATABASE_URL or DIRECT_URL set in .env
  *
  * Tables that don't exist yet are skipped gracefully.
@@ -23,9 +23,6 @@ const db = provider.getConnection();
 const tables = [
   'issue_event',
   'issue_comment',
-  'issue_attachment',
-  'issue_dependency',
-  'issue_saved_view',
   'issue_branch',
   'issue_pull_request',
   'issue_commit',

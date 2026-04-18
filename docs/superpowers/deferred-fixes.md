@@ -155,4 +155,15 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** Today hooks live only in `.git/hooks/` (untracked). No canonical source in the repo.
 **What's needed:** Move canonical pre-commit / pre-push scripts into a tracked directory (e.g., `scripts/hooks/`) with a `scripts/install-hooks.sh` that copies them into `.git/hooks/`. Document in `CLAUDE.md`. The R-UI-1 Session A rename added a size-exemption list for `src/core/db/schema.ts` that only exists in the local clone — other contributors pulling this branch will still hit the 500-line check until they re-run the (currently nonexistent) install script.
 
-**Local-clone exemptions added in Session B (Task 5 prep commit):** beyond `src/core/db/schema.ts`, the local pre-commit hook now also exempts `src/__tests__/integration/orchestrator.test.ts` (550 lines) and `src/core/db/seed.ts` (587 lines). These two are DEF-008 candidates — split later if a clean seam emerges. Until DEF-007 ships an install script, fresh clones must re-add these exemptions manually.
+**Local-clone exemptions added in Session B (Task 5 prep commit):** beyond `src/core/db/schema.ts`, the local pre-commit hook now also exempts `src/__tests__/integration/orchestrator.test.ts` (550 lines) and `src/scripts/db/seed.ts` (587 lines; path updated from `src/core/db/seed.ts` in Wave 1 Task 8). These two are DEF-008 candidates — split later if a clean seam emerges. Until DEF-007 ships an install script, fresh clones must re-add these exemptions manually.
+
+## DEF-008 — Pre-existing violations in `src/__tests__/integration/services.test.ts`
+
+**Found:** 2026-04-18 during Wave 1 Task 7 commit (pre-commit hook rejected a re-stage of the file).
+**Severity:** Low — tests pass and the file compiles. Cleanup-only concerns.
+**Location:** `src/__tests__/integration/services.test.ts`
+**What's broken:**
+1. 6 × `@typescript-eslint/no-explicit-any` errors at lines 38, 381, 408, 524, 527, 557 (`Record<string, any>` patterns). All predate Wave 1 (last touched in `1feffd6`, the R3 initial integration-tests commit). Can be tightened to `Record<string, unknown>` or a Drizzle-table-typed union.
+2. File length 561 lines > 500-line hook limit (was 564 on main before Task 7 edit). Companion to DEF-007's existing exemption list — candidate to either split or exempt.
+**How Task 7 handled it:** Committed with `--no-verify` (user-authorized). The hook was re-triggered only because Task 7 mechanically had to delete 3 `schema.issueAttachment/issueDependency/issueSavedView` references from `tableMap`. Neither violation was introduced by Task 7.
+**What's needed:** Either add this file to `SIZE_EXEMPT_FILES` in the pre-commit hook and replace the 6 `any`s with narrower types, or split the test file along the catalog/issue-lifecycle seam. Pairs with DEF-007 (canonical hook source) so the exemption lives in a tracked file.

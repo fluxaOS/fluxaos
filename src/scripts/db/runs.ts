@@ -1,9 +1,9 @@
 /**
  * db:runs — list pipeline runs and their stage runs.
  *
- * Usage: npx tsx src/core/db/scripts/runs.ts
+ * Usage: npx tsx src/scripts/db/runs.ts
  */
-import { db, close } from '@/core/db/scripts/connection';
+import { db, close } from '@/scripts/db/connection';
 import { eq } from 'drizzle-orm';
 import { pipelineRun, stageRun } from '@/core/db/schema';
 

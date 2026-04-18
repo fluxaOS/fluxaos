@@ -1,7 +1,7 @@
 /**
  * Pipeline Engine Demo — run from terminal to see the orchestrator work.
  *
- * Usage: npx tsx src/core/orchestrator/demo.ts
+ * Usage: npx tsx src/scripts/orchestrator-demo.ts
  *
  * Creates a pipeline run, then ticks the orchestrator through the full
  * lifecycle: queue → launch → execute → advance → complete.
@@ -28,8 +28,8 @@ import {
   routingRule,
   project,
 } from '@/core/db/schema';
-import { createPipelineRunService } from './pipeline-run-service';
-import { executeManualRun } from './manual-run';
+import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
+import { executeManualRun } from '@/core/orchestrator/manual-run';
 import type { StageExecutor, ExecuteParams, ExecuteResult } from '@/core/ports/stage-executor';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
 
@@ -77,7 +77,7 @@ async function demo() {
   // 1. Find the seeded pipeline and issue data
   const [pipe] = await db.select().from(pipeline).limit(1);
   if (!pipe) {
-    console.error('No pipeline found. Run: npx tsx src/core/db/seed.ts');
+    console.error('No pipeline found. Run: npx tsx src/scripts/db/seed.ts');
     process.exit(1);
   }
 

@@ -2,7 +2,7 @@
  * Shared DB connection helper for CLI scripts.
  *
  * Usage:
- *   import { db, close } from '@/core/db/scripts/connection';
+ *   import { db, close } from '@/scripts/db/connection';
  *   // ... query db ...
  *   await close();
  */
