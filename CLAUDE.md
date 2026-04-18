@@ -22,7 +22,7 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 | `npm run verify` | Run all verification checks |
 | `npm run verify:seed` | Verify seed data is correct |
 | `npx vitest` | Integration tests (real Supabase) |
-| `tsx src/core/db/nuke.ts` | Drop all user data, keep schema |
+| `tsx src/scripts/db/nuke.ts` | Drop all user data, keep schema |
 
 ## Architecture
 
@@ -55,7 +55,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 ## Workflow
 
 - **First run:** `npm i` → set `.env` → `npm run db:migrate` → `npm run db:seed` → `npm run dev`
-- **Reset state:** `tsx src/core/db/nuke.ts` → `npm run db:seed`
+- **Reset state:** `tsx src/scripts/db/nuke.ts` → `npm run db:seed`
 - **After schema changes:** `npm run db:generate` → `npm run db:migrate`
 
 ## Reference

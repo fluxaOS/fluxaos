@@ -1,9 +1,9 @@
 /**
  * db:gates — list stage gate results.
  *
- * Usage: npx tsx src/core/db/scripts/gates.ts
+ * Usage: npx tsx src/scripts/db/gates.ts
  */
-import { db, close } from '@/core/db/scripts/connection';
+import { db, close } from '@/scripts/db/connection';
 import { stageGateResult } from '@/core/db/schema';
 
 function pad(s: string, width: number): string {

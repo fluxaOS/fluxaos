@@ -13,7 +13,7 @@ export default async function RootPage() {
   if (!org) {
     return (
       <div className="flex items-center justify-center min-h-screen text-slate-400">
-        <p>No organization found. Run: npx tsx src/core/db/seed.ts</p>
+        <p>No organization found. Run: npx tsx src/scripts/db/seed.ts</p>
       </div>
     );
   }
@@ -22,7 +22,7 @@ export default async function RootPage() {
   if (!usr) {
     return (
       <div className="flex items-center justify-center min-h-screen text-slate-400">
-        <p>No user found. Run: npx tsx src/core/db/seed.ts</p>
+        <p>No user found. Run: npx tsx src/scripts/db/seed.ts</p>
       </div>
     );
   }
@@ -31,7 +31,7 @@ export default async function RootPage() {
   if (!proj) {
     return (
       <div className="flex items-center justify-center min-h-screen text-slate-400">
-        <p>No project found. Run: npx tsx src/core/db/seed.ts</p>
+        <p>No project found. Run: npx tsx src/scripts/db/seed.ts</p>
       </div>
     );
   }

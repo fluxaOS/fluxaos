@@ -3,7 +3,7 @@
  *
  * Usage: npx tsx tests/verify/seed-check.ts
  */
-import { db, close } from '@/core/db/scripts/connection';
+import { db, close } from '@/scripts/db/connection';
 import { eq } from 'drizzle-orm';
 import {
   issue,

@@ -2,11 +2,11 @@
  * db:events — list events.
  *
  * Usage:
- *   npx tsx src/core/db/scripts/events.ts             # 50 most recent events
- *   npx tsx src/core/db/scripts/events.ts --run <uuid> # filter by stageRunId
- *   npx tsx src/core/db/scripts/events.ts --issue <uuid> # issue events
+ *   npx tsx src/scripts/db/events.ts             # 50 most recent events
+ *   npx tsx src/scripts/db/events.ts --run <uuid> # filter by stageRunId
+ *   npx tsx src/scripts/db/events.ts --issue <uuid> # issue events
  */
-import { db, close } from '@/core/db/scripts/connection';
+import { db, close } from '@/scripts/db/connection';
 import { desc, eq } from 'drizzle-orm';
 import { event, issueEvent } from '@/core/db/schema';
 
@@ -43,21 +43,19 @@ async function main() {
       console.log(`\n${rows.length} issue event(s)`);
     }
   } else {
-    let query = db
-      .select()
-      .from(event)
-      .orderBy(desc(event.timestamp))
-      .limit(50);
-
-    if (mode === 'run') {
-      query = db
-        .select()
-        .from(event)
-        .where(eq(event.stageRunId, id!))
-        .orderBy(desc(event.timestamp));
-    }
-
-    const rows = await query;
+    // Build query by mode — same terminal shape in both branches.
+    // The 'run' branch intentionally omits the limit (surfaces all events for a run).
+    const rows = mode === 'run'
+      ? await db
+          .select()
+          .from(event)
+          .where(eq(event.stageRunId, id!))
+          .orderBy(desc(event.timestamp))
+      : await db
+          .select()
+          .from(event)
+          .orderBy(desc(event.timestamp))
+          .limit(50);
 
     if (rows.length === 0) {
       console.log('No events found.');

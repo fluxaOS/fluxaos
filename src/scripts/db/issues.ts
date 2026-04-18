@@ -1,9 +1,9 @@
 /**
  * db:issues — list issues with joined state, status, priority, type.
  *
- * Usage: npx tsx src/core/db/scripts/issues.ts
+ * Usage: npx tsx src/scripts/db/issues.ts
  */
-import { db, close } from '@/core/db/scripts/connection';
+import { db, close } from '@/scripts/db/connection';
 import { eq } from 'drizzle-orm';
 import {
   issue,

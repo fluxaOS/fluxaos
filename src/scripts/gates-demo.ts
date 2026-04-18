@@ -1,7 +1,7 @@
 /**
  * Gate Engine Demo — run from terminal to see the engine work.
  *
- * Usage: npx tsx src/core/gates/demo.ts
+ * Usage: npx tsx src/scripts/gates-demo.ts
  *
  * Reads the seeded pipeline stages from the database, then evaluates
  * gate rules against sample contexts to show verdicts.
@@ -10,9 +10,9 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { pipelineStage, pipeline, stageRun, pipelineRun } from '@/core/db/schema';
-import { createGateService } from './service';
-import { evaluateGate } from './engine';
-import type { GateMode, RuleGroup } from './types';
+import { createGateService } from '@/core/gates/service';
+import { evaluateGate } from '@/core/gates/engine';
+import type { GateMode, RuleGroup } from '@/core/gates/types';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {

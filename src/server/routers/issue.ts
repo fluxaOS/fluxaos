@@ -1,7 +1,7 @@
 /**
  * Issue router — nested sub-routers for the full issue domain.
  *
- * Structure: issue.list, issue.comment.list, issue.attachment.create, etc.
+ * Structure: issue.list, issue.comment.list, issue.event.list, etc.
  * All IDs are UUIDs. No hardcoded enums. Version required on all mutations
  * that modify existing data. Routers are thin — logic lives in services.
  */

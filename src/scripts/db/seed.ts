@@ -2,7 +2,7 @@
  * Seed script — populates Supabase with default org, user, project, pipeline,
  * issue catalogs, transitions, and status automation config.
  *
- * Usage: npx tsx src/core/db/seed.ts
+ * Usage: npx tsx src/scripts/db/seed.ts
  * Requires: DATABASE_URL or DIRECT_URL set in .env
  *
  * Idempotent: safe to run multiple times. Uses onConflictDoNothing() throughout.
@@ -30,7 +30,7 @@ import {
   model,
   routingProfile,
   routingRule,
-} from './schema';
+} from '@/core/db/schema';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {
