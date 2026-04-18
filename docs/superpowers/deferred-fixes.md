@@ -155,7 +155,7 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** Today hooks live only in `.git/hooks/` (untracked). No canonical source in the repo.
 **What's needed:** Move canonical pre-commit / pre-push scripts into a tracked directory (e.g., `scripts/hooks/`) with a `scripts/install-hooks.sh` that copies them into `.git/hooks/`. Document in `CLAUDE.md`. The R-UI-1 Session A rename added a size-exemption list for `src/core/db/schema.ts` that only exists in the local clone — other contributors pulling this branch will still hit the 500-line check until they re-run the (currently nonexistent) install script.
 
-**Local-clone exemptions added in Session B (Task 5 prep commit):** beyond `src/core/db/schema.ts`, the local pre-commit hook now also exempts `src/__tests__/integration/orchestrator.test.ts` (550 lines) and `src/core/db/seed.ts` (587 lines). These two are DEF-008 candidates — split later if a clean seam emerges. Until DEF-007 ships an install script, fresh clones must re-add these exemptions manually.
+**Local-clone exemptions added in Session B (Task 5 prep commit):** beyond `src/core/db/schema.ts`, the local pre-commit hook now also exempts `src/__tests__/integration/orchestrator.test.ts` (550 lines) and `src/scripts/db/seed.ts` (587 lines; path updated from `src/core/db/seed.ts` in Wave 1 Task 8). These two are DEF-008 candidates — split later if a clean seam emerges. Until DEF-007 ships an install script, fresh clones must re-add these exemptions manually.
 
 ## DEF-008 — Pre-existing violations in `src/__tests__/integration/services.test.ts`
 
