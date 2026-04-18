@@ -13,6 +13,7 @@ import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
+import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -65,6 +66,11 @@ export function bootstrap(): void {
   // Stage Executor — subprocess-based
   registry.register('executor', () => {
     return new SubprocessExecutor();
+  });
+
+  // Stdout Parser — subprocess output line parser
+  registry.register('stdoutParser', () => {
+    return new SubprocessStdoutParser();
   });
 
   // Validate all required adapters are registered
