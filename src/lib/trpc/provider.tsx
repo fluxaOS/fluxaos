@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink } from '@trpc/client';
 import { trpc } from './client';
+import { bootstrap } from '@/config/bootstrap';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
@@ -11,6 +12,11 @@ function getBaseUrl() {
 }
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
+  // Initialize the adapter registry on the client (once).
+  // bootstrap() only registers factories; the database/queue factories
+  // read server-only env vars but are never invoked from the browser.
+  useState(() => { bootstrap(); });
+
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
