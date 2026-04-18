@@ -10,6 +10,7 @@
 import { registry } from './registry';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
+import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
 
@@ -24,7 +25,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const REQUIRED_ADAPTERS = ['database', 'auth', 'queue'] as const;
+const REQUIRED_ADAPTERS = ['database', 'auth', 'queue', 'realtime'] as const;
 
 let bootstrapped = false;
 
@@ -46,6 +47,13 @@ export function bootstrap(): void {
     const supabaseUrl = requireEnv('NEXT_PUBLIC_SUPABASE_URL');
     const supabaseKey = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
     return new SupabaseAuthProvider({ supabaseUrl, supabaseKey });
+  });
+
+  // Realtime — Supabase Realtime channels
+  registry.register('realtime', () => {
+    const supabaseUrl = requireEnv('NEXT_PUBLIC_SUPABASE_URL');
+    const supabaseKey = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+    return new SupabaseRealtimeProvider({ supabaseUrl, supabaseKey });
   });
 
   // Queue — BullMQ via Redis
