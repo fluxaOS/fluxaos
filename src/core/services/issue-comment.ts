@@ -72,26 +72,6 @@ export function createIssueCommentService(db: Database) {
     });
   }
 
-  async function loadComment(commentId: string): Promise<IssueCommentSelect> {
-    const [row] = await db
-      .select()
-      .from(issueComment)
-      .where(eq(issueComment.id, commentId));
-
-    if (!row) {
-      throw new Error(`Comment ${commentId} not found.`);
-    }
-    return row;
-  }
-
-  function assertVersion(current: IssueCommentSelect, expected: number) {
-    if (current.version !== expected) {
-      throw new Error(
-        `VERSION_CONFLICT: Expected version ${expected}, but comment has version ${current.version}. Reload and retry.`,
-      );
-    }
-  }
-
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
@@ -148,47 +128,67 @@ export function createIssueCommentService(db: Database) {
     /**
      * Update a comment's body. Uses optimistic concurrency.
      * Records the old and new body in the event trail.
+     *
+     * All writes (version-guarded update + event insert) run inside a single
+     * db.transaction so any failure rolls back cleanly — no half-applied state.
      */
     async update(
       commentId: string,
       input: UpdateCommentInput,
     ): Promise<IssueCommentSelect> {
-      const current = await loadComment(commentId);
-      assertVersion(current, input.version);
+      return db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(issueComment)
+          .where(eq(issueComment.id, commentId));
+        if (!current) {
+          throw new Error(`Comment ${commentId} not found.`);
+        }
+        if (current.version !== input.version) {
+          throw new Error(
+            `VERSION_CONFLICT: Expected version ${input.version}, but comment has version ${current.version}. Reload and retry.`,
+          );
+        }
 
-      const bodyHtml = renderMarkdown(input.bodyMd);
+        const bodyHtml = renderMarkdown(input.bodyMd);
 
-      const [updated] = await db
-        .update(issueComment)
-        .set({
-          bodyMd: input.bodyMd,
-          bodyHtml,
-          editedAt: new Date(),
-          version: input.version + 1,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(issueComment.id, commentId),
-            eq(issueComment.version, input.version),
-          ),
-        )
-        .returning();
+        const [updated] = await tx
+          .update(issueComment)
+          .set({
+            bodyMd: input.bodyMd,
+            bodyHtml,
+            editedAt: new Date(),
+            version: input.version + 1,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(issueComment.id, commentId),
+              eq(issueComment.version, input.version),
+            ),
+          )
+          .returning();
 
-      if (!updated) {
-        throw new Error(
-          `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`,
-        );
-      }
+        if (!updated) {
+          throw new Error(
+            `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`,
+          );
+        }
 
-      await recordEvent(current.issueId, input.editedBy, 'comment_edited', {
-        comment_id: commentId,
-        old_body: current.bodyMd,
-        new_body: input.bodyMd,
-        edited_by: input.editedBy,
+        await tx.insert(issueEvent).values({
+          issueId: current.issueId,
+          actor: input.editedBy,
+          type: 'comment_edited',
+          payload: {
+            comment_id: commentId,
+            old_body: current.bodyMd,
+            new_body: input.bodyMd,
+            edited_by: input.editedBy,
+          },
+        });
+
+        return updated;
       });
-
-      return updated;
     },
 
     /**
@@ -197,46 +197,67 @@ export function createIssueCommentService(db: Database) {
      * CRITICAL (DA Finding #18): The body is captured in the event BEFORE
      * being cleared from the comment row. This preserves content in the
      * audit trail while showing "[deleted]" in the UI.
+     *
+     * All writes (event insert + version-guarded update) run inside a single
+     * db.transaction so any failure rolls back cleanly — no half-applied state
+     * (e.g. event inserted but update rejected by a concurrent version bump).
      */
     async softDelete(
       commentId: string,
       input: SoftDeleteCommentInput,
     ): Promise<IssueCommentSelect> {
-      const current = await loadComment(commentId);
-      assertVersion(current, input.version);
+      return db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(issueComment)
+          .where(eq(issueComment.id, commentId));
+        if (!current) {
+          throw new Error(`Comment ${commentId} not found.`);
+        }
+        if (current.version !== input.version) {
+          throw new Error(
+            `VERSION_CONFLICT: Expected version ${input.version}, but comment has version ${current.version}. Reload and retry.`,
+          );
+        }
 
-      // Record event FIRST — captures body before it's cleared
-      await recordEvent(current.issueId, input.deletedBy, 'comment_deleted', {
-        comment_id: commentId,
-        body_md: current.bodyMd,
-        deleted_by: input.deletedBy,
+        // Record event FIRST — captures body before it's cleared
+        await tx.insert(issueEvent).values({
+          issueId: current.issueId,
+          actor: input.deletedBy,
+          type: 'comment_deleted',
+          payload: {
+            comment_id: commentId,
+            body_md: current.bodyMd,
+            deleted_by: input.deletedBy,
+          },
+        });
+
+        // THEN clear the comment body
+        const [updated] = await tx
+          .update(issueComment)
+          .set({
+            isDeleted: true,
+            bodyMd: '',
+            bodyHtml: '',
+            version: input.version + 1,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(issueComment.id, commentId),
+              eq(issueComment.version, input.version),
+            ),
+          )
+          .returning();
+
+        if (!updated) {
+          throw new Error(
+            `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`,
+          );
+        }
+
+        return updated;
       });
-
-      // THEN clear the comment body
-      const [updated] = await db
-        .update(issueComment)
-        .set({
-          isDeleted: true,
-          bodyMd: '',
-          bodyHtml: '',
-          version: input.version + 1,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(issueComment.id, commentId),
-            eq(issueComment.version, input.version),
-          ),
-        )
-        .returning();
-
-      if (!updated) {
-        throw new Error(
-          `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`,
-        );
-      }
-
-      return updated;
     },
   };
 }

@@ -1,5 +1,9 @@
 /**
- * Output Parser — converts driver stdout lines into typed transcript entries.
+ * SubprocessStdoutParser — converts driver stdout lines into typed transcript entries.
+ *
+ * Relocated from src/core/orchestrator/output-parser.ts to keep subprocess-
+ * specific parsing logic in the adapters layer. The orchestrator resolves a
+ * parser from the registry instead of importing this module directly.
  *
  * The driver writes JSON events to stdout. This parser converts each line
  * into a TranscriptEntry with a kind (text, tool_call, tool_result, result,
@@ -9,28 +13,14 @@
  * Follows PAT's LiveOutput parsing logic.
  */
 
-export type EntryKind =
-  | 'text'
-  | 'tool_call'
-  | 'tool_result'
-  | 'result'
-  | 'system'
-  | 'raw';
-
-export interface TranscriptEntry {
-  id: string;
-  kind: EntryKind;
-  lineNumber: number;
-  text?: string;
-  toolName?: string;
-  toolCommand?: string;
-  toolOutput?: string;
-  isError?: boolean;
-  cost?: number;
-}
+import type {
+  LineParser,
+  StdoutParser,
+  TranscriptEntry,
+} from '@/core/ports/stdout-parser';
 
 /**
- * Parse a single stdout line into one or more TranscriptEntries.
+ * Parse a single stream-json stdout line into one or more TranscriptEntries.
  *
  * The driver outputs one JSON object per line. The `type` field determines
  * the entry kind:
@@ -41,7 +31,7 @@ export interface TranscriptEntry {
  * - "system" → system
  * - Non-JSON or unknown → raw
  */
-export function parseLine(
+function parseStreamJsonLine(
   line: string,
   lineNumber: number,
 ): TranscriptEntry[] {
@@ -160,7 +150,7 @@ export function parseLine(
  * Parse a plain-text stdout line into a single text TranscriptEntry.
  * Used for drivers with output_format='text'.
  */
-export function parseTextLine(
+function parseTextLine(
   line: string,
   lineNumber: number,
 ): TranscriptEntry[] {
@@ -170,20 +160,17 @@ export function parseTextLine(
 }
 
 /**
- * Select the appropriate line parser based on driver output format.
- *
- * @param outputFormat - The output_format value from driver
- * @returns A parser function with the same signature as parseLine
+ * Subprocess stdout parser — selects a line parser based on driver output_format.
  */
-export function getParser(
-  outputFormat: string,
-): (line: string, lineNumber: number) => TranscriptEntry[] {
-  switch (outputFormat) {
-    case 'stream-json':
-      return parseLine;
-    case 'text':
-      return parseTextLine;
-    default:
-      throw new Error(`unknown output format: ${outputFormat}`);
+export class SubprocessStdoutParser implements StdoutParser {
+  getParser(outputFormat: string): LineParser {
+    switch (outputFormat) {
+      case 'stream-json':
+        return parseStreamJsonLine;
+      case 'text':
+        return parseTextLine;
+      default:
+        throw new Error(`unknown output format: ${outputFormat}`);
+    }
   }
 }

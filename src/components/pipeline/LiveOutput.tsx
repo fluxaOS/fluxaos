@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Copy, Check, Terminal, MessageSquare, Zap } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { registry } from '@/config/registry';
+import type { RealtimeProvider } from '@/core/ports/realtime';
 import { trpc } from '@/lib/trpc/client';
-import type { TranscriptEntry, EntryKind } from '@/core/orchestrator/output-parser';
-import { parseLine } from '@/core/orchestrator/output-parser';
+import type { TranscriptEntry, EntryKind, StdoutParser } from '@/core/ports/stdout-parser';
 import { EVENT_TYPE } from '@/core/constants';
 
 interface LiveOutputProps {
@@ -78,6 +78,12 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Resolve the stdout parser once per mount via the adapter registry
+  const parseLine = useMemo(
+    () => registry.get<StdoutParser>('stdoutParser').getParser('stream-json'),
+    [],
+  );
+
   // Fetch existing events
   const eventsQuery = trpc.pipeline.runs.events.useQuery(
     { stageRunId },
@@ -122,32 +128,25 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       }
     }
     return verbose ? parsed : parsed.filter((e) => e.kind !== 'system');
-  }, [rawLines, verbose]);
+  }, [rawLines, verbose, parseLine]);
 
-  // Subscribe to Supabase Realtime for live updates
+  // Subscribe to Realtime for live updates (resolved via adapter registry)
   useEffect(() => {
     if (!isActive || !stageRunId) return;
 
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`live-output-${stageRunId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'event',
-          filter: `stage_run_id=eq.${stageRunId}`,
-        },
-        () => {
-          // Refetch events when new ones arrive via Realtime
-          eventsQuery.refetch();
-        },
-      )
-      .subscribe();
+    const realtime = registry.get<RealtimeProvider>('realtime');
+    const unsubscribe = realtime.subscribeToTable<unknown>(
+      `live-output-${stageRunId}`,
+      'event',
+      'INSERT',
+      () => {
+        // Refetch events when new ones arrive via Realtime
+        eventsQuery.refetch();
+      },
+    );
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [stageRunId, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 

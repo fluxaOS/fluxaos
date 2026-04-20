@@ -10,8 +10,10 @@
 import { registry } from './registry';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
+import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
+import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -24,7 +26,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const REQUIRED_ADAPTERS = ['database', 'auth', 'queue'] as const;
+const REQUIRED_ADAPTERS = ['database', 'auth', 'queue', 'realtime'] as const;
 
 let bootstrapped = false;
 
@@ -48,6 +50,13 @@ export function bootstrap(): void {
     return new SupabaseAuthProvider({ supabaseUrl, supabaseKey });
   });
 
+  // Realtime — Supabase Realtime channels
+  registry.register('realtime', () => {
+    const supabaseUrl = requireEnv('NEXT_PUBLIC_SUPABASE_URL');
+    const supabaseKey = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+    return new SupabaseRealtimeProvider({ supabaseUrl, supabaseKey });
+  });
+
   // Queue — BullMQ via Redis
   registry.register('queue', () => {
     const redisUrl = requireEnv('REDIS_URL');
@@ -57,6 +66,11 @@ export function bootstrap(): void {
   // Stage Executor — subprocess-based
   registry.register('executor', () => {
     return new SubprocessExecutor();
+  });
+
+  // Stdout Parser — subprocess output line parser
+  registry.register('stdoutParser', () => {
+    return new SubprocessStdoutParser();
   });
 
   // Validate all required adapters are registered
