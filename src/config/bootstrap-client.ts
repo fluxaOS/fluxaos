@@ -2,28 +2,33 @@
  * Client bootstrap — registers only adapters safe for the browser bundle.
  *
  * Called once from TRPCProvider. Server-only adapters (database, queue,
- * executor, stdoutParser) are registered by the full bootstrap() on the
- * server side.
+ * executor) are registered by the full bootstrap() on the server side.
+ * Adapters registered here are all pure-JS / browser-safe: auth, realtime,
+ * stdoutParser.
  *
  * The registry is a module-local singleton; Next.js's separate client
- * and server bundles each get their own instance, so registering 'auth'
- * and 'realtime' here does not collide with bootstrap()'s registrations.
+ * and server bundles each get their own instance, so registrations here
+ * do not collide with bootstrap()'s registrations.
  */
 import { registry } from './registry';
 import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
+import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 
 let bootstrapped = false;
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
+// Next.js only inlines `process.env.NEXT_PUBLIC_*` into the client bundle when
+// referenced as literal member expressions. Reading via `process.env[name]`
+// leaves the lookup dynamic, yielding `undefined` at runtime in the browser.
+function readPublicSupabaseEnv(): { supabaseUrl: string; supabaseKey: string } {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
     throw new Error(
-      `Missing required environment variable: ${name}. ` +
-        'Check your .env file or environment configuration.',
+      'Missing Supabase config: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.',
     );
   }
-  return value;
+  return { supabaseUrl, supabaseKey };
 }
 
 /**
@@ -34,14 +39,16 @@ export function bootstrapClient(): void {
   bootstrapped = true;
 
   registry.register('auth', () => {
-    const supabaseUrl = requireEnv('NEXT_PUBLIC_SUPABASE_URL');
-    const supabaseKey = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+    const { supabaseUrl, supabaseKey } = readPublicSupabaseEnv();
     return new SupabaseAuthProvider({ supabaseUrl, supabaseKey });
   });
 
   registry.register('realtime', () => {
-    const supabaseUrl = requireEnv('NEXT_PUBLIC_SUPABASE_URL');
-    const supabaseKey = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+    const { supabaseUrl, supabaseKey } = readPublicSupabaseEnv();
     return new SupabaseRealtimeProvider({ supabaseUrl, supabaseKey });
   });
+
+  // SubprocessStdoutParser is pure logic (no node: imports) and is safe for
+  // the client bundle. LiveOutput.tsx resolves it to parse streamed events.
+  registry.register('stdoutParser', () => new SubprocessStdoutParser());
 }
