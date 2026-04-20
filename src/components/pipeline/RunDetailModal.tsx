@@ -57,10 +57,6 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
     { id: runId! },
     {
       enabled: isOpen,
-      refetchInterval: (query) => {
-        const status = query.state.data?.status;
-        return status === 'running' || status === 'queued' ? 2000 : false;
-      },
     },
   );
 

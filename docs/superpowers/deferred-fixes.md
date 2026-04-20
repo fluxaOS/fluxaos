@@ -49,12 +49,13 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** `src/__tests__/integration/orchestrator.test.ts`
 **What's needed:** Rewrite tests for event-orchestrator architecture, or write new manual-run integration tests
 
-## UI: Issue activity feed doesn't auto-refresh via Realtime
+## ~~UI: Issue activity feed doesn't auto-refresh via Realtime~~ — RESOLVED (R-UI-2.5)
 
 **Found:** 2026-04-13 during R5-V browser verification
 **Severity:** Medium — issue events (stage_started, pipeline_completed) only appear after page refresh
 **Location:** Issue detail client component
 **What's needed:** Subscribe to `issue_event` table changes via Supabase Realtime, or add polling refetch
+**Resolved:** 2026-04-20 in R-UI-2.5 (PR #47) — `ActivityFeed.tsx` subscribes to `issue_event` table via `registry.get<RealtimeProvider>('realtime')` and refetches the events query on any matching row change. Replaces manual `eventsQuery.refetch()` calls in comment mutation success handlers.
 
 ## UI: LiveOutput updates all at once instead of streaming line-by-line
 
@@ -69,6 +70,7 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Low — duration shows stale value until modal is reopened
 **Location:** `RunDetailModal` or parent component
 **What's needed:** Poll or subscribe to `pipeline_run` / `stage_run` updates so duration reflects current elapsed time
+**Update (2026-04-20, R-UI-2.5):** The Realtime subscription to `stage_run` landed in R-REM-W2 and covers status-driven refetches (which refresh end-times once the run terminates). What remains open is only the live elapsed-duration tick while a run is in progress — that's the `useNow` hook from the retired R-UI-2 plan, explicitly deferred from R-UI-2.5 scope. No further action until a separate phase picks it up.
 
 ## UI: Closed issues should display "Closed" not "Complete"
 
@@ -82,12 +84,13 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Found:** 2026-04-13 during R5-V browser verification
 **Severity:** Low — the `launched` events appear right away in raw JSON mode, but output events only appear when the run completes. This is the same batching issue as LiveOutput but specifically visible in raw mode.
 
-## UI: Activity feed does not show correctly
+## ~~UI: Activity feed does not show correctly~~ — RESOLVED (R-UI-2.5, incidental)
 
 **Found:** 2026-04-15 during R5.5 browser verification
 **Severity:** Medium — activity feed display is broken or misleading
 **Location:** Issue detail activity/event feed
 **What's needed:** Investigate and fix activity event rendering
+**Resolved:** 2026-04-20 in R-UI-2.5 (PR #47) — rendering verified correct via the e2e/activity-feed-realtime.spec.ts Playwright smoke (commit d5c4129) which asserts the feed renders event rows and updates without manual refresh. The original ambiguous repro did not recur; any residual concern would be caught by this smoke.
 
 ## UI: State/status labels have inconsistent verb tenses
 
@@ -101,12 +104,13 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Low — some labels are all lowercase, some sentence case, some all uppercase
 **What's needed:** Standardize to sentence case throughout the UI
 
-## Adapter: RealtimeProvider not implemented
+## ~~Adapter: RealtimeProvider not implemented~~ — RESOLVED (R-REM-W2, back-filled)
 
 **Found:** 2026-04-13 during architectural cleanup
 **Severity:** Low (event-orchestrator not used in manual execution path)
 **Location:** Need `src/adapters/supabase/realtime.ts` implementing `RealtimeProvider` port
 **What's needed:** Wrap Supabase Realtime client to implement `subscribeToTable()` from `src/core/ports/realtime.ts`
+**Resolved:** 2026-04-19 in R-REM-W2 (PR #43) — `SupabaseRealtimeProvider` adapter shipped at `src/adapters/supabase/realtime.ts`, registered in both `bootstrap.ts` and `bootstrap-client.ts`. Consumers resolve it via `registry.get<RealtimeProvider>('realtime')`. Back-fill note: this entry should have been struck when W2 merged; captured during R-UI-2.5.
 
 ## DEF-001 — Feature: Openclaw-style preview gate (blur-until-viewed)
 
@@ -167,3 +171,19 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 2. File length 561 lines > 500-line hook limit (was 564 on main before Task 7 edit). Companion to DEF-007's existing exemption list — candidate to either split or exempt.
 **How Task 7 handled it:** Committed with `--no-verify` (user-authorized). The hook was re-triggered only because Task 7 mechanically had to delete 3 `schema.issueAttachment/issueDependency/issueSavedView` references from `tableMap`. Neither violation was introduced by Task 7.
 **What's needed:** Either add this file to `SIZE_EXEMPT_FILES` in the pre-commit hook and replace the 6 `any`s with narrower types, or split the test file along the catalog/issue-lifecycle seam. Pairs with DEF-007 (canonical hook source) so the exemption lives in a tracked file.
+
+## DEF-009 — Seeded issues missing `bodyHtml`; description shows "No description" until edited
+
+**Found:** 2026-04-20 during R-UI-2.5 human browser verification.
+**Severity:** Low — user-visible only on seeded issues. Fresh issues created through the UI render correctly.
+**Location:** `src/scripts/db/seed.ts` — `db.insert(issue).values({ ..., bodyMd: '...' })` at issue #1 (~line 520) and #2 (~line 553). `bodyHtml` is never set.
+**Root cause:** `EditableBody` renders from `bodyHtml` in view mode (per invariant #14 — server-rendered at write time, safe for `dangerouslySetInnerHTML`) and falls back to a "No description. Click to add one." placeholder when `bodyHtml` is null. The tRPC mutation paths (`issue.create`, `issue.updateFields`) both run a markdown → HTML renderer before writing to the DB, so UI-authored issues always have `bodyHtml` populated. The seed script bypasses the mutation path and writes `bodyMd` directly, leaving `bodyHtml` null. Clicking Edit and saving re-runs the mutation path, populates `bodyHtml`, and the description becomes visible.
+**What's needed:** In the seed script, either (a) call the shared markdown → HTML helper before each `db.insert(issue).values(...)` and pass `bodyHtml` alongside `bodyMd`, or (b) route seed inserts through the same `createIssueService`-equivalent that the tRPC router uses, so markdown rendering is a single source of truth. Option (b) is the DRY fix; option (a) is faster. Either way, `npm run verify` should eventually assert that every seeded issue has both `bodyMd` AND `bodyHtml` populated.
+
+## DEF-010 — Tag input only accepts single tag; space and comma separators don't split
+
+**Found:** 2026-04-20 during R-UI-2.5 human browser verification.
+**Severity:** Low — multi-tag UX is broken but no data loss; users can work around by submitting one tag at a time (if the UI even supports that; behavior with a single tag entry is fine per this report).
+**Location:** Issue detail — wherever the tag field is rendered (need to locate on investigation; likely `src/app/[org]/[user]/[project]/issues/[number]/client.tsx` or a component it imports). Pre-existing behavior — not touched in R-UI-2.5.
+**Repro:** On an issue detail page, type one tag, press space (or comma) expecting it to commit and start a new tag. Second tag is not accepted.
+**What's needed:** Tag field should split on space/comma/Enter and commit each trimmed segment as a separate tag. Also consider: paste handling, max-length per tag, duplicate suppression. Wire to the existing tag mutation path. Independent of R-UI-2.5 scope.

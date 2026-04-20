@@ -15,11 +15,13 @@ test.describe('@r-rem-w2-followup @smoke', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
-    // Issue #3 is the only open issue in the seed ("Testing a new issue to edit comment").
-    await page.goto(projectPath('/issues/3'));
+    // Issue #1 is the first seeded open issue ("Add health check endpoint with build metadata").
+    // Seed layout changed across sessions (previously #3 was the open one); updated here
+    // to match the current seed output from `npm run db:issues`.
+    await page.goto(projectPath('/issues/1'));
 
     // Wait for the issue card to render (has a State <select>).
-    await expect(page.getByRole('heading', { name: /Testing a new issue/ })).toBeVisible({
+    await expect(page.getByRole('heading', { name: /Add health check endpoint/ })).toBeVisible({
       timeout: 15_000,
     });
 
