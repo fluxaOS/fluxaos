@@ -187,3 +187,24 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Location:** Issue detail — wherever the tag field is rendered (need to locate on investigation; likely `src/app/[org]/[user]/[project]/issues/[number]/client.tsx` or a component it imports). Pre-existing behavior — not touched in R-UI-2.5.
 **Repro:** On an issue detail page, type one tag, press space (or comma) expecting it to commit and start a new tag. Second tag is not accepted.
 **What's needed:** Tag field should split on space/comma/Enter and commit each trimmed segment as a separate tag. Also consider: paste handling, max-length per tag, duplicate suppression. Wire to the existing tag mutation path. Independent of R-UI-2.5 scope.
+
+## DEF-011 — `ToolCallEntry` never renders in `LiveOutput` because orchestrator/parser payload shapes disagree
+
+**Found:** 2026-04-20 during R-REM-W3-a journey-test authoring (live-Claude Research run produced 6 `kind: 'tool_call'` events in the DB that all rendered as `text` entries in the browser).
+**Severity:** Medium — no data loss (every tool use IS persisted with `kind: 'tool_call'` and is queryable via `npm run db:events`), but the UI can't differentiate tool calls from text blocks, so the `<ToolCallEntry>` highlighting / `<ToolResultEntry>` collapsing / `<ResultEntry>` summary cost-display paths never fire in practice. The transcript is a wall of text.
+**Location:**
+- Orchestrator persists events via `recordEvent` with `payload` = `{id, kind, content, toolName, lineNumber, toolCommand, ...}` (pre-parsed from the driver's stream-json). `content` is the extracted tool command/query string, not the original JSON line.
+- `src/components/pipeline/LiveOutput.tsx:96-106` builds `rawLines` from `eventsQuery.data`, extracting `payload.content` as each line's `content` field.
+- `src/components/pipeline/LiveOutput.tsx:109-131` feeds each `content` string through `parseLine` (the `stream-json` parser at `src/adapters/subprocess/stdout-parser.ts:42-43`).
+- `stdout-parser.ts:43-45` fast-paths any string that doesn't start with `{` to a `raw` entry. Extracted tool commands never start with `{`, so every tool_call event becomes a `raw` line.
+- `LiveOutput.tsx:115-118` then promotes `raw` → `text` "for readability." Net effect: the entry's persisted `kind` is discarded and everything renders as plain text.
+
+**Root cause:** mismatch between what the parser expects as input (the driver's original stdout line — a full stream-json object) and what LiveOutput actually hands it (the orchestrator's pre-extracted `content` substring). PAT's original pattern stored raw stdout lines in the event payload and let the client do all the parsing; fluxaOS's orchestrator does server-side parsing but LiveOutput still tries to re-parse.
+
+**What's needed:** either
+- (a) LiveOutput stops re-parsing and treats the DB event payloads as already-typed `TranscriptEntry` records — skip the `parseLine` step entirely when `payload.kind` is set; or
+- (b) the orchestrator persists both the raw stdout line (for LiveOutput re-parse) and the parsed fields (for server-side queries/metadata). Option (a) is simpler and matches "don't parse twice."
+
+Pairs with the `kind="tool_call"` vs `type="tool_use"` naming drift (Anthropic protocol term vs fluxaOS canonical term) which is already standardized at the DB/port layer.
+
+**Journey-test workaround:** `e2e/real-anthropic-stage-run.spec.ts` asserts the transcript pane populated (`.font-mono > div` non-empty) instead of a specific `.text-soft-violet` span count, because that span never renders today. Once DEF-011 ships the assertion can be tightened back to the original plan.
