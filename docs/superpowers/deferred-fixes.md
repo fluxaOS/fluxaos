@@ -171,3 +171,19 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 2. File length 561 lines > 500-line hook limit (was 564 on main before Task 7 edit). Companion to DEF-007's existing exemption list — candidate to either split or exempt.
 **How Task 7 handled it:** Committed with `--no-verify` (user-authorized). The hook was re-triggered only because Task 7 mechanically had to delete 3 `schema.issueAttachment/issueDependency/issueSavedView` references from `tableMap`. Neither violation was introduced by Task 7.
 **What's needed:** Either add this file to `SIZE_EXEMPT_FILES` in the pre-commit hook and replace the 6 `any`s with narrower types, or split the test file along the catalog/issue-lifecycle seam. Pairs with DEF-007 (canonical hook source) so the exemption lives in a tracked file.
+
+## DEF-009 — Seeded issues missing `bodyHtml`; description shows "No description" until edited
+
+**Found:** 2026-04-20 during R-UI-2.5 human browser verification.
+**Severity:** Low — user-visible only on seeded issues. Fresh issues created through the UI render correctly.
+**Location:** `src/scripts/db/seed.ts` — `db.insert(issue).values({ ..., bodyMd: '...' })` at issue #1 (~line 520) and #2 (~line 553). `bodyHtml` is never set.
+**Root cause:** `EditableBody` renders from `bodyHtml` in view mode (per invariant #14 — server-rendered at write time, safe for `dangerouslySetInnerHTML`) and falls back to a "No description. Click to add one." placeholder when `bodyHtml` is null. The tRPC mutation paths (`issue.create`, `issue.updateFields`) both run a markdown → HTML renderer before writing to the DB, so UI-authored issues always have `bodyHtml` populated. The seed script bypasses the mutation path and writes `bodyMd` directly, leaving `bodyHtml` null. Clicking Edit and saving re-runs the mutation path, populates `bodyHtml`, and the description becomes visible.
+**What's needed:** In the seed script, either (a) call the shared markdown → HTML helper before each `db.insert(issue).values(...)` and pass `bodyHtml` alongside `bodyMd`, or (b) route seed inserts through the same `createIssueService`-equivalent that the tRPC router uses, so markdown rendering is a single source of truth. Option (b) is the DRY fix; option (a) is faster. Either way, `npm run verify` should eventually assert that every seeded issue has both `bodyMd` AND `bodyHtml` populated.
+
+## DEF-010 — Tag input only accepts single tag; space and comma separators don't split
+
+**Found:** 2026-04-20 during R-UI-2.5 human browser verification.
+**Severity:** Low — multi-tag UX is broken but no data loss; users can work around by submitting one tag at a time (if the UI even supports that; behavior with a single tag entry is fine per this report).
+**Location:** Issue detail — wherever the tag field is rendered (need to locate on investigation; likely `src/app/[org]/[user]/[project]/issues/[number]/client.tsx` or a component it imports). Pre-existing behavior — not touched in R-UI-2.5.
+**Repro:** On an issue detail page, type one tag, press space (or comma) expecting it to commit and start a new tag. Second tag is not accepted.
+**What's needed:** Tag field should split on space/comma/Enter and commit each trimmed segment as a separate tag. Also consider: paste handling, max-length per tag, duplicate suppression. Wire to the existing tag mutation path. Independent of R-UI-2.5 scope.
