@@ -19,8 +19,11 @@ interface Catalogs {
   priorities: CatalogItem[];
 }
 
+// Supabase Realtime delivers DB-column-shaped payloads (snake_case),
+// not Drizzle camelCase. Accept both shapes and look up either at runtime.
 interface IssueEventRow {
-  issueId: string;
+  issue_id?: string;
+  issueId?: string;
 }
 
 // ─── Comment card with edit / delete ────────────────────────────────────────
@@ -204,7 +207,9 @@ export function ActivityFeed({
       'issue_event',
       '*',
       (payload: RealtimeTableEvent<IssueEventRow>) => {
-        const rowIssueId = payload.new?.issueId ?? payload.old?.issueId;
+        const rowIssueId =
+          payload.new?.issue_id ?? payload.new?.issueId ??
+          payload.old?.issue_id ?? payload.old?.issueId;
         if (rowIssueId === issueId) {
           eventsQuery.refetch();
         }
