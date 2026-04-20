@@ -116,13 +116,18 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
     setSelectedStageRunId(stageRuns[stageRuns.length - 1].id);
   }, [stageRuns, initialStageName]);
 
-  // Subscribe to Realtime for stage_run status changes (resolved via adapter registry)
+  // Subscribe to Realtime for stage_run AND pipeline_run status changes.
+  // Both subscriptions trigger a refetch so the status badge stays current.
+  // pipeline_run subscription is required because the orchestrator updates
+  // pipeline_run.status AFTER stage_run.status — if only stage_run is watched,
+  // the header badge can stay stuck on "Running" after the run completes.
   useEffect(() => {
     if (!isOpen || !runId) return;
 
     const realtime = registry.get<RealtimeProvider>('realtime');
-    const unsubscribe = realtime.subscribeToTable<unknown>(
-      `run-detail-${runId}`,
+
+    const unsubscribeStage = realtime.subscribeToTable<unknown>(
+      `run-detail-stage-${runId}`,
       'stage_run',
       '*',
       () => {
@@ -130,8 +135,18 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
       },
     );
 
+    const unsubscribePipeline = realtime.subscribeToTable<unknown>(
+      `run-detail-pipeline-${runId}`,
+      'pipeline_run',
+      'UPDATE',
+      () => {
+        runQuery.refetch();
+      },
+    );
+
     return () => {
-      unsubscribe();
+      unsubscribeStage();
+      unsubscribePipeline();
     };
   }, [runId, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
