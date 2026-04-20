@@ -1,13 +1,4 @@
 export type {
-  AIProvider,
-  CompletionChunk,
-  CompletionMessage,
-  CompletionParams,
-  CompletionResult,
-  CompletionUsage,
-  ModelInfo,
-} from './ai';
-export type {
   AuthEvent,
   AuthProvider,
   AuthResult,
