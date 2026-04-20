@@ -55,7 +55,7 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Medium — issue events (stage_started, pipeline_completed) only appear after page refresh
 **Location:** Issue detail client component
 **What's needed:** Subscribe to `issue_event` table changes via Supabase Realtime, or add polling refetch
-**Resolved:** 2026-04-20 in R-UI-2.5 (PR #TBD) — `ActivityFeed.tsx` subscribes to `issue_event` table via `registry.get<RealtimeProvider>('realtime')` and refetches the events query on any matching row change. Replaces manual `eventsQuery.refetch()` calls in comment mutation success handlers.
+**Resolved:** 2026-04-20 in R-UI-2.5 (PR #47) — `ActivityFeed.tsx` subscribes to `issue_event` table via `registry.get<RealtimeProvider>('realtime')` and refetches the events query on any matching row change. Replaces manual `eventsQuery.refetch()` calls in comment mutation success handlers.
 
 ## UI: LiveOutput updates all at once instead of streaming line-by-line
 
@@ -90,7 +90,7 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Severity:** Medium — activity feed display is broken or misleading
 **Location:** Issue detail activity/event feed
 **What's needed:** Investigate and fix activity event rendering
-**Resolved:** 2026-04-20 in R-UI-2.5 (PR #TBD) — rendering verified correct via the e2e/activity-feed-realtime.spec.ts Playwright smoke (commit d5c4129) which asserts the feed renders event rows and updates without manual refresh. The original ambiguous repro did not recur; any residual concern would be caught by this smoke.
+**Resolved:** 2026-04-20 in R-UI-2.5 (PR #47) — rendering verified correct via the e2e/activity-feed-realtime.spec.ts Playwright smoke (commit d5c4129) which asserts the feed renders event rows and updates without manual refresh. The original ambiguous repro did not recur; any residual concern would be caught by this smoke.
 
 ## UI: State/status labels have inconsistent verb tenses
 
