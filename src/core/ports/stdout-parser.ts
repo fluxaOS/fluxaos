@@ -22,6 +22,7 @@ export interface TranscriptEntry {
   toolCommand?: string;
   toolOutput?: string;
   isError?: boolean;
+  isStderr?: boolean;
   cost?: number;
 }
 
