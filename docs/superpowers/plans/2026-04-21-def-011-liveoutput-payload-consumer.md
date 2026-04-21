@@ -94,7 +94,7 @@ LiveOutput raw-kind renderer to style stderr amber (DEF-011)."
 
 **Files:**
 - Modify: `src/core/orchestrator/stage-runner.ts` at three call sites:
-  - The invalid-signal error path (currently lines 287-296)
+  - The invalid-signal error path (currently lines 285-296 — `} catch (err) { ... }` block)
   - The normal stdout-output path (currently lines 298-308)
   - The stderr path (currently lines 311-321)
 
@@ -116,7 +116,7 @@ import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
 
 - [ ] **Step 2: Normalize the invalid-signal error payload**
 
-Find (currently lines 287-296 — the `catch (err) { ... }` block inside the stdout processing loop):
+Find (currently lines 285-296 — the `} catch (err) { ... }` block inside the stdout processing loop):
 
 ```ts
           } catch (err) {
@@ -364,6 +364,10 @@ Replace with:
           ? payload.message
           : typeof payload.text === 'string'
           ? payload.text
+          : typeof payload.summary === 'string'
+          ? payload.summary
+          : typeof payload.error === 'string'
+          ? payload.error
           : JSON.stringify(payload);
         out.push({
           id: `sys-${e.id}`,
@@ -377,7 +381,31 @@ Replace with:
   }, [eventsQuery.data, verbose]);
 ```
 
-Note: the non-output fallback chain also checks `payload.text` because Task 2 made the invalid-signal error payload use `text` (not `content`). Without that, the new normalized payload would fall through to `JSON.stringify(payload)` and render noisy.
+Fallback chain order and justification (verified against actual orchestrator `appendEvent` call sites):
+- `content` — legacy pre-fix output events (backward compat during the coexistence window).
+- `message` — free-form lifecycle error messages. Emitted by `stage-runner.ts:336-339` (no-signal error) and `stage-runner.ts:449-451` (catastrophic error).
+- `text` — invalid-signal-error payloads normalized to `TranscriptEntry` shape in Task 2.
+- `summary` — the `completed`/`error` payload emitted by `stage-runner.ts:401-406`. Without this, verbose mode renders `[completed] {"exitCode":0,"duration":45321,"skillSignal":"proceed","summary":"..."}` instead of the human-readable skill summary.
+- `error` — the `no-driver` error payload at `stage-runner.ts:113-116`, which uses `error` (not `message`).
+- Fallback: pretty-ish JSON. `launched` payloads have `provider/model/driver/skill` which hit this branch — acceptable, since that event is an operational marker and the JSON form is informative.
+
+- [ ] **Step 3b: Patch the auto-scroll `useEffect` dependency array**
+
+Task 3 Step 2 deleted `rawLines`. The auto-scroll effect still references it. This step removes the dangling reference — without it, `tsc` in Step 5 will fail with `Cannot find name 'rawLines'`.
+
+Find (currently line 158):
+
+```tsx
+  }, [entries.length, rawLines.length, autoScroll]);
+```
+
+Replace with:
+
+```tsx
+  }, [entries.length, (eventsQuery.data ?? []).length, autoScroll]);
+```
+
+Rationale: both the non-raw pane (driven by `entries`) and the Raw JSON pane (driven by `eventsQuery.data` per Task 5) should trigger the smooth-scroll-to-bottom behavior when new rows arrive. Using both lengths covers both modes.
 
 - [ ] **Step 4: Update the `handleCopy` raw-mode branch**
 
@@ -860,3 +888,19 @@ Scanned the plan against the spec:
 No placeholder language. No "TBD"s. Every code-emitting step has the actual code. File line references are all concrete to the current state of `main` (verified via `grep` during authoring).
 
 One subtle consistency check: Task 3 Step 3's new fallback chain adds a `payload.text` branch that the spec's Section 2 didn't explicitly spell out. This is required because Task 2 made the invalid-signal-error payload use `text` (not `content`) — the spec shows that payload but doesn't trace it through to the LiveOutput synthesis. The plan catches this and documents the reason inline. No drift; spec and plan agree on end-state behavior.
+
+## Adversary-Review Amendments (2026-04-21)
+
+An adversary reviewer agent critiqued this plan after initial authoring. The following amendments were applied before committing:
+
+1. **BLOCKING — `rawLines.length` dangling reference.** Task 3 Step 2 deletes the `rawLines` memo, but the auto-scroll `useEffect` at `LiveOutput.tsx:158` still reads `rawLines.length`. Original plan missed it; `tsc` would have failed at Task 3 Step 5. Fix: added Task 3 Step 3b to patch the dep array. (Original Steps 3, 4, 5 renumbered? No — new step inserted as "3b" between Step 3 and Step 4 so existing step numbering stays stable for any reader skimming task order.)
+
+2. **Non-output fallback chain incomplete.** Task 3 Step 3's fallback read `content → message → text → JSON`, but the `completed` event at `stage-runner.ts:401-406` writes `summary` (human-readable skill summary), and the no-driver error at `stage-runner.ts:113-116` writes `error`. Under the original chain, verbose mode rendered these as JSON blobs. Fix: extended the fallback to `content → message → text → summary → error → JSON`. Each branch justified against an actual `appendEvent` call site.
+
+3. **Stale line number commentary.** Task 2's "currently lines 287-296" for the catch block was off by two — the `} catch (err) {` is at line 285. Find-replace text still matched verbatim (the issue was commentary, not the actual find block). Fix: corrected to "lines 285-296" with a parenthetical to disambiguate.
+
+4. **Spec-only fixes (not plan fixes).** The adversary also flagged: the spec's "forward-compatible" claim is overstated for stderr (old stderr rows lack `text`); the spec's "only two consumers of payload" claim misses `pipelines/[id]/page.tsx:314` (`formatEventPayload`); the spec's non-output filter silently drops `gate_checked` from verbose mode; and the tightened journey-test assertion is probabilistic. All four landed as Risks-table entries in the spec. No plan change required — the plan's code already handled these correctly; the spec just needed honest framing.
+
+5. **Findings NOT acted on (by design).** Adversary #6 (invalid-signal-error normalization is cosmetic) — acknowledged in spec; kept for schema consistency. Adversary #8 (`.text-soft-violet.font-medium` not globally unique) — the journey-test locator is already scoped to `[aria-label="Run detail"]`; claim tightened in comments. Adversary #10 (LAN-only Playwright URL) — noted in operator prompts; agent context already documented. Adversary #11 (intermediate commits break live runs briefly) — acceptable for single-operator pre-alpha; plan's commit boundaries optimized for reviewability over zero-downtime.
+
+Net result: plan is executable end-to-end as-is after these amendments. No further review pass needed.
