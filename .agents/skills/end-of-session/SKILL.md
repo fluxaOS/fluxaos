@@ -67,14 +67,9 @@ git branch -r | head -20
 
 # PRs
 gh pr list --state all --limit 10
-
-# GitHub Issues — this project uses GitHub Issues as the source of truth for
-# deferred bugs, feature requests, and in-flight work.
-gh issue list --state open --limit 30
-# Issues closed within the session window (24h window catches same-day closes)
-gh issue list --state closed --limit 30 --json number,title,closedAt \
-  --jq '.[] | select(.closedAt > (now - 86400 | todate)) | "\(.number)\t\(.title)\t\(.closedAt)"'
 ```
+
+> **Note on issue tracking:** fluxaOS does NOT use GitHub Issues pre-alpha. Bugs and findings live in `docs/superpowers/deferred-fixes.md` as DEF-NNN entries. GitHub Issues adoption is a planned post-alpha migration. Do not run `gh issue` commands as part of session wrap-up.
 
 ### 1b. Write the Report
 
@@ -106,28 +101,13 @@ Break down by PR. For each PR list:
 
 ---
 
-## Issues Closed This Session
+## Deferred Findings This Session
 
-| # | Title | PR | Notes |
-|---|-------|----|-------|
-| #NNN | Title | #NNN | link, one-line closeout rationale |
+| ID | Title | File | Notes |
+|----|-------|------|-------|
+| DEF-NNN | Title | docs/superpowers/deferred-fixes.md | one-line summary |
 
-(or: "None — no GitHub Issues were closed this session." — include this sentence explicitly so the reader doesn't wonder whether it was forgotten.)
-
-## Issues Opened This Session (deferred findings or new scope)
-
-| # | Title | Labels | Notes |
-|---|-------|--------|-------|
-| #NNN | Title | bug, deferred | ... |
-
-(or: None)
-
-## Issues Still In Progress
-
-| # | Title | Branch | Notes |
-|---|-------|--------|-------|
-
-(Filter `gh issue list --state open` for anything touched this session — by commit reference, PR linkage, or label.)
+(or: "None — no new deferred findings this session." — include explicitly so the reader doesn't wonder whether it was forgotten.)
 
 ## Open PRs Awaiting Action
 
@@ -201,9 +181,9 @@ Quote the relevant rows from `docs/superpowers/roadmap.md` showing what changed 
 
 ## Deferred Findings Captured
 
-GitHub Issues filed during this session (the source of truth going forward). One-line summary each with the issue number and labels applied. Include everything surfaced during verification that wasn't in scope for this session's PR.
+DEF-NNN entries appended to `docs/superpowers/deferred-fixes.md` during this session. One-line summary each with the DEF ID, severity, and the file:line that surfaced it. Include everything surfaced during verification that wasn't in scope for this session's PR. Match the existing house style (DEF-001 through DEF-011 are reference examples).
 
-Legacy `docs/superpowers/deferred-fixes.md` is still on disk for historical reference (DEF-001 through DEF-011 predate the GitHub-Issues cutover). Do NOT add new DEF-NNN entries there — file them as `gh issue create` instead, with appropriate labels (`bug`, `enhancement`, `documentation`), and reference the commit or PR that surfaced them in the issue body.
+GitHub Issues are NOT used pre-alpha. Do not file findings via `gh issue create` — append to `docs/superpowers/deferred-fixes.md` as DEF-NNN.
 
 ---
 
@@ -294,13 +274,13 @@ Build a protected set — branches and worktrees that must NOT be touched:
 - The current handoff branch (until its PR is merged).
 - Any branch listed in the handoff's "Current State" as preserved.
 - Any branch attached to an active worktree.
-- Any branch linked to an open GitHub Issue (typical patterns: `feat/<issue-slug>`, `fix/<issue-slug>`, or branches referenced by an open PR tied to an issue).
+- Any branch tied to an open PR.
 
 ```bash
 # Active worktree branches
 WORKTREE_BRANCHES=$(git worktree list --porcelain | awk '/^branch /{print $2}' | sed 's|refs/heads/||')
 
-# Branches tied to open PRs (often correspond to in-flight issue work)
+# Branches tied to open PRs
 OPEN_PR_BRANCHES=$(gh pr list --state open --json headRefName --jq '.[].headRefName' 2>/dev/null | tr '\n' ' ')
 
 echo "Protected worktree branches: $WORKTREE_BRANCHES"
@@ -369,38 +349,26 @@ fluxaOS IS a webapp with a Next.js dev server on port 3003. There is no systemd 
 - If a background dev-server task is still running from this session (check the session's open tasks), either:
   - Leave it running if the operator expects to continue immediately. Note the task id in the handoff under "Current State → Dev server."
   - Stop it with `TaskStop <id>` if this is a true end-of-context wrap.
-- Scan the current conversation for any unreported console errors from the dev server. If any suggest a regression in this session's code, file as a deferred issue in `docs/superpowers/deferred-fixes.md` BEFORE closing the session.
+- Scan the current conversation for any unreported console errors from the dev server. If any suggest a regression in this session's code, append a new DEF-NNN entry to `docs/superpowers/deferred-fixes.md` BEFORE closing the session.
 
 | Finding | Action |
 |---------|--------|
-| Errors from this session's changes | **File a GitHub Issue (`gh issue create`) before closing** — label `bug`, reference the offending commit/PR in the body |
-| Pre-existing errors | Note in handoff only, or file a tracking issue if the noise is ongoing |
+| Errors from this session's changes | **Append a new DEF-NNN entry to `docs/superpowers/deferred-fixes.md` before closing** — match the existing house style (severity, location, root cause, what's needed), reference the offending commit/PR |
+| Pre-existing errors | Note in handoff only, or file a DEF-NNN tracking entry if the noise is ongoing |
 | No errors | Proceed |
 
 ---
 
-## Step 7: Close Issues and Digest to Memory
-
-### 7a. Close GitHub Issues
-
-For every GitHub Issue completed this session:
-
-```bash
-gh issue close <N> --comment "Closed by PR #<PRN>. <one-line summary of what shipped>"
-```
-
-If a PR's merge commit message contained a `Closes #N` / `Fixes #N` trailer, GitHub already closed the issue automatically — verify with `gh issue view <N>` and skip if already closed.
-
-### 7b. Auto-memory Digest
+## Step 7: Auto-memory Digest
 
 This project uses the auto-memory system at `/home/<user>/.claude/projects/-mnt-dev-fluxaos/memory/`. Review the session for:
 - **User feedback** (corrections or approvals worth remembering for future sessions — `feedback_*.md`).
 - **Project facts** (decisions, deadlines, motivations — `project_*.md`).
-- **References** (external systems, dashboards, GitHub Issue conventions — `reference_*.md`).
+- **References** (external systems, dashboards, conventions — `reference_*.md`).
 
 Save each to its own file under `memory/` and add a one-line index entry to `memory/MEMORY.md`. See the auto-memory instructions in CLAUDE.md for the full format.
 
-Per-closed-issue digest: for each issue closed this session, consider whether any cross-session-worthy facts emerged during the work (a non-obvious root cause, a design decision, a new pattern). If yes, add to memory. If the issue was straightforward (a small bug fix, a one-line tweak), skip — memory is for things that help *future* sessions, not a log of every closed issue.
+Per-shipped-PR digest: for each PR merged this session, consider whether any cross-session-worthy facts emerged during the work (a non-obvious root cause, a design decision, a new pattern). If yes, add to memory. If the work was straightforward (a small bug fix, a one-line tweak), skip — memory is for things that help *future* sessions, not a log of every commit.
 
 This project does NOT use `gh memory` CLI — that was an fh-commons vestige and is not installed here.
 

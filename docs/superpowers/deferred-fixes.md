@@ -208,3 +208,43 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 Pairs with the `kind="tool_call"` vs `type="tool_use"` naming drift (Anthropic protocol term vs fluxaOS canonical term) which is already standardized at the DB/port layer.
 
 **Journey-test workaround:** `e2e/real-anthropic-stage-run.spec.ts` asserts the transcript pane populated (`.font-mono > div` non-empty) instead of a specific `.text-soft-violet` span count, because that span never renders today. Once DEF-011 ships the assertion can be tightened back to the original plan.
+
+## DEF-012 — Skill `housekeeping` needs fluxaOS-native rewrite
+
+**Found:** 2026-04-20 during skills audit.
+**Severity:** Medium — skill is currently broken and unusable; was not invoked recently so not actively bleeding, but blocks `end-of-day` (which calls it).
+**Location:** `.claude/skills/housekeeping/SKILL.md` and `.agents/skills/housekeeping/SKILL.md` (mirrors). Both deleted in cleanup PR `cleanup/revert-premature-github-issues` pending rewrite — currently absent from disk.
+**What's broken (audit findings before deletion):** "Critical Constraints" section says "This repository uses Forgejo (NOT GitHub)" — the literal opposite of fluxaOS. Forgejo/psql backend boilerplate referenced `.fhc-config.json` (deleted in R-INFRA). Issue-triage subagent (Subagent C) assumes a Forgejo issue backend that fluxaOS doesn't have. Service grep patterns (`gunicorn|uvicorn|flask|celery`) are Python ecosystem services — fluxaOS is Next.js with no managed services, just a dev server on `:3003`. Worktree/branch cleanup logic (Subagents A and B) was the only salvageable part.
+**What's needed:** Rewrite as a fluxaOS-native skill. Scope to keep: parallel git cleanup (merged branches, stale 30d+ branches, all stash entries) + worktree cleanup (stale worktrees, prune metadata) + roadmap/deferred-fixes sanity scan (e.g., flag DEF entries marked RESOLVED but still in active list, flag roadmap rows out of sync with shipped PRs). Drop entirely: Forgejo references, Python service patterns, the issue-triage subagent. Use the `superpowers:brainstorming` skill to scope before rewriting — what does an admin actually want at session-end housekeeping for this project?
+
+## DEF-013 — Skill `end-of-day` needs fluxaOS-native rewrite
+
+**Found:** 2026-04-20 during skills audit.
+**Severity:** Medium — skill is currently broken and unusable. Not invoked recently. Note: `end-of-session` (which IS clean and IS used) covers most of the same surface area; rewriting `end-of-day` requires deciding what distinct purpose it serves vs `end-of-session`.
+**Location:** `.claude/skills/end-of-day/SKILL.md` and `.agents/skills/end-of-day/SKILL.md` (mirrors). Both deleted in cleanup PR `cleanup/revert-premature-github-issues` pending rewrite — currently absent from disk.
+**What's broken (audit findings before deletion):** Step 1 used a `python3 -c "..."` script with no piped input to parse a memory-system JSON response — fluxaOS doesn't have the `gh memory` CLI that produces that JSON, so the script would always fall back to the 9-hour-ago default. Forgejo/psql backend boilerplate referenced `.fhc-config.json`. Step 4 prompted to run "memory digest" via a CLI that doesn't exist. Step 5 invoked `--tags "session-start"` with no surrounding command (orphaned bash fragment).
+**What's needed:** Decide the role first: (a) lightweight midday/checkpoint companion to `end-of-session` (run housekeeping + log a session marker, no PR/handoff), or (b) merge `end-of-day` into `end-of-session` and delete `end-of-day` entirely. If (a): rewrite to recap commits since the start-of-day marker, invoke `housekeeping` (DEF-012), and append a session-end note to `MEMORY.md` or a small log file. Use the `superpowers:brainstorming` skill to choose the role before writing code.
+
+## DEF-014 — Skill `start-of-day` needs fluxaOS-native rewrite (preserve sub-skill structure)
+
+**Found:** 2026-04-20 during skills audit.
+**Severity:** Medium — skill is currently broken and unusable. Not invoked recently.
+**Location:** `.claude/skills/start-of-day/SKILL.md` (parent) + `.claude/skills/start-of-day/skills/{brief,plans,ingest}/` (3 sub-skill directories) and `.agents/skills/start-of-day/...` (mirror). Both directory trees deleted in cleanup PR `cleanup/revert-premature-github-issues` pending rewrite.
+**What's broken (audit findings before deletion):** Parent `SKILL.md` was structurally fine (router to brief/plans/ingest sub-skills) but had an orphaned `--tags "session-start"` bash fragment in Step 5 with no surrounding command. Sub-skills were not deeply audited but flagged as likely to contain `python3` and `gh memory` references. Sub-skill routing pattern is worth keeping (modular, addressable as `/start-of-day brief` etc.).
+**What's needed:** Rewrite all four files. Preserve the sub-skill structure (`start-of-day/skills/{brief,plans,ingest}/`) per user direction (2026-04-20). Scope: `brief` = recent git activity, open PRs, deferred-fixes status, repo dirty/clean state; `plans` = in-flight specs/plans from `docs/superpowers/{specs,plans}/` (last 7 days mtime); `ingest` = memory freshness check (any memory file referencing closed PRs or shipped phases that should be updated). Parent should orchestrate the three sub-skills sequentially or route to one. Use the `superpowers:brainstorming` skill to define each sub-skill's exact contract before writing.
+
+## DEF-015 — Skills audit: 9 broken skills deleted, no fluxaOS-native equivalents needed
+
+**Found:** 2026-04-20 during skills audit.
+**Severity:** Informational — record of completed cleanup, not action-required.
+**Context:** Audit of 20 skills (mirrored to `.claude/skills/` and `.agents/skills/`) inherited from fh-commons in the R-INFRA decoupling found 9 skills broken beyond light edits. All 9 were deleted from both mirrors in PR `cleanup/revert-premature-github-issues`. The deletions are NOT pending rewrite — these skills had no fluxaOS-relevant function; their roles are covered by superpowers skills + native commands.
+**Deleted skills (with replacement guidance):**
+- `deploy` and `finish` — pat-pipeline-orchestrator skills with Python tooling. Replacement: `end-of-session` skill (handles PR/merge/cleanup) + `superpowers:finishing-a-development-branch` for branch-completion decisions.
+- `implement` and `research` — fh-commons pipeline skills with `{{PARTIAL:...}}` template includes that were never resolved. Replacement: `superpowers:writing-plans` (research/design) + `superpowers:subagent-driven-development` (implementation cadence).
+- `verify-webapp` — Python `fh_commons.browser` imports for a TypeScript/Playwright project. Replacement: Playwright e2e specs in `e2e/*.spec.ts` invoked directly via `npx playwright test`.
+- `review` — pat-pipeline reviewer with Forgejo, `{{WEBAPP}}` placeholders, and `pat pipeline exit` calls. Replacement: `superpowers:requesting-code-review` skill + manual `gh pr` commands during `end-of-session`.
+- `manager` — issue-lifecycle orchestrator that assumed a queryable issue backend (Forgejo or `pat`-style DB). fluxaOS pre-alpha doesn't have one — `deferred-fixes.md` is a static markdown file, not queryable. Replacement: none needed pre-alpha; revisit post-alpha if GitHub Issues adoption (R7) creates a real lifecycle to manage.
+- `verify-issue` — same issue-backend assumption as `manager`. Replacement: `superpowers:verification-before-completion` for the verification discipline; the per-issue tracking is the operator's job pre-alpha.
+- `check-logs` — was hardcoded to halt unconditionally on invocation (`webapp=false, has_logs=false` placeholders evaluated as a literal "false is false" check). Also had Python service grep patterns. Replacement: ad-hoc `npm run dev` console scan + Playwright `pageerror` capture in e2e specs (already in use per R-REM-W3-a journey test).
+**What's needed:** Nothing. This entry is the audit trail. If any of the 9 deletions turns out to be missed, restore from git history (commit on `cleanup/revert-premature-github-issues` branch).
+
