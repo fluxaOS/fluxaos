@@ -92,27 +92,18 @@ test.describe('@r-rem-w3-a @journey', () => {
       },
     ).toBe('completed');
 
-    // Assert the transcript pane rendered at least one entry. The output-pane
-    // container (`.font-mono` inside the dialog) is the element that holds
-    // every parsed transcript entry. Non-zero child count proves the run
-    // streamed real output from the subprocess into the UI.
-    //
-    // NOTE: the plan initially called for asserting a `tool_call` entry
-    // specifically (e.g. a `.text-soft-violet` span), but LiveOutput's parser
-    // re-parses the event payloads as stream-json and the orchestrator
-    // pre-extracts the tool command into the event's `content` field — so
-    // the re-parse falls back to `raw` → `text` for every tool_use event and
-    // no `ToolCallEntry` actually renders today. The events ARE persisted
-    // with kind="tool_call" in the DB (`npm run db:events` confirms), but
-    // the UI rendering pipeline collapses them to text entries. That's a
-    // separate drift to fix post-alpha; for R-REM-W3-a's "engine observed
-    // to work" unlock, asserting the pane populated is sufficient corroboration
-    // alongside the terminal-completed status above.
-    const transcriptEntries = page
+    // Assert at least one tool_call entry rendered. `ToolCallEntry` emits
+    // the tool name in a <span class="text-soft-violet font-medium"> (see
+    // LiveOutput.tsx). A live Claude Research run reliably invokes at least
+    // one tool (typically Read, Grep, or Glob), so the count must be >= 1.
+    // This proves the tool_call kind made it from DB payload -> renderer,
+    // which is the DEF-011 regression surface.
+    const toolCallNames = page
       .locator('[aria-label="Run detail"]')
-      .locator('.font-mono > div');
+      .locator('.text-soft-violet.font-medium');
 
-    await expect(transcriptEntries.first()).toBeVisible({ timeout: 10_000 });
+    await expect(toolCallNames.first()).toBeVisible({ timeout: 10_000 });
+    expect(await toolCallNames.count()).toBeGreaterThanOrEqual(1);
 
     // Final gate: no pageerror, no Supabase registry / env / config errors.
     // Allow unrelated third-party noise (e.g. bundler/HMR warnings that pass
