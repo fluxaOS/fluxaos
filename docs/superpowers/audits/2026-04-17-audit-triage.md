@@ -29,7 +29,7 @@ The distinction: auth/realtime have adapter implementations that consumers bypas
 **Build for alpha (remediation scope):**
 - CLI (thin tRPC-client wrapper — ~1-2 days per user's framing: "single API, non-interactive commands share the API")
 - GitHub adapter + `git`/`issue` port implementations
-- Anthropic adapter (AIProvider port implementation)
+- Anthropic adapter (AIProvider port implementation) — **Resolved under R-REM-W3-a (2026-04-20).** The orchestrator's real AI path is `executeStageRun` → `SubprocessExecutor` (`StageExecutor` port) → `claude` binary → `SubprocessStdoutParser` (`StdoutParser` port; adapter landed in R-REM-W2). Seed data wires provider "Anthropic" → driver "claude-code" → model "Claude Sonnet 4.6" with `apiKeyRef: 'env:ANTHROPIC_API_KEY'`. The SDK-shaped `AIProvider` port (`complete`/`stream`/`listModels`/`healthCheck`) had zero consumers and was retired; if a direct-SDK path is ever needed it will be a separate port with a separate adapter, not a revival of the retired shape. End-to-end live-Claude journey proven by `e2e/real-anthropic-stage-run.spec.ts`.
 - Settings tabs: Cron Jobs, Teams, Users, System, Stages, Projects
 - Mission Control page
 
