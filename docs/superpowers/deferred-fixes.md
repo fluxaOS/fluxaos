@@ -250,3 +250,23 @@ Pairs with the `kind="tool_call"` vs `type="tool_use"` naming drift (Anthropic p
 - `check-logs` — was hardcoded to halt unconditionally on invocation (`webapp=false, has_logs=false` placeholders evaluated as a literal "false is false" check). Also had Python service grep patterns. Replacement: ad-hoc `npm run dev` console scan + Playwright `pageerror` capture in e2e specs (already in use per R-REM-W3-a journey test).
 **What's needed:** Nothing. This entry is the audit trail. If any of the 9 deletions turns out to be missed, restore from git history (commit on `cleanup/revert-premature-github-issues` branch).
 
+## DEF-016 — Verbose mode is noisy: `hook_started` / `hook_response` / `init` system entries swamp the transcript
+
+**Found:** 2026-04-21 during DEF-011 human verification against issue #1 Research run.
+**Severity:** Low — pre-alpha UX paper cut, not a functional bug.
+**Repro:** Open any RunDetailModal for a Claude Code run, toggle Verbose on. The transcript leads with ~14 `hook_started` / `hook_response` / `init` system entries before any model text appears. On short runs (32s, ~33 output events here), the hook noise is ~40% of the rendered lines.
+**What's needed:** Either (a) filter hook lifecycle messages out of the verbose renderer by default with an opt-in "Show hooks" sub-toggle, or (b) collapse contiguous hook events into a single "14 hooks initialized" summary line. Option (a) matches the existing Verbose/Raw JSON toggle pattern and is lower-risk. The filter predicate is straightforward — `system` kind entries whose `text` starts with `hook_` or equals `init`. Raw JSON mode should still show every event (it's the "everything" view).
+**Context:** The signal-to-noise shifted after DEF-011 landed because verbose mode now cleanly shows every system entry, including the previously-invisible hook lifecycle chatter. This was hidden before because the re-parse collapsed them to `text` with different wrapping; now `kind === 'system'` entries render faintly but still take one line each.
+
+## DEF-017 — System entries render out of lineNumber order (3, 2, 1, 5, 4, 11, 12, 6, 7, 8, 9, 13, 10)
+
+**Found:** 2026-04-21 during DEF-011 human verification against issue #1 Research run (Raw JSON pane).
+**Severity:** Low-Medium — not a correctness regression from DEF-011 (pre-fix exhibited the same behavior via the re-parse path), but it's a real ordering anomaly in the persisted event stream. Investigate whether it reflects (a) out-of-order arrival from the Claude Code subprocess stdout stream, (b) out-of-order INSERT commits to Supabase, or (c) out-of-order `eventsQuery` result ordering on the read side.
+**Repro:** Run any Claude Code stage through completion, open RunDetailModal, toggle Raw JSON. The leading `output` events with `kind: 'system'` arrive with scrambled `lineNumber` fields. Example from issue #1 Research run: 3, 2, 1, 5, 4, 11, 12, 6, 7, 8, 9, 13, 10. The parser's own `lineNumber` assignment is monotonic at the source, so the reordering happens downstream.
+**What's needed:** Investigation. Three likely culprits:
+  1. The parser assigns lineNumber synchronously but `appendEvent` is fire-and-forget (`.catch(logError)`) — multiple parallel inserts can commit out of order, and the persisted `createdAt` field would reflect DB-commit time, not parser time. Verify by adding a `lineNumber` ORDER BY on the events query (currently `events` router likely returns by `createdAt`).
+  2. Supabase Realtime INSERT events arrive before the tRPC refetch completes, producing a brief misorder that resolves on next poll. Less likely given Raw JSON mode reads from `eventsQuery.data`, not the Realtime payload directly.
+  3. The subprocess emits hook events on stderr/stdout asynchronously and the parser's `lineNumber` counter is a shared closure increment that races with itself.
+**Fix sketch:** Sort `eventsQuery.data` by `(createdAt, payload.lineNumber)` in LiveOutput before rendering, OR change the events router to `ORDER BY created_at, (payload->>'lineNumber')::int`. The DB fix is cleaner and fixes it for every consumer (not just LiveOutput).
+**Not a DEF-011 regression:** The pre-fix re-parse path exhibited the same ordering under the hood — the collapsing to `text` just made it less visually obvious. Worth fixing independently.
+
