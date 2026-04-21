@@ -198,7 +198,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-2 px-1">
         <span className="text-xs text-slate-500">
-          {rawJson ? `${(eventsQuery.data ?? []).length} lines` : `${entries.length} entries`}
+          {rawJson ? `${(eventsQuery.data ?? []).length} events` : `${entries.length} entries`}
         </span>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
@@ -249,12 +249,15 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
         {(eventsQuery.data ?? []).length === 0 ? (
           <span className="text-slate-600">No output yet.</span>
         ) : rawJson ? (
-          (eventsQuery.data ?? []).map((ev, idx) => (
-            <div key={ev.id} className="leading-relaxed whitespace-pre-wrap">
+          (eventsQuery.data ?? []).map((e, idx) => (
+            <div key={e.id ?? idx} className="leading-relaxed whitespace-pre-wrap mb-2">
               <span className="text-slate-600 select-none mr-3">
                 {String(idx + 1).padStart(4, ' ')}
               </span>
-              {ev.type} {JSON.stringify(ev.payload)}
+              <span className="text-soft-violet">{e.type}</span>
+              <pre className="inline-block ml-2 text-slate-400">
+                {JSON.stringify(e.payload, null, 2)}
+              </pre>
             </div>
           ))
         ) : (
