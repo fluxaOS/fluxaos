@@ -27,7 +27,7 @@ import {
 import { materialize, cleanup } from '@/core/skills/materializer';
 import { buildCommand, renderTemplate } from './command-builder';
 import { registry } from '@/config/registry';
-import type { StdoutParser } from '@/core/ports/stdout-parser';
+import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
 import { parseSignalLine, type SkillSignal } from './signal-parser';
 import { createRoutingResolver } from './routing-resolver';
 import type { TriggerType } from '@/core/constants';
@@ -287,10 +287,11 @@ export async function executeStageRun(
             lineNumber++;
             runService
               .appendEvent(sRun.id, EVENT_TYPE.error, {
-                lineNumber,
-                content: err instanceof Error ? err.message : String(err),
+                id: `sig-err-${lineNumber}`,
                 kind: 'system',
-              })
+                lineNumber,
+                text: err instanceof Error ? err.message : String(err),
+              } satisfies TranscriptEntry)
               .catch(logError);
             continue;
           }
@@ -300,10 +301,7 @@ export async function executeStageRun(
           const entries = lineParser(line, lineNumber);
           for (const entry of entries) {
             runService
-              .appendEvent(sRun.id, EVENT_TYPE.output, {
-                ...entry,
-                content: entry.text ?? entry.toolCommand ?? entry.toolOutput ?? '',
-              })
+              .appendEvent(sRun.id, EVENT_TYPE.output, { ...entry })
               .catch(logError);
           }
         }
@@ -312,11 +310,12 @@ export async function executeStageRun(
         lineNumber++;
         runService
           .appendEvent(sRun.id, EVENT_TYPE.output, {
-            lineNumber,
-            content: data.trim(),
+            id: `stderr-${lineNumber}`,
             kind: 'raw',
+            lineNumber,
+            text: data.trim(),
             isStderr: true,
-          })
+          } satisfies TranscriptEntry)
           .catch(logError);
       },
     });
