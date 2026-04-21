@@ -188,7 +188,7 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 **Repro:** On an issue detail page, type one tag, press space (or comma) expecting it to commit and start a new tag. Second tag is not accepted.
 **What's needed:** Tag field should split on space/comma/Enter and commit each trimmed segment as a separate tag. Also consider: paste handling, max-length per tag, duplicate suppression. Wire to the existing tag mutation path. Independent of R-UI-2.5 scope.
 
-## DEF-011 — `ToolCallEntry` never renders in `LiveOutput` because orchestrator/parser payload shapes disagree
+## DEF-011 [RESOLVED 2026-04-21] — `ToolCallEntry` never renders in `LiveOutput` because orchestrator/parser payload shapes disagree
 
 **Found:** 2026-04-20 during R-REM-W3-a journey-test authoring (live-Claude Research run produced 6 `kind: 'tool_call'` events in the DB that all rendered as `text` entries in the browser).
 **Severity:** Medium — no data loss (every tool use IS persisted with `kind: 'tool_call'` and is queryable via `npm run db:events`), but the UI can't differentiate tool calls from text blocks, so the `<ToolCallEntry>` highlighting / `<ToolResultEntry>` collapsing / `<ResultEntry>` summary cost-display paths never fire in practice. The transcript is a wall of text.
@@ -208,6 +208,8 @@ Issues found during verification that aren't showstoppers. Fix before merge or t
 Pairs with the `kind="tool_call"` vs `type="tool_use"` naming drift (Anthropic protocol term vs fluxaOS canonical term) which is already standardized at the DB/port layer.
 
 **Journey-test workaround:** `e2e/real-anthropic-stage-run.spec.ts` asserts the transcript pane populated (`.font-mono > div` non-empty) instead of a specific `.text-soft-violet` span count, because that span never renders today. Once DEF-011 ships the assertion can be tightened back to the original plan.
+
+**Resolution (2026-04-21):** Option (a) shipped — LiveOutput stops re-parsing. Orchestrator's `EVENT_TYPE.output` payloads are now persisted as plain `TranscriptEntry` records (redundant `content` projection dropped). LiveOutput consumes `event.payload` directly; `stdout-parser` port gained an `isStderr?: boolean` field that stage-runner's stderr path sets and LiveOutput's `raw` renderer styles amber. Raw JSON toolbar rewritten to show all persisted events pretty-printed. Journey test assertion tightened to `.text-soft-violet.font-medium` count ≥ 1. Spec: `docs/superpowers/specs/2026-04-21-def-011-liveoutput-payload-consumer-design.md`. Plan: `docs/superpowers/plans/2026-04-21-def-011-liveoutput-payload-consumer.md`.
 
 ## DEF-012 — Skill `housekeeping` needs fluxaOS-native rewrite
 

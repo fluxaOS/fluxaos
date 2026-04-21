@@ -5,7 +5,7 @@ import { Copy, Check, Terminal, MessageSquare, Zap } from 'lucide-react';
 import { registry } from '@/config/registry';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import { trpc } from '@/lib/trpc/client';
-import type { TranscriptEntry, EntryKind, StdoutParser } from '@/core/ports/stdout-parser';
+import type { TranscriptEntry, EntryKind } from '@/core/ports/stdout-parser';
 import { EVENT_TYPE } from '@/core/constants';
 
 interface LiveOutputProps {
@@ -78,12 +78,6 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Resolve the stdout parser once per mount via the adapter registry
-  const parseLine = useMemo(
-    () => registry.get<StdoutParser>('stdoutParser').getParser('stream-json'),
-    [],
-  );
-
   // Fetch existing events
   const eventsQuery = trpc.pipeline.runs.events.useQuery(
     { stageRunId },
@@ -93,42 +87,42 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
     },
   );
 
-  const rawLines = useMemo(() => {
-    return (eventsQuery.data ?? [])
-      .filter((e) => e.type === EVENT_TYPE.output || e.type === EVENT_TYPE.launched || e.type === EVENT_TYPE.completed || e.type === EVENT_TYPE.error)
-      .map((e, idx) => ({
-        lineNumber: idx,
-        content: typeof e.payload === 'object' && e.payload !== null
-          ? (e.payload as Record<string, unknown>).content as string ?? JSON.stringify(e.payload)
-          : String(e.payload),
-        type: e.type,
-      }));
-  }, [eventsQuery.data]);
-
-  // Parse into transcript entries
-  const entries = useMemo(() => {
-    const parsed: TranscriptEntry[] = [];
-    for (const line of rawLines) {
-      if (line.type === EVENT_TYPE.output) {
-        // Try JSON parsing first (streaming driver output)
-        const results = parseLine(line.content, line.lineNumber);
-        // If parseLine only produced raw entries, promote to text for readability
-        const promoted = results.map((entry) =>
-          entry.kind === 'raw' ? { ...entry, kind: 'text' as EntryKind } : entry,
-        );
-        parsed.push(...promoted);
-      } else {
-        // Non-output events (launched, completed, etc.) become system entries
-        parsed.push({
-          id: `sys-${line.lineNumber}`,
+  // Consume event payloads as already-typed TranscriptEntry records.
+  // Output events carry a TranscriptEntry in payload directly (see
+  // stage-runner.ts). Non-output events (launched/completed/error)
+  // synthesize a 'system' entry so verbose mode can surface them.
+  const entries = useMemo<TranscriptEntry[]>(() => {
+    const out: TranscriptEntry[] = [];
+    for (const e of eventsQuery.data ?? []) {
+      if (e.type === EVENT_TYPE.output) {
+        out.push(e.payload as TranscriptEntry);
+      } else if (
+        e.type === EVENT_TYPE.launched ||
+        e.type === EVENT_TYPE.completed ||
+        e.type === EVENT_TYPE.error
+      ) {
+        const payload = (e.payload ?? {}) as Record<string, unknown>;
+        const text = typeof payload.content === 'string'
+          ? payload.content
+          : typeof payload.message === 'string'
+          ? payload.message
+          : typeof payload.text === 'string'
+          ? payload.text
+          : typeof payload.summary === 'string'
+          ? payload.summary
+          : typeof payload.error === 'string'
+          ? payload.error
+          : JSON.stringify(payload);
+        out.push({
+          id: `sys-${e.id}`,
           kind: 'system' as EntryKind,
-          lineNumber: line.lineNumber,
-          text: `[${line.type}] ${line.content}`,
+          lineNumber: 0,
+          text: `[${e.type}] ${text}`,
         });
       }
     }
-    return verbose ? parsed : parsed.filter((e) => e.kind !== 'system');
-  }, [rawLines, verbose, parseLine]);
+    return verbose ? out : out.filter((x) => x.kind !== 'system');
+  }, [eventsQuery.data, verbose]);
 
   // Subscribe to Realtime for live updates (resolved via adapter registry)
   useEffect(() => {
@@ -155,7 +149,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
     if (autoScroll && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [entries.length, rawLines.length, autoScroll]);
+  }, [entries.length, (eventsQuery.data ?? []).length, autoScroll]);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -167,7 +161,9 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const handleCopy = () => {
     let text: string;
     if (rawJson) {
-      text = rawLines.map((l) => l.content).join('\n');
+      text = (eventsQuery.data ?? [])
+        .map((e) => `${e.type} ${JSON.stringify(e.payload)}`)
+        .join('\n');
     } else {
       text = entries.map((e) => {
         if (e.kind === 'text') return e.text ?? '';
@@ -202,7 +198,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-2 px-1">
         <span className="text-xs text-slate-500">
-          {rawJson ? `${rawLines.length} lines` : `${entries.length} entries`}
+          {rawJson ? `${(eventsQuery.data ?? []).length} events` : `${entries.length} entries`}
         </span>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
@@ -250,15 +246,18 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
         onScroll={handleScroll}
         className="font-mono text-xs rounded-lg p-4 h-96 overflow-y-auto bg-slate-950 text-slate-300 border border-slate-700/40"
       >
-        {rawLines.length === 0 ? (
+        {(eventsQuery.data ?? []).length === 0 ? (
           <span className="text-slate-600">No output yet.</span>
         ) : rawJson ? (
-          rawLines.map((line) => (
-            <div key={line.lineNumber} className="leading-relaxed whitespace-pre-wrap">
+          (eventsQuery.data ?? []).map((e, idx) => (
+            <div key={e.id ?? idx} className="leading-relaxed whitespace-pre-wrap mb-2">
               <span className="text-slate-600 select-none mr-3">
-                {String(line.lineNumber + 1).padStart(4, ' ')}
+                {String(idx + 1).padStart(4, ' ')}
               </span>
-              {line.content}
+              <span className="text-soft-violet">{e.type}</span>
+              <pre className="inline-block ml-2 text-slate-400">
+                {JSON.stringify(e.payload, null, 2)}
+              </pre>
             </div>
           ))
         ) : (
@@ -272,7 +271,11 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
                 <div className="text-slate-600 opacity-50 py-0.5">{entry.text}</div>
               )}
               {entry.kind === 'raw' && (
-                <div className="whitespace-pre-wrap py-0.5">{entry.text}</div>
+                <div className={`whitespace-pre-wrap py-0.5 ${
+                  entry.isStderr ? 'text-amber-400 border-l-2 border-amber-400/40 pl-2' : ''
+                }`}>
+                  {entry.text}
+                </div>
               )}
             </div>
           ))
