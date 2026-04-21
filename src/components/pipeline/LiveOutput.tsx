@@ -268,7 +268,11 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
                 <div className="text-slate-600 opacity-50 py-0.5">{entry.text}</div>
               )}
               {entry.kind === 'raw' && (
-                <div className="whitespace-pre-wrap py-0.5">{entry.text}</div>
+                <div className={`whitespace-pre-wrap py-0.5 ${
+                  entry.isStderr ? 'text-amber-400 border-l-2 border-amber-400/40 pl-2' : ''
+                }`}>
+                  {entry.text}
+                </div>
               )}
             </div>
           ))
