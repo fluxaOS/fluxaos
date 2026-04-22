@@ -53,7 +53,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 ## Agent Behavior
 
-See [.claude/AGENT_BEHAVIOR.md](.claude/AGENT_BEHAVIOR.md) — escalation rules, verification, definition of done.
+@.claude/AGENT_BEHAVIOR.md
 
 **Project-specific verification:** UI work uses Playwright journey tests in `e2e/`. Reference pattern: `e2e/real-anthropic-stage-run.spec.ts`.
 
