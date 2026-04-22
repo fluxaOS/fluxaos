@@ -47,7 +47,8 @@ next-env.d.ts
 
 # project-specific
 *.log
-.claude/
+.claude/*
+!.claude/AGENT_BEHAVIOR.md
 .paul
 .trash
 worktrees/
