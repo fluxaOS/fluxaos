@@ -2,9 +2,6 @@
   "name": "fluxaos",
   "version": "0.1.0",
   "private": true,
-  "bin": {
-    "fluxaos": "./src/cli/index.ts"
-  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
