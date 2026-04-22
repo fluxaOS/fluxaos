@@ -13,6 +13,18 @@
 - Updated open questions section (resolved items removed)
 - Platform-agnostic adapter requirement strengthened throughout
 
+## Alpha Scope Reconciliation (2026-04-22)
+
+This section supersedes the Alpha MVP Scope checklist below where they conflict. The original alpha scope was written against the old R-REM-W3 "four-slice" framing. Tonight's session (2026-04-22) reshaped alpha around ten concrete items that collectively close the "file an issue → get a PR" loop for a single user against a single project and a single repo.
+
+**Alpha scope constraint: one user, one project, one repo.** The schema supports multi-tenancy but alpha does not build the UI or flows for multi-anything. Post-alpha layers multi on top.
+
+**Architectural borrowing:** fluxaOS borrows workspace isolation, worktree lifecycle, cleanup service, forge-adapter structure, headless runtime discipline, and stage-to-stage artifact handoff patterns from [Archon](https://github.com/coleam00/Archon) (MIT). See [`research/2026-04-22-archon-prior-art.md`](../research/2026-04-22-archon-prior-art.md) for the pattern catalog and file pointers.
+
+**Ports retired:** `IssueProvider` is retired entirely (same precedent as `AIProvider` deletion in R-REM-W3-a PR #50). fluxaOS's issue model is native and not synced to external trackers. The port file and its exports will be removed as part of R-RUNTIME cleanup.
+
+**Authoritative alpha phases:** see the [roadmap](../roadmap.md) "Phases — Alpha" section for the current phase list. The roadmap is the source of truth for what's next.
+
 ## Executive Summary
 
 fluxaOS is a general-purpose AI orchestration operating system. It is a ground-up rewrite of PAT, built on a completely new tech stack with zero legacy coupling. The core engine is vendor-free and config-driven — it executes pipelines of configurable stages, evaluates gate rules, routes work to AI providers/models/harnesses, and tracks everything. The engine does not know what it's orchestrating. Users configure personas, pipelines, stages, gates, skills, and routing rules. fluxaOS puts the pieces together.
@@ -551,51 +563,73 @@ FLUXAOS_STAGE_EXECUTOR=node-exec
 
 ## Alpha MVP Scope
 
-What ships in 1-3 months:
+> **Superseded by the 2026-04-22 scope reconciliation above.** This section is preserved for historical context. The authoritative alpha phase list is the [roadmap](../roadmap.md) "Phases — Alpha" section.
 
-### Must Have
-- [ ] Next.js app with tRPC API
-- [ ] Supabase auth (login/logout) behind AuthProvider interface
-- [ ] Drizzle schema with all core entities
-- [ ] Issue CRUD with GitHub sync (IssueProvider adapter)
-- [ ] Skill CRUD with DB storage and disk materialization
-- [ ] Minimal CLI (`fluxaos issue list/create`, `fluxaos sync`)
-- [ ] Pipeline engine (state machine, stage execution, gate evaluation)
-- [ ] Stage executor (Node.js/execa with StageExecutor interface)
-- [ ] Basic routing (manual provider/model/harness selection per persona)
-- [ ] Fallback chains (ordered list, auto-fallback on failure)
-- [ ] Wildcard model patterns
-- [ ] Persona CRUD (soul, identity, skills, routing)
-- [ ] Global + project scope with inheritance
-- [ ] Event-sourced stage runs with output streaming
-- [ ] Live transcript view (Supabase Realtime)
-- [ ] Basic dashboard (runs, costs, tokens, success rate)
-- [ ] Gate rules engine (exit_code, cost, files_changed conditions)
-- [ ] "Just Do It" mode
-- [ ] Docker Compose deployment
-- [ ] GitHub adapter (git provider)
-- [ ] Anthropic + OpenAI adapters (AI provider)
-- [ ] README + install guide
+Original framing (April 2026): "what ships in 1-3 months." Below retained as the original intent record. Items inconsistent with the reconciled scope are marked with a strikethrough explanation.
+
+### Originally Must Have
+- [x] Next.js app with tRPC API — **Done (R1)**
+- [x] Supabase auth (login/logout) behind AuthProvider interface — **Done**
+- [x] Drizzle schema with all core entities — **Done (R3)**
+- [ ] ~~Issue CRUD with GitHub sync (IssueProvider adapter)~~ — **Scope changed:** Issue CRUD done (R3); GitHub sync cut, `IssueProvider` retired, fluxaOS issues are native-only
+- [x] Skill CRUD with DB storage and disk materialization — **Done (R5-V, R5.5)**
+- [ ] ~~Minimal CLI (`fluxaos issue list/create`, `fluxaos sync`)~~ — **Post-alpha;** web UI covers all alpha workflows
+- [x] Pipeline engine (state machine, stage execution, gate evaluation) — **Done (R4-V, R5-V)**
+- [x] Stage executor (Node.js/execa with StageExecutor interface) — **Done**
+- [x] Basic routing (manual provider/model/harness selection per persona) — **Done**
+- [x] Fallback chains (ordered list, auto-fallback on failure) — **Done**
+- [x] Wildcard model patterns — **Done**
+- [x] Persona CRUD (soul, identity, skills, routing) — **Done (R-UI-1)**
+- [ ] ~~Global + project scope with inheritance~~ — **Simplified for alpha:** single project, no multi-scope inheritance UI
+- [x] Event-sourced stage runs with output streaming — **Done**
+- [x] Live transcript view (Supabase Realtime) — **Done (R-UI-2.5)**
+- [ ] Basic dashboard (runs, costs, tokens, success rate) — **In scope as R-MISSION-CONTROL**
+- [x] Gate rules engine (exit_code, cost, files_changed conditions) — **Done (R4-V)**
+- [ ] ~~"Just Do It" mode~~ — **Deferred post-alpha** per R-AUDIT triage
+- [ ] Docker Compose deployment — **In scope as part of R-POLISH**
+- [ ] GitHub adapter (git provider) — **In scope as part of R-RUNTIME;** minimum 2 methods (`createBranch`, `createPullRequest`)
+- [ ] ~~Anthropic + OpenAI adapters (AI provider)~~ — **Anthropic only for alpha;** OpenAI post-alpha. Adapter shape is subprocess-based (R-REM-W3-a), not direct-SDK; `AIProvider` port retired
+- [ ] README + install guide — **In scope as part of R-POLISH**
+
+### Alpha-required items not captured in the original list
+
+Added by the 2026-04-22 reconciliation (the "ten-item alpha list"):
+
+- [ ] **Workspace isolation** — worktree-per-run, isolation-environments DB table, gitignored-file copy, cleanup service. **In scope as R-RUNTIME.**
+- [ ] **Deploy bridge** — orchestrator commits uncommitted worktree state, pushes branch, opens PR via the forge adapter, records PR reference on the issue. **In scope as R-RUNTIME.**
+- [ ] **Stage-to-stage artifacts directory** — `$ARTIFACTS_DIR` pattern from Archon for findings/plans/verdicts flowing between stages. **In scope as R-ARTIFACTS.**
+- [ ] **Epic / child-issue hierarchy** — `parent_issue_id` schema + orchestrator's work queue filters out epics + auto-close-parent when last child closes. **In scope as R-EPIC.**
+- [ ] **Systemd orchestrator daemon** — the manual orchestrator wrapped as a long-running process consuming from the BullMQ queue. **In scope as R-DAEMON.**
+- [ ] **Minimum Settings tabs** — Projects + Pipelines, using the R-UI-1 CRUD factory. Four other tabs (Teams, Users, System, Cron Jobs) deferred post-alpha. **In scope as R-SETTINGS-ALPHA.**
+- [ ] **End-to-end smoke test** — Playwright journey proving the full file-epic → worker runs → PR opened → issue advanced loop. **In scope as R-SMOKE.**
 
 ### Nice to Have (if time permits)
 - [ ] Bull Board dashboard (job queue visibility)
 - [ ] Cost tracking dashboard with filters
-- [ ] Pipeline templates ("Standard Dev", "Quick Fix")
+- [ ] Pipeline templates ("Standard Dev", "Quick Fix") — partially seeded already
 - [ ] Gate presets (strict, relaxed, auto)
 - [ ] Brand identity fields on org/project
 - [ ] Basic long-term memory (per project)
 - [ ] CSV/JSON export for KPIs
 
 ### Explicitly NOT in Alpha
+- Multi-user / multi-project / multi-repo UI flows (schema supports this; UI flows deferred)
+- CLI (`src/cli/`)
 - Dreaming / memory consolidation
 - Skill marketplace / registry
 - Smart routing (BridgeBench integration)
 - Non-code pipeline templates (content, social, intel)
-- Multi-org support (one org in alpha)
 - Provider health monitoring
 - Webhook-based external gate approval
 - Mobile-responsive UI
 - Cost forecasting / budget alerts
+- GitLab / Gitea / Forgejo forge adapters (same port pattern as alpha GitHub; community-contributable post-alpha)
+- OpenAI adapter
+- `IssueProvider` port (retired)
+- `AIProvider`-as-direct-SDK (retired in R-REM-W3-a)
+- Dogfooding (fluxaOS managing its own dev through its own pipelines) — philosophically attractive but carries bootstrap-fragility risk; revisit post-alpha
+- Brand service
+- OpenClaw preview gate, role-based permissions, version history for skills/drivers, subscription tier model (DEF-001 through DEF-004)
 
 ## Competitive Positioning
 
