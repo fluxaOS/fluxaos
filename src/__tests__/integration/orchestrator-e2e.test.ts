@@ -302,3 +302,81 @@ describe('orchestrator pipeline run lifecycle', () => {
     expect(run.status).toBe('completed');
   });
 });
+
+// ─── DEF-017: event ordering ───────────────────────────────────────────────
+
+describe('event ordering — DEF-017', () => {
+  // Reproduces the symptom from the DEF-011 verification: when the orchestrator
+  // fires off many appendEvent inserts without awaiting (the production path),
+  // their DB-assigned timestamps can disagree with producer line order.
+  // listEvents() must restore monotonic lineNumber ordering for stream events
+  // while preserving timestamp chronology for lifecycle events that have no
+  // lineNumber.
+
+  let orderingRunId: string;
+  let orderingStageRunId: string;
+
+  beforeAll(async () => {
+    const svc = createPipelineRunService(db);
+    const run = await svc.createRun(
+      pipelineId,
+      '00000000-0000-0000-0000-000000000000',
+    );
+    orderingRunId = run.id;
+    cleanupList.push({ table: 'pipelineRun', id: orderingRunId });
+
+    const sr = await svc.createStageRun(orderingRunId, stageId);
+    orderingStageRunId = sr.id;
+    cleanupList.push({ table: 'stageRun', id: orderingStageRunId });
+  });
+
+  it('returns stream events in monotonic lineNumber order even when fired off concurrently', async () => {
+    const svc = createPipelineRunService(db);
+
+    // Lifecycle event first (no lineNumber).
+    await svc.appendEvent(orderingStageRunId, 'launched', {
+      provider: 'test',
+      model: 'test-model',
+    });
+
+    // 20 stream events fired off concurrently — mirrors stage-runner's
+    // fire-and-forget pattern. Without ordering, DB row order is undefined.
+    const N = 20;
+    await Promise.all(
+      Array.from({ length: N }, (_, i) => {
+        const lineNumber = i + 1;
+        return svc.appendEvent(orderingStageRunId, 'output', {
+          id: `out-${lineNumber}`,
+          kind: 'text',
+          lineNumber,
+          text: `line ${lineNumber}`,
+        });
+      }),
+    );
+
+    // Trailing lifecycle event (no lineNumber).
+    await svc.appendEvent(orderingStageRunId, 'completed', {
+      exitCode: 0,
+      duration: 123,
+    });
+
+    const events = await svc.listEvents(orderingStageRunId);
+    for (const e of events) cleanupList.push({ table: 'event', id: e.id });
+
+    expect(events.length).toBe(N + 2);
+
+    // Stream events must come back in monotonic lineNumber order.
+    const lineNumbers = events
+      .map((e) => (e.payload as { lineNumber?: number }).lineNumber)
+      .filter((n): n is number => typeof n === 'number');
+    expect(lineNumbers.length).toBe(N);
+    const sorted = [...lineNumbers].sort((a, b) => a - b);
+    expect(lineNumbers).toEqual(sorted);
+
+    // Lifecycle events (launched/completed) keep their chronological position
+    // — the first event must be the leading 'launched', the last must be the
+    // trailing 'completed'.
+    expect(events[0].type).toBe('launched');
+    expect(events[events.length - 1].type).toBe('completed');
+  });
+});
