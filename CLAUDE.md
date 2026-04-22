@@ -48,20 +48,14 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 - **Config-driven** — fail fast on missing config, no silent defaults
 - **DI everywhere** — services are factories receiving `Database`, zero vendor imports in `src/core/`
 - **Orchestrator vs Workers** — systemd daemon manages pipeline state; AI workers are read-only executors that report via comments
-- **No unit tests** — integration tests against real Supabase only; see Verification below
+- **No unit tests** — integration tests against real Supabase only; see Agent Behavior
 - **Edit, never Write** — never overwrite existing files; build missing endpoints instead of deleting UI
 
-## Verification
+## Agent Behavior
 
-UI work requires a passing Playwright journey test in `e2e/`. The journey test simulates a user end-to-end (clicks buttons, opens modals, asserts rendered DOM) and captures `pageerror` + `console.error`. **No human checkpoint replaces it.** If a journey test doesn't cover the surface you're touching, write one before claiming done. Reference pattern: `e2e/real-anthropic-stage-run.spec.ts` (skips cleanly without `ANTHROPIC_API_KEY`; with it, drives a live-Claude run and asserts terminal status + tool-call rendering + zero unexpected errors).
+See [.claude/AGENT_BEHAVIOR.md](.claude/AGENT_BEHAVIOR.md) — escalation rules, verification, definition of done.
 
-## AI Authority
-
-**Decide without consulting:** implementation choices (libraries, patterns, file layout, algorithms), design specs and plans for slices already on the roadmap, bug-fix architecture, test strategy within the integration-test rule, commit messages, PR titles, branch names, brainstorming outcomes (pick the recommendation, document the rejected alternatives in the spec).
-
-**Require approval first:** schema migrations (anything in `migrations/` or `db:generate`), new dependencies, roadmap changes (adding/removing/reordering phases), pushes to public-facing services, production deploys.
-
-**Default to action, not consultation.** When in doubt, pick the option you'd defend in code review and ship it. If the human disagrees they'll say so.
+**Project-specific verification:** UI work uses Playwright journey tests in `e2e/`. Reference pattern: `e2e/real-anthropic-stage-run.spec.ts`.
 
 ## Workflow
 
