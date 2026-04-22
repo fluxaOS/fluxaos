@@ -4,7 +4,7 @@ import { router, publicProcedure } from '../trpc';
 import { createPipelineService } from '@/core/services';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { executeManualRun } from '@/core/orchestrator/manual-run';
-import { pipelineRun, stageRun, event, stageGateResult } from '@/core/db/schema';
+import { pipelineRun, stageRun, stageGateResult } from '@/core/db/schema';
 import { registry } from '@/config/registry';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 
@@ -138,8 +138,7 @@ export const pipelineRouter = router({
     get: publicProcedure
       .input(z.object({ id: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-        const { pipelineStage, event: eventTable } = await import('@/core/db/schema');
-        const { asc } = await import('drizzle-orm');
+        const { pipelineStage } = await import('@/core/db/schema');
         const svc = createPipelineRunService(ctx.db);
         const run = await svc.getRun(input.id);
         if (!run) return null;
@@ -154,11 +153,7 @@ export const pipelineRouter = router({
               .from(pipelineStage)
               .where(eq(pipelineStage.id, sr.pipelineStageId));
 
-            const events = await ctx.db
-              .select()
-              .from(eventTable)
-              .where(eq(eventTable.stageRunId, sr.id))
-              .orderBy(asc(eventTable.timestamp));
+            const events = await svc.listEvents(sr.id);
 
             return {
               ...sr,
@@ -242,11 +237,7 @@ export const pipelineRouter = router({
     events: publicProcedure
       .input(z.object({ stageRunId: z.string().uuid() }))
       .query(({ ctx, input }) => {
-        return ctx.db
-          .select()
-          .from(event)
-          .where(eq(event.stageRunId, input.stageRunId))
-          .orderBy(event.timestamp);
+        return createPipelineRunService(ctx.db).listEvents(input.stageRunId);
       }),
 
     /** Approve a held stage — release it for execution. */

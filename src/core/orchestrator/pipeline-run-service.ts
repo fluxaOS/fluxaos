@@ -92,6 +92,14 @@ export interface PipelineRunService {
     payload: Record<string, unknown>,
   ): Promise<void>;
 
+  /**
+   * List events for a stage run.
+   * Stream events (those whose payload carries `lineNumber`) are returned in
+   * monotonic lineNumber order; lifecycle events (no lineNumber) keep their
+   * timestamp position. See DEF-017.
+   */
+  listEvents(stageRunId: string): Promise<Array<typeof event.$inferSelect>>;
+
   /** Get the next stage after the given one (by sortOrder). */
   getNextStage(
     pipelineId: string,
@@ -270,6 +278,49 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         type,
         payload,
       });
+    },
+
+    async listEvents(stageRunId) {
+      // DEF-017: stream events (`lineNumber` in payload) are producer-clock
+      // ordered; lifecycle events (no `lineNumber`) are DB-clock ordered.
+      // The orchestrator fires off stream-event INSERTs concurrently, so the
+      // postgres-js connection pool commits them out of producer order — DB
+      // timestamps disagree with `lineNumber` order. Pull everything sorted by
+      // timestamp, then merge: stream events restored to lineNumber order,
+      // lifecycle events spliced back in at their timestamp position.
+      const rows = await db
+        .select()
+        .from(event)
+        .where(eq(event.stageRunId, stageRunId))
+        .orderBy(asc(event.timestamp));
+
+      const getLineNumber = (e: typeof event.$inferSelect): number | null => {
+        const ln = (e.payload as { lineNumber?: unknown }).lineNumber;
+        return typeof ln === 'number' ? ln : null;
+      };
+
+      const stream = rows
+        .filter((e) => getLineNumber(e) !== null)
+        .sort((a, b) => getLineNumber(a)! - getLineNumber(b)!);
+      const lifecycle = rows.filter((e) => getLineNumber(e) === null);
+
+      // Merge: walk lifecycle queue and splice each entry into the stream
+      // timeline before the first stream event whose timestamp is strictly
+      // greater than the lifecycle event's timestamp.
+      const result: typeof rows = [];
+      let li = 0;
+      for (const s of stream) {
+        while (
+          li < lifecycle.length &&
+          new Date(lifecycle[li].timestamp).getTime() <=
+            new Date(s.timestamp).getTime()
+        ) {
+          result.push(lifecycle[li++]);
+        }
+        result.push(s);
+      }
+      while (li < lifecycle.length) result.push(lifecycle[li++]);
+      return result;
     },
 
     async getNextStage(pipelineId, currentSortOrder) {
