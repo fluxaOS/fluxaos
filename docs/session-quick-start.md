@@ -66,7 +66,6 @@ The user wants this project ~95% AI-managed. Most "should I do X or Y?" question
 **Things that genuinely need approval:**
 - **Schema migrations.** Postgres migrations are essentially irreversible at scale. One bad migration = backup restore. Show the diff first.
 - **New dependencies.** Each adds attack surface, build time, and maintenance burden. Cite why an existing package can't do it.
-- **Spend.** A live-Claude journey test is ~$0.10. A loop of 50 = $5. Hard cap per session: $5 unspent → run; $5+ planned → ask.
 - **Roadmap changes.** The roadmap is a stated commitment; changing it changes the project's direction.
 - **External pushes.** PRs to public repos, posts, anything that leaves a permanent trail outside this machine.
 

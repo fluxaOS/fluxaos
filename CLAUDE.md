@@ -59,7 +59,7 @@ UI work requires a passing Playwright journey test in `e2e/`. The journey test s
 
 **Decide without consulting:** implementation choices (libraries, patterns, file layout, algorithms), design specs and plans for slices already on the roadmap, bug-fix architecture, test strategy within the integration-test rule, commit messages, PR titles, branch names, brainstorming outcomes (pick the recommendation, document the rejected alternatives in the spec).
 
-**Require approval first:** schema migrations (anything in `migrations/` or `db:generate`), new dependencies, paid-API runs >$5/session, roadmap changes (adding/removing/reordering phases), pushes to public-facing services, production deploys.
+**Require approval first:** schema migrations (anything in `migrations/` or `db:generate`), new dependencies, roadmap changes (adding/removing/reordering phases), pushes to public-facing services, production deploys.
 
 **Default to action, not consultation.** When in doubt, pick the option you'd defend in code review and ship it. If the human disagrees they'll say so.
 
