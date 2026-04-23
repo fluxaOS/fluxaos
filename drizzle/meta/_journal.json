@@ -36,6 +36,13 @@
       "when": 1776585600000,
       "tag": "0006_drop_dead_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777353600000,
+      "tag": "0007_r_runtime",
+      "breakpoints": true
     }
   ]
 }

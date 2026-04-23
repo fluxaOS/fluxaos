@@ -9,6 +9,8 @@
  */
 import type { Database } from '@/core/db/connection';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import { createPipelineRunService } from './pipeline-run-service';
 import { createGateService } from '@/core/gates/service';
 import { createIssueService } from '@/core/services/issue';
@@ -21,7 +23,7 @@ import {
   TRIGGER_TYPE,
 } from '@/core/constants';
 import { eq } from 'drizzle-orm';
-import { issue, pipelineStage, stageRun } from '@/core/db/schema';
+import { issue, pipeline, stageRun } from '@/core/db/schema';
 
 /**
  * Execute a single stage run. Fire-and-forget — caller does not await.
@@ -30,6 +32,8 @@ import { issue, pipelineStage, stageRun } from '@/core/db/schema';
 export async function executeManualRun(
   db: Database,
   executor: StageExecutor,
+  isolation: IsolationProvider,
+  terminalHook: PipelineTerminalHook,
   runId: string,
   stageRunId: string,
 ): Promise<void> {
@@ -41,6 +45,7 @@ export async function executeManualRun(
       db,
       executor,
       runService,
+      isolation,
       runId,
       stageRunId,
       trigger: TRIGGER_TYPE.manual,
@@ -127,8 +132,47 @@ export async function executeManualRun(
         'manual-run',
       );
     }
+
+    // T16: terminal hook — deploy on completed, release env on failed.
+    const projectId = await resolveProjectIdForRun(db, runId);
+    await terminalHook.onTerminal({ runId, projectId, status });
   } catch (err) {
     console.error('[manual-run]', err);
     await runService.failStageAndRun(stageRunId, runId);
+    // Best-effort terminal hook on the failure path too.
+    try {
+      const projectId = await resolveProjectIdForRun(db, runId);
+      await terminalHook.onTerminal({
+        runId,
+        projectId,
+        status: PIPELINE_RUN_STATUS.failed,
+      });
+    } catch (hookErr) {
+      console.error('[manual-run] terminal hook failed:', hookErr);
+    }
   }
+}
+
+async function resolveProjectIdForRun(
+  db: Database,
+  runId: string,
+): Promise<string | null> {
+  const { pipelineRun } = await import('@/core/db/schema');
+  const [run] = await db
+    .select()
+    .from(pipelineRun)
+    .where(eq(pipelineRun.id, runId));
+  if (!run) return null;
+  if (run.issueId) {
+    const [issueRow] = await db
+      .select()
+      .from(issue)
+      .where(eq(issue.id, run.issueId));
+    if (issueRow?.projectId) return issueRow.projectId;
+  }
+  const [pipe] = await db
+    .select({ projectId: pipeline.projectId })
+    .from(pipeline)
+    .where(eq(pipeline.id, run.pipelineId));
+  return pipe?.projectId ?? null;
 }

@@ -64,6 +64,10 @@ export const project = pgTable(
     name: text('name').notNull(),
     slug: text('slug').notNull(),
     repoUrl: text('repo_url'),
+    defaultBranch: text('default_branch').notNull().default('main'),
+    worktreeCopyFiles: jsonb('worktree_copy_files')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     defaultPipelineId: uuid('default_pipeline_id'),
     brandId: uuid('brand_id'),
     createdAt,
@@ -494,6 +498,34 @@ export const issueCommit = pgTable('issue_commit', {
   updatedAt,
 });
 
+// ─── Isolation Environments (R-RUNTIME: worktree-per-run) ─────────────────
+
+export const isolationEnvironment = pgTable(
+  'isolation_environment',
+  {
+    id,
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => pipelineRun.id),
+    provider: text('provider').notNull().default('worktree'),
+    workingPath: text('working_path').notNull(),
+    branchName: text('branch_name').notNull(),
+    status: text('status').notNull().default('active'),
+    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('isolation_env_active_idx')
+      .on(t.projectId, t.runId)
+      .where(sql`status = 'active'`),
+    index('isolation_env_project_status_idx').on(t.projectId, t.status),
+  ]
+);
+
 // ─── Routing ────────────────────────────────────────────────────────────────
 
 export const provider = pgTable('provider', {
@@ -717,7 +749,22 @@ export const projectRelations = relations(project, ({ one, many }) => ({
   pipelines: many(pipeline),
   issues: many(issue),
   teams: many(team),
+  isolationEnvironments: many(isolationEnvironment),
 }));
+
+export const isolationEnvironmentRelations = relations(
+  isolationEnvironment,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [isolationEnvironment.projectId],
+      references: [project.id],
+    }),
+    pipelineRun: one(pipelineRun, {
+      fields: [isolationEnvironment.runId],
+      references: [pipelineRun.id],
+    }),
+  })
+);
 
 export const pipelineRelations = relations(pipeline, ({ one, many }) => ({
   project: one(project, {

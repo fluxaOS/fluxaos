@@ -6,7 +6,25 @@ import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-servi
 import { executeManualRun } from '@/core/orchestrator/manual-run';
 import { pipelineRun, stageRun, stageGateResult } from '@/core/db/schema';
 import { registry } from '@/config/registry';
+import { createDeployBridge } from '@/core/deploy';
+import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
+import { createIssueService } from '@/core/services/issue';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { IsolationProvider } from '@/core/ports/isolation';
+
+/**
+ * Minimal console logger for deploy bridge + terminal hook. A proper
+ * structured logger (pino / consola) lands post-alpha; for now stdout/stderr
+ * is enough for operator visibility.
+ */
+const consoleLogger = {
+  info: (obj: Record<string, unknown>, msg?: string) =>
+    console.log('[deploy]', msg ?? '', obj),
+  warn: (obj: Record<string, unknown>, msg?: string) =>
+    console.warn('[deploy]', msg ?? '', obj),
+  error: (obj: Record<string, unknown>, msg?: string) =>
+    console.error('[deploy]', msg ?? '', obj),
+};
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -127,7 +145,28 @@ export const pipelineRouter = router({
 
         // Fire-and-forget: spawn subprocess in background
         const executor = registry.get<StageExecutor>('executor');
-        executeManualRun(ctx.db, executor, run.id, sr.id).catch((err) =>
+        const isolation = registry.get<IsolationProvider>('isolation');
+        const issueService = createIssueService(ctx.db);
+        const deployBridge = createDeployBridge({
+          db: ctx.db,
+          registry,
+          logger: consoleLogger,
+          isolation,
+          issueService,
+        });
+        const terminalHook = createPipelineTerminalHook({
+          deployBridge,
+          isolation,
+          logger: consoleLogger,
+        });
+        executeManualRun(
+          ctx.db,
+          executor,
+          isolation,
+          terminalHook,
+          run.id,
+          sr.id,
+        ).catch((err) =>
           console.error('[manual-run] unhandled error:', err),
         );
 

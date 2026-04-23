@@ -13,10 +13,11 @@ export type {
   PullRequest,
 } from './git';
 export type {
-  CreateIssueParams,
-  ExternalIssue,
-  IssueProvider,
-} from './issue';
+  AcquireEnvironmentParams,
+  IsolationEnvironment,
+  IsolationProvider,
+  ReleaseOptions,
+} from './isolation';
 export type {
   Job,
   JobOptions,

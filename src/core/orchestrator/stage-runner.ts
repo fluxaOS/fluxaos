@@ -12,6 +12,7 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import type { PipelineRunService } from './pipeline-run-service';
 import {
   pipelineRun,
@@ -22,14 +23,14 @@ import {
   driver,
   persona,
   brand,
-  pipeline,
 } from '@/core/db/schema';
-import { materialize, cleanup } from '@/core/skills/materializer';
+import { materialize } from '@/core/skills/materializer';
 import { buildCommand, renderTemplate } from './command-builder';
 import { registry } from '@/config/registry';
 import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
 import { parseSignalLine, type SkillSignal } from './signal-parser';
 import { createRoutingResolver } from './routing-resolver';
+import { acquireIsolationEnv, resolveProjectId } from './stage-runner-env';
 import type { TriggerType } from '@/core/constants';
 import {
   STAGE_RUN_STATUS,
@@ -38,12 +39,20 @@ import {
   DEFAULT_STAGE_TIMEOUT_SEC,
 } from '@/core/constants';
 
+export { TargetRepoPathMissingError } from './stage-runner-env';
+
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface StageRunContext {
   db: Database;
   executor: StageExecutor;
   runService: PipelineRunService;
+  /**
+   * IsolationProvider — responsible for the pipeline-scoped worktree.
+   * The stage-runner acquires the env on first stage; the pipeline-terminal
+   * hook (T16) is responsible for releasing it.
+   */
+  isolation: IsolationProvider;
   runId: string;
   stageRunId: string;
   trigger: TriggerType;
@@ -78,7 +87,7 @@ export interface StageRunResult {
 export async function executeStageRun(
   ctx: StageRunContext,
 ): Promise<StageRunResult> {
-  const { db, executor, runService, runId, stageRunId } = ctx;
+  const { db, executor, runService, isolation, runId, stageRunId } = ctx;
 
   // ── Load all required data ───────────────────────────────────────
 
@@ -143,14 +152,11 @@ export async function executeStageRun(
 
   // Routing
   const routingResolver = createRoutingResolver(db);
-  let projectId: string | null = issueRow?.projectId ?? null;
-  if (!projectId) {
-    const [pipe] = await db
-      .select({ projectId: pipeline.projectId })
-      .from(pipeline)
-      .where(eq(pipeline.id, run.pipelineId));
-    projectId = pipe?.projectId ?? null;
-  }
+  const projectId = await resolveProjectId({
+    db,
+    issueRow,
+    pipelineId: run.pipelineId,
+  });
   const routing = projectId
     ? await routingResolver.resolve(stage.id, projectId)
     : null;
@@ -175,7 +181,21 @@ export async function executeStageRun(
     }
   }
 
-  // ── Materialize + Build + Spawn ──────────────────────────────────
+  // ── Isolation Env + Materialize + Build + Spawn ─────────────────
+
+  if (!projectId) {
+    throw new Error(
+      `Stage-runner cannot run without a projectId (runId=${runId}). ` +
+        'Both issueRow.projectId and pipeline.projectId resolved to null.',
+    );
+  }
+  const { env } = await acquireIsolationEnv({
+    db,
+    isolation,
+    projectId,
+    runId,
+    issueNumber: issueRow?.number ?? null,
+  });
 
   // Read contextLayout from driver config
   const contextLayout = (driverRow.contextLayout as { instructionsFile: string; contextFile: string }) ?? {
@@ -186,6 +206,7 @@ export async function executeStageRun(
   const workspacePath = await materialize({
     stageRunId: sRun.id,
     contextLayout,
+    into: env.workingPath,
     persona: personaRow
       ? {
           soul: personaRow.soul,
@@ -351,7 +372,7 @@ export async function executeStageRun(
         );
       }
 
-      await cleanup(workspacePath);
+      // Env is pipeline-scoped now — T16's pipeline-terminal hook owns release.
 
       return {
         exitCode: result.exitCode,
@@ -422,8 +443,7 @@ export async function executeStageRun(
       );
     }
 
-    // Cleanup workspace
-    await cleanup(workspacePath);
+    // Env is pipeline-scoped — T16's pipeline-terminal hook owns release.
 
     return {
       exitCode: result.exitCode,
@@ -448,7 +468,7 @@ export async function executeStageRun(
     await runService.appendEvent(sRun.id, EVENT_TYPE.error, {
       message: err instanceof Error ? err.message : String(err),
     });
-    await cleanup(workspacePath).catch(logError);
+    // Do NOT release the env here — T16 decides based on pipeline outcome.
 
     throw err; // Re-throw so caller can handle pipeline-level failure
   }

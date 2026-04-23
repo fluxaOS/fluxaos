@@ -16,9 +16,12 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import type { Unsubscribe } from '@/core/ports/auth';
+import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import {
   issue,
+  pipeline,
   pipelineStage,
   pipelineRun,
   stageRun,
@@ -58,11 +61,33 @@ export function createEventOrchestrator(
   db: Database,
   executor: StageExecutor,
   realtime: RealtimeProvider,
+  isolation: IsolationProvider,
+  terminalHook: PipelineTerminalHook,
   config: Partial<EventOrchestratorConfig> = {},
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
   const gateService = createGateService(db);
+
+  /**
+   * Mark a pipeline_run terminal AND trigger the T16 hook (deploy on
+   * completed, env-release on everything else). Centralized so every code
+   * path that flips the run's status goes through the same hook.
+   */
+  async function finishRun(
+    run: typeof pipelineRun.$inferSelect,
+    status: typeof PIPELINE_RUN_STATUS[keyof typeof PIPELINE_RUN_STATUS],
+  ): Promise<void> {
+    await runService.completeRun(run.id, status);
+
+    const projectId = await resolveProjectIdForRun(db, run);
+
+    await terminalHook.onTerminal({
+      runId: run.id,
+      projectId,
+      status,
+    });
+  }
 
   let unsubscribeInsert: Unsubscribe | null = null;
   let unsubscribeUpdate: Unsubscribe | null = null;
@@ -182,6 +207,7 @@ export function createEventOrchestrator(
         db,
         executor,
         runService,
+        isolation,
         runId: run.id,
         stageRunId: sRun.id,
         trigger: TRIGGER_TYPE.automated,
@@ -285,7 +311,7 @@ export function createEventOrchestrator(
     } else if (verdict === GATE_VERDICT.rework) {
       await handleStageFailed(run, stage, sRun);
     } else if (verdict === GATE_VERDICT.abort) {
-      await runService.completeRun(run.id, PIPELINE_RUN_STATUS.failed);
+      await finishRun(run, PIPELINE_RUN_STATUS.failed);
       if (run.issueId) {
         await runService.appendIssueEvent(
           run.issueId,
@@ -310,7 +336,7 @@ export function createEventOrchestrator(
     if (sRun.attempt < maxRetries + 1) {
       await launchStage(run, stage);
     } else {
-      await runService.completeRun(run.id, PIPELINE_RUN_STATUS.failed);
+      await finishRun(run, PIPELINE_RUN_STATUS.failed);
       if (run.issueId) {
         await runService.appendIssueEvent(
           run.issueId,
@@ -329,7 +355,7 @@ export function createEventOrchestrator(
   async function completePipelineRun(
     run: typeof pipelineRun.$inferSelect,
   ): Promise<void> {
-    await runService.completeRun(run.id, PIPELINE_RUN_STATUS.completed);
+    await finishRun(run, PIPELINE_RUN_STATUS.completed);
     if (run.issueId) {
       await runService.appendIssueEvent(
         run.issueId,
@@ -375,7 +401,12 @@ export function createEventOrchestrator(
             await launchStage(run, stage);
           }
         } else {
-          await runService.completeRun(sRun.pipelineRunId, PIPELINE_RUN_STATUS.failed);
+          const run = await runService.getRun(sRun.pipelineRunId);
+          if (run) {
+            await finishRun(run, PIPELINE_RUN_STATUS.failed);
+          } else {
+            await runService.completeRun(sRun.pipelineRunId, PIPELINE_RUN_STATUS.failed);
+          }
         }
       }
     }
@@ -398,4 +429,27 @@ export function createEventOrchestrator(
       return isRunning;
     },
   };
+}
+
+/**
+ * Resolve a pipeline_run's projectId via its issue (preferred) or its
+ * pipeline row (fallback). Used by the terminal hook to locate the
+ * isolation env for non-completed terminal statuses.
+ */
+async function resolveProjectIdForRun(
+  db: Database,
+  run: typeof pipelineRun.$inferSelect,
+): Promise<string | null> {
+  if (run.issueId) {
+    const [issueRow] = await db
+      .select()
+      .from(issue)
+      .where(eq(issue.id, run.issueId));
+    if (issueRow?.projectId) return issueRow.projectId;
+  }
+  const [pipe] = await db
+    .select({ projectId: pipeline.projectId })
+    .from(pipeline)
+    .where(eq(pipeline.id, run.pipelineId));
+  return pipe?.projectId ?? null;
 }

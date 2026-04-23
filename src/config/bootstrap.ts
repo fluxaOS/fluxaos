@@ -14,6 +14,9 @@ import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
 import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
+import { createWorktreeIsolationProvider } from '@/adapters/git';
+import { createGitHubAdapter } from '@/adapters/github';
+import type { DatabaseProvider } from '@/core/ports';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -72,6 +75,19 @@ export function bootstrap(): void {
   registry.register('stdoutParser', () => {
     return new SubprocessStdoutParser();
   });
+
+  // Isolation — worktree-per-run workspace provider. Depends on the
+  // database adapter being resolvable (factory evaluates lazily).
+  registry.register('isolation', () => {
+    const dbProvider = registry.get<DatabaseProvider>('database');
+    return createWorktreeIsolationProvider({ db: dbProvider.getConnection() });
+  });
+
+  // Git — GitHub adapter. Requires FLUXAOS_GITHUB_TOKEN at call time
+  // (not at registration time), so operators can boot the app without
+  // the token when they don't need deploy-bridge functionality yet.
+  // GitHubAuthError (missing token) surfaces to the caller.
+  registry.register('git', () => createGitHubAdapter());
 
   // Validate all required adapters are registered
   registry.validate([...REQUIRED_ADAPTERS]);

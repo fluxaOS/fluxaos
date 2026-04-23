@@ -275,3 +275,15 @@ Pairs with the `kind="tool_call"` vs `type="tool_use"` naming drift (Anthropic p
 **What's needed:** Run `biome format --write` on the affected files and commit. Biome formatting is deterministic so this is a one-line fix per file; the content doesn't change semantically. Low-risk chore PR.
 **Pre-existing context:** The failure predates PR #65 — it's been red since at least 2026-04-21. Probably a Biome config update or file added that wasn't formatted on the way in. Per global CLAUDE.md Rule 1 ("NEVER assume a test failure is pre-existing — check the base branch first"), verified against `origin/main` HEAD — same failure, same files, so not introduced by PR #65.
 
+## DEF-019 — Drizzle meta snapshot drift since 0003; auto-generate unusable without hand-written migrations
+
+**Found:** 2026-04-23 during R-RUNTIME T1 (migration 0007).
+**Severity:** Medium — not a runtime bug, but makes `npm run db:generate` produce catch-up migrations that conflict with applied schema. Every future migration requires hand-writing or elaborate snapshot rehydration.
+**Repro:** On `main` before R-RUNTIME, `drizzle/meta/` contains only `0000_snapshot.json` + `0003_snapshot.json` + `_journal.json` — migrations 0001, 0002 (missing file), 0004, and 0006 shipped without updating the meta cache. Running `npm run db:generate` with a clean schema prompts for resolver decisions on ~50 pre-existing columns and, after answering, emits a migration that `CREATE TABLE`s already-existing tables and `ADD COLUMN`s already-present columns — it would fail on apply.
+**What R-RUNTIME did:** Hand-wrote `drizzle/0007_r_runtime.sql` with only the new table + 2 columns. Added journal entry manually. Commit `27f305b`.
+**What's needed:** Rehydrate the snapshot. Two paths:
+  1. **Clean slate rebaseline** — delete everything in `drizzle/meta/` except `_journal.json`, wipe dev DB, apply all historical migrations in order through 0007, then run `drizzle-kit introspect` (or equivalent) to regenerate a fresh `0007_snapshot.json` from the live DB state. Update `_journal.json` to reflect only the migrations that actually exist.
+  2. **Manual snapshot construction** — hand-author `drizzle/meta/0007_snapshot.json` to match current `schema.ts`. More work, less risk of introducing drift.
+Prefer option 1 during R-POLISH — same phase where clean-shipping the repo matters.
+**Impact:** Until fixed, every migration needs hand-writing + manual journal entry. Annoying but tractable; R-RUNTIME got through it in ~5 minutes of reasoning plus manual SQL.
+
