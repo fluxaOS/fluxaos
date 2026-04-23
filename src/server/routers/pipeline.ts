@@ -7,6 +7,7 @@ import { executeManualRun } from '@/core/orchestrator/manual-run';
 import { pipelineRun, stageRun, stageGateResult } from '@/core/db/schema';
 import { registry } from '@/config/registry';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { IsolationProvider } from '@/core/ports/isolation';
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -127,8 +128,9 @@ export const pipelineRouter = router({
 
         // Fire-and-forget: spawn subprocess in background
         const executor = registry.get<StageExecutor>('executor');
-        executeManualRun(ctx.db, executor, run.id, sr.id).catch((err) =>
-          console.error('[manual-run] unhandled error:', err),
+        const isolation = registry.get<IsolationProvider>('isolation');
+        executeManualRun(ctx.db, executor, isolation, run.id, sr.id).catch(
+          (err) => console.error('[manual-run] unhandled error:', err),
         );
 
         return run;

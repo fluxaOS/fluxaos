@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import type { Unsubscribe } from '@/core/ports/auth';
 import {
   issue,
@@ -58,6 +59,7 @@ export function createEventOrchestrator(
   db: Database,
   executor: StageExecutor,
   realtime: RealtimeProvider,
+  isolation: IsolationProvider,
   config: Partial<EventOrchestratorConfig> = {},
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
@@ -182,6 +184,7 @@ export function createEventOrchestrator(
         db,
         executor,
         runService,
+        isolation,
         runId: run.id,
         stageRunId: sRun.id,
         trigger: TRIGGER_TYPE.automated,

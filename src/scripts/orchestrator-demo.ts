@@ -30,6 +30,7 @@ import {
 } from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { executeManualRun } from '@/core/orchestrator/manual-run';
+import { createWorktreeIsolationProvider } from '@/adapters/git';
 import type { StageExecutor, ExecuteParams, ExecuteResult } from '@/core/ports/stage-executor';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
 
@@ -145,7 +146,8 @@ async function demo() {
   await runService.updateRunStatus(run.id, PIPELINE_RUN_STATUS.running);
   log('🟢', `Launching stage: ${firstStage.name}`);
 
-  await executeManualRun(db, mockExecutor, run.id, sRun.id);
+  const isolation = createWorktreeIsolationProvider({ db });
+  await executeManualRun(db, mockExecutor, isolation, run.id, sRun.id);
 
   const finalStatus = await runService.getRun(run.id);
   log('✅', `Pipeline finished: ${finalStatus?.status}`);

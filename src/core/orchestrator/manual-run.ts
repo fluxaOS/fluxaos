@@ -9,6 +9,7 @@
  */
 import type { Database } from '@/core/db/connection';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import { createPipelineRunService } from './pipeline-run-service';
 import { createGateService } from '@/core/gates/service';
 import { createIssueService } from '@/core/services/issue';
@@ -30,6 +31,7 @@ import { issue, pipelineStage, stageRun } from '@/core/db/schema';
 export async function executeManualRun(
   db: Database,
   executor: StageExecutor,
+  isolation: IsolationProvider,
   runId: string,
   stageRunId: string,
 ): Promise<void> {
@@ -41,6 +43,7 @@ export async function executeManualRun(
       db,
       executor,
       runService,
+      isolation,
       runId,
       stageRunId,
       trigger: TRIGGER_TYPE.manual,
