@@ -63,6 +63,16 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 - **Reset state:** `tsx src/scripts/db/nuke.ts` → `npm run db:seed`
 - **After schema changes:** `npm run db:generate` → `npm run db:migrate`
 
+## R-RUNTIME env vars
+
+Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
+
+- `FLUXAOS_GITHUB_TOKEN` — PAT with `repo` scope. Deploy bridge fails fast if unset when it needs to open a PR.
+- `FLUXAOS_TARGET_REPO_PATH` — absolute path to a local clone of the target repo on `main`. Stage-runner refuses to acquire an isolation env without it.
+- `FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN` / `FLUXAOS_CLEANUP_STALE_DAYS` / `FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS` — cleanup-scheduler thresholds. Scheduler refuses to start if any are unset (logged warning, no crash — the rest of the app boots).
+- `FLUXAOS_WORKSPACE_ROOT` (optional) — override for where worktrees live. Default is in-project `<repo>/.fluxaos-worktrees/` (NFS/Docker friendly); auto-added to target repo's `.gitignore` on first acquire.
+- `FLUXAOS_TEST_TARGET_REPO` (e2e only) — `owner/repo` for the E2E journey's disposable sandbox PR target.
+
 ## Reference
 
 - **[Session Quick-Start](docs/session-quick-start.md) — READ FIRST: conventions, gotchas, env vars, ports, autonomy details**
