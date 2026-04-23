@@ -147,7 +147,20 @@ async function demo() {
   log('🟢', `Launching stage: ${firstStage.name}`);
 
   const isolation = createWorktreeIsolationProvider({ db });
-  await executeManualRun(db, mockExecutor, isolation, run.id, sRun.id);
+  // Demo skips the real terminal hook — no deploy bridge, no env release.
+  const noopTerminalHook = {
+    async onTerminal() {
+      /* no-op for demo */
+    },
+  };
+  await executeManualRun(
+    db,
+    mockExecutor,
+    isolation,
+    noopTerminalHook,
+    run.id,
+    sRun.id,
+  );
 
   const finalStatus = await runService.getRun(run.id);
   log('✅', `Pipeline finished: ${finalStatus?.status}`);
