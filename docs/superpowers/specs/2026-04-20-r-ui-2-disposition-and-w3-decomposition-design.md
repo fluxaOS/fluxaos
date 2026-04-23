@@ -1,8 +1,33 @@
 # R-UI-2 Disposition + R-REM-W3 Decomposition — Design
 
 **Date:** 2026-04-20
-**Status:** Design approved; plan pending
+**Status:** Partially superseded 2026-04-22 (see note below)
 **Supersedes:** No existing specs. Consumes: `docs/superpowers/audits/2026-04-17-audit-triage.md`, `docs/superpowers/handoffs/2026-04-20-r-rem-w2-closeout-session-handoff.md`.
+
+---
+
+## 2026-04-22 Supersession Note
+
+The R-UI-2 retirement and R-REM-W3-a decisions in this doc are still authoritative — those phases shipped (PR #47 and PR #50) and the reasoning is preserved here as the decision record.
+
+The **R-REM-W3 "meta-phase with four slices" framing (section "Phase 4 — R-REM-W3 remainder")** is superseded by the 2026-04-22 roadmap restructure. The four slices (GitHub adapter, CLI, 6 Settings tabs, Mission Control) no longer map 1:1 to alpha work:
+
+- **GitHub adapter** became part of **R-RUNTIME**, scoped to minimum 2-method implementation (`createBranch`, `createPullRequest`), sized alongside workspace isolation and deploy bridge
+- **CLI** dropped to **post-alpha** — web UI covers all alpha workflows
+- **6 Settings tabs** shrunk to **R-SETTINGS-ALPHA** with 2 tabs (Projects, Pipelines); the other four deferred post-alpha
+- **Mission Control** kept as **R-MISSION-CONTROL**, unchanged scope
+
+Additional alpha-critical phases that this doc did not anticipate:
+
+- **R-RUNTIME** — workspace isolation (worktree-per-run, cleanup service, isolation-environments DB table, gitignored-file copy) + forge adapter + deploy bridge, bundled because they're tightly coupled
+- **R-ARTIFACTS** — stage-to-stage data flow via `$ARTIFACTS_DIR`
+- **R-EPIC** — epic/child-issue hierarchy
+- **R-DAEMON** — systemd-wrapped orchestrator (required for 24/7 autonomous operation)
+- **R-SMOKE** — end-to-end acceptance test
+
+These phases borrow heavily from Archon (MIT); see [`research/2026-04-22-archon-prior-art.md`](../research/2026-04-22-archon-prior-art.md) for the pattern catalog.
+
+The authoritative alpha phase list is the [roadmap](../roadmap.md) "Phases — Alpha" section.
 
 ---
 

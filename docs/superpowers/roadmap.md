@@ -1,82 +1,104 @@
-# fluxaOS — Rewrite Roadmap
+# fluxaOS — Roadmap
 
 Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT has the right design but broken execution — rules engine doesn't fire, pipeline doesn't flow.
 
-## Phases
+---
+
+## Alpha Scope
+
+**One user, one project, one repo.** The schema already supports multi-tenancy (`orgId`, `userId`, `projectId` foreign keys throughout). Alpha deliberately does not build the UI or flows for multi-anything. Post-alpha layers multi on top of a proven single-tenant loop.
+
+**Alpha definition of done:** fluxaOS can pick up an issue filed in its own UI, run a pipeline against a configured target repo, produce code, open a PR, and advance the issue to an awaiting-review state — end-to-end, driven by a persistent daemon, with no human intervention between "file epic" and "verify PR in browser."
+
+---
+
+## Prior Art
+
+fluxaOS borrows architectural patterns from [Archon](https://github.com/coleam00/Archon) (Cole Medin, MIT-licensed) for the plumbing layer: workspace isolation, worktree lifecycle, cleanup service, forge-adapter structure, headless worker runtime, stage-to-stage artifact handoff. Archon has shipped and tested these patterns at production scale; reinventing them would be wasted effort.
+
+What fluxaOS does NOT borrow: YAML workflows (fluxaOS keeps DB-driven config and web-UI authoring), platform conversation adapters (fluxaOS has its own UI, not GitHub-comment-based conversations), Bun/monorepo packaging.
+
+Pattern catalog with file pointers: [`research/2026-04-22-archon-prior-art.md`](research/2026-04-22-archon-prior-art.md). Attribution policy applies to every phase that borrows.
+
+---
+
+## Phases — Done
 
 | Phase | Status | Plan | Spec |
 |-------|--------|------|------|
-| R1 — Infrastructure + Proof of Life | **Done** | [rebuild-plan](superpowers/plans/2026-04-09-rebuild-plan.md) | [rebuild-spec](superpowers/specs/2026-04-09-rebuild-spec.md) |
+| R1 — Infrastructure + Proof of Life | **Done** | [rebuild-plan](plans/2026-04-09-rebuild-plan.md) | [rebuild-spec](specs/2026-04-09-rebuild-spec.md) |
 | R2 — Adapter Registry | **Done** | same | same |
-| R3 — Rich Issue Model + CRUD + UI | **Done** | [rich-issue-plan-v2](superpowers/plans/2026-04-09-rich-issue-model-plan-v2.md) | [rich-issue-design](superpowers/specs/2026-04-09-rich-issue-model-design.md) |
-| R3.5 — Enforcement Infrastructure | **Done** | [enforcement-plan](superpowers/plans/2026-04-11-enforcement-infrastructure-plan.md) | [drift-prevention-design](superpowers/specs/2026-04-11-session-drift-prevention-design.md) |
-| R4-V — Gate Engine Verification | **Done** | [r4v-plan](superpowers/plans/2026-04-11-r4v-gate-engine-verification.md) | — |
-| R5-V — Pipeline Engine + Manual Execution | **Done — PR #20** | [r5v-plan](superpowers/plans/2026-04-12-r5v-manual-execution-plan.md), [cleanup-plan](superpowers/plans/2026-04-13-r5v-architectural-cleanup.md) | [r5v-design](superpowers/specs/2026-04-12-r5v-manual-execution-design.md), [cleanup-design](superpowers/specs/2026-04-13-r5v-architectural-cleanup-design.md) |
-| R5.5 — Skill-to-Orchestrator IPC | **Done — PR #23, #26, #29** | [r5.5-ipc-plan](superpowers/plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](superpowers/specs/2026-04-13-r5.5-ipc-protocol-design.md) |
-| R-INFRA — fh-commons Decoupling + Dev Tooling | **Done** | [r-infra-plan](superpowers/plans/2026-04-15-r-infra-implementation-plan.md) | [r-infra-design](superpowers/specs/2026-04-15-infra-decoupling-design.md) |
-| R-UI-1 — Settings CRUD + harness→driver rename | **Done** | [r-ui-1-plan](superpowers/plans/2026-04-16-r-ui-1-implementation.md) | [r-ui-1-design](superpowers/specs/2026-04-16-r-ui-1-design.md) |
-| R-UI-2 — Real-time updates | **Retired — superseded by R-UI-2.5 (branch archived)** | [r-ui-2-plan](superpowers/plans/2026-04-16-r-ui-2-implementation.md) | [r-ui-2-design](superpowers/specs/2026-04-16-r-ui-2-design.md) |
-| R-UI-2.5 — Realtime user-visible remnant (ActivityFeed extraction + Realtime subscription + RunDetailModal poll removal) | **Done — PR #47** | [r-ui-2-5-plan](superpowers/plans/2026-04-20-r-ui-2-5-implementation.md) | [disposition-design](superpowers/specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md) |
-| R-AUDIT — Multi-team audit (P1 + P2) | **Done** | [audit-plan](superpowers/plans/2026-04-17-r-ui-audit-plan.md) | [audit-design](superpowers/specs/2026-04-17-r-ui-audit-design.md) |
-| R-REM-W1 — Foundation remediation (invariant 7, CRUD factory, dead-code purge) | **Done** | [wave-1-plan](superpowers/plans/2026-04-17-wave-1-foundation-plan.md) | — (triage supersedes spec: [triage](superpowers/audits/2026-04-17-audit-triage.md)) |
-| R-REM-W2 — Architecture remediation (realtime registry, stdout-parser port, transactional soft-delete) | **Done — PR #43** | [w2-plan](superpowers/plans/2026-04-18-r-rem-w2-implementation.md) | [w2-design](superpowers/specs/2026-04-18-r-rem-w2-design.md) |
-| R-REM-W3-a — Anthropic port cleanup + live-Claude journey | **Done — PR #50** | [r-rem-w3-a-plan](superpowers/plans/2026-04-20-r-rem-w3-a-implementation.md) | [disposition-design](superpowers/specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md) |
-| R-REM-W3 — Alpha-critical build (GitHub adapter, CLI, Settings tabs, Mission Control) | **Meta-phase — slices brainstormed per-slice** | — | [triage](superpowers/audits/2026-04-17-audit-triage.md), [disposition-design](superpowers/specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md) |
-| R-REM-W4 — Cleanup + polish + roadmap reconciliation | **Not started** | — | — |
-| R6 — Polish + Ship | **Not started** | — | — |
+| R3 — Rich Issue Model + CRUD + UI | **Done** | [rich-issue-plan-v2](plans/2026-04-09-rich-issue-model-plan-v2.md) | [rich-issue-design](specs/2026-04-09-rich-issue-model-design.md) |
+| R3.5 — Enforcement Infrastructure | **Done** | [enforcement-plan](plans/2026-04-11-enforcement-infrastructure-plan.md) | [drift-prevention-design](specs/2026-04-11-session-drift-prevention-design.md) |
+| R4-V — Gate Engine Verification | **Done** | [r4v-plan](plans/2026-04-11-r4v-gate-engine-verification.md) | — |
+| R5-V — Pipeline Engine + Manual Execution | **Done — PR #20** | [r5v-plan](plans/2026-04-12-r5v-manual-execution-plan.md), [cleanup-plan](plans/2026-04-13-r5v-architectural-cleanup.md) | [r5v-design](specs/2026-04-12-r5v-manual-execution-design.md), [cleanup-design](specs/2026-04-13-r5v-architectural-cleanup-design.md) |
+| R5.5 — Skill-to-Orchestrator IPC | **Done — PR #23, #26, #29** | [r5.5-ipc-plan](plans/2026-04-13-r5.5-ipc-protocol-plan.md) | [r5.5-ipc-design](specs/2026-04-13-r5.5-ipc-protocol-design.md) |
+| R-INFRA — fh-commons Decoupling + Dev Tooling | **Done** | [r-infra-plan](plans/2026-04-15-r-infra-implementation-plan.md) | [r-infra-design](specs/2026-04-15-infra-decoupling-design.md) |
+| R-UI-1 — Settings CRUD + harness→driver rename | **Done — PR #31** | [r-ui-1-plan](plans/2026-04-16-r-ui-1-implementation.md) | [r-ui-1-design](specs/2026-04-16-r-ui-1-design.md) |
+| R-UI-2 — Real-time updates | **Retired — superseded by R-UI-2.5** | [r-ui-2-plan](plans/2026-04-16-r-ui-2-implementation.md) | [r-ui-2-design](specs/2026-04-16-r-ui-2-design.md) |
+| R-UI-2.5 — Realtime user-visible remnant | **Done — PR #47** | [r-ui-2-5-plan](plans/2026-04-20-r-ui-2-5-implementation.md) | [disposition-design](specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md) |
+| R-AUDIT — Multi-team audit (P1 + P2) | **Done** | [audit-plan](plans/2026-04-17-r-ui-audit-plan.md) | [audit-design](specs/2026-04-17-r-ui-audit-design.md) |
+| R-REM-W1 — Foundation remediation | **Done — PR #37, #38** | [wave-1-plan](plans/2026-04-17-wave-1-foundation-plan.md) | — (triage: [triage](audits/2026-04-17-audit-triage.md)) |
+| R-REM-W2 — Architecture remediation | **Done — PR #43** | [w2-plan](plans/2026-04-18-r-rem-w2-implementation.md) | [w2-design](specs/2026-04-18-r-rem-w2-design.md) |
+| R-REM-W3-a — Anthropic port cleanup + live-Claude journey | **Done — PR #50** | [r-rem-w3-a-plan](plans/2026-04-20-r-rem-w3-a-implementation.md) | [disposition-design](specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md) |
 
-## R5.5 Verification Results (2026-04-15)
+**Current engine state:** Sunday 2026-04-20's R-REM-W3-a shipped a live-Claude journey test that runs the Research stage end-to-end against real Claude. The engine is observed to work. The remaining alpha work wires that observed engine into a full file-an-issue → get-a-PR loop.
 
-Manual browser verification at `http://192.168.54.101:3003`:
+---
 
-| Test | Result | Notes |
-|------|--------|-------|
-| 1. Seed — 2 issues exist | **PASS** | Both issues present, Research/Open |
-| 2. Gate results after run | **PARTIAL** | Gate result IS written (good). Issue advanced research→implement. Pipeline status shows "completed". Tense/casing inconsistencies in labels. |
-| 3. Hold/already_complete | **PASS (caveat)** | State moved to Complete correctly. But skill found real `/api/health/route.ts` in the fluxaOS repo — seed issue #2 is a bad test case since it matches real code. Workspace `cwd` doesn't prevent filesystem exploration. |
-| 4. Clean pipeline output | **Not verified** | |
-| 5. Hold/needs_human | **Deferred** | |
+## Phases — Alpha
 
-New deferred issues filed in `docs/superpowers/deferred-fixes.md`: activity feed display, state/status tense inconsistency, text casing inconsistency.
+Renamed and re-scoped per the 2026-04-22 session. The previous R-REM-W3 "meta-phase with four slices" framing is superseded; the work below replaces it.
+
+| Phase | Status | Scope |
+|-------|--------|-------|
+| **R-RUNTIME — Workspace isolation + forge adapter + deploy bridge** | **Next** | Worktree-per-run lifecycle; isolation-environments DB table; worktree-copy for gitignored files; cleanup service (event + scheduled + disk-pressure + user commands); one GitProvider implementation for GitHub (minimum 2 methods: `createBranch`, `createPullRequest`); orchestrator deploy bridge (commit uncommitted worktree state, push branch, open PR via the port, record PR reference on the issue, advance issue state to awaiting-review). Borrows heavily from Archon — see prior-art doc. **Alpha-critical; nothing else downstream works without this.** |
+| **R-ARTIFACTS — Stage-to-stage data flow** | Not started | Each pipeline run gets an `artifacts_dir` distinct from its worktree. Stages write intermediate findings/plans/verdicts there; later stages read them. Verify the Research→Implement→Review→Deploy chain passes useful data between stages for multi-stage code-producing flows; fix anything that doesn't. `{{artifacts_path}}` template variable added to stage prompts. Pattern borrowed from Archon's `$ARTIFACTS_DIR`. |
+| **R-EPIC — Epic / child-issue hierarchy** | Not started | Verify or add `parent_issue_id` on the issue table (nullable, self-referencing FK). Orchestrator's work queue filters out issues with open children (those are epics, not work items). When an issue closes, auto-close its parent if all the parent's children are now closed. Minimal UI: issue detail shows parent and children; "create child issue" button. **Small phase — likely a few hours of work if the schema already supports it.** |
+| **R-DAEMON — Systemd orchestrator** | Not started | Wrap the currently-manual orchestrator as a long-running process that polls/listens on the BullMQ queue (already scaffolded). Dispatches stage runs, manages worktrees via R-RUNTIME, handles the deploy bridge. systemd unit file, startup/shutdown discipline, crash recovery. Required for "fluxaOS runs 24/7 without babysitting." |
+| **R-SETTINGS-ALPHA — Minimum config surface** | Not started | Two Settings tabs only: **Projects** (set `repoPath` + `repoUrl`, assign default pipeline) and **Pipelines** (view seeded pipeline, see attached skills/drivers). Four other tabs from the old plan — Teams, Users, System, Cron Jobs — drop to post-alpha. Uses the R-UI-1 CRUD factory. |
+| **R-MISSION-CONTROL — Operator dashboard** | Not started | One page reading existing orchestrator state: queue depth, in-flight runs, recent terminal states, PR links. No new backend — just a UI over DB state the daemon already writes. |
+| **R-SMOKE — End-to-end alpha acceptance test** | Not started | Playwright journey: file an epic with one child issue, wait for the daemon to pick it up, confirm the worker ran in an isolated worktree, confirm a PR was opened, confirm the issue advanced to the awaiting-review state, confirm the worktree gets cleaned up after the PR closes. This is the alpha acceptance test. |
+| **R-POLISH — Cleanup, terminology, ship docs** | Not started | Whatever R-SMOKE surfaces that's broken. Terminology passes. README updates so an operator can stand fluxaOS up from a fresh clone. Attribution to Archon in any spec that lifted patterns. Replaces the old R-REM-W4 and R6 placeholders. |
+
+**Dependency ordering:** R-RUNTIME must land first (nothing else works without workspaces + forge + deploy). R-ARTIFACTS and R-EPIC can run in parallel with each other once R-RUNTIME ships. R-DAEMON depends on R-RUNTIME and ideally R-ARTIFACTS. R-SETTINGS-ALPHA and R-MISSION-CONTROL are independent of the runtime work and can be done whenever convenient. R-SMOKE depends on everything. R-POLISH is last.
+
+---
+
+## Phases — Post-Alpha
+
+Work deliberately out of scope for alpha, captured here so the boundary is explicit:
+
+- **Multi-user / multi-project / multi-repo UI flows** — schema supports this; UI flows are deferred
+- **CLI** (`src/cli/`) — all alpha control is via the web UI; CLI is a post-alpha convenience
+- **Remaining Settings tabs** — Teams, Users, System, Cron Jobs
+- **Additional forge adapters** — GitLab, Gitea, Forgejo follow the same port pattern as the alpha GitHub adapter; community-contributable
+- **IssueProvider** port — retired entirely (same precedent as AIProvider deletion in R-REM-W3-a); fluxaOS's issue model is native and not synced to external trackers
+- **OpenAI adapter** — Anthropic is the sole alpha AI provider
+- **Just Do It mode** — per R-AUDIT triage
+- **Brand service** — per R-AUDIT triage
+- **Dogfooding** — fluxaOS managing its own development through its own pipelines. Philosophically attractive but carries bootstrap-fragility risk. Revisit once alpha is stable
+- **GitHub Issues adoption for fluxaOS's own dev process** (R7 "open to the world" milestone)
+- **OpenClaw preview gate, role-based permissions, version history for skills/drivers, subscription tiers** (DEF-001 through DEF-004)
+
+---
 
 ## R-AUDIT Results (2026-04-17)
 
-Four-lane specialist audit over two phases. **Phase 1** audited R-UI-1 merge + R-UI-2 in-flight branch (56 files): 28 findings. Escalation trigger fired (all three conditions). **Phase 2** swept the other 96 files with 10 parallel specialists: 80 findings. Combined: **111 findings (35 High / 44 Medium / 32 Low).**
+Four-lane specialist audit over two phases. **Phase 1** audited R-UI-1 merge + R-UI-2 in-flight branch (56 files): 28 findings. **Phase 2** swept the other 96 files with 10 parallel specialists: 80 findings. Combined: **111 findings (35 High / 44 Medium / 32 Low).**
 
-User-led triage produced:
-- **6 pattern decisions** — see [audit-triage.md](audits/2026-04-17-audit-triage.md)
-- **2 fork resolutions** — retire ARCHITECTURAL_STANDARDS, accept Drizzle-typed `Database`
-- **~20+ findings reclassified as false positives** under the clarified invariant 7 (Drizzle is core stack, not a pluggable vendor)
-- **3 items deferred post-alpha** — Just Do It, OpenAI, Brand
-- **~55-65 actionable remediation items** split across 4 waves
+User-led triage produced 6 pattern decisions, 2 fork resolutions, ~20+ findings reclassified as false positives under the clarified invariant 7 (Drizzle is core stack, not a pluggable vendor), 3 items deferred post-alpha, ~55-65 actionable items split across remediation waves. All W1 + W2 remediation items shipped in PR #37, #38, #43.
 
-Artifacts (all in `docs/superpowers/audits/`):
-- `2026-04-17-r-ui-1-r-ui-2-audit.md` — Phase 1 report
-- `2026-04-17-phase2-full-codebase-audit.md` — Phase 2 report
-- `2026-04-17-audit-triage.md` — triage decisions (authoritative)
-- `.raw/` — Phase 1 raw specialist outputs
-- `.raw-phase2/` — Phase 2 raw specialist outputs
+Artifacts (all in `audits/`): Phase 1 report, Phase 2 report, triage decisions (authoritative), plus `.raw/` and `.raw-phase2/` specialist outputs.
 
-## What's Next
-
-1. ~~**R-UI-1** — Settings CRUD + harness→driver rename~~ — **Done.**
-2. **R-UI-2** — Real-time updates — **Retired (2026-04-20).** Tasks 1-11 shipped independently via R-REM-W1/W2 against a different file structure. Remaining user-visible scope moved to R-UI-2.5 (below); orchestrator rewire (Tasks 14-22) permanently deferred — target files were deleted/relocated in W1/W2. Branch `feat/r-ui-2-impl` archived.
-
-2a. **R-UI-2.5** — Realtime user-visible remnant — **Done (2026-04-20), PR #47.** Three items: extracted `ActivityFeed` from the 880-line issue detail client to `src/app/[org]/[user]/[project]/issues/[number]/ActivityFeed.tsx` (880 → 368 lines — resolves AUDIT-003 and explains the secondary `IssueDetailEditors` extraction that landed in commit d1cc351 as a deviation required to satisfy the 500-line invariant); added Realtime subscription to `issue_event` table with client-side `issue_id`/`issueId` filtering (resolves AUDIT-012 — R-UI-2 spec exit criterion #2, end-to-end verified via `e2e/activity-feed-realtime.spec.ts`, caught a Supabase payload-shape bug during smoke authoring); deleted 2-second `refetchInterval` from `RunDetailModal.tsx` since its existing Realtime subscription on `stage_run` covers the data (resolves AUDIT-005 — live invariant-9 violation on main). Full verification: tsc clean, vitest 122/122, verify 10/10, Playwright smokes green (both the new activity-feed smoke and the existing `run-stage-smoke` which was also updated to reference issue #1 since the seed no longer has issue #3), human browser check passed. Two pre-existing bugs captured during verification: DEF-009 (seed missing `bodyHtml`) and DEF-010 (tag input single-tag only). See [disposition-design](superpowers/specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md), [r-ui-2-5-plan](superpowers/plans/2026-04-20-r-ui-2-5-implementation.md), [closeout handoff](superpowers/handoffs/2026-04-20-r-ui-2-5-closeout-session-handoff.md).
-3. **R-AUDIT** — Multi-team audit — **Done (2026-04-17).** Four-lane specialist audit over two phases produced 111 findings (35H / 44M / 32L). User-led triage resolved 6 patterns + 2 forks. Triage document supersedes individual finding severities.
-4. **R-REM-W1** — Foundation remediation — **Done (2026-04-18).** Tasks 1-6 shipped in PR #37 (invariant 7 amended, ARCHITECTURAL_STANDARDS retired, CRUD factory rewritten with versioned variant, dead exports + ~1,100 LOC of dead source deleted). Tasks 7-9 shipped in PR #38 (dropped 3 dead schema tables + remaining router procedures via migration 0006, relocated out-of-core scripts to `src/scripts/` per invariant 7, fixed pre-existing events.ts tsc error). Full verification: tsc clean, vitest 115/115, verify 10/10, user-confirmed browser check. See [Tasks 1-6 handoff](superpowers/handoffs/2026-04-18-wave-1-tasks-1-6-session-handoff.md) and [Tasks 7-9 handoff](superpowers/handoffs/2026-04-18-wave-1-finish-session-handoff.md).
-5. **R-REM-W2** — Architecture remediation — **Done (2026-04-19), PR #43.** Three remediation items shipped: (a) `RealtimeProvider` port + `SupabaseRealtimeProvider` adapter, with `LiveOutput` and `RunDetailModal` routed through `registry.get('realtime')` instead of importing `@supabase/supabase-js` directly; (b) `StdoutParser` port + `SubprocessStdoutParser` adapter relocated from `src/core/orchestrator/output-parser.ts`, with the orchestrator and `LiveOutput` resolving a parser from the registry based on driver `output_format`; (c) `issueCommentService.softDelete` wrapped in `db.transaction` with version bump atomic. Plus invariant-7 scope clarification (`src/lib/` is framework glue, exempt). Two client-bundle bugs surfaced during browser verification and were fixed in a follow-up commit: `bootstrap-client.ts` was split from `bootstrap()` to keep `node:child_process` out of the client chunk, then its `NEXT_PUBLIC_*` reads were converted from dynamic `process.env[name]` to literal member expressions so Next.js inlines them, and `stdoutParser` was added to `bootstrapClient()` (the adapter is pure logic, safe for the browser). Regression guard: `e2e/run-stage-smoke.spec.ts`. Full verification: tsc clean, vitest 122/122, verify 10/10, lint baseline unchanged, human browser check passed. See [w2-design](superpowers/specs/2026-04-18-r-rem-w2-design.md), [w2-plan](superpowers/plans/2026-04-18-r-rem-w2-implementation.md), [session handoff](superpowers/handoffs/2026-04-18-r-rem-w2-session-handoff.md).
-6. **R-REM-W3-a** — Anthropic port cleanup + live-Claude journey — **Done (2026-04-20), PR #50.** Three scoped items plus one approved scope expansion: (a) deleted `src/core/ports/ai.ts` and its seven re-exports from `src/core/ports/index.ts` — zero runtime consumers; (b) appended inline resolution note to R-AUDIT triage Pattern 2 "Anthropic adapter" bullet citing this phase; (c) added `e2e/real-anthropic-stage-run.spec.ts` — a Playwright journey that skips without `ANTHROPIC_API_KEY` and with it advances seed issue #1 through the Research stage against live Claude, asserts terminal `completed` status via the RunDetailModal Realtime subscription, asserts the transcript pane populated, asserts no pageerror/registry/env console errors. Test passes in ~50s against live API. **Scope expansion (accepted mid-session):** fixed a live Realtime subscription drift in `src/components/pipeline/RunDetailModal.tsx` — the modal only subscribed to `stage_run` but the orchestrator updates `pipeline_run.status` AFTER `stage_run.status`, leaving the header status badge stuck on "Running" after runs completed. Added a parallel `pipeline_run` UPDATE subscription with matching teardown; two new channels `run-detail-stage-${runId}` and `run-detail-pipeline-${runId}` distinguished per-modal-instance. **New deferred finding (DEF-011):** the journey revealed `LiveOutput` does not render any `ToolCallEntry` for actual runs — the orchestrator persists parsed `TranscriptEntry` fields as the event payload (with `kind: 'tool_call'`, `toolName: 'Bash'`, etc.), but `LiveOutput` extracts `payload.content` and re-feeds it through the stream-json parser which fast-paths non-JSON strings to raw→text. Net effect: DB has 6 `kind: 'tool_call'` events per run but every one renders as plain text in the UI. No data loss; just missing the tool-call highlighting / cost summary / tool-result collapsing paths. The journey-test assertion was softened to "transcript pane populated" to observe actual current behavior; once DEF-011 ships the assertion can be tightened to a specific `.text-soft-violet` span count. Full verification: tsc clean, vitest 122/122, verify 10/10 (fresh seed), lint baseline unchanged (53 problems), build compiles, 8 e2e specs green + 1 journey PASS with key + 1 journey SKIP without, human browser check passed (badge reached Completed without manual refresh). Alpha-unlock milestone achieved: "engine expected to work" → "engine observed to work against live Claude." See [disposition-design](superpowers/specs/2026-04-20-r-ui-2-disposition-and-w3-decomposition-design.md) §"Phase 3 — R-REM-W3-a", [r-rem-w3-a-plan](superpowers/plans/2026-04-20-r-rem-w3-a-implementation.md), [deferred-fixes](superpowers/deferred-fixes.md) (DEF-011).
-7. **R-REM-W3** — Alpha-critical build — **Meta-phase (per-slice brainstorm then plan).** Four remaining deliverables after W3-a ships: (a) **GitHub adapter** — `src/adapters/github/` implementing `GitProvider` + `IssueProvider`, the only remaining alpha-critical integration with net-new code against an external service; (b) **CLI** — `src/cli/` thin tRPC-client wrapper; (c) **6 Settings tabs** (Cron Jobs, Teams, Users, System, Stages, Projects) using the W1 CRUD factory; (d) **Mission Control page**. Each slice gets its own brainstorm + design spec + plan when reached — not planned up front because shape depends on what W3-a's live journey reveals and what the CRUD factory migration looks like in practice. Order: GitHub adapter first (external integration, most uncertainty), then the other three in any order as sessions permit.
-8. **R-REM-W4** — Cleanup + polish + roadmap reconciliation. Depends on W1-W3.
-9. **R6** — Polish + ship. Depends on W1-W4.
-
-**Deferred post-alpha (explicitly out of remediation scope):** Just Do It mode, OpenAI adapter (Anthropic is sole alpha AI provider), Brand service.
+---
 
 ## RCAs
 
 - [UI Regression](rca/2026-04-11-ui-regression-rca.md) — cumulative feature loss across 6 rewrites; corrective audits not started
 - [R5-V Session Failure](rca/2026-04-12-r5v-session-failure-rca.md) — session reverted after building non-working UI without following skill chain
+
+---
 
 ## Lessons Learned
 
@@ -87,8 +109,11 @@ Artifacts (all in `docs/superpowers/audits/`):
 5. **Vague plans produce vague work.** "Reference PAT" is not a plan. Component-level specificity required.
 6. **Structural verification is necessary but not sufficient.** Types, tests, and code review missed 10 integration bugs that surfaced immediately in browser testing. Journey tests that invoke real external tools are essential.
 7. **The orchestrator must not make decisions the skill should make.** Auto-advancing issue state on exit code 0 is wrong — the skill knows whether work is done, blocked, or needs rework. The orchestrator only manages execution lifecycle; the skill owns the outcome.
-8. **Skills synced from fh-commons must have resolved partials.** Hand-written stub skills with wrong behavior (deploy asking for human review) cause real failures. Always sync via `fhc sync` or manually resolve `{{PARTIAL:...}}` placeholders.
-9. **Invariants need prose + script agreement.** Phase 2 audit found invariant 7's prose banned `drizzle-orm` runtime imports in core while the verification script didn't scan for them — 100+ live imports either all violated or all fine depending on which source was authoritative. A rule you enforce partially is a rule you don't enforce.
-10. **Tech stack vs. pluggable integrations is the right boundary.** Lock-in on Drizzle / Next.js / tRPC is fine; the adapter-registry pattern applies to systems you connect to (AI providers, git hosts, auth backends, realtime transports), not to the query layer. Collapsing both categories under one invariant produces false positives and drift.
-11. **Mechanical enforcement isn't sufficient by itself.** R3.5 added phase-snapshot scripts; self-certification still reappeared in R5-V and R5.5 PRs. Process discipline needs cultural enforcement (merge-blocking manual-verification checkbox, PR template gates) to survive.
-12. **Dead code is worse than missing code.** `src/core/pipeline/types.ts` had shadow status-type unions that nobody imported — but any future agent importing them would silently drift against the real source. Half-built scaffolding trains agents to copy the wrong pattern; delete it, rebuild when needed.
+8. **Skills synced from fh-commons must have resolved partials.** Hand-written stub skills with wrong behavior cause real failures. Always sync via `fhc sync` or manually resolve `{{PARTIAL:...}}` placeholders.
+9. **Invariants need prose + script agreement.** Phase 2 audit found invariant 7's prose banned `drizzle-orm` runtime imports in core while the verification script didn't scan for them. A rule you enforce partially is a rule you don't enforce.
+10. **Tech stack vs. pluggable integrations is the right boundary.** Lock-in on Drizzle / Next.js / tRPC is fine; the adapter-registry pattern applies to systems you connect to, not to the query layer.
+11. **Mechanical enforcement isn't sufficient by itself.** Process discipline needs cultural enforcement (merge-blocking manual-verification checkbox, PR template gates) to survive.
+12. **Dead code is worse than missing code.** Half-built scaffolding trains agents to copy the wrong pattern; delete it, rebuild when needed.
+13. **Don't reinvent plumbing that's been solved.** When proven prior art exists under a compatible license, borrow the patterns (with attribution) and focus build effort on the product's differentiators. Discovered 2026-04-22 via Archon — fluxaOS now borrows workspace isolation, cleanup, and forge-adapter patterns from a codebase that has already shipped them at scale.
+14. **Interactive skills degrade to no-ops in headless runtimes.** A subprocess with `stdin: 'ignore'` and no TTY has no channel to reach a human; any skill that tries to ask a question there either no-ops or times out. This resolves the "what if a brainstorming skill fires in an autonomous pipeline" concern — the runtime itself prevents it, no framework enforcement needed.
+15. **Session-prompt language matters.** When a session-end handoff includes "invoke X skill" in the next-session prompt, the next agent treats it as an imperative that competes with AGENT_BEHAVIOR.md's "no questions" rule. Handoffs should describe the work, not name interactive skills to run.
