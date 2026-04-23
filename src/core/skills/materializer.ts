@@ -44,18 +44,34 @@ export interface MaterializeOptions {
   skill: SkillInput;
   issue: IssueInput;
   projectName?: string;
+  /**
+   * Target directory for instructions + context files. When provided,
+   * materialize() writes into this directory (typically an isolation-provider
+   * worktree) and returns `into` unchanged. When omitted, materialize()
+   * falls back to the legacy per-stage tmp-dir layout
+   * (`${tmpdir}/fluxaos-runs/${stageRunId}`).
+   *
+   * Isolation-provider-backed materializations must NOT be cleaned up via
+   * the cleanup() helper below — the IsolationProvider.release() path owns
+   * that directory's lifecycle.
+   */
+  into?: string;
 }
 
 const WORKSPACE_ROOT = join(tmpdir(), 'fluxaos-runs');
 
 /**
- * Materialize skill + persona + issue context to an isolated temp workspace.
+ * Materialize skill + persona + issue context to an isolated workspace.
  * Returns the workspace path for the driver to use.
+ *
+ * With `into`: writes to the caller-supplied directory (does NOT mkdir it;
+ * isolation provider already created it). Without: mints a fresh tmp dir
+ * under `${tmpdir}/fluxaos-runs/${stageRunId}` (legacy behavior).
  */
 export async function materialize(
   options: MaterializeOptions,
 ): Promise<string> {
-  const workspacePath = join(WORKSPACE_ROOT, options.stageRunId);
+  const workspacePath = options.into ?? join(WORKSPACE_ROOT, options.stageRunId);
 
   // Create workspace directory
   await mkdir(workspacePath, { recursive: true });
@@ -89,6 +105,11 @@ export async function materialize(
 
 /**
  * Remove the temp workspace directory after execution completes.
+ *
+ * Use this ONLY for tmp-dir materializations (materialize() called without
+ * `into`). For isolation-provider-backed materializations, the cleanup lives
+ * in `IsolationProvider.release()`; calling this helper on a worktree path
+ * would rm the worktree out from under git.
  */
 export async function cleanup(workspacePath: string): Promise<void> {
   await rm(workspacePath, { recursive: true, force: true });
