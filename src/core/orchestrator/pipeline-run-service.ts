@@ -7,13 +7,11 @@
 import { eq, and, asc, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import {
-  pipeline,
   pipelineStage,
   pipelineRun,
   stageRun,
   event,
   issueEvent,
-  issue,
 } from '@/core/db/schema';
 import type {
   PipelineRunStatus,

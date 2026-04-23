@@ -26,11 +26,7 @@ import type {
   IsolationProvider,
   ReleaseOptions,
 } from '@/core/ports/isolation';
-import {
-  getWorkspaceRoot,
-  getWorktreePath,
-  type RepoIdentity,
-} from './path-resolver';
+import { getWorkspaceRoot, getWorktreePath } from './path-resolver';
 import { copyConfiguredFiles } from './worktree-copy';
 import {
   createWorktree,

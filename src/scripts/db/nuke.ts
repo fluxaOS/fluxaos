@@ -29,6 +29,7 @@ const tables = [
   'stage_gate_result',
   'event',
   'stage_run',
+  'isolation_environment',
   'pipeline_run',
   'issue',
   'issue_transition',
