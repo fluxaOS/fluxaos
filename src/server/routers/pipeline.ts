@@ -4,28 +4,8 @@ import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { createPipelineService } from '@/core/services';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
-import { executeManualRun } from '@/core/orchestrator/manual-run';
 import { pipelineRun, stageRun, stageGateResult } from '@/core/db/schema';
-import { registry } from '@/config/registry';
-import { createDeployBridge } from '@/core/deploy';
-import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
 import { createIssueService } from '@/core/services/issue';
-import type { StageExecutor } from '@/core/ports/stage-executor';
-import type { IsolationProvider } from '@/core/ports/isolation';
-
-/**
- * Minimal console logger for deploy bridge + terminal hook. A proper
- * structured logger (pino / consola) lands post-alpha; for now stdout/stderr
- * is enough for operator visibility.
- */
-const consoleLogger = {
-  info: (obj: Record<string, unknown>, msg?: string) =>
-    console.log('[deploy]', msg ?? '', obj),
-  warn: (obj: Record<string, unknown>, msg?: string) =>
-    console.warn('[deploy]', msg ?? '', obj),
-  error: (obj: Record<string, unknown>, msg?: string) =>
-    console.error('[deploy]', msg ?? '', obj),
-};
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -127,7 +107,16 @@ export const pipelineRouter = router({
 
   // ─── Pipeline Runs ──────────────────────────────────────────────────────
   runs: router({
-    /** Trigger a manual pipeline run for a single stage. */
+    /**
+     * Trigger a manual pipeline run for a single stage.
+     *
+     * Publish-only: creates the pipeline_run at `pending` and a stage_run
+     * at `pending` for the chosen stage. The orchestrator daemon
+     * (R-DAEMON) picks up the Realtime INSERT, reuses the pending
+     * stage_run, and drives the run to terminal. If the daemon is not
+     * running, the pipeline_run sits at `pending` — that's the correct
+     * signal the daemon is down.
+     */
     trigger: publicProcedure
       .input(z.object({
         pipelineId: z.string().uuid(),
@@ -145,39 +134,13 @@ export const pipelineRouter = router({
 
         const svc = createPipelineRunService(ctx.db);
         const run = await svc.createRun(input.pipelineId, input.issueId);
-        await svc.updateRunStatus(run.id, 'running');
+        // Seed a pending stage_run so the daemon launches the user-chosen
+        // stage, not the pipeline's stages[0]. Daemon's handleNewRun
+        // reuses the pending row rather than creating a duplicate.
         const sr = await svc.createStageRun(run.id, input.stageId);
-        await svc.updateStageRunStatus(sr.id, 'launching');
         await svc.appendEvent(sr.id, 'launched', {
-          reason: 'manually executed by user',
+          reason: 'manually triggered by user — awaiting daemon pickup',
         });
-
-        // Fire-and-forget: spawn subprocess in background
-        const executor = registry.get<StageExecutor>('executor');
-        const isolation = registry.get<IsolationProvider>('isolation');
-        const issueService = createIssueService(ctx.db);
-        const deployBridge = createDeployBridge({
-          db: ctx.db,
-          registry,
-          logger: consoleLogger,
-          isolation,
-          issueService,
-        });
-        const terminalHook = createPipelineTerminalHook({
-          deployBridge,
-          isolation,
-          logger: consoleLogger,
-        });
-        executeManualRun(
-          ctx.db,
-          executor,
-          isolation,
-          terminalHook,
-          run.id,
-          sr.id,
-        ).catch((err) =>
-          console.error('[manual-run] unhandled error:', err),
-        );
 
         return run;
       }),

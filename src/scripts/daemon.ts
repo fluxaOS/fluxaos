@@ -1,0 +1,296 @@
+/**
+ * fluxaOS orchestrator daemon — long-running process.
+ *
+ * Subscribes to Realtime for pipeline_run INSERT/UPDATE, dispatches
+ * stage runs via the event-orchestrator, runs periodic crash recovery,
+ * and owns the cleanup scheduler's lifetime. Runs under systemd user unit
+ * `ops/systemd/fluxaos-daemon.service` or via `npm run daemon` for dev.
+ *
+ * See docs/superpowers/specs/2026-04-24-r-daemon-design.md and
+ * docs/superpowers/plans/2026-04-24-r-daemon-implementation.md.
+ */
+import 'dotenv/config';
+import { bootstrap } from '@/config/bootstrap';
+import { registry } from '@/config/registry';
+import { consoleLogger } from '@/core/logger/console';
+import { createEventOrchestrator, type EventOrchestrator } from '@/core/orchestrator/event-orchestrator';
+import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
+import { createDeployBridge } from '@/core/deploy';
+import { createCleanupScheduler, type CleanupScheduler } from '@/core/cleanup/cleanup-scheduler';
+import { createCleanupService } from '@/core/cleanup/cleanup-service';
+import { createIssueService } from '@/core/services/issue';
+import {
+  getArtifactsBase,
+} from '@/adapters/git/artifacts-path';
+import {
+  getCanonicalRepoPath,
+  hasUncommittedChanges,
+  isBranchMerged,
+} from '@/adapters/git/worktree';
+import {
+  getArtifactsDirAge,
+  listArtifactDirs,
+  removeArtifactsDir,
+} from '@/adapters/fs/artifacts';
+import type { DatabaseProvider } from '@/core/ports';
+import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { Database } from '@/core/db/connection';
+import { stageRun } from '@/core/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import { STAGE_RUN_STATUS } from '@/core/constants';
+
+const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
+const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
+
+export interface DaemonEnv {
+  shutdownGraceSeconds: number;
+  recoverySweepIntervalMin: number | null;
+}
+
+export function parseEnv(): DaemonEnv {
+  const graceRaw = process.env[SHUTDOWN_GRACE_ENV];
+  if (!graceRaw) {
+    throw new Error(
+      `Missing required environment variable: ${SHUTDOWN_GRACE_ENV}. ` +
+        'Set to a positive integer — operator owns the drain window (no default).',
+    );
+  }
+  const grace = Number.parseInt(graceRaw, 10);
+  if (!Number.isFinite(grace) || grace <= 0) {
+    throw new Error(
+      `${SHUTDOWN_GRACE_ENV} must be a positive integer; got "${graceRaw}".`,
+    );
+  }
+
+  let sweep: number | null = null;
+  const sweepRaw = process.env[RECOVERY_SWEEP_ENV];
+  if (sweepRaw !== undefined && sweepRaw !== '') {
+    const n = Number.parseInt(sweepRaw, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new Error(
+        `${RECOVERY_SWEEP_ENV} must be a positive integer when set; got "${sweepRaw}".`,
+      );
+    }
+    sweep = n;
+  }
+
+  return { shutdownGraceSeconds: grace, recoverySweepIntervalMin: sweep };
+}
+
+export interface Daemon {
+  orchestrator: EventOrchestrator;
+  cleanupScheduler: CleanupScheduler;
+  env: DaemonEnv;
+  /** Graceful shutdown. Safe to call multiple times. */
+  shutdown: (reason: string) => Promise<void>;
+}
+
+const DRAIN_POLL_INTERVAL_MS = 500;
+
+async function drainRunningStageRuns(
+  db: Database,
+  graceMs: number,
+): Promise<number> {
+  const start = Date.now();
+  while (Date.now() - start < graceMs) {
+    const rows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(stageRun)
+      .where(eq(stageRun.status, STAGE_RUN_STATUS.running));
+    const remaining = rows[0]?.count ?? 0;
+    if (remaining === 0) return 0;
+    await new Promise((r) => setTimeout(r, DRAIN_POLL_INTERVAL_MS));
+  }
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(stageRun)
+    .where(eq(stageRun.status, STAGE_RUN_STATUS.running));
+  return rows[0]?.count ?? 0;
+}
+
+/**
+ * Wire the orchestrator + cleanup scheduler + terminal hook and start
+ * them. Exported so integration tests can spin the daemon up without
+ * the process-level signal handlers or top-level await.
+ */
+export async function createDaemon(): Promise<Daemon> {
+  const env = parseEnv();
+  bootstrap();
+
+  consoleLogger.info(
+    {
+      event: 'daemon.booting',
+      shutdownGraceSeconds: env.shutdownGraceSeconds,
+      recoverySweepIntervalMin: env.recoverySweepIntervalMin,
+    },
+  );
+
+  const dbProvider = registry.get<DatabaseProvider>('database');
+  const db = dbProvider.getConnection();
+  const realtime = registry.get<RealtimeProvider>('realtime');
+  const isolation = registry.get<IsolationProvider>('isolation');
+  const executor = registry.get<StageExecutor>('executor');
+  const issueService = createIssueService(db);
+
+  const deployBridge = createDeployBridge({
+    db,
+    registry,
+    logger: consoleLogger,
+    isolation,
+    issueService,
+  });
+
+  const terminalHook = createPipelineTerminalHook({
+    deployBridge,
+    isolation,
+    logger: consoleLogger,
+  });
+
+  const orchestrator = createEventOrchestrator(
+    db,
+    executor,
+    realtime,
+    isolation,
+    terminalHook,
+  );
+
+  const cleanupService = createCleanupService({
+    db,
+    isolation,
+    logger: consoleLogger,
+    git: {
+      hasUncommittedChanges,
+      isBranchMerged,
+      getCanonicalRepoPath,
+      listArtifactDirs,
+      removeArtifactsDir,
+      getArtifactsDirAge,
+      getArtifactsBase,
+    },
+  });
+
+  const cleanupScheduler = createCleanupScheduler({
+    cleanupService,
+    logger: consoleLogger,
+  });
+
+  await orchestrator.recoverOnStartup();
+  consoleLogger.info({ event: 'daemon.recovery_complete' });
+
+  orchestrator.start();
+  consoleLogger.info({ event: 'daemon.orchestrator_started' });
+
+  cleanupScheduler.start();
+  consoleLogger.info({
+    event: 'daemon.cleanup_scheduler_started',
+    running: cleanupScheduler.isRunning(),
+  });
+
+  let recoverySweepTimer: NodeJS.Timeout | null = null;
+  if (env.recoverySweepIntervalMin !== null) {
+    const intervalMs = env.recoverySweepIntervalMin * 60 * 1000;
+    recoverySweepTimer = setInterval(() => {
+      void orchestrator
+        .recoverOnStartup()
+        .then(() => {
+          consoleLogger.info({ event: 'daemon.recovery_sweep_ran' });
+        })
+        .catch((err: unknown) => {
+          consoleLogger.error({
+            event: 'daemon.recovery_sweep_failed',
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }, intervalMs);
+    // unref so the interval does not hold the event loop open on its own
+    if (typeof recoverySweepTimer.unref === 'function') {
+      recoverySweepTimer.unref();
+    }
+  }
+
+  const cleanupRunning = cleanupScheduler.isRunning();
+  const sweepEnabled = recoverySweepTimer !== null;
+  // Sentinel line — journey test greps for /daemon\.started /.
+  console.log(
+    `daemon.started orchestrator=running cleanup=${cleanupRunning ? 'running' : 'disabled'} recovery_sweep=${sweepEnabled ? 'enabled' : 'disabled'}`,
+  );
+
+  let shuttingDown = false;
+  async function shutdown(reason: string): Promise<void> {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    consoleLogger.info({ event: 'daemon.shutdown_initiated', reason });
+    orchestrator.stop();
+    consoleLogger.info({ event: 'daemon.orchestrator_stopped' });
+    cleanupScheduler.stop();
+    consoleLogger.info({ event: 'daemon.cleanup_scheduler_stopped' });
+    if (recoverySweepTimer !== null) {
+      clearInterval(recoverySweepTimer);
+      recoverySweepTimer = null;
+    }
+    const graceMs = env.shutdownGraceSeconds * 1000;
+    const remaining = await drainRunningStageRuns(db, graceMs);
+    consoleLogger.info({
+      event: 'daemon.drain_completed',
+      remaining,
+      graceSeconds: env.shutdownGraceSeconds,
+    });
+  }
+
+  return { orchestrator, cleanupScheduler, env, shutdown };
+}
+
+async function main(): Promise<void> {
+  const daemon = await createDaemon();
+
+  let signalCount = 0;
+  const onSignal = (signal: NodeJS.Signals) => {
+    signalCount += 1;
+    if (signalCount > 1) {
+      consoleLogger.warn({ event: 'daemon.force_exit', signal, signalCount });
+      process.exit(130);
+      return;
+    }
+    daemon
+      .shutdown(signal)
+      .then(() => process.exit(0))
+      .catch((err) => {
+        consoleLogger.error({
+          event: 'daemon.shutdown_error',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        process.exit(1);
+      });
+  };
+  process.on('SIGTERM', () => onSignal('SIGTERM'));
+  process.on('SIGINT', () => onSignal('SIGINT'));
+
+  // Hold the event loop open until a signal fires.
+  await new Promise<void>(() => {
+    // Intentionally never resolves.
+  });
+}
+
+// Only run main when invoked directly (not when imported by tests).
+const isMainModule = (() => {
+  try {
+    const argv1 = process.argv[1];
+    if (!argv1) return false;
+    // tsx/ts-node invoke with the .ts path; Node with .js. Match both.
+    return argv1.endsWith('daemon.ts') || argv1.endsWith('daemon.js');
+  } catch {
+    return false;
+  }
+})();
+
+if (isMainModule) {
+  main().catch((err) => {
+    consoleLogger.error({
+      event: 'daemon.fatal',
+      error: err instanceof Error ? err.message : String(err),
+    });
+    process.exit(1);
+  });
+}

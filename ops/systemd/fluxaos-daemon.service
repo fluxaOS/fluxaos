@@ -1,0 +1,20 @@
+[Unit]
+Description=fluxaOS orchestrator daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/fluxaos
+EnvironmentFile=%h/dev/fluxaos/.env.local
+ExecStart=/usr/bin/env npm run daemon
+Restart=always
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=120
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

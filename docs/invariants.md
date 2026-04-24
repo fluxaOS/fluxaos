@@ -20,6 +20,8 @@ The brain. Runs as a background service on a heartbeat:
 
 The orchestrator is the ONLY actor that manages pipeline state.
 
+**The daemon is the sole path from `pipeline_run:pending` to `pipeline_run:running`.** tRPC `pipeline.runs.trigger` is publish-only: it creates the `pipeline_run` at `pending` and seeds a `stage_run` at `pending` for the user-chosen stage, then returns. The daemon's Realtime handler picks up the INSERT, reuses the seed stage_run, and drives the run to terminal. If the daemon is not running, `pipeline_run` sits at `pending` — that is the correct operator signal to bring the daemon up.
+
 ### The AI Workers — Pure Executors
 
 AI workers are dumb pipes:

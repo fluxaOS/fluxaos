@@ -18,7 +18,8 @@
     "db:gates": "tsx src/scripts/db/gates.ts",
     "db:events": "tsx src/scripts/db/events.ts",
     "verify": "tsx tests/verify/run-all.ts",
-    "verify:seed": "tsx tests/verify/seed-check.ts"
+    "verify:seed": "tsx tests/verify/seed-check.ts",
+    "daemon": "tsx src/scripts/daemon.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.0",
@@ -34,7 +35,6 @@
     "dotenv": "^17.4.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
-    "execa": "^9.6.1",
     "ioredis": "^5.10.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.2",
