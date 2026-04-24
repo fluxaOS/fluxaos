@@ -299,3 +299,14 @@ Prefer option 1 during R-POLISH — same phase where clean-shipping the repo mat
 
 **Resolution (2026-04-23, R-ARTIFACTS W8-T18):** Poll loop now breaks out on either (a) `status IN ('failed','cancelled','error')` — short-circuit, no PR expected, or (b) `status === 'completed' AND issue_pull_request row exists` — the true terminal state after the deploy bridge's awaited steps finish. The new R-ARTIFACTS chain journey (`e2e/r-artifacts-chain.spec.ts`) uses the same pattern from the start.
 
+## DEF-021 — R-ARTIFACTS chain journey: stage-2 "Run Stage" click blocked by stage-1 RunDetailModal overlay
+
+**Found:** 2026-04-23 during T20 R-ARTIFACTS chain journey live run against `jdpierce21/fluxaos-alpha-e2e-sandbox`.
+**Severity:** Low — test-only; engine correctness proved independently. No runtime bug.
+**Symptom:** `e2e/r-artifacts-chain.spec.ts` drives Research stage successfully (stage_run terminal `proceed`, `research-findings.md` written, `pipeline_run.artifacts_path` populated, `.gitignore` auto-updated), then tries to advance state to `Implement` and click "Run Stage" again. Playwright retries the click ~180 times against `<div class="fixed inset-0 z-[70] ... intercepts pointer events">` — the RunDetailModal from stage 1 stayed open and blocked interaction with the stage-2 controls. Test fails at line 196.
+**Proof the engine works:** Stage 1 produced a 3,274-byte high-quality `research-findings.md` that correctly diagnosed the empty sandbox and proposed a Next.js implementation plan. `pipeline_run.artifacts_path` = `/mnt/dev/fluxaos-alpha-e2e-sandbox/.fluxaos-artifacts/0605d125-75ac-4f53-90f6-9d10fc519ab5`. Both `.fluxaos-worktrees/` and `.fluxaos-artifacts/` appeared in the sandbox's `.gitignore`. The mechanism is fully wired end-to-end; the test just can't drive the second stage.
+**Why it happened:** W7-T14's subagent added an Escape-close modal step between stages per the brief, but either the Escape handler is a no-op for RunDetailModal or the modal re-mounts on state change. The test didn't explicitly dismiss the modal between stages.
+**Fix sketch:** Either (a) add an explicit modal-close interaction in the journey (e.g., click the modal's X button, or await `page.waitForSelector('div.fixed.inset-0', { state: 'detached' })` after Escape), or (b) structure the test to bypass the UI for stage 2 — call the `pipeline.runs.executeStage` tRPC mutation directly from the test. Option (a) is closer to real user behaviour; option (b) is more robust if the UI's modal lifecycle is flaky.
+**Where:** `e2e/r-artifacts-chain.spec.ts:196` (stage 2 Run Stage click). Check the modal behaviour in `src/components/pipeline/RunDetailModal.tsx` — if Escape doesn't close it, that's its own bug.
+
+
