@@ -229,7 +229,21 @@ export function makeLogger(): LoggerWithRecords {
   };
 }
 
-export function buildService(db: Database) {
+export interface ArtifactsFakes {
+  listArtifactDirs?: (base: string) => Promise<string[]>;
+  removeArtifactsDir?: (path: string) => Promise<void>;
+  getArtifactsDirAge?: (path: string) => Promise<Date>;
+  getArtifactsBase?: (repoPath: string) => string;
+}
+
+/**
+ * Build the cleanup service with a configurable artifacts helper bag.
+ *
+ * The non-artifacts tests don't exercise the artifacts code paths, so they
+ * get no-op defaults. Artifacts-specific tests pass in fakes that record
+ * and/or return scripted values.
+ */
+export function buildService(db: Database, artifacts: ArtifactsFakes = {}) {
   const isolation = createWorktreeIsolationProvider({ db });
   const logger = makeLogger();
   const service = createCleanupService({
@@ -240,6 +254,14 @@ export function buildService(db: Database) {
       hasUncommittedChanges,
       isBranchMerged,
       getCanonicalRepoPath,
+      listArtifactDirs:
+        artifacts.listArtifactDirs ?? (async () => []),
+      removeArtifactsDir:
+        artifacts.removeArtifactsDir ?? (async () => undefined),
+      getArtifactsDirAge:
+        artifacts.getArtifactsDirAge ?? (async () => new Date()),
+      getArtifactsBase:
+        artifacts.getArtifactsBase ?? ((repoPath) => repoPath),
     },
   });
   return { isolation, service, logger };
