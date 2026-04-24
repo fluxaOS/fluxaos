@@ -13,6 +13,7 @@ import { gateRouter } from './routers/gate';
 import { providerRouter } from './routers/provider';
 import { routingRouter } from './routers/routing';
 import { driverRouter } from './routers/driver';
+import { systemRouter } from './routers/system';
 
 export const appRouter = router({
   organization: organizationRouter,
@@ -26,6 +27,7 @@ export const appRouter = router({
   provider: providerRouter,
   routing: routingRouter,
   driver: driverRouter,
+  system: systemRouter,
 });
 
 export type AppRouter = typeof appRouter;
