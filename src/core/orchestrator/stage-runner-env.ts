@@ -7,13 +7,13 @@
  * run in, and acquire it."
  */
 
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, ne } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import type {
   IsolationEnvironment,
   IsolationProvider,
 } from '@/core/ports/isolation';
-import { project, issue, pipeline } from '@/core/db/schema';
+import { project, issue, pipeline, pipelineRun } from '@/core/db/schema';
 import { resolveRepoIdentity } from '@/adapters/git';
 
 /**
@@ -70,7 +70,45 @@ interface AcquireEnvInput {
   isolation: IsolationProvider;
   projectId: string;
   runId: string;
+  pipelineId: string;
+  /**
+   * issueId of the pipeline_run being set up. Used to find prior
+   * pipeline_runs on the same (pipelineId, issueId) so their artifacts_path
+   * can be inherited — alpha's per-stage "Run Stage" flow creates a fresh
+   * pipeline_run per click, and without inheritance stage N can't see
+   * artifacts written by stage N-1. See DEF-022.
+   */
+  issueId: string | null;
   issueNumber?: number | null;
+}
+
+/**
+ * Look up the most-recent prior pipeline_run on the same (pipeline, issue)
+ * that has a populated artifacts_path, so the new run can reuse it. Returns
+ * null when no prior run exists or none had artifacts recorded — in that
+ * case the isolation provider mints a fresh path. See DEF-022.
+ */
+async function findInheritedArtifactsPath(
+  db: Database,
+  pipelineId: string,
+  issueId: string | null,
+  currentRunId: string,
+): Promise<string | null> {
+  if (!issueId) return null;
+  const [prior] = await db
+    .select({ artifactsPath: pipelineRun.artifactsPath })
+    .from(pipelineRun)
+    .where(
+      and(
+        eq(pipelineRun.pipelineId, pipelineId),
+        eq(pipelineRun.issueId, issueId),
+        ne(pipelineRun.id, currentRunId),
+        isNotNull(pipelineRun.artifactsPath),
+      ),
+    )
+    .orderBy(desc(pipelineRun.createdAt))
+    .limit(1);
+  return prior?.artifactsPath ?? null;
 }
 
 export interface AcquireEnvResult {
@@ -118,6 +156,13 @@ export async function acquireIsolationEnv(
     ? (projectRow.worktreeCopyFiles as string[])
     : [];
 
+  const inheritedArtifactsPath = await findInheritedArtifactsPath(
+    input.db,
+    input.pipelineId,
+    input.issueId,
+    input.runId,
+  );
+
   const env = await input.isolation.acquire({
     projectId: projectRow.id,
     runId: input.runId,
@@ -126,6 +171,7 @@ export async function acquireIsolationEnv(
     branchName,
     baseBranch: projectRow.defaultBranch,
     copyFiles,
+    artifactsPath: inheritedArtifactsPath ?? undefined,
   });
 
   return { env, projectRow };

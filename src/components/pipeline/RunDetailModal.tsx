@@ -116,6 +116,16 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
     setSelectedStageRunId(stageRuns[stageRuns.length - 1].id);
   }, [stageRuns, initialStageName]);
 
+  // Close on Escape key — standard dialog behaviour expected by aria-modal.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   // Subscribe to Realtime for stage_run AND pipeline_run status changes.
   // Both subscriptions trigger a refetch so the status badge stays current.
   // pipeline_run subscription is required because the orchestrator updates
