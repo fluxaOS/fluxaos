@@ -54,6 +54,12 @@ export function IssueListClient({
 
   const issues = issuesQuery.data ?? [];
 
+  // R-EPIC: one bulk query returns { [parentId]: openCount } for every
+  // parent in the project — supports "↳ (N open)" indicators without
+  // per-row roundtrips.
+  const openChildCountsQuery = trpc.issue.openChildCountsByProject.useQuery({ projectId });
+  const openChildCounts = openChildCountsQuery.data ?? {};
+
   // ── Stat counts from fetched issues ──────────────────────────────────────
   const openCount = issues.filter((i) => !i.isClosed).length;
   const closedCount = issues.filter((i) => i.isClosed).length;
@@ -215,7 +221,15 @@ export function IssueListClient({
                         href={`${basePath}/issues/${iss.number}`}
                         className="text-slate-200 font-medium hover:text-white transition-colors"
                       >
+                        {iss.parentIssueId && (
+                          <span className="text-slate-500 mr-1" title="Child of another issue">↳</span>
+                        )}
                         {iss.title}
+                        {openChildCounts[iss.id] > 0 && (
+                          <span className="ml-2 text-[10px] text-electric-violet font-normal">
+                            ({openChildCounts[iss.id]} open)
+                          </span>
+                        )}
                       </Link>
                     </td>
                     <td className="px-6 py-3.5">

@@ -11,6 +11,7 @@ import { RunDetailModal } from '@/components/pipeline/RunDetailModal';
 import { trpc } from '@/lib/trpc/client';
 import { ActivityFeed } from './ActivityFeed';
 import { EditableTitle, EditableBody, CatalogSelect } from './IssueDetailEditors';
+import { RelationshipsCard } from './RelationshipsCard';
 
 // ─── Main client component ──────────────────────────────────────────────────
 
@@ -39,6 +40,11 @@ export function IssueDetailClient({
   const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({ projectId });
 
   const transitionsQuery = trpc.issue.transitions.useQuery(
+    { id: issue?.id ?? '' },
+    { enabled: !!issue?.id },
+  );
+
+  const hasOpenChildrenQuery = trpc.issue.hasOpenChildren.useQuery(
     { id: issue?.id ?? '' },
     { enabled: !!issue?.id },
   );
@@ -100,6 +106,12 @@ export function IssueDetailClient({
       pipelineStateQuery.refetch();
       if (data?.id) setActiveRunId(data.id);
     },
+    onError: (err) => {
+      if (err.message.includes('ISSUE_IS_EPIC')) {
+        alert('This issue has open child issues. Run pipelines on the children, not the parent.');
+        hasOpenChildrenQuery.refetch();
+      }
+    },
   });
 
   const executeStage = trpc.pipeline.runs.executeStage.useMutation({
@@ -148,6 +160,9 @@ export function IssueDetailClient({
 
   const stateInfo = states.find((s) => s.id === issue.stateId);
   const priorityInfo = priorities.find((p) => p.id === issue.priorityId);
+
+  // R-EPIC: disable Run Stage + hint when the issue has open children.
+  const isEpic = hasOpenChildrenQuery.data === true;
 
   return (
     <div className="space-y-6">
@@ -249,6 +264,13 @@ export function IssueDetailClient({
         )}
       </Card>
 
+      {/* R-EPIC: parent + children relationships */}
+      <RelationshipsCard
+        issueId={issue.id}
+        parentIssueId={issue.parentIssueId ?? null}
+        basePath={basePath}
+      />
+
       {/* Pipeline Stages — always visible when pipeline exists */}
       {pipelineStages.length > 0 && (() => {
         // Match the issue's current state to a pipeline stage by name
@@ -295,28 +317,35 @@ export function IssueDetailClient({
 
             {/* Run Stage — always available, triggers the stage matching the issue's state */}
             {matchingStage && defaultPipeline && issue && (
-              <button
-                type="button"
-                onClick={() => {
-                  // If a pending stage run exists, execute it
-                  const existingSr = pipelineState?.currentStageRun;
-                  if (existingSr && (existingSr.status === 'pending' || existingSr.status === 'queued')) {
-                    executeStage.mutate({ stageRunId: existingSr.id });
-                  } else {
-                    // Otherwise trigger a new pipeline run for this stage
-                    triggerRun.mutate({
-                      pipelineId: defaultPipeline.id,
-                      issueId: issue.id,
-                      stageId: matchingStage.id,
-                    });
-                  }
-                }}
-                disabled={isExecuting}
-                className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
-              >
-                <Play size={14} />
-                {isExecuting ? 'Starting...' : `Run Stage`}
-              </button>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // If a pending stage run exists, execute it
+                    const existingSr = pipelineState?.currentStageRun;
+                    if (existingSr && (existingSr.status === 'pending' || existingSr.status === 'queued')) {
+                      executeStage.mutate({ stageRunId: existingSr.id });
+                    } else {
+                      // Otherwise trigger a new pipeline run for this stage
+                      triggerRun.mutate({
+                        pipelineId: defaultPipeline.id,
+                        issueId: issue.id,
+                        stageId: matchingStage.id,
+                      });
+                    }
+                  }}
+                  disabled={isExecuting || isEpic}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
+                >
+                  <Play size={14} />
+                  {isExecuting ? 'Starting...' : `Run Stage`}
+                </button>
+                {isEpic && (
+                  <p className="text-[11px] text-slate-500">
+                    This issue has open child issues. Run pipelines on the children.
+                  </p>
+                )}
+              </div>
             )}
 
             {pipelineState?.run && (

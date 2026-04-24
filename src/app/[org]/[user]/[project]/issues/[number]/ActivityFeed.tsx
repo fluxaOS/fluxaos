@@ -371,6 +371,9 @@ function formatEvent(
     case 'state_changed': {
       const from = catalogName(p.from_state, catalogs.states);
       const to = catalogName(p.to_state, catalogs.states);
+      if (p.reason === 'auto_close_all_children_closed') {
+        return `Auto-closed: all child issues closed (${from} \u2192 ${to})`;
+      }
       return `State changed: ${from} \u2192 ${to}`;
     }
 
