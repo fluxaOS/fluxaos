@@ -121,6 +121,7 @@ export const pipelineRun = pgTable('pipeline_run', {
   totalCostUsd: numeric('total_cost_usd', { precision: 10, scale: 6 }).default(
     '0'
   ),
+  artifactsPath: text('artifacts_path'),
   createdAt,
   updatedAt,
 });
@@ -515,6 +516,7 @@ export const isolationEnvironment = pgTable(
     branchName: text('branch_name').notNull(),
     status: text('status').notNull().default('active'),
     metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
+    artifactsPath: text('artifacts_path'),
     createdAt,
     updatedAt,
   },

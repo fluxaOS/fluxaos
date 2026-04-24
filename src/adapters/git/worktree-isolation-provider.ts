@@ -57,6 +57,7 @@ function rowToDomain(row: IsolationRow): IsolationEnvironment {
     branchName: row.branchName,
     status: row.status as 'active' | 'inactive',
     metadata: (row.metadata as Record<string, unknown>) ?? {},
+    artifactsPath: row.artifactsPath ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
