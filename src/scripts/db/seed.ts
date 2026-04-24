@@ -241,6 +241,28 @@ echo '{"flux:signal": {"verdict": "hold", "reason": "needs_human", "summary": "e
 
 Do not ask questions. Do not use slash commands. Do not run CLI tools beyond what the task genuinely requires.`;
 
+  // R-ARTIFACTS: per-skill suffixes that use the {{artifacts_path}} template
+  // variable. Later stages read what earlier stages wrote at known paths.
+  // Deploy stays silent — it consumes the worktree's git state, not artifacts.
+  const ARTIFACTS_SUFFIX: Record<string, string> = {
+    research: `
+
+Artifacts directory: {{artifacts_path}}
+Write your findings to {{artifacts_path}}/research-findings.md before emitting flux:signal. Later stages will read it.`,
+    implement: `
+
+Artifacts directory: {{artifacts_path}}
+Before editing, read {{artifacts_path}}/research-findings.md if it exists — earlier stages may have captured constraints. Write an implementation plan to {{artifacts_path}}/plan.md before you edit the worktree.`,
+    review: `
+
+Artifacts directory: {{artifacts_path}}
+Read {{artifacts_path}}/plan.md if it exists to see what was intended, then diff it against the actual worktree changes. Write your review to {{artifacts_path}}/review-findings.md before emitting flux:signal.`,
+    rework: `
+
+Artifacts directory: {{artifacts_path}}
+Read {{artifacts_path}}/review-findings.md if it exists and address the concerns it raises before editing.`,
+  };
+
   const skillsDef = [
     { name: 'research', description: 'Unified research and planning — assess, decide, execute' },
     { name: 'implement', description: 'Implementation orchestrator — build features from plans' },
@@ -251,7 +273,7 @@ Do not ask questions. Do not use slash commands. Do not run CLI tools beyond wha
 
   const skillMap = new Map<string, string>();
   for (const def of skillsDef) {
-    const promptTemplate = PIPELINE_PROMPT;
+    const promptTemplate = PIPELINE_PROMPT + (ARTIFACTS_SUFFIX[def.name] ?? '');
 
     let [row] = await db
       .insert(skill)
