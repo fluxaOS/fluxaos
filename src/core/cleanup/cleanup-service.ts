@@ -1,27 +1,13 @@
 /**
- * Cleanup service — four triggers sharing one safety-check pipeline.
- *
- * Triggers:
- *   1. onPrClosed(prNumber, { merged }) — reap the env for a closed PR's branch
- *   2. runScheduledSweep() — periodic sweep of all active envs
- *   3. cleanupToMakeRoom({ requiredBytes? }) — on-demand, oldest-first reaping
- *   4. removeEnvironment(envId, { force }) — direct removal by id
- *
- * Plus listBreakdown for UI/reporting.
- *
- * Safety checks gate every reap (unless { force: true }):
- *   - uncommitted changes  → skip (NOT safe)
- *   - branch merged upstream → safe (merged)
- *   - open/draft PR for the branch → skip (NOT safe)
- *   - age > FLUXAOS_CLEANUP_STALE_DAYS → safe (stale)
- *   - otherwise → skip (active-but-not-stale)
- *
- * DI: receives `db`, `isolation` port, `logger`, and a `git` helper bag.
- * No direct git shell-outs from within src/core/ — the git helpers are
- * injected via the `git` dep. No vendor imports leak into core.
- *
- * Shape borrowed from Archon's packages/core/src/services/cleanup-service.ts
- * (MIT, shape-only).
+ * Cleanup service — four triggers (onPrClosed, runScheduledSweep,
+ * cleanupToMakeRoom, removeEnvironment) + listBreakdown, all sharing one
+ * safety-check pipeline. Safety gates: uncommitted → skip; merged → safe;
+ * open/draft PR → skip; age > FLUXAOS_CLEANUP_STALE_DAYS → safe; else skip
+ * (active-but-not-stale). DI: db, isolation port, logger, git helper bag —
+ * no vendor imports leak into core. Shape: Archon
+ * packages/core/src/services/cleanup-service.ts (MIT, shape-only).
+ * R-ARTIFACTS W4 artifact-reap helpers live in
+ * ./cleanup-service-artifacts.ts (free functions, same DI contract).
  */
 
 import { and, asc, eq, inArray } from 'drizzle-orm';
@@ -32,17 +18,23 @@ import {
   project,
 } from '@/core/db/schema';
 import type { IsolationProvider } from '@/core/ports/isolation';
+import {
+  forceRemoveArtifactsDir,
+  isArtifactsSafeToRemove as isArtifactsSafeToRemoveImpl,
+  sweepArtifacts,
+  type ArtifactsSafetyReason,
+} from './cleanup-service-artifacts';
 
-// ── Logger contract (DI, no adapter import) ──────────────────────────────────
+export type { ArtifactsSafetyReason };
 
+// Logger contract (DI, no adapter import).
 export interface CleanupLogger {
   info(obj: Record<string, unknown>, msg?: string): void;
   warn(obj: Record<string, unknown>, msg?: string): void;
   error(obj: Record<string, unknown>, msg?: string): void;
 }
 
-// ── Git helper contract (DI, shell-outs live in adapters/git/worktree.ts) ────
-
+// Git helper contract (DI; shell-outs live in adapters/git/worktree.ts).
 export interface CleanupGitHelpers {
   hasUncommittedChanges(worktreePath: string): Promise<boolean>;
   isBranchMerged(
@@ -51,10 +43,14 @@ export interface CleanupGitHelpers {
     baseBranch: string
   ): Promise<boolean>;
   getCanonicalRepoPath(path: string): Promise<string>;
+  // R-ARTIFACTS W4 — interface-only; adapter impls wired at bootstrap.
+  listArtifactDirs(base: string): Promise<string[]>;
+  removeArtifactsDir(path: string): Promise<void>;
+  getArtifactsDirAge(path: string): Promise<Date>;
+  getArtifactsBase(repoPath: string): string;
 }
 
-// ── Report types (public) ────────────────────────────────────────────────────
-
+// Report types (public).
 export interface CleanupReport {
   removed: { envId: string; branchName: string; reason: string }[];
   skipped: { envId: string; reason: string }[];
@@ -81,8 +77,7 @@ export interface SafetyResult {
   reason: string;
 }
 
-// ── Deps + factory signature ─────────────────────────────────────────────────
-
+// Deps + factory signature.
 export interface CleanupServiceDeps {
   db: Database;
   isolation: IsolationProvider;
@@ -106,13 +101,17 @@ export interface CleanupService {
   listBreakdown(options: { projectId: string }): Promise<BreakdownReport>;
   // Exposed for testing the safety pipeline in isolation.
   isSafeToRemove(env: IsolationRow): Promise<SafetyResult>;
+  // R-ARTIFACTS W4: exposed for direct testing of the artifacts gate.
+  isArtifactsSafeToRemove(
+    runId: string,
+    ageMs: number
+  ): Promise<ArtifactsSafetyReason>;
 }
 
 type IsolationRow = typeof isolationEnvironment.$inferSelect;
 type ProjectRow = typeof project.$inferSelect;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
+// Helpers.
 function ageDays(createdAt: Date, now: Date): number {
   const msPerDay = 1000 * 60 * 60 * 24;
   return (now.getTime() - createdAt.getTime()) / msPerDay;
@@ -125,8 +124,6 @@ function parseStaleDays(): number | null {
   if (!Number.isFinite(n) || n < 0) return null;
   return n;
 }
-
-// ── Factory ──────────────────────────────────────────────────────────────────
 
 export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
   const { db, isolation, logger, git } = deps;
@@ -160,10 +157,7 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
         return { safe: false, reason: 'uncommitted' };
       }
     } catch {
-      // If we can't inspect the worktree (missing directory, git error),
-      // treat it as safe-to-remove via the stale branch below rather than
-      // blocking forever on an unreadable path. The missing-worktree case
-      // is a common result of manual deletion; cleanup should absorb it.
+      // Missing/unreadable worktree: absorb and fall through to staleness.
     }
 
     // 2. Branch merged → safe.
@@ -241,6 +235,16 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
         { envId: row.id, branchName: row.branchName },
         'cleanup.removed'
       );
+      // R-ARTIFACTS W4: force-remove also tears down the artifact dir.
+      if (force) {
+        await forceRemoveArtifactsDir(
+          logger,
+          git,
+          row.id,
+          row.artifactsPath,
+          warnings
+        );
+      }
       return { worktreeRemoved: true, warnings };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -259,6 +263,14 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       .from(isolationEnvironment)
       .where(eq(isolationEnvironment.status, 'active'))
       .orderBy(asc(isolationEnvironment.createdAt));
+  }
+
+  // R-ARTIFACTS W4 — wrapper delegating to ./cleanup-service-artifacts.
+  function isArtifactsSafeToRemove(
+    runId: string,
+    ageMs: number
+  ): Promise<ArtifactsSafetyReason> {
+    return isArtifactsSafeToRemoveImpl(db, runId, ageMs);
   }
 
   async function runScheduledSweep(): Promise<CleanupReport> {
@@ -308,6 +320,9 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       }
     }
 
+    // R-ARTIFACTS W4: artifact reap runs AFTER the worktree pass.
+    await sweepArtifacts(db, logger, git, report);
+
     report.completedAt = new Date();
     logger.info(
       {
@@ -334,11 +349,8 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       completedAt: startedAt,
     };
 
-    // Alpha note: disk-free inspection is advisory. requiredBytes is a
-    // best-effort target; we reap every safe candidate, oldest first, and
-    // stop as soon as the report indicates the target has been met. Without
-    // a reliable per-path statfs across filesystems we don't claim to free
-    // a specific byte count — the caller logs what actually happened.
+    // Alpha: best-effort reap oldest-first; no byte guarantee — caller
+    // inspects report.removed to see what happened.
     const active = await listActiveAcrossProjects();
     logger.info(
       { count: active.length, requiredBytes: options.requiredBytes ?? null },
@@ -370,6 +382,9 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
         report.errors.push({ envId: env.id, error: message });
       }
     }
+
+    // R-ARTIFACTS W4: best-effort second-tier — reap stale artifacts too.
+    await sweepArtifacts(db, logger, git, report);
 
     report.completedAt = new Date();
     logger.info(
@@ -476,8 +491,8 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     cleanupToMakeRoom,
     listBreakdown,
     isSafeToRemove,
+    isArtifactsSafeToRemove,
   };
 }
 
-// Re-export the row type for consumer tests.
 export type { IsolationRow };
