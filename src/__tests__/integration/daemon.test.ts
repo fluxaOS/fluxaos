@@ -12,7 +12,11 @@
  */
 import 'dotenv/config';
 import { describe, expect, it, afterAll, beforeAll } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import { createDaemon, parseEnv } from '@/scripts/daemon';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { pipeline, pipelineRun, pipelineStage, stageRun } from '@/core/db/schema';
+import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
 
 describe('R-DAEMON factory', () => {
   beforeAll(() => {
@@ -85,4 +89,85 @@ describe('R-DAEMON factory', () => {
     // already called.
     await expect(daemon.shutdown('second')).resolves.toBeUndefined();
   });
+
+  it(
+    'recoverOnStartup fails stage_runs whose pid is dead',
+    async () => {
+      const url = process.env.DATABASE_URL;
+      if (!url) throw new Error('DATABASE_URL required');
+      const dbProvider = new SupabaseDatabaseProvider(url);
+      const db = dbProvider.getConnection();
+
+      const [pipe] = await db.select().from(pipeline).limit(1);
+      if (!pipe) throw new Error('No seeded pipeline; run `npm run db:seed`.');
+      const [stage] = await db
+        .select()
+        .from(pipelineStage)
+        .where(eq(pipelineStage.pipelineId, pipe.id))
+        .limit(1);
+      if (!stage) throw new Error('No seeded pipeline stage.');
+
+      // Dead pid: a very high number that's effectively never a live process.
+      const DEAD_PID = 2147483646;
+
+      // Create the daemon FIRST so its own startup-recovery runs against
+      // whatever's already in the DB (unrelated). Then seed our stale row
+      // and invoke recoverOnStartup manually.
+      const daemon = await createDaemon();
+
+      let runId: string | null = null;
+      let srId: string | null = null;
+
+      try {
+        const [run] = await db
+          .insert(pipelineRun)
+          .values({
+            pipelineId: pipe.id,
+            status: PIPELINE_RUN_STATUS.running,
+          })
+          .returning();
+        runId = run.id;
+
+        // attempt high enough to exhaust any reasonable retry budget so
+        // recoverOnStartup takes the finishRun (fail) branch instead of
+        // launchStage (which would try to spawn a subprocess against a
+        // seeded stage with no real repo and hang).
+        const [sr] = await db
+          .insert(stageRun)
+          .values({
+            pipelineRunId: run.id,
+            pipelineStageId: stage.id,
+            status: STAGE_RUN_STATUS.running,
+            pid: DEAD_PID,
+            attempt: 99,
+          })
+          .returning();
+        srId = sr.id;
+
+        await daemon.orchestrator.recoverOnStartup();
+
+        const [after] = await db
+          .select()
+          .from(stageRun)
+          .where(eq(stageRun.id, sr.id));
+        expect(after?.status).toBe(STAGE_RUN_STATUS.failed);
+      } finally {
+        await daemon.shutdown('test');
+        if (srId) {
+          await db
+            .delete(stageRun)
+            .where(and(eq(stageRun.id, srId)))
+            .catch(() => undefined);
+        }
+        if (runId) {
+          await db
+            .delete(pipelineRun)
+            .where(eq(pipelineRun.id, runId))
+            .catch(() => undefined);
+        }
+        await dbProvider.close();
+      }
+    },
+    30_000,
+  );
 });

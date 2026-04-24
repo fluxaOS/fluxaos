@@ -188,11 +188,33 @@ export async function createDaemon(): Promise<Daemon> {
     running: cleanupScheduler.isRunning(),
   });
 
+  let recoverySweepTimer: NodeJS.Timeout | null = null;
+  if (env.recoverySweepIntervalMin !== null) {
+    const intervalMs = env.recoverySweepIntervalMin * 60 * 1000;
+    recoverySweepTimer = setInterval(() => {
+      void orchestrator
+        .recoverOnStartup()
+        .then(() => {
+          consoleLogger.info({ event: 'daemon.recovery_sweep_ran' });
+        })
+        .catch((err: unknown) => {
+          consoleLogger.error({
+            event: 'daemon.recovery_sweep_failed',
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }, intervalMs);
+    // unref so the interval does not hold the event loop open on its own
+    if (typeof recoverySweepTimer.unref === 'function') {
+      recoverySweepTimer.unref();
+    }
+  }
+
   const cleanupRunning = cleanupScheduler.isRunning();
+  const sweepEnabled = recoverySweepTimer !== null;
   // Sentinel line — journey test greps for /daemon\.started /.
-  // recovery_sweep=disabled here; W4 flips to enabled when the interval is wired.
   console.log(
-    `daemon.started orchestrator=running cleanup=${cleanupRunning ? 'running' : 'disabled'} recovery_sweep=disabled`,
+    `daemon.started orchestrator=running cleanup=${cleanupRunning ? 'running' : 'disabled'} recovery_sweep=${sweepEnabled ? 'enabled' : 'disabled'}`,
   );
 
   let shuttingDown = false;
@@ -204,6 +226,10 @@ export async function createDaemon(): Promise<Daemon> {
     consoleLogger.info({ event: 'daemon.orchestrator_stopped' });
     cleanupScheduler.stop();
     consoleLogger.info({ event: 'daemon.cleanup_scheduler_stopped' });
+    if (recoverySweepTimer !== null) {
+      clearInterval(recoverySweepTimer);
+      recoverySweepTimer = null;
+    }
     const graceMs = env.shutdownGraceSeconds * 1000;
     const remaining = await drainRunningStageRuns(db, graceMs);
     consoleLogger.info({
