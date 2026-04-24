@@ -1,3 +1,5 @@
+export * from './artifacts-path';
+export * from './gitignore';
 export * from './path-resolver';
 export * from './worktree';
 export * from './worktree-copy';

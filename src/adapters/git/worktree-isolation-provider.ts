@@ -16,8 +16,6 @@
  */
 
 import { and, desc, eq } from 'drizzle-orm';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { Database } from '@/core/db/connection';
 import { isolationEnvironment } from '@/core/db/schema';
 import type {
@@ -26,6 +24,7 @@ import type {
   IsolationProvider,
   ReleaseOptions,
 } from '@/core/ports/isolation';
+import { ensureGitignoreEntry } from './gitignore';
 import { getWorkspaceRoot, getWorktreePath } from './path-resolver';
 import { copyConfiguredFiles } from './worktree-copy';
 import {
@@ -67,34 +66,19 @@ function rowToDomain(row: IsolationRow): IsolationEnvironment {
  * Ensure `.fluxaos-worktrees/` is in the target repo's .gitignore.
  * Only applies to the default (in-project) layout; a no-op when an
  * external FLUXAOS_WORKSPACE_ROOT is configured.
+ *
+ * Delegates to the shared `ensureGitignoreEntry` helper (src/adapters/git/
+ * gitignore.ts). The env-var guard stays here in the call site because the
+ * shared helper intentionally reads no env vars — different features
+ * (worktrees, artifacts) have different "is it external?" predicates.
  */
-async function ensureGitignoreEntry(repoPath: string): Promise<void> {
+async function ensureWorktreeGitignored(repoPath: string): Promise<void> {
   if (getWorkspaceRoot()) return; // external root — no .gitignore change needed
-
-  const gitignorePath = join(repoPath, '.gitignore');
-  const entry = '.fluxaos-worktrees/';
-  let content = '';
-  try {
-    content = await readFile(gitignorePath, 'utf-8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-  }
-
-  const lines = content.split('\n');
-  const alreadyPresent = lines.some(
-    (l) =>
-      l.trim() === entry ||
-      l.trim() === '.fluxaos-worktrees' ||
-      l.trim() === '/.fluxaos-worktrees' ||
-      l.trim() === '/.fluxaos-worktrees/'
+  await ensureGitignoreEntry(
+    repoPath,
+    '.fluxaos-worktrees/',
+    'fluxaOS per-run worktrees (managed by R-RUNTIME)'
   );
-  if (alreadyPresent) return;
-
-  const needsLeadingNewline = content.length > 0 && !content.endsWith('\n');
-  const suffix =
-    (needsLeadingNewline ? '\n' : '') +
-    `\n# fluxaOS per-run worktrees (managed by R-RUNTIME)\n${entry}\n`;
-  await writeFile(gitignorePath, content + suffix, 'utf-8');
 }
 
 export interface WorktreeIsolationProviderDeps {
@@ -145,7 +129,7 @@ export function createWorktreeIsolationProvider(
 
     if (existing && !(await worktreeExists(existing.workingPath))) {
       // Row exists but worktree gone. Repair: recreate worktree, update row.
-      await ensureGitignoreEntry(repoPath);
+      await ensureWorktreeGitignored(repoPath);
       await createWorktree(repoPath, existing.workingPath, existing.branchName, baseBranch).catch(
         async (err) => {
           // If the branch already exists locally, fall back to re-adding the
@@ -177,7 +161,7 @@ export function createWorktreeIsolationProvider(
     }
 
     // 2. No active row. Mint a new worktree + row atomically.
-    await ensureGitignoreEntry(repoPath);
+    await ensureWorktreeGitignored(repoPath);
     await createWorktree(repoPath, worktreePath, branchName, baseBranch);
 
     let copyReport;
