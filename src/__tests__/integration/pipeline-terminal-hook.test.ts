@@ -44,6 +44,7 @@ function makeFakeEnv(overrides: Partial<IsolationEnvironment> = {}): IsolationEn
     branchName: 'fluxaos/test',
     status: 'active',
     metadata: {},
+    artifactsPath: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
