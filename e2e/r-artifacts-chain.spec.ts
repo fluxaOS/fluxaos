@@ -1,44 +1,9 @@
-// e2e/r-artifacts-chain.spec.ts
-//
-// R-ARTIFACTS W7-T14 — Research → Implement chain E2E journey.
-//
-// Extension of r-runtime-deploy-journey.spec.ts that proves the full
-// R-ARTIFACTS mechanism end-to-end with real Claude + a real GitHub
-// sandbox repo: stage 1 (research) writes an artifact to
-// `<workspace_root>/.fluxaos-artifacts/<runId>/research-findings.md`,
-// stage 2 (implement) reads it, writes `plan.md`, edits the worktree,
-// and the deploy bridge opens a PR on the sandbox repo.
-//
-// This test also ships the DEF-020 fix for its own poll loop: we wait
-// for `pipeline_run.status` to be terminal AND `issue_pull_request`
-// to have a row for the issue before we assert, so the test no longer
-// races the deploy bridge.
-//
-// ── Operator setup ────────────────────────────────────────────────────
-//   1. Disposable GitHub repo cloned locally on `main` at an absolute
-//      path (operator responsibility — not auto-cloned).
-//   2. Env (e.g. in `.env.local`):
-//        ANTHROPIC_API_KEY=sk-ant-...
-//        FLUXAOS_GITHUB_TOKEN=ghp_...            # repo scope
-//        FLUXAOS_TEST_TARGET_REPO=owner/repo
-//        FLUXAOS_TARGET_REPO_PATH=/abs/path/to/local/checkout
-//        PLAYWRIGHT_BASE_URL=http://192.168.54.101:3003
-//        DATABASE_URL=postgres://…               # same DB dev server uses
-//   3. `npm run dev -- -p 3003` running.
-//
-// ── Assertions (collected non-short-circuit where the task allows) ────
-//   - pipeline_run (implement stage's run) `status = 'completed'`
-//   - pipeline_run.artifacts_path matches `.../.fluxaos-artifacts/<runId>/`
-//   - `<artifacts_path>/research-findings.md` exists and is non-empty
-//   - implement stage_run has ≥1 `event` whose payload mentions
-//     `research-findings.md` (proves stage 2 consumed stage 1's output)
-//   - artifacts dir persists after worktree release
-//   - issue_pull_request + issue_branch rows recorded
-//   - issue advanced to 'review'
-//   - isolation_environment.status = 'inactive'
-//   - worktree directory removed from disk
-//
-// Skips cleanly when any required env var is missing.
+// R-ARTIFACTS chain journey: research → implement end-to-end.
+// Stage 1 writes research-findings.md; stage 2 reads it, writes plan.md,
+// edits the worktree; deploy bridge opens a PR on the sandbox.
+// Env required: ANTHROPIC_API_KEY, FLUXAOS_GITHUB_TOKEN,
+// FLUXAOS_TEST_TARGET_REPO, FLUXAOS_TARGET_REPO_PATH, DATABASE_URL.
+// Skips cleanly when any are missing.
 
 import { execSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
@@ -183,21 +148,75 @@ test.describe('@r-artifacts @journey', () => {
         ).toBeTruthy();
       }
 
-      // Close the RunDetailModal so the next state change propagates
-      // cleanly. PipelineRun from the research stage is terminal and
-      // the modal may still be open.
+      // Dismiss the stage-1 modal (DEF-021 — Escape wired on RunDetailModal).
       await page.keyboard.press('Escape');
-
-      // ── Stage 2: Implement ─────────────────────────────────────────
-      await stateSelect.selectOption({ label: 'Implement' });
-
-      const runStage2 = page.getByRole('button', { name: /Run Stage/ });
-      await expect(runStage2).toBeVisible({ timeout: 15_000 });
-      await runStage2.click();
-
-      await expect(page.getByText(/Pipeline Run/i).first()).toBeVisible({
-        timeout: 15_000,
+      await page.waitForSelector('div[role="dialog"][aria-label="Run detail"]', {
+        state: 'detached',
+        timeout: 5_000,
       });
+
+      // Stage 2 via tRPC, not UI: the UI's Run Stage button reads matchingStage
+      // from a closed-over render whose state may be stale vs the just-fired
+      // transition mutation, leading to the click re-running research.
+      const [implementStageRow] = await sql<
+        { id: string; pipeline_id: string }[]
+      >`SELECT ps.id, ps.pipeline_id
+        FROM "pipeline_stage" ps
+        WHERE ps.name = 'implement' LIMIT 1`;
+      expect(
+        implementStageRow,
+        'implement pipeline_stage not found in seed data',
+      ).toBeTruthy();
+
+      const [implementStateRow] = await sql<
+        { id: string }[]
+      >`SELECT id FROM "issue_state" WHERE "key" = 'implement' LIMIT 1`;
+      expect(
+        implementStateRow,
+        'implement issue_state not found in seed data',
+      ).toBeTruthy();
+
+      // Advance state research → implement first, else deploy bridge rejects
+      // post-implement transition (research → review is INVALID).
+      const [issueVersionRow] = await sql<
+        { version: number }[]
+      >`SELECT version FROM "issue" WHERE "id" = ${issueRow.id}`;
+
+      const baseUrl =
+        process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3003';
+      const transitionResp = await page.request.post(
+        `${baseUrl}/api/trpc/issue.transition?batch=1`,
+        {
+          data: {
+            '0': {
+              id: issueRow.id,
+              toStateId: implementStateRow.id,
+              version: issueVersionRow.version,
+            },
+          },
+        },
+      );
+      expect(
+        transitionResp.ok(),
+        `state transition failed: ${transitionResp.status()} ${await transitionResp.text()}`,
+      ).toBe(true);
+
+      const trpcResp = await page.request.post(
+        `${baseUrl}/api/trpc/pipeline.runs.trigger?batch=1`,
+        {
+          data: {
+            '0': {
+              pipelineId: implementStageRow.pipeline_id,
+              issueId: issueRow.id,
+              stageId: implementStageRow.id,
+            },
+          },
+        },
+      );
+      expect(
+        trpcResp.ok(),
+        `tRPC trigger failed: ${trpcResp.status()} ${await trpcResp.text()}`,
+      ).toBe(true);
 
       // ── DEF-020 fix: poll until (a) pipeline_run is terminal AND an
       // issue_pull_request row exists for the issue, OR (b) pipeline_run

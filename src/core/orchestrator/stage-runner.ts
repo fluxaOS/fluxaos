@@ -194,6 +194,8 @@ export async function executeStageRun(
     isolation,
     projectId,
     runId,
+    pipelineId: run.pipelineId,
+    issueId: run.issueId ?? null,
     issueNumber: issueRow?.number ?? null,
   });
 
@@ -228,7 +230,14 @@ export async function executeStageRun(
       : null,
     skill: {
       name: skillRow?.name ?? stage.name,
-      promptTemplate: skillRow?.promptTemplate ?? null,
+      // DEF-024: render {{artifacts_path}} etc. before materialize() writes CLAUDE.md.
+      promptTemplate: skillRow?.promptTemplate
+        ? renderTemplate(skillRow.promptTemplate, {
+            artifacts_path: env.artifactsPath ?? '',
+            workspace_path: env.workingPath,
+            skill_name: skillRow.name,
+          })
+        : null,
     },
     issue: issueRow
       ? {

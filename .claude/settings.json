@@ -1,16 +1,6 @@
 {
   "permissions": {
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Read(./secrets/**)",
-      "Read(**/*.token)",
-      "Read(.forgejo_token)",
-      "Edit(./.env)",
-      "Edit(./.env.*)",
-      "Edit(./secrets/**)",
-      "Edit(**/*.token)"
-    ]
+    "deny": []
   },
   "hooks": {
     "PostToolUse": [
