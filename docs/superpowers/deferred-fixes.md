@@ -287,7 +287,7 @@ Pairs with the `kind="tool_call"` vs `type="tool_use"` naming drift (Anthropic p
 Prefer option 1 during R-POLISH — same phase where clean-shipping the repo matters.
 **Impact:** Until fixed, every migration needs hand-writing + manual journal entry. Annoying but tractable; R-RUNTIME got through it in ~5 minutes of reasoning plus manual SQL.
 
-## DEF-020 — R-RUNTIME journey test polls wrong terminal condition (race vs deploy bridge)
+## DEF-020 [RESOLVED 2026-04-23] — R-RUNTIME journey test polls wrong terminal condition (race vs deploy bridge)
 
 **Found:** 2026-04-23 during T20 live sandbox validation against `jdpierce21/fluxaos-alpha-e2e-sandbox`.
 **Severity:** Low — test-only; engine correctness proved independently. No runtime bug.
@@ -296,4 +296,6 @@ Prefer option 1 during R-POLISH — same phase where clean-shipping the repo mat
 **Proof the engine works:** PR #1 opened on sandbox (https://github.com/jdpierce21/fluxaos-alpha-e2e-sandbox/pull/1) with correct body (issue link, run id, commit SHA), branch `fluxaos/issue-1-c1a50bfc` pushed, worktree at `<target>/.fluxaos-worktrees/` removed, isolation_environment row marked inactive, issue advanced to `review` with status `Blocked` (signal was `hold: needs_human` because the sandbox was empty — pipeline still completed end-to-end). Loop closed correctly; only the test's poll predicate was wrong.
 **Fix sketch:** Change the poll terminal condition to `(pipeline_run.status IN terminal_set) AND EXISTS (SELECT 1 FROM issue_pull_request WHERE issue_id = $issueId)` — i.e., poll until the PR row is written, which is the true end of the deploy bridge transaction. Drop the `issueAfter` read race by combining into one query with a deadline. Alternative: make the terminal hook `await` *inside* the status-flip transaction so the status write and the deploy write are atomic — but that breaks the "release env outside the transaction" spec and would be a larger engine change. Prefer the test-side fix.
 **Where:** `e2e/r-runtime-deploy-journey.spec.ts:158-176` (the 3-minute poll loop). Same race exists if any other test consumes `pipeline_run.status` as the deploy-bridge-done signal.
+
+**Resolution (2026-04-23, R-ARTIFACTS W8-T18):** Poll loop now breaks out on either (a) `status IN ('failed','cancelled','error')` — short-circuit, no PR expected, or (b) `status === 'completed' AND issue_pull_request row exists` — the true terminal state after the deploy bridge's awaited steps finish. The new R-ARTIFACTS chain journey (`e2e/r-artifacts-chain.spec.ts`) uses the same pattern from the start.
 

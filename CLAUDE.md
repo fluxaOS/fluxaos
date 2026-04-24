@@ -69,8 +69,9 @@ Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
 
 - `FLUXAOS_GITHUB_TOKEN` — PAT with `repo` scope. Deploy bridge fails fast if unset when it needs to open a PR.
 - `FLUXAOS_TARGET_REPO_PATH` — absolute path to a local clone of the target repo on `main`. Stage-runner refuses to acquire an isolation env without it.
-- `FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN` / `FLUXAOS_CLEANUP_STALE_DAYS` / `FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS` — cleanup-scheduler thresholds. Scheduler refuses to start if any are unset (logged warning, no crash — the rest of the app boots).
+- `FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN` / `FLUXAOS_CLEANUP_STALE_DAYS` / `FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS` / `FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS` — cleanup-scheduler thresholds. Scheduler refuses to start if any of the four are unset (logged warning, no crash — the rest of the app boots).
 - `FLUXAOS_WORKSPACE_ROOT` (optional) — override for where worktrees live. Default is in-project `<repo>/.fluxaos-worktrees/` (NFS/Docker friendly); auto-added to target repo's `.gitignore` on first acquire.
+- `FLUXAOS_ARTIFACTS_ROOT` (optional) — override for where per-run artifact directories live. Default is in-project `<repo>/.fluxaos-artifacts/` — same NFS/Docker-friendly layout as worktrees, different top-level directory so artifacts never accidentally commit to the target repo. Auto-added to target repo's `.gitignore` on first acquire (in-project layout only).
 - `FLUXAOS_TEST_TARGET_REPO` (e2e only) — `owner/repo` for the E2E journey's disposable sandbox PR target.
 
 ## Reference
