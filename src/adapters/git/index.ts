@@ -1,3 +1,4 @@
+export * from './artifacts-path';
 export * from './path-resolver';
 export * from './worktree';
 export * from './worktree-copy';
