@@ -36,6 +36,10 @@ import type { DatabaseProvider } from '@/core/ports';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { Database } from '@/core/db/connection';
+import { stageRun } from '@/core/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import { STAGE_RUN_STATUS } from '@/core/constants';
 
 const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
 const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
@@ -79,6 +83,31 @@ export interface Daemon {
   orchestrator: EventOrchestrator;
   cleanupScheduler: CleanupScheduler;
   env: DaemonEnv;
+  /** Graceful shutdown. Safe to call multiple times. */
+  shutdown: (reason: string) => Promise<void>;
+}
+
+const DRAIN_POLL_INTERVAL_MS = 500;
+
+async function drainRunningStageRuns(
+  db: Database,
+  graceMs: number,
+): Promise<number> {
+  const start = Date.now();
+  while (Date.now() - start < graceMs) {
+    const rows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(stageRun)
+      .where(eq(stageRun.status, STAGE_RUN_STATUS.running));
+    const remaining = rows[0]?.count ?? 0;
+    if (remaining === 0) return 0;
+    await new Promise((r) => setTimeout(r, DRAIN_POLL_INTERVAL_MS));
+  }
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(stageRun)
+    .where(eq(stageRun.status, STAGE_RUN_STATUS.running));
+  return rows[0]?.count ?? 0;
 }
 
 /**
@@ -166,12 +195,53 @@ export async function createDaemon(): Promise<Daemon> {
     `daemon.started orchestrator=running cleanup=${cleanupRunning ? 'running' : 'disabled'} recovery_sweep=disabled`,
   );
 
-  return { orchestrator, cleanupScheduler, env };
+  let shuttingDown = false;
+  async function shutdown(reason: string): Promise<void> {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    consoleLogger.info({ event: 'daemon.shutdown_initiated', reason });
+    orchestrator.stop();
+    consoleLogger.info({ event: 'daemon.orchestrator_stopped' });
+    cleanupScheduler.stop();
+    consoleLogger.info({ event: 'daemon.cleanup_scheduler_stopped' });
+    const graceMs = env.shutdownGraceSeconds * 1000;
+    const remaining = await drainRunningStageRuns(db, graceMs);
+    consoleLogger.info({
+      event: 'daemon.drain_completed',
+      remaining,
+      graceSeconds: env.shutdownGraceSeconds,
+    });
+  }
+
+  return { orchestrator, cleanupScheduler, env, shutdown };
 }
 
 async function main(): Promise<void> {
-  await createDaemon();
-  // Keep the process alive. W3 adds signal handlers + graceful drain.
+  const daemon = await createDaemon();
+
+  let signalCount = 0;
+  const onSignal = (signal: NodeJS.Signals) => {
+    signalCount += 1;
+    if (signalCount > 1) {
+      consoleLogger.warn({ event: 'daemon.force_exit', signal, signalCount });
+      process.exit(130);
+      return;
+    }
+    daemon
+      .shutdown(signal)
+      .then(() => process.exit(0))
+      .catch((err) => {
+        consoleLogger.error({
+          event: 'daemon.shutdown_error',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        process.exit(1);
+      });
+  };
+  process.on('SIGTERM', () => onSignal('SIGTERM'));
+  process.on('SIGINT', () => onSignal('SIGINT'));
+
+  // Hold the event loop open until a signal fires.
   await new Promise<void>(() => {
     // Intentionally never resolves.
   });
