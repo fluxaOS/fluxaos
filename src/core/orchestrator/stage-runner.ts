@@ -197,6 +197,17 @@ export async function executeStageRun(
     issueNumber: issueRow?.number ?? null,
   });
 
+  // Mirror env.artifactsPath onto pipeline_run for observability. Write-once:
+  // only set if currently null so stage 2+ re-acquire doesn't clobber. Safe
+  // to fire-and-forget — failure here doesn't stop the run.
+  if (env.artifactsPath) {
+    await db
+      .update(pipelineRun)
+      .set({ artifactsPath: env.artifactsPath })
+      .where(eq(pipelineRun.id, runId))
+      .catch(() => undefined);
+  }
+
   // Read contextLayout from driver config
   const contextLayout = (driverRow.contextLayout as { instructionsFile: string; contextFile: string }) ?? {
     instructionsFile: 'CLAUDE.md',
@@ -238,6 +249,7 @@ export async function executeStageRun(
       issue_description: issueRow?.bodyMd ?? '',
       skill_name: skillRow?.name ?? stage.name,
       workspace_path: workspacePath,
+      artifacts_path: env.artifactsPath ?? '',
     });
 
     // Build command

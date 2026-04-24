@@ -47,6 +47,7 @@ export interface TemplateVariables {
   skill_name?: string;
   workspace_path?: string;
   project_name?: string;
+  artifacts_path?: string;
 }
 
 /**
