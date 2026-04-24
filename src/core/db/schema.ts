@@ -408,12 +408,18 @@ export const issue = pgTable(
     version: integer('version').notNull().default(1),
     source: text('source').default('internal'),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    // Self-FK. Declared as a bare uuid here because Drizzle's typing for
+    // self-references inside the same table definition is awkward. The FK,
+    // same-project trigger, and self-parent CHECK all live in the migration
+    // (drizzle/0009_r_epic.sql). R-EPIC.
+    parentIssueId: uuid('parent_issue_id'),
     createdAt,
     updatedAt,
   },
   (t) => [
     uniqueIndex('issue_project_number_idx').on(t.projectId, t.number),
     index('issue_project_closed_idx').on(t.projectId, t.isClosed),
+    index('issue_parent_idx').on(t.parentIssueId),
   ]
 );
 

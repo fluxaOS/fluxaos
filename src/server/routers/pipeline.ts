@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 import { eq } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { createPipelineService } from '@/core/services';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
@@ -134,6 +135,14 @@ export const pipelineRouter = router({
         stageId: z.string().uuid(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // R-EPIC: parents-with-open-children are not work items. Reject at
+        // the trigger boundary so we don't mint a pipeline_run row that
+        // would have to be rolled back.
+        const issueSvc = createIssueService(ctx.db);
+        if (await issueSvc.hasOpenChildren(input.issueId)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'ISSUE_IS_EPIC' });
+        }
+
         const svc = createPipelineRunService(ctx.db);
         const run = await svc.createRun(input.pipelineId, input.issueId);
         await svc.updateRunStatus(run.id, 'running');

@@ -35,6 +35,7 @@ interface CreateIssueInput {
   assignee?: string;
   labels?: unknown[];
   author?: string;
+  parentIssueId?: string;
 }
 
 interface ListIssueFilters {
@@ -257,6 +258,89 @@ export function createIssueService(db: Database) {
     }
   }
 
+  /**
+   * Epic auto-close: when a child transitions to a terminal state, check
+   * whether the parent now has zero open children; if so, close the parent
+   * via the same close path operators use. Fire-and-forget from transition()
+   * and stateOverride(). Only runs when the child's new state is terminal
+   * (guard is the caller's responsibility).
+   *
+   * Concurrency: two children closing simultaneously both see "0 open" and
+   * both try to close the parent. Optimistic-lock VERSION_CONFLICT on the
+   * second write — catch, re-read, retry once. If still conflicting or the
+   * parent was closed by the other writer in the meantime, log+return.
+   *
+   * Recurses naturally: close() → stateOverride() → maybeAutoCloseParent()
+   * for the grandparent, and so on up the tree.
+   */
+  async function maybeAutoCloseParent(childId: string): Promise<void> {
+    const [child] = await db
+      .select()
+      .from(issue)
+      .where(eq(issue.id, childId));
+    if (!child || !child.parentIssueId) return;
+
+    const parentId = child.parentIssueId;
+
+    const attempt = async (): Promise<'closed' | 'already_closed' | 'has_open' | 'conflict'> => {
+      const [parent] = await db
+        .select()
+        .from(issue)
+        .where(eq(issue.id, parentId));
+      if (!parent) return 'already_closed';
+      if (parent.isClosed) return 'already_closed';
+
+      const [{ openCount }] = (await db.execute(
+        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${parentId} AND is_closed = false`,
+      )) as unknown as Array<{ openCount: number }>;
+
+      if (openCount > 0) return 'has_open';
+
+      try {
+        const terminalState = await findTerminalState(parent.projectId);
+        const [updated] = await db
+          .update(issue)
+          .set({
+            stateId: terminalState.id,
+            isClosed: true,
+            closedAt: new Date(),
+            version: parent.version + 1,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(issue.id, parentId), eq(issue.version, parent.version)))
+          .returning();
+        if (!updated) return 'conflict';
+
+        await recordEvent(parentId, 'orchestrator', 'state_changed', {
+          from_state: parent.stateId,
+          to_state: terminalState.id,
+          user: 'orchestrator',
+          override: true,
+          reason: 'auto_close_all_children_closed',
+          last_child: childId,
+        });
+
+        // Grandparent propagation — the parent we just closed may itself
+        // have a parent. Run the same check one level up.
+        await maybeAutoCloseParent(parentId);
+        return 'closed';
+      } catch (err) {
+        console.error('[epic] auto-close failed:', err);
+        return 'conflict';
+      }
+    };
+
+    const first = await attempt();
+    if (first === 'conflict') {
+      const second = await attempt();
+      if (second === 'conflict') {
+        console.warn(
+          `[epic] parent ${parentId} auto-close raced twice — manual close may be required`,
+        );
+      }
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
@@ -268,6 +352,24 @@ export function createIssueService(db: Database) {
 
       const actor = data.author ?? 'system';
       const bodyHtml = data.bodyMd ? renderMarkdown(data.bodyMd) : null;
+
+      // Validate parent (if supplied) exists and is in the same project.
+      // The DB trigger enforces this as a backstop, but doing it in JS gives
+      // the caller a clean error instead of a raw trigger exception.
+      if (data.parentIssueId) {
+        const [parent] = await db
+          .select({ projectId: issue.projectId })
+          .from(issue)
+          .where(eq(issue.id, data.parentIssueId));
+        if (!parent) {
+          throw new Error(`Parent issue ${data.parentIssueId} not found.`);
+        }
+        if (parent.projectId !== data.projectId) {
+          throw new Error(
+            `CROSS_PROJECT_PARENT: Parent issue ${data.parentIssueId} belongs to a different project.`,
+          );
+        }
+      }
 
       const result = await db.transaction(async (tx) => {
         // Allocate number with FOR UPDATE lock
@@ -292,6 +394,7 @@ export function createIssueService(db: Database) {
             assignee: data.assignee ?? null,
             author: actor,
             labels: data.labels ?? [],
+            parentIssueId: data.parentIssueId ?? null,
           })
           .returning();
 
@@ -340,9 +443,13 @@ export function createIssueService(db: Database) {
         .orderBy(desc(issue.createdAt));
     },
 
-    async getById(id: string): Promise<IssueSelect | null> {
+    async getById(id: string): Promise<(IssueSelect & { hasOpenChildren: boolean }) | null> {
       const [row] = await db.select().from(issue).where(eq(issue.id, id));
-      return row ?? null;
+      if (!row) return null;
+      const [{ openCount }] = (await db.execute(
+        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${id} AND is_closed = false`,
+      )) as unknown as Array<{ openCount: number }>;
+      return { ...row, hasOpenChildren: openCount > 0 };
     },
 
     async getByNumber(
@@ -506,6 +613,11 @@ export function createIssueService(db: Database) {
         user: actor,
       });
 
+      // R-EPIC: when a child transitions to terminal, maybe auto-close parent.
+      if (targetState.isTerminal) {
+        await maybeAutoCloseParent(id);
+      }
+
       return updated;
     },
 
@@ -562,6 +674,11 @@ export function createIssueService(db: Database) {
         user: actor,
         override: true,
       });
+
+      // R-EPIC: when a child transitions to terminal, maybe auto-close parent.
+      if (targetState.isTerminal) {
+        await maybeAutoCloseParent(id);
+      }
 
       return updated;
     },
@@ -634,6 +751,62 @@ export function createIssueService(db: Database) {
 
     async delete(id: string): Promise<void> {
       await db.delete(issue).where(eq(issue.id, id));
+    },
+
+    async getChildren(parentId: string): Promise<IssueSelect[]> {
+      return db
+        .select()
+        .from(issue)
+        .where(eq(issue.parentIssueId, parentId))
+        .orderBy(issue.number);
+    },
+
+    async getParent(childId: string): Promise<IssueSelect | null> {
+      const [child] = await db
+        .select({ parentIssueId: issue.parentIssueId })
+        .from(issue)
+        .where(eq(issue.id, childId));
+      if (!child || !child.parentIssueId) return null;
+      const [parent] = await db
+        .select()
+        .from(issue)
+        .where(eq(issue.id, child.parentIssueId));
+      return parent ?? null;
+    },
+
+    async hasOpenChildren(parentId: string): Promise<boolean> {
+      const [{ openCount }] = (await db.execute(
+        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${parentId} AND is_closed = false`,
+      )) as unknown as Array<{ openCount: number }>;
+      return openCount > 0;
+    },
+
+    async countChildren(parentId: string): Promise<{ open: number; closed: number }> {
+      const [row] = (await db.execute(
+        sql`SELECT
+              COUNT(*) FILTER (WHERE is_closed = false)::int AS "open",
+              COUNT(*) FILTER (WHERE is_closed = true)::int AS "closed"
+            FROM issue WHERE parent_issue_id = ${parentId}`,
+      )) as unknown as Array<{ open: number; closed: number }>;
+      return { open: row?.open ?? 0, closed: row?.closed ?? 0 };
+    },
+
+    /**
+     * Bulk query for list pages: returns a Map of parentId → openChildCount
+     * for every parent that has at least one child in the given project.
+     * Used by the issues list to render the "↳" and "(N open)" indicators
+     * without per-row roundtrips.
+     */
+    async openChildCountsByProject(projectId: string): Promise<Map<string, number>> {
+      const rows = (await db.execute(
+        sql`SELECT parent_issue_id AS "parentId", COUNT(*) FILTER (WHERE is_closed = false)::int AS "openCount"
+            FROM issue
+            WHERE project_id = ${projectId} AND parent_issue_id IS NOT NULL
+            GROUP BY parent_issue_id`,
+      )) as unknown as Array<{ parentId: string; openCount: number }>;
+      const map = new Map<string, number>();
+      for (const r of rows) map.set(r.parentId, r.openCount);
+      return map;
     },
 
     async getValidTransitions(

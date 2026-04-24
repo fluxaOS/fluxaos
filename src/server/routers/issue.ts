@@ -53,8 +53,28 @@ export const issueRouter = router({
       assignee: z.string().optional(),
       labels: z.array(z.string()).optional(),
       author: z.string().optional(),
+      parentIssueId: z.string().uuid().optional(),
     }))
     .mutation(({ ctx, input }) => createIssueService(ctx.db).create(input)),
+
+  // ─── Parent-child relationships (R-EPIC) ────────────────────────────────────
+
+  getChildren: publicProcedure
+    .input(z.object({ parentId: z.string().uuid() }))
+    .query(({ ctx, input }) =>
+      createIssueService(ctx.db).getChildren(input.parentId)),
+
+  hasOpenChildren: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(({ ctx, input }) =>
+      createIssueService(ctx.db).hasOpenChildren(input.id)),
+
+  openChildCountsByProject: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const map = await createIssueService(ctx.db).openChildCountsByProject(input.projectId);
+      return Object.fromEntries(map);
+    }),
 
   updateFields: publicProcedure
     .input(z.object({

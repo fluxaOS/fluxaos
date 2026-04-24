@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/card';
@@ -16,6 +16,11 @@ export function IssueCreateClient({
   basePath: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // R-EPIC: when navigating here via "Create child issue", the parent's uuid
+  // comes on ?parent=. Fetch the parent title for the confirmation banner
+  // and pass parentIssueId into the create mutation.
+  const parentIssueId = searchParams.get('parent');
 
   const [title, setTitle] = useState('');
   const [bodyMd, setBodyMd] = useState('');
@@ -26,9 +31,14 @@ export function IssueCreateClient({
   // ── Catalog queries ──────────────────────────────────────────────────────
   const typesQuery = trpc.issueCatalog.types.list.useQuery({ projectId });
   const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({ projectId });
+  const parentQuery = trpc.issue.getById.useQuery(
+    { id: parentIssueId ?? '' },
+    { enabled: !!parentIssueId },
+  );
 
   const types = typesQuery.data ?? [];
   const priorities = prioritiesQuery.data ?? [];
+  const parent = parentIssueId ? parentQuery.data : null;
 
   // Auto-select first catalog item when data loads
   if (types.length > 0 && !typeId) {
@@ -59,6 +69,21 @@ export function IssueCreateClient({
 
       <PageHeader title="New Issue" />
 
+      {parent && (
+        <Card hover={false} padding="p-4">
+          <p className="text-xs text-slate-400">
+            Creating child issue under{' '}
+            <Link
+              href={`${basePath}/issues/${parent.number}`}
+              className="text-soft-violet hover:underline font-mono"
+            >
+              #{parent.number}
+            </Link>{' '}
+            — <span className="text-slate-300">{parent.title}</span>
+          </p>
+        </Card>
+      )}
+
       <Card hover={false} padding="p-6">
         <form
           onSubmit={(e) => {
@@ -71,6 +96,7 @@ export function IssueCreateClient({
               typeId,
               priorityId,
               assignee: assignee.trim() || undefined,
+              parentIssueId: parentIssueId ?? undefined,
             });
           }}
           className="space-y-4"
