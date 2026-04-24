@@ -9,6 +9,7 @@ import { trpc } from '@/lib/trpc/client';
 import type { RuleGroup, GateMode } from '@/core/gates/types';
 
 export default function PipelineSettingsPage() {
+  const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
 
@@ -18,7 +19,9 @@ export default function PipelineSettingsPage() {
     { orgId: orgId! },
     { enabled: !!orgId },
   );
-  const projectId = projectsQuery.data?.[0]?.id;
+  const projectRow = projectsQuery.data?.[0];
+  const projectId = projectRow?.id;
+  const defaultPipelineId = projectRow?.defaultPipelineId ?? null;
 
   const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
     { projectId: projectId! },
@@ -26,6 +29,13 @@ export default function PipelineSettingsPage() {
   );
 
   const pipelines = pipelinesQuery.data ?? [];
+
+  const setDefaultMutation = trpc.project.setDefaultPipeline.useMutation({
+    onSuccess: async () => {
+      await utils.project.listByOrg.invalidate();
+      await utils.project.list.invalidate();
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -58,31 +68,53 @@ export default function PipelineSettingsPage() {
         <EmptyState title="No pipelines configured" />
       ) : (
         <div className="space-y-4">
-          {pipelines.map((p) => (
-            <div key={p.id} className="card-static p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">{p.name}</span>
-                  {p.isDefault && (
-                    <span className="ml-2 text-xs text-soft-violet">default</span>
-                  )}
-                  {p.description && (
-                    <p className="text-xs text-muted mt-0.5">{p.description}</p>
-                  )}
+          {pipelines.map((p) => {
+            const isDefault = p.id === defaultPipelineId;
+            return (
+              <div key={p.id} className="card-static p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium">{p.name}</span>
+                    {isDefault && (
+                      <span className="ml-2 text-xs text-soft-violet">default</span>
+                    )}
+                    {p.description && (
+                      <p className="text-xs text-muted mt-0.5">{p.description}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {!isDefault && projectId && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDefaultMutation.mutate({
+                            projectId,
+                            pipelineId: p.id,
+                          })
+                        }
+                        disabled={setDefaultMutation.isPending}
+                        className="text-xs text-soft-violet hover:text-soft-violet-hover disabled:opacity-50"
+                      >
+                        Set as default
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingPipelineId(
+                          editingPipelineId === p.id ? null : p.id,
+                        )
+                      }
+                      className="text-xs text-muted hover:text-foreground"
+                    >
+                      {editingPipelineId === p.id ? 'Close' : 'Stages'}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEditingPipelineId(editingPipelineId === p.id ? null : p.id)
-                  }
-                  className="text-xs text-muted hover:text-foreground"
-                >
-                  {editingPipelineId === p.id ? 'Close' : 'Stages'}
-                </button>
+                {editingPipelineId === p.id && <StageEditor pipelineId={p.id} />}
               </div>
-              {editingPipelineId === p.id && <StageEditor pipelineId={p.id} />}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
+import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
-import { createProjectService } from '@/core/services';
+import { createProjectService, createPipelineService } from '@/core/services';
 
 export const projectRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -37,6 +38,8 @@ export const projectRouter = router({
       name: z.string().min(1).optional(),
       slug: z.string().min(1).optional(),
       repoUrl: z.string().optional(),
+      defaultBranch: z.string().min(1).optional(),
+      defaultPipelineId: z.string().uuid().nullable().optional(),
     }))
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
@@ -47,5 +50,37 @@ export const projectRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(({ ctx, input }) => {
       return createProjectService(ctx.db).remove(input.id);
+    }),
+
+  /**
+   * Set (or clear) the project's default pipeline. Validates the
+   * pipeline belongs to the project when non-null. Operators click
+   * "Set as default" from the Pipelines settings tab; the server
+   * enforces the project-scope invariant so a crafted UI can't point
+   * a project at a pipeline from a different project.
+   */
+  setDefaultPipeline: publicProcedure
+    .input(
+      z.object({
+        projectId: z.string().uuid(),
+        pipelineId: z.string().uuid().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.pipelineId !== null) {
+        const pipe = await createPipelineService(ctx.db).getById(input.pipelineId);
+        if (!pipe) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'PIPELINE_NOT_FOUND' });
+        }
+        if (pipe.projectId !== input.projectId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'PIPELINE_NOT_IN_PROJECT',
+          });
+        }
+      }
+      return createProjectService(ctx.db).update(input.projectId, {
+        defaultPipelineId: input.pipelineId,
+      });
     }),
 });
