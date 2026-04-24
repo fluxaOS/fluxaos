@@ -21,6 +21,7 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 | `npm run db:events` | List events (all, or `-- --run <id>`) |
 | `npm run verify` | Run all verification checks |
 | `npm run verify:seed` | Verify seed data is correct |
+| `npm run daemon` | Start the orchestrator daemon (foreground; systemd unit: `ops/systemd/fluxaos-daemon.service`) |
 | `npx vitest` | Integration tests (real Supabase) |
 | `tsx src/scripts/db/nuke.ts` | Drop all user data, keep schema |
 
@@ -73,6 +74,8 @@ Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
 - `FLUXAOS_WORKSPACE_ROOT` (optional) — override for where worktrees live. Default is in-project `<repo>/.fluxaos-worktrees/` (NFS/Docker friendly); auto-added to target repo's `.gitignore` on first acquire.
 - `FLUXAOS_ARTIFACTS_ROOT` (optional) — override for where per-run artifact directories live. Default is in-project `<repo>/.fluxaos-artifacts/` — same NFS/Docker-friendly layout as worktrees, different top-level directory so artifacts never accidentally commit to the target repo. Auto-added to target repo's `.gitignore` on first acquire (in-project layout only).
 - `FLUXAOS_TEST_TARGET_REPO` (e2e only) — `owner/repo` for the E2E journey's disposable sandbox PR target.
+- `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` — required when running the daemon. Positive integer, seconds to wait for in-flight stage runs to drain after SIGTERM. Daemon refuses to start without it (operator owns the drain window — no default).
+- `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` (optional) — positive integer. If set, daemon runs `orchestrator.recoverOnStartup()` on that cadence to reap stale stage runs whose PIDs are dead. If unset, only the startup sweep runs.
 
 ## Reference
 
