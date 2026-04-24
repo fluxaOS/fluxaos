@@ -158,7 +158,24 @@ export function createEventOrchestrator(
     // Mark running
     await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.running);
 
-    // Launch first stage
+    // Respect a user-specified stage: the tRPC trigger path creates a
+    // stage_run at status='pending' (pipeline-run-service default) with
+    // the stage the operator clicked. Daemon-autonomous runs have no
+    // pre-seeded stage_run and fall back to stages[0]. Reuse the seed
+    // row instead of creating a duplicate stage_run.
+    const existingStageRuns = await runService.getStageRuns(run.id);
+    const pendingSeed = existingStageRuns.find(
+      (sr) => sr.status === STAGE_RUN_STATUS.pending,
+    );
+    if (pendingSeed) {
+      const seedStage = stages.find(
+        (s) => s.id === pendingSeed.pipelineStageId,
+      );
+      if (seedStage) {
+        await launchStage(run, seedStage, pendingSeed);
+        return;
+      }
+    }
     await launchStage(run, stages[0]);
   }
 
@@ -167,15 +184,12 @@ export function createEventOrchestrator(
   async function launchStage(
     run: typeof pipelineRun.$inferSelect,
     stage: typeof pipelineStage.$inferSelect,
+    preExisting?: typeof stageRun.$inferSelect,
   ): Promise<void> {
-    // Get existing stage runs for attempt counting
-    const existingRuns = await runService.getStageRuns(run.id);
-    const attemptsForStage = existingRuns.filter(
-      (sr) => sr.pipelineStageId === stage.id,
-    ).length;
-
-    // Create stage_run
-    const sRun = await runService.createStageRun(run.id, stage.id);
+    // Reuse a pre-existing queued stage_run (trigger-path seed) rather
+    // than creating a duplicate row. Autonomous starts have no seed and
+    // fall through to createStageRun.
+    const sRun = preExisting ?? (await runService.createStageRun(run.id, stage.id));
 
     // Evaluate pre-gate
     const gateMode = (stage.gateMode ?? DEFAULT_GATE_MODE) as GateMode;

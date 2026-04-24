@@ -15,7 +15,15 @@ import { describe, expect, it, afterAll, beforeAll } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { createDaemon, parseEnv } from '@/scripts/daemon';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { pipeline, pipelineRun, pipelineStage, stageRun } from '@/core/db/schema';
+import {
+  organization,
+  pipeline,
+  pipelineRun,
+  pipelineStage,
+  project,
+  stageRun,
+  user,
+} from '@/core/db/schema';
 import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
 
 describe('R-DAEMON factory', () => {
@@ -98,21 +106,52 @@ describe('R-DAEMON factory', () => {
       const dbProvider = new SupabaseDatabaseProvider(url);
       const db = dbProvider.getConnection();
 
-      const [pipe] = await db.select().from(pipeline).limit(1);
-      if (!pipe) throw new Error('No seeded pipeline; run `npm run db:seed`.');
+      // Build an isolated fixture rather than relying on seeded data so
+      // the test doesn't race with other suites that truncate pipelines.
+      const stamp = `daemon-recovery-${Date.now()}`;
+      const [org] = await db
+        .insert(organization)
+        .values({ name: stamp, slug: stamp })
+        .returning();
+      const [userRow] = await db
+        .insert(user)
+        .values({
+          orgId: org.id,
+          email: `${stamp}@test.local`,
+          name: stamp,
+          slug: stamp,
+        })
+        .returning();
+      const [projectRow] = await db
+        .insert(project)
+        .values({
+          orgId: org.id,
+          userId: userRow.id,
+          name: stamp,
+          slug: stamp,
+          repoUrl: 'https://github.com/fluxaos/fixture',
+          defaultBranch: 'main',
+        })
+        .returning();
+      const [pipe] = await db
+        .insert(pipeline)
+        .values({ projectId: projectRow.id, name: stamp })
+        .returning();
       const [stage] = await db
-        .select()
-        .from(pipelineStage)
-        .where(eq(pipelineStage.pipelineId, pipe.id))
-        .limit(1);
-      if (!stage) throw new Error('No seeded pipeline stage.');
+        .insert(pipelineStage)
+        .values({
+          pipelineId: pipe.id,
+          name: 'research',
+          sortOrder: 0,
+          driver: 'claude-code',
+          gateMode: 'auto',
+          maxRetries: 0,
+        })
+        .returning();
 
       // Dead pid: a very high number that's effectively never a live process.
       const DEAD_PID = 2147483646;
 
-      // Create the daemon FIRST so its own startup-recovery runs against
-      // whatever's already in the DB (unrelated). Then seed our stale row
-      // and invoke recoverOnStartup manually.
       const daemon = await createDaemon();
 
       let runId: string | null = null;
@@ -165,6 +204,11 @@ describe('R-DAEMON factory', () => {
             .where(eq(pipelineRun.id, runId))
             .catch(() => undefined);
         }
+        await db.delete(pipelineStage).where(eq(pipelineStage.id, stage.id)).catch(() => undefined);
+        await db.delete(pipeline).where(eq(pipeline.id, pipe.id)).catch(() => undefined);
+        await db.delete(project).where(eq(project.id, projectRow.id)).catch(() => undefined);
+        await db.delete(user).where(eq(user.id, userRow.id)).catch(() => undefined);
+        await db.delete(organization).where(eq(organization.id, org.id)).catch(() => undefined);
         await dbProvider.close();
       }
     },
