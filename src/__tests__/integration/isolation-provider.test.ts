@@ -210,6 +210,142 @@ describe('WorktreeIsolationProvider', () => {
     const gi = await readFile(join(repoPath, '.gitignore'), 'utf-8');
     expect(gi).toContain('.fluxaos-worktrees/');
   });
+
+  it('fresh mint creates artifacts dir + records path on the env row', async () => {
+    const [run] = await db
+      .insert(schema.pipelineRun)
+      .values({
+        pipelineId: (
+          await db
+            .select()
+            .from(schema.pipeline)
+            .where(eq(schema.pipeline.projectId, projectId))
+        )[0].id,
+        status: 'pending',
+      })
+      .returning();
+    cleanup.push({ table: 'pipelineRun', id: run.id });
+
+    const env = await isolationProvider.acquire({
+      projectId,
+      runId: run.id,
+      repoPath,
+      repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
+      branchName: `fluxaos/iso-${RUN}-art-fresh`,
+    });
+    cleanup.push({ table: 'isolationEnvironment', id: env.id });
+
+    // Domain object exposes the resolved absolute path.
+    expect(env.artifactsPath).toBeTruthy();
+    expect(env.artifactsPath!.startsWith('/')).toBe(true);
+    expect(env.artifactsPath).toBe(
+      join(repoPath, '.fluxaos-artifacts', run.id)
+    );
+
+    // Directory exists on disk (access throws if missing).
+    await access(env.artifactsPath!);
+
+    // DB row matches the returned path.
+    const [row] = await db
+      .select()
+      .from(schema.isolationEnvironment)
+      .where(eq(schema.isolationEnvironment.id, env.id));
+    expect(row.artifactsPath).toBe(env.artifactsPath);
+  });
+
+  it('repair path preserves the artifacts_path recorded on the env row', async () => {
+    const [run] = await db
+      .insert(schema.pipelineRun)
+      .values({
+        pipelineId: (
+          await db
+            .select()
+            .from(schema.pipeline)
+            .where(eq(schema.pipeline.projectId, projectId))
+        )[0].id,
+        status: 'pending',
+      })
+      .returning();
+    cleanup.push({ table: 'pipelineRun', id: run.id });
+
+    const first = await isolationProvider.acquire({
+      projectId,
+      runId: run.id,
+      repoPath,
+      repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
+      branchName: `fluxaos/iso-${RUN}-art-repair`,
+    });
+    cleanup.push({ table: 'isolationEnvironment', id: first.id });
+
+    const originalArtifactsPath = first.artifactsPath!;
+    expect(originalArtifactsPath).toBeTruthy();
+
+    // Simulate "worktree gone but row exists": remove the worktree dir
+    // directly from disk without going through release(), then prune git's
+    // admin records so the subsequent `git worktree add` doesn't collide
+    // with a stale registration. (In production this happens organically
+    // after disk wipes / FS corruption; the test models the recovered
+    // state.)
+    await rm(first.workingPath, { recursive: true, force: true });
+    await gitInTmp(repoPath, ['worktree', 'prune']);
+
+    // Second acquire hits the repair branch.
+    const repaired = await isolationProvider.acquire({
+      projectId,
+      runId: run.id,
+      repoPath,
+      repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
+      branchName: `fluxaos/iso-${RUN}-art-repair`,
+    });
+
+    expect(repaired.id).toBe(first.id);
+    expect(repaired.artifactsPath).toBe(originalArtifactsPath);
+    // Artifacts dir still exists on disk (outlives worktree churn).
+    await access(originalArtifactsPath);
+  });
+
+  it('ensures .fluxaos-artifacts/ is in .gitignore after first fresh mint', async () => {
+    // Use a fresh repo to prove the entry appears on first acquire rather
+    // than inheriting from an earlier test's side-effect.
+    const freshRepo = await mkdtemp(
+      join(tmpdir(), `fluxaos-iso-art-gi-${RUN}-`)
+    );
+    try {
+      await gitInTmp(freshRepo, ['init', '-b', 'main']);
+      await gitInTmp(freshRepo, ['config', 'user.email', 'iso@fluxaos.local']);
+      await gitInTmp(freshRepo, ['config', 'user.name', 'IsoTest']);
+      await gitInTmp(freshRepo, ['commit', '--allow-empty', '-m', 'initial']);
+
+      const [run] = await db
+        .insert(schema.pipelineRun)
+        .values({
+          pipelineId: (
+            await db
+              .select()
+              .from(schema.pipeline)
+              .where(eq(schema.pipeline.projectId, projectId))
+          )[0].id,
+          status: 'pending',
+        })
+        .returning();
+      cleanup.push({ table: 'pipelineRun', id: run.id });
+
+      const env = await isolationProvider.acquire({
+        projectId,
+        runId: run.id,
+        repoPath: freshRepo,
+        repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
+        branchName: `fluxaos/iso-${RUN}-art-gi`,
+      });
+      cleanup.push({ table: 'isolationEnvironment', id: env.id });
+
+      const { readFile } = await import('node:fs/promises');
+      const gi = await readFile(join(freshRepo, '.gitignore'), 'utf-8');
+      expect(gi).toContain('.fluxaos-artifacts/');
+    } finally {
+      await rm(freshRepo, { recursive: true, force: true });
+    }
+  });
 });
 
 afterAll(async () => {

@@ -7,9 +7,11 @@
  * environment if its worktree is still on disk, or reconstructs the
  * worktree if the row exists but the directory is gone.
  *
- * Also responsible for adding `.fluxaos-worktrees/` to the target repo's
- * .gitignore on first acquire (in-project layout only), so worktrees
- * don't pollute the user's `git status`.
+ * Also responsible for adding `.fluxaos-worktrees/` (and, per R-ARTIFACTS,
+ * `.fluxaos-artifacts/`) to the target repo's .gitignore on first acquire
+ * (in-project layout only), so neither worktrees nor per-run artifacts
+ * pollute the user's `git status`. The artifacts directory itself is also
+ * minted on acquire — see `ensureArtifactsDir` calls below.
  *
  * Shape borrowed from Archon's packages/isolation/src/providers/worktree.ts
  * (MIT, shape-only).
@@ -24,6 +26,8 @@ import type {
   IsolationProvider,
   ReleaseOptions,
 } from '@/core/ports/isolation';
+import { ensureArtifactsDir, removeArtifactsDir } from '@/adapters/fs';
+import { getArtifactsPath } from './artifacts-path';
 import { ensureGitignoreEntry } from './gitignore';
 import { getWorkspaceRoot, getWorktreePath } from './path-resolver';
 import { copyConfiguredFiles } from './worktree-copy';
@@ -81,6 +85,27 @@ async function ensureWorktreeGitignored(repoPath: string): Promise<void> {
   );
 }
 
+/**
+ * Ensure `.fluxaos-artifacts/` is in the target repo's .gitignore.
+ * Sibling to `ensureWorktreeGitignored` — artifacts have a distinct
+ * "is it external?" predicate: either FLUXAOS_WORKSPACE_ROOT or the
+ * dedicated FLUXAOS_ARTIFACTS_ROOT override points outside the repo.
+ * When either is set, the artifacts dir lives elsewhere and no
+ * .gitignore entry is needed.
+ */
+async function ensureArtifactsGitignored(repoPath: string): Promise<void> {
+  // No-op when either workspace root or artifacts root points outside the
+  // repo — the directory isn't inside the target repo, so no .gitignore
+  // entry is needed.
+  if (getWorkspaceRoot()) return;
+  if (process.env.FLUXAOS_ARTIFACTS_ROOT) return;
+  await ensureGitignoreEntry(
+    repoPath,
+    '.fluxaos-artifacts/',
+    'fluxaOS per-run artifacts (managed by R-ARTIFACTS)'
+  );
+}
+
 export interface WorktreeIsolationProviderDeps {
   db: Database;
 }
@@ -101,6 +126,7 @@ export function createWorktreeIsolationProvider(
       branchName,
       baseBranch = 'main',
       copyFiles = [],
+      artifactsPath: artifactsPathParam,
     } = params;
 
     const worktreePath = getWorktreePath({
@@ -124,7 +150,25 @@ export function createWorktreeIsolationProvider(
 
     if (existing && (await worktreeExists(existing.workingPath))) {
       // Happy path: repeat acquire — reuse.
-      return rowToDomain(existing);
+      if (existing.artifactsPath) {
+        return rowToDomain(existing);
+      }
+      // Legacy pre-W1 env: row was acquired before R-ARTIFACTS added the
+      // artifacts_path column. Backfill by resolving a fresh path, creating
+      // the dir, and writing the column. Surfaced via console.warn so
+      // operators see the backfill in logs.
+      const backfillPath =
+        artifactsPathParam ?? getArtifactsPath(repoPath, runId);
+      await ensureArtifactsDir(backfillPath);
+      console.warn('isolation.artifactsPath.backfilled', {
+        envId: existing.id,
+      });
+      const [backfilled] = await db
+        .update(isolationEnvironment)
+        .set({ artifactsPath: backfillPath, updatedAt: new Date() })
+        .where(eq(isolationEnvironment.id, existing.id))
+        .returning();
+      return rowToDomain(backfilled);
     }
 
     if (existing && !(await worktreeExists(existing.workingPath))) {
@@ -152,9 +196,20 @@ export function createWorktreeIsolationProvider(
       if (copyFiles.length > 0) {
         await copyConfiguredFiles(repoPath, existing.workingPath, copyFiles);
       }
+      // Preserve the existing artifacts_path if present; otherwise resolve
+      // a fresh one (handles legacy rows acquired pre-W1). Ensure the dir
+      // exists either way so stage-runner can write to it.
+      const repairArtifactsPath =
+        existing.artifactsPath ??
+        artifactsPathParam ??
+        getArtifactsPath(repoPath, runId);
+      await ensureArtifactsDir(repairArtifactsPath);
       const [updated] = await db
         .update(isolationEnvironment)
-        .set({ updatedAt: new Date() })
+        .set({
+          artifactsPath: repairArtifactsPath,
+          updatedAt: new Date(),
+        })
         .where(eq(isolationEnvironment.id, existing.id))
         .returning();
       return rowToDomain(updated);
@@ -162,12 +217,17 @@ export function createWorktreeIsolationProvider(
 
     // 2. No active row. Mint a new worktree + row atomically.
     await ensureWorktreeGitignored(repoPath);
+    await ensureArtifactsGitignored(repoPath);
     await createWorktree(repoPath, worktreePath, branchName, baseBranch);
 
     let copyReport;
     if (copyFiles.length > 0) {
       copyReport = await copyConfiguredFiles(repoPath, worktreePath, copyFiles);
     }
+
+    const resolvedArtifactsPath =
+      artifactsPathParam ?? getArtifactsPath(repoPath, runId);
+    await ensureArtifactsDir(resolvedArtifactsPath);
 
     try {
       const [row] = await db
@@ -182,15 +242,17 @@ export function createWorktreeIsolationProvider(
           metadata: copyReport
             ? { copyReport: copyReport.entries }
             : {},
+          artifactsPath: resolvedArtifactsPath,
         })
         .returning();
       return rowToDomain(row);
     } catch (err) {
-      // DB insert failed — clean up the worktree so next acquire doesn't
-      // find a stray directory.
+      // DB insert failed — clean up the worktree AND the artifacts dir so
+      // the next acquire doesn't find stray state on disk.
       await removeWorktree(repoPath, worktreePath, { force: true }).catch(
         () => undefined
       );
+      await removeArtifactsDir(resolvedArtifactsPath).catch(() => undefined);
       throw err;
     }
   }
