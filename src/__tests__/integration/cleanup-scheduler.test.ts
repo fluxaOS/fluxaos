@@ -15,6 +15,7 @@ import {
   vi,
 } from 'vitest';
 import {
+  ARTIFACTS_RETENTION_ENV,
   createCleanupScheduler,
   SESSION_RETENTION_ENV,
   STALE_DAYS_ENV,
@@ -59,6 +60,7 @@ describe('cleanup-scheduler', () => {
     delete process.env[SWEEP_INTERVAL_ENV];
     delete process.env[STALE_DAYS_ENV];
     delete process.env[SESSION_RETENTION_ENV];
+    delete process.env[ARTIFACTS_RETENTION_ENV];
     vi.useRealTimers();
   });
 
@@ -67,6 +69,7 @@ describe('cleanup-scheduler', () => {
     delete process.env[SWEEP_INTERVAL_ENV];
     delete process.env[STALE_DAYS_ENV];
     delete process.env[SESSION_RETENTION_ENV];
+    delete process.env[ARTIFACTS_RETENTION_ENV];
   });
 
   it('refuses to start when required env vars are missing', () => {
@@ -87,12 +90,14 @@ describe('cleanup-scheduler', () => {
     expect(missing).toContain(SWEEP_INTERVAL_ENV);
     expect(missing).toContain(STALE_DAYS_ENV);
     expect(missing).toContain(SESSION_RETENTION_ENV);
+    expect(missing).toContain(ARTIFACTS_RETENTION_ENV);
   });
 
   it('refuses to start when a var is unparseable', () => {
     process.env[SWEEP_INTERVAL_ENV] = 'nope';
     process.env[STALE_DAYS_ENV] = '14';
     process.env[SESSION_RETENTION_ENV] = '30';
+    process.env[ARTIFACTS_RETENTION_ENV] = '7';
 
     const cleanupService = makeService();
     const logger = makeLogger();
@@ -108,10 +113,11 @@ describe('cleanup-scheduler', () => {
     expect((warn?.obj.missing as string[])).toEqual([SWEEP_INTERVAL_ENV]);
   });
 
-  it('starts when all three env vars are set; fires sweep on interval', async () => {
+  it('starts when all four env vars are set; fires sweep on interval', async () => {
     process.env[SWEEP_INTERVAL_ENV] = '1';
     process.env[STALE_DAYS_ENV] = '14';
     process.env[SESSION_RETENTION_ENV] = '30';
+    process.env[ARTIFACTS_RETENTION_ENV] = '7';
 
     vi.useFakeTimers();
     const cleanupService = makeService();
@@ -151,6 +157,7 @@ describe('cleanup-scheduler', () => {
     process.env[SWEEP_INTERVAL_ENV] = '1';
     process.env[STALE_DAYS_ENV] = '14';
     process.env[SESSION_RETENTION_ENV] = '30';
+    process.env[ARTIFACTS_RETENTION_ENV] = '7';
 
     const cleanupService = makeService();
     const logger = makeLogger();
@@ -180,5 +187,51 @@ describe('cleanup-scheduler', () => {
       (r) => r.msg === 'cleanup_scheduler.stopped'
     );
     expect(stopped).toBeUndefined();
+  });
+
+  // ── R-ARTIFACTS W4 — 4th env var required ──────────────────────────────
+
+  it('starts when all 4 env vars (including ARTIFACTS_RETENTION_ENV) are set', () => {
+    process.env[SWEEP_INTERVAL_ENV] = '1';
+    process.env[STALE_DAYS_ENV] = '14';
+    process.env[SESSION_RETENTION_ENV] = '30';
+    process.env[ARTIFACTS_RETENTION_ENV] = '7';
+
+    const cleanupService = makeService();
+    const logger = makeLogger();
+    const scheduler = createCleanupScheduler({ cleanupService, logger });
+
+    scheduler.start();
+    expect(scheduler.isRunning()).toBe(true);
+
+    const started = logger.records.find(
+      (r) => r.msg === 'cleanup_scheduler.started'
+    );
+    expect(started).toBeDefined();
+    expect(started?.obj.artifactsRetentionDays).toBe(7);
+
+    scheduler.stop();
+  });
+
+  it('refuses to start when only ARTIFACTS_RETENTION_ENV is missing', () => {
+    process.env[SWEEP_INTERVAL_ENV] = '1';
+    process.env[STALE_DAYS_ENV] = '14';
+    process.env[SESSION_RETENTION_ENV] = '30';
+    // ARTIFACTS_RETENTION_ENV intentionally unset.
+
+    const cleanupService = makeService();
+    const logger = makeLogger();
+    const scheduler = createCleanupScheduler({ cleanupService, logger });
+
+    scheduler.start();
+
+    expect(scheduler.isRunning()).toBe(false);
+    const warn = logger.records.find(
+      (r) =>
+        r.level === 'warn' && r.msg === 'cleanup_scheduler.disabled_missing_env'
+    );
+    expect(warn).toBeDefined();
+    const missing = (warn?.obj.missing ?? []) as string[];
+    expect(missing).toEqual([ARTIFACTS_RETENTION_ENV]);
   });
 });
