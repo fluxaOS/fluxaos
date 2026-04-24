@@ -74,6 +74,14 @@ Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
 - `FLUXAOS_ARTIFACTS_ROOT` (optional) — override for where per-run artifact directories live. Default is in-project `<repo>/.fluxaos-artifacts/` — same NFS/Docker-friendly layout as worktrees, different top-level directory so artifacts never accidentally commit to the target repo. Auto-added to target repo's `.gitignore` on first acquire (in-project layout only).
 - `FLUXAOS_TEST_TARGET_REPO` (e2e only) — `owner/repo` for the E2E journey's disposable sandbox PR target.
 
+## Vendor-Agnostic Integration Standard
+
+All new integrations (memory ingest, platform clients, AI agents) MUST follow the capability + plugin pattern. Vendor-specific code lives in plugin files; module boundaries, CLI commands, HTTP routes, and config keys stay vendor-neutral.
+
+**Canonical text:** `/mnt/dev/fh-commons/ARCHITECTURAL_STANDARDS.md` → "Vendor-Agnostic Integration Standard" section.
+
+**Allowlisted exceptions:** hippo (UI branding), git (infrastructure). See canonical text.
+
 ## Reference
 
 - **[Session Quick-Start](docs/session-quick-start.md) — READ FIRST: conventions, gotchas, env vars, ports, autonomy details**
