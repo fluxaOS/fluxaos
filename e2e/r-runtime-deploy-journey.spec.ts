@@ -150,7 +150,12 @@ test.describe('@r-runtime @journey', () => {
       timeout: 15_000,
     });
 
-    // ── Wait for terminal pipeline_run.status via DB poll (deterministic) ─
+    // ── Wait for the TRUE terminal condition (DEF-020 fix) ──────────────
+    // `pipeline_run.status` flips to 'completed' BEFORE the deploy bridge's
+    // awaited steps (commit+push+PR+transition). Waiting on status alone
+    // races the PR/transition writes. Terminal condition is either:
+    //   - status completed AND issue_pull_request row exists (deploy done), OR
+    //   - status failed/cancelled/error (short-circuit, no PR expected).
     // Capped at 3 min per the T17 plan.
     let terminalStatus: string | null = null;
     let pipelineRunId: string | null = null;
@@ -161,9 +166,20 @@ test.describe('@r-runtime @journey', () => {
       >`SELECT id, status FROM "pipeline_run" WHERE "issue_id" = ${issueRow.id} ORDER BY "created_at" DESC LIMIT 1`;
       if (rows[0]) {
         pipelineRunId = rows[0].id;
-        if (['completed', 'failed', 'cancelled', 'error'].includes(rows[0].status)) {
-          terminalStatus = rows[0].status;
+        const status = rows[0].status;
+        if (['failed', 'cancelled', 'error'].includes(status)) {
+          terminalStatus = status;
           break;
+        }
+        if (status === 'completed') {
+          const prRows = await sql<
+            { id: string }[]
+          >`SELECT id FROM "issue_pull_request" WHERE "issue_id" = ${issueRow.id} LIMIT 1`;
+          if (prRows.length > 0) {
+            terminalStatus = status;
+            break;
+          }
+          // status terminal but deploy bridge still in flight — keep polling.
         }
       }
       await new Promise((r) => setTimeout(r, 2_000));
@@ -171,7 +187,7 @@ test.describe('@r-runtime @journey', () => {
 
     expect(
       terminalStatus,
-      'pipeline_run never reached terminal status within 3 minutes',
+      'pipeline_run never reached terminal-with-PR state within 3 minutes',
     ).toBe('completed');
     expect(pipelineRunId).toBeTruthy();
 
