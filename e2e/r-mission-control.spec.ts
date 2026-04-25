@@ -6,16 +6,10 @@
 // Case B (@daemon @journey, skips without ANTHROPIC_API_KEY): spawns
 //   the daemon, triggers a Run-Stage from the UI, then asserts mission
 //   control reflects the in-flight transition (Realtime invalidation).
-import { spawn, type ChildProcess } from 'node:child_process';
-import { resolve } from 'node:path';
 import { test, expect, projectPath } from './helpers/setup';
+import { spawnDaemon, type DaemonHandle } from './helpers/daemon';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
-const DAEMON_READY_REGEX = /daemon\.started /;
-const DAEMON_BOOT_TIMEOUT_MS = 30_000;
-// Must exceed FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS below; otherwise the
-// daemon is still draining a mid-flight stage when the test gives up.
-const DAEMON_SHUTDOWN_TIMEOUT_MS = 90_000;
 
 test.describe('@r-mission-control', () => {
   test('renders four sections with empty states when nothing is running', async ({ page }) => {
@@ -43,62 +37,14 @@ test.describe('@r-mission-control @daemon @journey', () => {
   test.skip(!HAS_API_KEY, 'requires ANTHROPIC_API_KEY in environment');
   test.setTimeout(6 * 60_000);
 
-  let daemon: ChildProcess | null = null;
-  const daemonStdout: string[] = [];
+  let handle: DaemonHandle | null = null;
 
   test.beforeAll(async () => {
-    const env = {
-      ...process.env,
-      FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS: '60',
-      FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN: '5',
-    };
-    const tsxBin = resolve(process.cwd(), 'node_modules/.bin/tsx');
-    const child = spawn(tsxBin, ['src/scripts/daemon.ts'], {
-      env,
-      cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    daemon = child;
-    if (!child.stdout) throw new Error('daemon stdio was not piped');
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      daemonStdout.push(chunk.toString());
-    });
-
-    await new Promise<void>((resolveReady, rejectReady) => {
-      const timer = setTimeout(() => {
-        rejectReady(new Error(`Daemon did not emit ready within ${DAEMON_BOOT_TIMEOUT_MS}ms`));
-      }, DAEMON_BOOT_TIMEOUT_MS);
-      const checkReady = () => {
-        if (DAEMON_READY_REGEX.test(daemonStdout.join(''))) {
-          clearTimeout(timer);
-          resolveReady();
-        }
-      };
-      child.stdout.on('data', checkReady);
-      child.on('exit', (code) => {
-        clearTimeout(timer);
-        rejectReady(new Error(`Daemon exited before ready (code=${code})`));
-      });
-    });
+    handle = await spawnDaemon();
   });
 
   test.afterAll(async () => {
-    if (!daemon) return;
-    const d = daemon;
-    const exited = new Promise<void>((resolveExit) => {
-      d.on('exit', () => resolveExit());
-    });
-    d.kill('SIGTERM');
-    await Promise.race([
-      exited,
-      new Promise<void>((_r, reject) =>
-        setTimeout(
-          () => reject(new Error(`Daemon did not exit within ${DAEMON_SHUTDOWN_TIMEOUT_MS}ms`)),
-          DAEMON_SHUTDOWN_TIMEOUT_MS,
-        ),
-      ),
-    ]);
+    if (handle) await handle.shutdown();
   });
 
   test('mission control reflects daemon-driven transitions', async ({ page }) => {
@@ -149,7 +95,7 @@ test.describe('@r-mission-control @daemon @journey', () => {
       )
       .toBeGreaterThan(0);
 
-    const daemonAlive = daemon !== null && daemon.exitCode === null;
+    const daemonAlive = handle !== null && handle.daemon.exitCode === null;
     expect(daemonAlive, 'daemon died mid-run').toBe(true);
   });
 });
