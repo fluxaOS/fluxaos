@@ -107,9 +107,16 @@ test.describe('@r-daemon @journey', () => {
     ]);
   });
 
-  test('daemon drives a pipeline run to terminal completed', async ({
+  test('daemon drives stages forward via Realtime pickup', async ({
     page,
   }) => {
+    // The seeded pipeline is research(auto) → implement(rules) → review(hold).
+    // The hold gate at review intentionally stops the run for human sign-off,
+    // so pipeline_run never reaches `completed` autonomously. This journey
+    // proves daemon ownership by asserting:
+    //   1. pipeline_run advances past `pending` (daemon picked up INSERT)
+    //   2. at least 2 stage_runs reach `completed` (daemon drove execution)
+    // Anything beyond review is R-SMOKE territory.
     const pageErrors: Error[] = [];
     const consoleErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(err));
@@ -138,7 +145,7 @@ test.describe('@r-daemon @journey', () => {
       timeout: 15_000,
     });
 
-    const statusBadge = page
+    const runStatusBadge = page
       .locator('[aria-label="Run detail"]')
       .locator('span.rounded-full.font-semibold')
       .first();
@@ -146,22 +153,33 @@ test.describe('@r-daemon @journey', () => {
     await expect
       .poll(
         async () => {
-          const text = (await statusBadge.textContent()) ?? '';
+          const text = (await runStatusBadge.textContent()) ?? '';
           return text.trim().split(/[\s—]/)[0].toLowerCase();
         },
         {
-          timeout: 4 * 60_000,
-          intervals: [2_000, 5_000, 10_000],
+          timeout: 30_000,
+          intervals: [1_000, 2_000],
           message:
-            'stage_run never reached terminal completed status via daemon. Likely the daemon did not pick up the pipeline_run INSERT (check daemon stdout for daemon.started + handleNewRun activity).',
+            'pipeline_run never advanced past pending. Daemon likely did not pick up the Realtime INSERT.',
         },
       )
-      .toBe('completed');
+      .not.toBe('pending');
 
-    // Proof the daemon owned execution: daemon stdout should have logged
-    // at least one gate_checked or terminal event for this run. We can't
-    // easily link by runId here without DB access, so we just assert the
-    // daemon process is still alive and emitting.
+    // StageTimeline marks a completed stage with the bg-emerald-400 dot.
+    // Counting these proves how many stage_runs the daemon drove to completed.
+    const completedStageDots = page
+      .locator('[aria-label="Run detail"]')
+      .locator('span.rounded-full.bg-emerald-400');
+
+    await expect
+      .poll(async () => completedStageDots.count(), {
+        timeout: 4 * 60_000,
+        intervals: [2_000, 5_000, 10_000],
+        message:
+          'fewer than 2 stage_runs reached completed status. Daemon may have stalled or a stage failed mid-flight.',
+      })
+      .toBeGreaterThanOrEqual(2);
+
     const daemonAlive = daemon !== null && daemon.exitCode === null;
     expect(daemonAlive, 'daemon died mid-run').toBe(true);
 
