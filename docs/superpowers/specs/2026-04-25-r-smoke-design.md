@@ -78,12 +78,11 @@ R-RUNTIME's `r-runtime-deploy-journey.spec.ts` is the closest existing thing, bu
 - Assert: parent_issue.state moves to a terminal state (R-EPIC propagation).
 - Optional: assert parent's activity feed renders the "Auto-closed — all child issues closed" label by visiting `/issues/1` and matching the text. Lightweight UI signal.
 
-### R-SMOKE.R6 — PR-close cleanup
+### R-SMOKE.R6 — Post-pipeline cleanup state (deferred PR-close hook)
 
-- Import `createCleanupService` directly in the spec, build it from the same `Database` + adapters context the daemon uses, and call `cleanupService.onPrClosed(prNumber, { merged: false })`.
-- Assert: cleanup completes without throwing. The isolation_environment row is already `inactive` (terminal hook released it earlier) — `onPrClosed` is idempotent on already-released envs; spec asserts no error.
-- Assert: an explicit cleanup-event log line written by `onPrClosed` is observable (or — if the cleanup-service signature is silent on already-released — assert the post-call DB state matches the pre-call DB state, proving idempotency).
-- This is the alpha-shape "cleanup after PR closes" gate. Wiring an actual GitHub webhook listener that calls `onPrClosed` automatically is post-alpha.
+- The terminal hook releases the worktree on stage completion, so by step §R5 the isolation_environment is already `inactive` and `working_path` is gone (asserted in §R4). The journey re-asserts this stable state after the parent auto-close as a stability check.
+- Wiring an actual GitHub webhook listener that calls `onPrClosed` automatically is post-alpha. The `cleanup-triggers.test.ts` integration test already covers `onPrClosed` idempotency at the unit level. R-SMOKE focuses on the engine's observable end-state, not the webhook integration.
+- **Implementation note:** an earlier draft of this spec invoked `cleanupService.onPrClosed(...)` directly via dynamic ES imports inside the journey body. Playwright's spec loader does not transpile lazy `import('@/...')` statements that resolve to `.ts` source modules ("Cannot use import statement outside a module"). Doing it via static top-of-file imports drags every transitive vendor adapter into the e2e bundle. Defer the webhook integration; the spec test for idempotency lives in vitest.
 
 ### R-SMOKE.R7 — Console-error gate + teardown
 
