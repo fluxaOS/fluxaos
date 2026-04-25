@@ -8,6 +8,8 @@ import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
+import { registry } from '@/config/registry';
+import type { RealtimeProvider } from '@/core/ports/realtime';
 
 function formatRelative(d: string | Date | null | undefined, nowMs: number): string {
   if (!d) return '–';
@@ -45,6 +47,7 @@ export function MissionControlClient({
   projectName: string;
   basePath: string;
 }) {
+  const utils = trpc.useUtils();
   const summaryQuery = trpc.mission.summary.useQuery({ projectId });
 
   const [now, setNow] = useState<number>(() => Date.now());
@@ -52,6 +55,45 @@ export function MissionControlClient({
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Realtime: invalidate the summary query whenever the daemon writes to
+  // pipeline_run or the deploy bridge writes to issue_pull_request. No
+  // polling fallback per project memory.
+  useEffect(() => {
+    const realtime = registry.get<RealtimeProvider>('realtime');
+
+    const onPipelineChange = () => {
+      utils.mission.summary.invalidate({ projectId });
+    };
+    const onPrInsert = () => {
+      utils.mission.summary.invalidate({ projectId });
+    };
+
+    const unsubInsert = realtime.subscribeToTable<unknown>(
+      `mission-pipeline-run-insert-${projectId}`,
+      'pipeline_run',
+      'INSERT',
+      onPipelineChange,
+    );
+    const unsubUpdate = realtime.subscribeToTable<unknown>(
+      `mission-pipeline-run-update-${projectId}`,
+      'pipeline_run',
+      'UPDATE',
+      onPipelineChange,
+    );
+    const unsubPr = realtime.subscribeToTable<unknown>(
+      `mission-issue-pr-insert-${projectId}`,
+      'issue_pull_request',
+      'INSERT',
+      onPrInsert,
+    );
+
+    return () => {
+      unsubInsert();
+      unsubUpdate();
+      unsubPr();
+    };
+  }, [projectId, utils]);
 
   const data = summaryQuery.data;
   const pending = data?.pendingRuns ?? [];
