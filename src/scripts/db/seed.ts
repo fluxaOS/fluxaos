@@ -159,8 +159,7 @@ async function seed() {
     const stagesDef = [
       { name: 'research', sortOrder: 1, gateMode: 'auto', gateRules: {} },
       { name: 'implement', sortOrder: 2, gateMode: 'rules', gateRules: implementGateRules },
-      { name: 'review', sortOrder: 3, gateMode: 'hold', gateRules: {} },
-      { name: 'deploy', sortOrder: 4, gateMode: 'hold', gateRules: {} },
+      { name: 'review', sortOrder: 3, gateMode: 'auto', gateRules: {} },
     ];
 
     for (const stage of stagesDef) {
@@ -243,7 +242,6 @@ Do not ask questions. Do not use slash commands. Do not run CLI tools beyond wha
 
   // R-ARTIFACTS: per-skill suffixes that use the {{artifacts_path}} template
   // variable. Later stages read what earlier stages wrote at known paths.
-  // Deploy stays silent — it consumes the worktree's git state, not artifacts.
   const ARTIFACTS_SUFFIX: Record<string, string> = {
     research: `
 
@@ -268,7 +266,6 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     { name: 'implement', description: 'Implementation orchestrator — build features from plans' },
     { name: 'review', description: 'Code review — review only, no implementation' },
     { name: 'rework', description: 'Rework — address review feedback and resubmit' },
-    { name: 'deploy', description: 'Deploy — merge approved PRs' },
   ];
 
   const skillMap = new Map<string, string>();
