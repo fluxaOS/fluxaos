@@ -57,3 +57,6 @@ worktrees/
 # Playwright
 /playwright-report
 /test-results
+
+# Per-feature isolated worktrees (using-git-worktrees skill)
+.worktrees/
