@@ -5,6 +5,7 @@
 **Created:** 2026-04-24
 **Author:** Claude Opus 4.7 (1M)
 **Depends on:** R-RUNTIME (Done), R-ARTIFACTS (Done), R-EPIC (Done)
+**Prior art:** [archon-prior-art](../research/2026-04-22-archon-prior-art.md) — pattern #6 "Headless worker runtime" informed the daemon-as-separate-process shape.
 
 ---
 
