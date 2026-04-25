@@ -15,4 +15,4 @@ AI does every step from brainstorm to shipped — no questions during a session.
 
 **No cost or time estimates** — once a direction is approved, just do the work and report progress.
 
-**Definition of done:** PRs merged to main, working tree clean, on main in sync with origin, merged branches deleted (locally + origin), worktrees pruned, `fhc sync` run if `templates/**` changed. Open PRs don't count as done.
+**Definition of done:** PRs merged to main, working tree clean, on main in sync with origin, merged branches deleted (locally + origin), worktrees pruned. Open PRs don't count as done.
