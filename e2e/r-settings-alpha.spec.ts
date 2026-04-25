@@ -11,22 +11,23 @@ test.describe('@r-settings-alpha @journey', () => {
   }) => {
     // Settings nav renders and tabs are present.
     await page.goto(projectPath('/settings'));
-    await expect(page.getByRole('link', { name: 'Pipelines' })).toBeVisible({
+    const tabsNav = page.getByRole('navigation', { name: 'Settings tabs' });
+    await expect(tabsNav.getByRole('link', { name: 'Pipelines' })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByRole('link', { name: 'Projects' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Skills' })).toBeVisible();
+    await expect(tabsNav.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(tabsNav.getByRole('link', { name: 'Skills' })).toBeVisible();
 
     // Navigate to Projects.
-    await page.getByRole('link', { name: 'Projects' }).click();
+    await tabsNav.getByRole('link', { name: 'Projects' }).click();
     await expect(page).toHaveURL(/\/settings\/projects$/);
     await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
       timeout: 10_000,
     });
 
-    // The RecordEditor renders a row for the seeded project (slug
-    // 'fluxaos'). Opening it exposes the editable fields.
-    const projectRow = page.locator('button', { hasText: 'fluxaos' }).first();
+    // The RecordEditor renders a clickable row (li) for the seeded project
+    // 'fluxaOS' (slug 'fluxaos'). Opening it exposes the editable fields.
+    const projectRow = page.locator('li', { hasText: 'fluxaos' }).first();
     await expect(projectRow).toBeVisible({ timeout: 10_000 });
     await projectRow.click();
 
@@ -48,7 +49,7 @@ test.describe('@r-settings-alpha @journey', () => {
     }
 
     // Visit Pipelines tab.
-    await page.getByRole('link', { name: 'Pipelines' }).click();
+    await tabsNav.getByRole('link', { name: 'Pipelines' }).click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(
       page.getByRole('heading', { name: 'Pipeline settings' }),
@@ -66,7 +67,7 @@ test.describe('@r-settings-alpha @journey', () => {
       // After mutation, the pill should move to a different row. The
       // Projects tab will reflect the new default pipeline name.
       await page.waitForTimeout(500);
-      await page.getByRole('link', { name: 'Projects' }).click();
+      await tabsNav.getByRole('link', { name: 'Projects' }).click();
       await expect(page).toHaveURL(/\/settings\/projects$/);
     }
   });

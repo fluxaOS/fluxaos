@@ -70,7 +70,7 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
 
   const detail = runQuery.data;
   const stageRuns = detail?.stageRuns ?? [];
-  const isRunActive = detail?.status === 'running' || detail?.status === 'queued';
+  const isRunActive = detail?.status === 'running' || detail?.status === 'pending';
 
   // Build timeline items from stage runs
   const timelineStages = useMemo(() => {

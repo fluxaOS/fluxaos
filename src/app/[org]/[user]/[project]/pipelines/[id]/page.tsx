@@ -30,7 +30,7 @@ export default function RunDetailPage({
     {
       refetchInterval: (query) => {
         const status = query.state.data?.status;
-        return status === 'running' || status === 'queued' ? 2000 : false;
+        return status === 'running' || status === 'pending' ? 2000 : false;
       },
     },
   );
@@ -78,7 +78,7 @@ export default function RunDetailPage({
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge status={run.status} />
-            {(run.status === 'running' || run.status === 'queued') && (
+            {(run.status === 'running' || run.status === 'pending') && (
               <button
                 type="button"
                 onClick={() => cancelRun.mutate({ id: run.id })}

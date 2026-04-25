@@ -234,7 +234,7 @@ describe('orchestrator pipeline run lifecycle', () => {
     const run = await svc.createRun(pipelineId, '00000000-0000-0000-0000-000000000000');
     runId = run.id;
     cleanupList.push({ table: 'pipelineRun', id: runId });
-    expect(run.status).toBe('queued');
+    expect(run.status).toBe('pending');
     expect(run.pipelineId).toBe(pipelineId);
   });
 

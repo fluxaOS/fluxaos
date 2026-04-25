@@ -35,9 +35,6 @@ export interface PipelineRunService {
   /** Get a pipeline run by ID. */
   getRun(id: string): Promise<PipelineRunRow | null>;
 
-  /** Get all queued pipeline runs (ordered by creation). */
-  getQueuedRuns(limit: number): Promise<PipelineRunRow[]>;
-
   /** Get all running pipeline runs. */
   getRunningRuns(): Promise<PipelineRunRow[]>;
 
@@ -124,7 +121,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         .values({
           pipelineId,
           issueId,
-          status: PIPELINE_RUN_STATUS.queued,
+          status: PIPELINE_RUN_STATUS.pending,
         })
         .returning();
       return row;
@@ -136,15 +133,6 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         .from(pipelineRun)
         .where(eq(pipelineRun.id, id));
       return row ?? null;
-    },
-
-    async getQueuedRuns(limit) {
-      return db
-        .select()
-        .from(pipelineRun)
-        .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.queued))
-        .orderBy(asc(pipelineRun.createdAt))
-        .limit(limit);
     },
 
     async getRunningRuns() {
