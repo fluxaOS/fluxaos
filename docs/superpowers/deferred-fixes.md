@@ -354,3 +354,19 @@ The `{{artifacts_path}}` template threaded into stage 2's prompt points at run 2
 **Fix:** In `stage-runner.ts`, render the skill's `promptTemplate` with the template variables (`artifacts_path`, `workspace_path`, `skill_name`) before handing it to `materialize()`. Keeps `materialize()` dumb (a writer, not a renderer) and keeps the single `renderTemplate` implementation authoritative. Alternative considered: pass vars into `materialize()` and call `renderTemplate` inside. Rejected — pushes template-rendering responsibility into the materializer, which should only know about file IO.
 **Where:** Fix at `src/core/orchestrator/stage-runner.ts` ~line 231 (the `skill: { promptTemplate: ... }` arg to `materialize()`). Works alongside DEF-022 — both needed for the chain to actually exercise stage-to-stage artifact handoff.
 
+
+## DEF-025 — Drizzle schema/migration drift; `drizzle-kit generate` requires interactive prompts
+
+**Found:** 2026-04-25 during R-POLISH-CORE W3 attempt to rebaseline `drizzle/meta/` snapshots.
+**Severity:** Medium — `drizzle-kit generate` is unusable in non-interactive environments (CI, autonomous sessions). Schema changes since migration 0003 must continue to be hand-written.
+**Symptom:** Running `npx drizzle-kit generate --name probe-snapshot-drift` exits with `Error: Interactive prompts require a TTY terminal` from `promptColumnsConflicts`. The tool is asking the operator to manually resolve conflicts between the live `src/core/db/schema.ts` and the cumulative `drizzle/meta/<idx>_snapshot.json` history.
+**State of the gap:** `_journal.json` lists 8 migrations (0000-0009 with 0002 + 0005 missing entries). `drizzle/meta/` only contains `0000_snapshot.json` and `0003_snapshot.json`. R-RUNTIME's 0007 was hand-written as a result. Snapshots for 0001, 0002, 0004, 0006, 0007, 0008, 0009 are all missing.
+**Why it happens:** Each missing snapshot encodes a state drizzle would have produced if the migration was authored via `drizzle-kit generate`. Hand-written migrations bypass this. Now drizzle has no anchor between snapshots, so it tries to diff the live schema directly against `0003_snapshot.json` and finds dozens of column conflicts that need TTY-interactive resolution.
+**Fix sketch (one option, requires interactive shell):**
+1. Run `npx drizzle-kit generate --name probe` interactively in a TTY.
+2. For each prompt, choose "rename" (keep existing column with the new name from schema) — hand-written migrations preserved column identity.
+3. Inspect the generated SQL diff; if non-empty, that's a real schema/migration mismatch worth investigating.
+4. If empty: delete the empty SQL, keep the snapshot. Rerun `generate` until clean.
+**Alternative (clean-room rebaseline):** Drop `drizzle/meta/` entirely, point at the live DB via `drizzle-kit introspect`, then verify the introspected schema matches `src/core/db/schema.ts` exactly.
+**Where:** `drizzle/meta/`, `src/core/db/schema.ts`. Caller: any future schema change.
+**Recovery cost:** Until fixed, every new migration must be hand-written. Acceptable for alpha (single operator, schema is mostly stable). Post-alpha: rebaseline via interactive session.

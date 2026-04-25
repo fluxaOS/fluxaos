@@ -154,18 +154,9 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       WHERE "slug" = 'fluxaos'
     `;
 
-    // Seed sets review + deploy gates to 'hold' for the production flow,
-    // which halts a pipeline_run at status='running' indefinitely. The
-    // alpha-acceptance gate needs the pipeline to reach 'completed' so
-    // the terminal hook fires the deploy bridge (the real one in
-    // src/core/deploy/) → PR opens. Flip review to 'auto' AND drop the
-    // 'deploy' stage entirely: its seeded skill prompt assumes the PR
-    // already exists and emits hold/already_complete on every alpha
-    // run, which short-circuits the pipeline before completePipelineRun
-    // ever fires. R-SMOKE is destructive (nuke + reseed), so this
-    // mutation has no spillover.
-    await sql`UPDATE "pipeline_stage" SET "gate_mode" = 'auto' WHERE "name" = 'review'`;
-    await sql`DELETE FROM "pipeline_stage" WHERE "name" = 'deploy'`;
+    // R-POLISH-CORE W1 fixed the production seed: 3 stages
+    // (research auto → implement rules → review auto), no broken
+    // deploy stage. R-SMOKE runs against the unmodified seed.
 
     const [parentRow] = await sql<
       { id: string; project_id: string; number: number; version: number }[]

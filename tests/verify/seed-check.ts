@@ -67,11 +67,11 @@ async function main() {
 
   // --- Pipeline stages ---
   const stages = await db.select().from(pipelineStage);
-  assert(stages.length === 4, `4 pipeline stages (got ${stages.length})`);
+  assert(stages.length === 3, `3 pipeline stages (got ${stages.length})`);
 
   // --- Skills ---
   const skills = await db.select().from(skill);
-  assert(skills.length === 5, `5 skills (got ${skills.length})`);
+  assert(skills.length === 4, `4 skills (got ${skills.length})`);
 
   // --- Drivers ---
   const drivers = await db.select().from(driver);
