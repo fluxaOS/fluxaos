@@ -14,6 +14,7 @@ import { providerRouter } from './routers/provider';
 import { routingRouter } from './routers/routing';
 import { driverRouter } from './routers/driver';
 import { systemRouter } from './routers/system';
+import { missionRouter } from './routers/mission-control';
 
 export const appRouter = router({
   organization: organizationRouter,
@@ -28,6 +29,7 @@ export const appRouter = router({
   routing: routingRouter,
   driver: driverRouter,
   system: systemRouter,
+  mission: missionRouter,
 });
 
 export type AppRouter = typeof appRouter;
