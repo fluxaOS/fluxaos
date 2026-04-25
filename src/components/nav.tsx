@@ -7,6 +7,7 @@ import {
   CircleDot,
   GitBranch,
   BarChart3,
+  Activity,
   Workflow,
   Users,
   Sparkles,
@@ -27,6 +28,7 @@ export function Nav() {
 
   const mainLinks = [
     { href: basePath, label: 'Dashboard', icon: LayoutDashboard },
+    { href: `${basePath}/mission-control`, label: 'Mission Control', icon: Activity },
     { href: `${basePath}/issues`, label: 'Issues', icon: CircleDot },
     { href: `${basePath}/pipelines`, label: 'Pipelines', icon: GitBranch },
     { href: `${basePath}/kpis`, label: 'KPIs', icon: BarChart3 },
