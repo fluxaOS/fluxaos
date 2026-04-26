@@ -40,4 +40,10 @@ echo "[post-merge] pruning merged branches…"
 git fetch --prune origin --quiet 2>/dev/null || true
 bash "$AUDIT" prune
 
+# GitHub deletes the head branch asynchronously after `gh pr merge
+# --delete-branch`, so the first fetch above can race the delete and leave
+# a stale `origin/<branch>` ref behind. A second prune after the local
+# branch cleanup catches the lagging delete in the common case.
+git fetch --prune origin --quiet 2>/dev/null || true
+
 exit 0
