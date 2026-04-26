@@ -7,8 +7,8 @@
  * Health verifies all required catalogs and config entries exist.
  */
 import { z } from 'zod/v4';
-import { router, publicProcedure } from '../trpc';
 import { createIssueCatalogService } from '@/core/services';
+import { publicProcedure, router } from '../trpc';
 
 // ─── Reusable input schemas ──────────────────────────────────────────────────
 
@@ -68,15 +68,18 @@ export const issueCatalogRouter = router({
     list: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.list(input.projectId)),
+        createIssueCatalogService(ctx.db).types.list(input.projectId)
+      ),
     listAll: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.listAll(input.projectId)),
+        createIssueCatalogService(ctx.db).types.listAll(input.projectId)
+      ),
     create: publicProcedure
       .input(typeInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.create(input)),
+        createIssueCatalogService(ctx.db).types.create(input)
+      ),
     update: publicProcedure
       .input(idInput.merge(typeInput.partial()))
       .mutation(({ ctx, input }) => {
@@ -86,7 +89,8 @@ export const issueCatalogRouter = router({
     deactivate: publicProcedure
       .input(idInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.deactivate(input.id)),
+        createIssueCatalogService(ctx.db).types.deactivate(input.id)
+      ),
   }),
 
   // ─── States ────────────────────────────────────────────────────────────────
@@ -94,15 +98,18 @@ export const issueCatalogRouter = router({
     list: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.list(input.projectId)),
+        createIssueCatalogService(ctx.db).states.list(input.projectId)
+      ),
     listAll: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.listAll(input.projectId)),
+        createIssueCatalogService(ctx.db).states.listAll(input.projectId)
+      ),
     create: publicProcedure
       .input(stateInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.create(input)),
+        createIssueCatalogService(ctx.db).states.create(input)
+      ),
     update: publicProcedure
       .input(idInput.merge(stateInput.partial()))
       .mutation(({ ctx, input }) => {
@@ -112,7 +119,8 @@ export const issueCatalogRouter = router({
     deactivate: publicProcedure
       .input(idInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.deactivate(input.id)),
+        createIssueCatalogService(ctx.db).states.deactivate(input.id)
+      ),
   }),
 
   // ─── Statuses ──────────────────────────────────────────────────────────────
@@ -120,15 +128,18 @@ export const issueCatalogRouter = router({
     list: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.list(input.projectId)),
+        createIssueCatalogService(ctx.db).statuses.list(input.projectId)
+      ),
     listAll: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.listAll(input.projectId)),
+        createIssueCatalogService(ctx.db).statuses.listAll(input.projectId)
+      ),
     create: publicProcedure
       .input(statusInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.create(input)),
+        createIssueCatalogService(ctx.db).statuses.create(input)
+      ),
     update: publicProcedure
       .input(idInput.merge(statusInput.partial()))
       .mutation(({ ctx, input }) => {
@@ -138,7 +149,8 @@ export const issueCatalogRouter = router({
     deactivate: publicProcedure
       .input(idInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.deactivate(input.id)),
+        createIssueCatalogService(ctx.db).statuses.deactivate(input.id)
+      ),
   }),
 
   // ─── Priorities ────────────────────────────────────────────────────────────
@@ -146,15 +158,18 @@ export const issueCatalogRouter = router({
     list: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.list(input.projectId)),
+        createIssueCatalogService(ctx.db).priorities.list(input.projectId)
+      ),
     listAll: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.listAll(input.projectId)),
+        createIssueCatalogService(ctx.db).priorities.listAll(input.projectId)
+      ),
     create: publicProcedure
       .input(priorityInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.create(input)),
+        createIssueCatalogService(ctx.db).priorities.create(input)
+      ),
     update: publicProcedure
       .input(idInput.merge(priorityInput.partial()))
       .mutation(({ ctx, input }) => {
@@ -164,7 +179,8 @@ export const issueCatalogRouter = router({
     deactivate: publicProcedure
       .input(idInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.deactivate(input.id)),
+        createIssueCatalogService(ctx.db).priorities.deactivate(input.id)
+      ),
   }),
 
   // ─── Labels ────────────────────────────────────────────────────────────────
@@ -172,15 +188,18 @@ export const issueCatalogRouter = router({
     list: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.list(input.projectId)),
+        createIssueCatalogService(ctx.db).labels.list(input.projectId)
+      ),
     listAll: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.listAll(input.projectId)),
+        createIssueCatalogService(ctx.db).labels.listAll(input.projectId)
+      ),
     create: publicProcedure
       .input(labelInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.create(input)),
+        createIssueCatalogService(ctx.db).labels.create(input)
+      ),
     update: publicProcedure
       .input(idInput.merge(labelInput.partial()))
       .mutation(({ ctx, input }) => {
@@ -190,7 +209,8 @@ export const issueCatalogRouter = router({
     deactivate: publicProcedure
       .input(idInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.deactivate(input.id)),
+        createIssueCatalogService(ctx.db).labels.deactivate(input.id)
+      ),
   }),
 
   // ─── Transitions ───────────────────────────────────────────────────────────
@@ -198,21 +218,26 @@ export const issueCatalogRouter = router({
     list: publicProcedure
       .input(projectIdInput)
       .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).transitions.list(input.projectId)),
+        createIssueCatalogService(ctx.db).transitions.list(input.projectId)
+      ),
     create: publicProcedure
-      .input(z.object({
-        projectId: z.string().uuid(),
-        fromStateId: z.string().uuid(),
-        toStateId: z.string().uuid(),
-        description: z.string().optional(),
-        sortOrder: z.number().int().optional(),
-      }))
+      .input(
+        z.object({
+          projectId: z.string().uuid(),
+          fromStateId: z.string().uuid(),
+          toStateId: z.string().uuid(),
+          description: z.string().optional(),
+          sortOrder: z.number().int().optional(),
+        })
+      )
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).transitions.create(input)),
+        createIssueCatalogService(ctx.db).transitions.create(input)
+      ),
     delete: publicProcedure
       .input(idInput)
       .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).transitions.delete(input.id)),
+        createIssueCatalogService(ctx.db).transitions.delete(input.id)
+      ),
   }),
 
   // ─── Health check ──────────────────────────────────────────────────────────
@@ -245,8 +270,15 @@ export const issueCatalogRouter = router({
         'issues.status.on_completed_key',
       ];
       for (const key of requiredKeys) {
-        const [entry] = await ctx.db.select().from(configEntry)
-          .where(and(eq(configEntry.projectId, input.projectId), eq(configEntry.key, key)));
+        const [entry] = await ctx.db
+          .select()
+          .from(configEntry)
+          .where(
+            and(
+              eq(configEntry.projectId, input.projectId),
+              eq(configEntry.key, key)
+            )
+          );
         if (!entry) missing.push(`config:${key}`);
       }
 

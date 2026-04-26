@@ -44,7 +44,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
-import { test, expect, projectPath } from './helpers/setup';
+import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GITHUB_TOKEN = process.env.FLUXAOS_GITHUB_TOKEN;
@@ -63,25 +63,32 @@ const HAS_ALL_CREDS = missingCreds.length === 0;
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-type TrackedPR = { owner: string; repo: string; prNumber: number; branchName: string };
+type TrackedPR = {
+  owner: string;
+  repo: string;
+  prNumber: number;
+  branchName: string;
+};
 const openedPRs: TrackedPR[] = [];
 
 test.describe('@r-runtime @journey', () => {
   test.skip(
     !HAS_ALL_CREDS,
-    `requires live credentials: missing ${missingCreds.join(', ')}`,
+    `requires live credentials: missing ${missingCreds.join(', ')}`
   );
 
   // Real Claude + real GitHub round-trip. Cap at 5 min (poll logic caps at 3 min).
   test.setTimeout(5 * 60_000);
 
-  test('deploy loop: issue → implement → PR opened → review state + cleanup', async ({ page }) => {
+  test('deploy loop: issue → implement → PR opened → review state + cleanup', async ({
+    page,
+  }) => {
     // Guard: the repo path must be a real git checkout of the target repo.
     // We don't clone — operator responsibility per the header comment.
     if (!existsSync(path.join(TARGET_REPO_PATH!, '.git'))) {
       throw new Error(
         `FLUXAOS_TARGET_REPO_PATH='${TARGET_REPO_PATH}' is not a git checkout. ` +
-          `Clone ${TARGET_REPO} to that path on main before running this test.`,
+          `Clone ${TARGET_REPO} to that path on main before running this test.`
       );
     }
 
@@ -128,7 +135,7 @@ test.describe('@r-runtime @journey', () => {
     // ── Drive the UI: open issue #1, advance to Implement, trigger run ───
     await page.goto(projectPath('/issues/1'));
     await expect(
-      page.getByRole('heading', { name: /Add health check endpoint/ }),
+      page.getByRole('heading', { name: /Add health check endpoint/ })
     ).toBeVisible({ timeout: 15_000 });
 
     // Same CatalogSelect strategy as run-stage-smoke.spec.ts — anchor the
@@ -187,21 +194,19 @@ test.describe('@r-runtime @journey', () => {
 
     expect(
       terminalStatus,
-      'pipeline_run never reached terminal-with-PR state within 3 minutes',
+      'pipeline_run never reached terminal-with-PR state within 3 minutes'
     ).toBe('completed');
     expect(pipelineRunId).toBeTruthy();
 
     // ── Assertions: DB state after the deploy bridge fired ────────────────
-    const [issueAfter] = await sql<
-      { state_key: string | null }[]
-    >`
+    const [issueAfter] = await sql<{ state_key: string | null }[]>`
       SELECT s."key" AS state_key
       FROM "issue" i
       JOIN "issue_state" s ON s."id" = i."state_id"
       WHERE i."id" = ${issueRow.id}
     `;
     expect(issueAfter?.state_key, 'issue did not advance to review state').toBe(
-      'review',
+      'review'
     );
 
     const prRows = await sql<
@@ -229,15 +234,18 @@ test.describe('@r-runtime @journey', () => {
     const isoRows = await sql<
       { status: string; working_path: string }[]
     >`SELECT status, working_path FROM "isolation_environment" WHERE "run_id" = ${pipelineRunId!}`;
-    expect(isoRows, 'expected exactly one isolation_environment row').toHaveLength(1);
+    expect(
+      isoRows,
+      'expected exactly one isolation_environment row'
+    ).toHaveLength(1);
     expect(isoRows[0].status, 'isolation_environment must be cleaned up').toBe(
-      'inactive',
+      'inactive'
     );
 
     // Filesystem: the specific worktree dir must be gone after release.
     expect(
       existsSync(isoRows[0].working_path),
-      `worktree directory not removed: ${isoRows[0].working_path}`,
+      `worktree directory not removed: ${isoRows[0].working_path}`
     ).toBe(false);
 
     // ── Assertions: GitHub confirms branch + PR exist on the remote ──────
@@ -272,14 +280,16 @@ test.describe('@r-runtime @journey', () => {
     // ── Final gate: no unexpected console/page errors during the run ─────
     const knownErrorPattern =
       /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config|Uncaught/;
-    const matchedErrors = consoleErrors.filter((e) => knownErrorPattern.test(e));
+    const matchedErrors = consoleErrors.filter((e) =>
+      knownErrorPattern.test(e)
+    );
     expect(
       pageErrors,
-      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`,
+      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`
     ).toHaveLength(0);
     expect(
       matchedErrors,
-      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`,
+      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`
     ).toHaveLength(0);
 
     await sql.end({ timeout: 5 });
@@ -301,7 +311,7 @@ test.describe('@r-runtime @journey', () => {
         });
       } catch (err) {
         console.warn(
-          `[teardown] failed to close PR #${pr.prNumber} on ${pr.owner}/${pr.repo}: ${(err as Error).message}`,
+          `[teardown] failed to close PR #${pr.prNumber} on ${pr.owner}/${pr.repo}: ${(err as Error).message}`
         );
       }
 
@@ -314,7 +324,7 @@ test.describe('@r-runtime @journey', () => {
         });
       } catch (err) {
         console.warn(
-          `[teardown] failed to delete ref heads/${pr.branchName} on ${pr.owner}/${pr.repo}: ${(err as Error).message}`,
+          `[teardown] failed to delete ref heads/${pr.branchName} on ${pr.owner}/${pr.repo}: ${(err as Error).message}`
         );
       }
     }

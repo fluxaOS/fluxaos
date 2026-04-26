@@ -4,14 +4,14 @@
  * Implements the QueueProvider port using BullMQ + Redis.
  * Resolved via the registry — never imported directly.
  */
-import { Queue, Worker, type Job as BullJob } from 'bullmq';
+import { type Job as BullJob, Queue, Worker } from 'bullmq';
 import type IORedis from 'ioredis';
 import Redis from 'ioredis';
 import type {
-  QueueProvider,
   Job,
   JobOptions,
   JobStatus,
+  QueueProvider,
 } from '@/core/ports/queue';
 
 function mapStatus(state: string): JobStatus {
@@ -70,7 +70,7 @@ export class BullMQAdapter implements QueueProvider {
     queueName: string,
     jobId: string,
     data: T,
-    opts?: JobOptions,
+    opts?: JobOptions
   ): Promise<void> {
     const queue = this.getQueue(queueName);
     await queue.add(jobId, data, {
@@ -88,11 +88,14 @@ export class BullMQAdapter implements QueueProvider {
       async (bullJob) => {
         await handler(mapJob(bullJob));
       },
-      { connection: this.getConnection() },
+      { connection: this.getConnection() }
     );
   }
 
-  async getJob<T = unknown>(queueName: string, jobId: string): Promise<Job<T> | null> {
+  async getJob<T = unknown>(
+    queueName: string,
+    jobId: string
+  ): Promise<Job<T> | null> {
     const queue = this.getQueue(queueName);
     const bullJob = await queue.getJob(jobId);
     if (!bullJob) return null;

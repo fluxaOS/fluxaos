@@ -20,7 +20,8 @@ export const PIPELINE_RUN_STATUS = {
   blocked: 'blocked',
 } as const;
 
-export type PipelineRunStatus = (typeof PIPELINE_RUN_STATUS)[keyof typeof PIPELINE_RUN_STATUS];
+export type PipelineRunStatus =
+  (typeof PIPELINE_RUN_STATUS)[keyof typeof PIPELINE_RUN_STATUS];
 
 export const PIPELINE_RUN_TERMINAL: ReadonlySet<string> = new Set([
   PIPELINE_RUN_STATUS.completed,
@@ -40,7 +41,8 @@ export const STAGE_RUN_STATUS = {
   cancelled: 'cancelled',
 } as const;
 
-export type StageRunStatus = (typeof STAGE_RUN_STATUS)[keyof typeof STAGE_RUN_STATUS];
+export type StageRunStatus =
+  (typeof STAGE_RUN_STATUS)[keyof typeof STAGE_RUN_STATUS];
 
 export const STAGE_RUN_TERMINAL: ReadonlySet<string> = new Set([
   STAGE_RUN_STATUS.completed,
@@ -76,7 +78,8 @@ export const ISSUE_EVENT_TYPE = {
   status_changed: 'status_changed',
 } as const;
 
-export type IssueEventType = (typeof ISSUE_EVENT_TYPE)[keyof typeof ISSUE_EVENT_TYPE];
+export type IssueEventType =
+  (typeof ISSUE_EVENT_TYPE)[keyof typeof ISSUE_EVENT_TYPE];
 
 // ── Gate Verdicts ──────────────────────────────────────────
 export const GATE_VERDICT = {

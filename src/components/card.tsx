@@ -12,7 +12,9 @@ export function Card({
   padding?: string;
 }) {
   return (
-    <div className={`${hover ? 'card-base' : 'card-static'} ${padding} ${className}`}>
+    <div
+      className={`${hover ? 'card-base' : 'card-static'} ${padding} ${className}`}
+    >
       {children}
     </div>
   );

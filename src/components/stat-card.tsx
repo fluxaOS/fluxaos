@@ -39,13 +39,17 @@ export function StatCard({
   return (
     <div className={`card-base p-5 pl-6 relative ${a.border}`}>
       {Icon && (
-        <div className={`absolute top-4 right-4 w-8 h-8 rounded-lg ${a.iconBg} ${a.iconColor} flex items-center justify-center`}>
+        <div
+          className={`absolute top-4 right-4 w-8 h-8 rounded-lg ${a.iconBg} ${a.iconColor} flex items-center justify-center`}
+        >
           <Icon size={16} />
         </div>
       )}
       <p className="text-xs font-medium text-slate-400 mb-2.5">{label}</p>
       <div className="flex items-baseline gap-2">
-        <span className="text-[28px] font-extrabold text-white leading-none">{value}</span>
+        <span className="text-[28px] font-extrabold text-white leading-none">
+          {value}
+        </span>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@
  * Other services call create() internally; list() supports tab-based filtering
  * for the UI timeline view.
  */
-import { eq, and, asc, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { issueEvent } from '@/core/db/schema';
 
@@ -33,7 +33,7 @@ export function createIssueEventService(db: Database) {
      */
     async list(
       issueId: string,
-      filter?: EventFilter,
+      filter?: EventFilter
     ): Promise<IssueEventSelect[]> {
       if (filter && filter !== 'all') {
         const types = FILTER_TYPE_MAP[filter];
@@ -43,8 +43,8 @@ export function createIssueEventService(db: Database) {
           .where(
             and(
               eq(issueEvent.issueId, issueId),
-              inArray(issueEvent.type, types),
-            ),
+              inArray(issueEvent.type, types)
+            )
           )
           .orderBy(asc(issueEvent.timestamp));
       }
@@ -61,7 +61,7 @@ export function createIssueEventService(db: Database) {
       issueId: string,
       actor: string,
       type: string,
-      payload: Record<string, unknown>,
+      payload: Record<string, unknown>
     ): Promise<IssueEventSelect> {
       const [created] = await db
         .insert(issueEvent)

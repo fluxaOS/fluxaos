@@ -1,5 +1,5 @@
 // e2e/delete-a-referenced-skill-fails-gracefully.spec.ts
-import { test, expect, gotoSettings } from './helpers/setup';
+import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @skills', () => {
   test('delete-a-referenced-skill-fails-gracefully', async ({ page }) => {
@@ -14,6 +14,8 @@ test.describe('@r-ui-1 @settings @skills', () => {
     await expect(page.getByText(/referenced by/i)).toBeVisible();
 
     // Research still in list
-    await expect(page.getByText('research', { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByText('research', { exact: true }).first()
+    ).toBeVisible();
   });
 });

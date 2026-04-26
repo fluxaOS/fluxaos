@@ -25,8 +25,9 @@
   /* Card system */
   --card-bg: #1e293b;
   --card-border: rgba(51, 65, 85, 0.35);
-  --card-shadow: 0 4px 6px rgba(0,0,0,0.15), 0 10px 30px rgba(0,0,0,0.25);
-  --card-shadow-hover: 0 8px 12px rgba(0,0,0,0.2), 0 20px 40px rgba(0,0,0,0.35);
+  --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.15), 0 10px 30px rgba(0, 0, 0, 0.25);
+  --card-shadow-hover:
+    0 8px 12px rgba(0, 0, 0, 0.2), 0 20px 40px rgba(0, 0, 0, 0.35);
   --card-radius: 18px;
 }
 
@@ -63,21 +64,38 @@ body {
 
 /* Background atmospheric gradient */
 body::before {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 60% 50% at 20% 10%, rgba(45, 27, 105, 0.25) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 40% at 80% 80%, rgba(91, 33, 182, 0.08) 0%, transparent 70%),
-    radial-gradient(ellipse 30% 30% at 60% 40%, rgba(124, 58, 237, 0.06) 0%, transparent 70%);
+    radial-gradient(
+      ellipse 60% 50% at 20% 10%,
+      rgba(45, 27, 105, 0.25) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 80% 80%,
+      rgba(91, 33, 182, 0.08) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 30% 30% at 60% 40%,
+      rgba(124, 58, 237, 0.06) 0%,
+      transparent 70%
+    );
   pointer-events: none;
   z-index: 0;
 }
 
 /* Skeleton pulse animation */
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.15; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.15;
+  }
 }
 
 .animate-skeleton {
@@ -108,15 +126,50 @@ body::before {
 }
 
 /* Accent border glow utilities */
-.accent-border-violet { box-shadow: var(--card-shadow), inset 4px 0 0 var(--electric-violet), -2px 0 12px rgba(124, 58, 237, 0.15); }
-.accent-border-blue { box-shadow: var(--card-shadow), inset 4px 0 0 var(--color-info), -2px 0 12px rgba(9, 127, 195, 0.15); }
-.accent-border-green { box-shadow: var(--card-shadow), inset 4px 0 0 var(--color-success), -2px 0 12px rgba(24, 140, 66, 0.15); }
-.accent-border-amber { box-shadow: var(--card-shadow), inset 4px 0 0 var(--color-warning), -2px 0 12px rgba(245, 163, 20, 0.15); }
-.accent-border-error { box-shadow: var(--card-shadow), inset 4px 0 0 var(--color-error), -2px 0 12px rgba(206, 18, 18, 0.15); }
+.accent-border-violet {
+  box-shadow:
+    var(--card-shadow),
+    inset 4px 0 0 var(--electric-violet),
+    -2px 0 12px rgba(124, 58, 237, 0.15);
+}
+.accent-border-blue {
+  box-shadow:
+    var(--card-shadow),
+    inset 4px 0 0 var(--color-info),
+    -2px 0 12px rgba(9, 127, 195, 0.15);
+}
+.accent-border-green {
+  box-shadow:
+    var(--card-shadow),
+    inset 4px 0 0 var(--color-success),
+    -2px 0 12px rgba(24, 140, 66, 0.15);
+}
+.accent-border-amber {
+  box-shadow:
+    var(--card-shadow),
+    inset 4px 0 0 var(--color-warning),
+    -2px 0 12px rgba(245, 163, 20, 0.15);
+}
+.accent-border-error {
+  box-shadow:
+    var(--card-shadow),
+    inset 4px 0 0 var(--color-error),
+    -2px 0 12px rgba(206, 18, 18, 0.15);
+}
 
 /* Status dot glow */
-.dot-glow-green { box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
-.dot-glow-blue { box-shadow: 0 0 6px rgba(56, 189, 248, 0.5); }
-.dot-glow-red { box-shadow: 0 0 6px rgba(239, 68, 68, 0.5); }
-.dot-glow-amber { box-shadow: 0 0 6px rgba(251, 191, 36, 0.5); }
-.dot-glow-violet { box-shadow: 0 0 6px rgba(167, 139, 250, 0.5); }
+.dot-glow-green {
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+.dot-glow-blue {
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+}
+.dot-glow-red {
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+.dot-glow-amber {
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+}
+.dot-glow-violet {
+  box-shadow: 0 0 6px rgba(167, 139, 250, 0.5);
+}

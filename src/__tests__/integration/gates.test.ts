@@ -7,21 +7,20 @@
  * NOT mocks. Every service test hits the real database.
  */
 import 'dotenv/config';
-import { describe, expect, it, afterAll, beforeAll } from 'vitest';
-import { eq, desc, type AnyColumn } from 'drizzle-orm';
+import { type AnyColumn, desc, eq } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
+import { evaluateGate } from '@/core/gates/engine';
+import { createGateService } from '@/core/gates/service';
+import type { Rule, RuleGroup } from '@/core/gates/types';
 import {
   createOrganizationService,
   createProjectService,
   createUserService,
-  createPipelineService,
 } from '@/core/services';
-import { createGateService } from '@/core/gates/service';
-import { evaluateGate } from '@/core/gates/engine';
-import type { Rule, RuleGroup, GateMode } from '@/core/gates/types';
-import * as schema from '@/core/db/schema';
-import type { Database } from '@/core/db/connection';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -46,7 +45,11 @@ const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
 afterAll(async () => {
   for (const { table, id } of cleanup.reverse()) {
     const t = tableMap[table];
-    if (t) await db.delete(t).where(eq(t.id, id)).catch(() => {});
+    if (t)
+      await db
+        .delete(t)
+        .where(eq(t.id, id))
+        .catch(() => {});
   }
 });
 
@@ -195,7 +198,7 @@ describe('gate engine — operators', () => {
   const makeRule = (
     field: string,
     operator: Rule['operator'],
-    value: unknown,
+    value: unknown
   ): RuleGroup => ({
     logic: 'AND',
     rules: [{ field, operator, value, severity: 'required', onFail: 'hold' }],
@@ -266,9 +269,13 @@ describe('gate engine — operators', () => {
   });
 
   it('matches: regex', () => {
-    const r = evaluateGate('rules', makeRule('version', 'matches', '^v\\d+\\.\\d+'), {
-      version: 'v2.3',
-    });
+    const r = evaluateGate(
+      'rules',
+      makeRule('version', 'matches', '^v\\d+\\.\\d+'),
+      {
+        version: 'v2.3',
+      }
+    );
     expect(r.passed).toBe(true);
   });
 
@@ -282,13 +289,15 @@ describe('gate engine — operators', () => {
   it('in: value in array', () => {
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'env',
-        operator: 'in',
-        value: ['staging', 'production'],
-        severity: 'required',
-        onFail: 'hold',
-      }],
+      rules: [
+        {
+          field: 'env',
+          operator: 'in',
+          value: ['staging', 'production'],
+          severity: 'required',
+          onFail: 'hold',
+        },
+      ],
     };
     const r = evaluateGate('rules', rules, { env: 'staging' });
     expect(r.passed).toBe(true);
@@ -297,13 +306,15 @@ describe('gate engine — operators', () => {
   it('in: value not in array', () => {
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'env',
-        operator: 'in',
-        value: ['staging', 'production'],
-        severity: 'required',
-        onFail: 'hold',
-      }],
+      rules: [
+        {
+          field: 'env',
+          operator: 'in',
+          value: ['staging', 'production'],
+          severity: 'required',
+          onFail: 'hold',
+        },
+      ],
     };
     const r = evaluateGate('rules', rules, { env: 'dev' });
     expect(r.passed).toBe(false);
@@ -333,13 +344,15 @@ describe('gate engine — dot-path field resolution', () => {
   it('resolves nested fields', () => {
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'output.tests.passed',
-        operator: 'equals',
-        value: true,
-        severity: 'required',
-        onFail: 'hold',
-      }],
+      rules: [
+        {
+          field: 'output.tests.passed',
+          operator: 'equals',
+          value: true,
+          severity: 'required',
+          onFail: 'hold',
+        },
+      ],
     };
     const r = evaluateGate('rules', rules, {
       output: { tests: { passed: true } },
@@ -350,12 +363,14 @@ describe('gate engine — dot-path field resolution', () => {
   it('undefined for missing nested path', () => {
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'output.deep.missing',
-        operator: 'exists',
-        severity: 'required',
-        onFail: 'hold',
-      }],
+      rules: [
+        {
+          field: 'output.deep.missing',
+          operator: 'exists',
+          severity: 'required',
+          onFail: 'hold',
+        },
+      ],
     };
     const r = evaluateGate('rules', rules, { output: {} });
     expect(r.passed).toBe(false);
@@ -367,8 +382,20 @@ describe('gate engine — AND/OR groups', () => {
     const rules: RuleGroup = {
       logic: 'AND',
       rules: [
-        { field: 'a', operator: 'equals', value: 1, severity: 'required', onFail: 'hold' },
-        { field: 'b', operator: 'equals', value: 2, severity: 'required', onFail: 'hold' },
+        {
+          field: 'a',
+          operator: 'equals',
+          value: 1,
+          severity: 'required',
+          onFail: 'hold',
+        },
+        {
+          field: 'b',
+          operator: 'equals',
+          value: 2,
+          severity: 'required',
+          onFail: 'hold',
+        },
       ],
     };
     expect(evaluateGate('rules', rules, { a: 1, b: 2 }).passed).toBe(true);
@@ -379,8 +406,20 @@ describe('gate engine — AND/OR groups', () => {
     const rules: RuleGroup = {
       logic: 'OR',
       rules: [
-        { field: 'a', operator: 'equals', value: 1, severity: 'required', onFail: 'hold' },
-        { field: 'b', operator: 'equals', value: 2, severity: 'required', onFail: 'hold' },
+        {
+          field: 'a',
+          operator: 'equals',
+          value: 1,
+          severity: 'required',
+          onFail: 'hold',
+        },
+        {
+          field: 'b',
+          operator: 'equals',
+          value: 2,
+          severity: 'required',
+          onFail: 'hold',
+        },
       ],
     };
     expect(evaluateGate('rules', rules, { a: 1, b: 99 }).passed).toBe(true);
@@ -391,41 +430,79 @@ describe('gate engine — AND/OR groups', () => {
     const rules: RuleGroup = {
       logic: 'AND',
       rules: [
-        { field: 'exit_code', operator: 'equals', value: 0, severity: 'required', onFail: 'hold' },
+        {
+          field: 'exit_code',
+          operator: 'equals',
+          value: 0,
+          severity: 'required',
+          onFail: 'hold',
+        },
         {
           logic: 'OR',
           rules: [
-            { field: 'env', operator: 'equals', value: 'staging', severity: 'required', onFail: 'hold' },
-            { field: 'env', operator: 'equals', value: 'production', severity: 'required', onFail: 'hold' },
+            {
+              field: 'env',
+              operator: 'equals',
+              value: 'staging',
+              severity: 'required',
+              onFail: 'hold',
+            },
+            {
+              field: 'env',
+              operator: 'equals',
+              value: 'production',
+              severity: 'required',
+              onFail: 'hold',
+            },
           ],
         },
       ],
     };
     // exit_code=0, env=staging → pass
-    expect(evaluateGate('rules', rules, { exit_code: 0, env: 'staging' }).passed).toBe(true);
+    expect(
+      evaluateGate('rules', rules, { exit_code: 0, env: 'staging' }).passed
+    ).toBe(true);
     // exit_code=1 → fail
-    expect(evaluateGate('rules', rules, { exit_code: 1, env: 'staging' }).passed).toBe(false);
+    expect(
+      evaluateGate('rules', rules, { exit_code: 1, env: 'staging' }).passed
+    ).toBe(false);
     // exit_code=0, env=dev → fail
-    expect(evaluateGate('rules', rules, { exit_code: 0, env: 'dev' }).passed).toBe(false);
+    expect(
+      evaluateGate('rules', rules, { exit_code: 0, env: 'dev' }).passed
+    ).toBe(false);
   });
 
   it('rejects nesting beyond depth 3', () => {
     const deep: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        logic: 'AND',
-        rules: [{
+      rules: [
+        {
           logic: 'AND',
-          rules: [{
-            logic: 'AND',
-            rules: [
-              { field: 'x', operator: 'equals', value: 1, severity: 'required', onFail: 'hold' },
-            ],
-          }],
-        }],
-      }],
+          rules: [
+            {
+              logic: 'AND',
+              rules: [
+                {
+                  logic: 'AND',
+                  rules: [
+                    {
+                      field: 'x',
+                      operator: 'equals',
+                      value: 1,
+                      severity: 'required',
+                      onFail: 'hold',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     };
-    expect(() => evaluateGate('rules', deep, { x: 1 })).toThrow('nesting exceeds maximum depth');
+    expect(() => evaluateGate('rules', deep, { x: 1 })).toThrow(
+      'nesting exceeds maximum depth'
+    );
   });
 });
 
@@ -433,13 +510,15 @@ describe('gate engine — severity and actions', () => {
   it('warn severity does not block', () => {
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'cost',
-        operator: 'less_than',
-        value: 1,
-        severity: 'warn',
-        onFail: 'notify',
-      }],
+      rules: [
+        {
+          field: 'cost',
+          operator: 'less_than',
+          value: 1,
+          severity: 'warn',
+          onFail: 'notify',
+        },
+      ],
     };
     const r = evaluateGate('rules', rules, { cost: 50 });
     // Warn fails the rule but verdict is still proceed
@@ -451,13 +530,15 @@ describe('gate engine — severity and actions', () => {
   it('block severity always holds', () => {
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'anything',
-        operator: 'equals',
-        value: 'whatever',
-        severity: 'block',
-        onFail: 'hold',
-      }],
+      rules: [
+        {
+          field: 'anything',
+          operator: 'equals',
+          value: 'whatever',
+          severity: 'block',
+          onFail: 'hold',
+        },
+      ],
     };
     const r = evaluateGate('rules', rules, { anything: 'whatever' });
     expect(r.passed).toBe(false);
@@ -468,8 +549,20 @@ describe('gate engine — severity and actions', () => {
     const rules: RuleGroup = {
       logic: 'AND',
       rules: [
-        { field: 'a', operator: 'equals', value: 1, severity: 'required', onFail: 'hold' },
-        { field: 'b', operator: 'equals', value: 1, severity: 'required', onFail: 'rework' },
+        {
+          field: 'a',
+          operator: 'equals',
+          value: 1,
+          severity: 'required',
+          onFail: 'hold',
+        },
+        {
+          field: 'b',
+          operator: 'equals',
+          value: 1,
+          severity: 'required',
+          onFail: 'rework',
+        },
       ],
     };
     const r = evaluateGate('rules', rules, { a: 99, b: 99 });
@@ -480,8 +573,20 @@ describe('gate engine — severity and actions', () => {
     const rules: RuleGroup = {
       logic: 'AND',
       rules: [
-        { field: 'a', operator: 'equals', value: 1, severity: 'required', onFail: 'rework' },
-        { field: 'b', operator: 'equals', value: 1, severity: 'required', onFail: 'abort' },
+        {
+          field: 'a',
+          operator: 'equals',
+          value: 1,
+          severity: 'required',
+          onFail: 'rework',
+        },
+        {
+          field: 'b',
+          operator: 'equals',
+          value: 1,
+          severity: 'required',
+          onFail: 'abort',
+        },
       ],
     };
     const r = evaluateGate('rules', rules, { a: 99, b: 99 });
@@ -597,8 +702,8 @@ describe('gate service — evaluateStageGate', () => {
       svc.evaluateStageGate(
         '00000000-0000-0000-0000-000000000000',
         stageRunId,
-        {},
-      ),
+        {}
+      )
     ).rejects.toThrow('pipeline stage not found');
   });
 });
@@ -608,13 +713,15 @@ describe('gate service — testEvaluate', () => {
     const svc = createGateService(db);
     const rules: RuleGroup = {
       logic: 'AND',
-      rules: [{
-        field: 'score',
-        operator: 'greater_than',
-        value: 50,
-        severity: 'required',
-        onFail: 'hold',
-      }],
+      rules: [
+        {
+          field: 'score',
+          operator: 'greater_than',
+          value: 50,
+          severity: 'required',
+          onFail: 'hold',
+        },
+      ],
     };
     const r = svc.testEvaluate('rules', rules, { score: 75 });
     expect(r.passed).toBe(true);
@@ -693,10 +800,19 @@ describe('gate engine — skill_signal field', () => {
     };
 
     // Both pass
-    expect(evaluateGate('rules', rules, { exit_code: 0, skill_signal: 'proceed' }).passed).toBe(true);
+    expect(
+      evaluateGate('rules', rules, { exit_code: 0, skill_signal: 'proceed' })
+        .passed
+    ).toBe(true);
     // skill_signal fails
-    expect(evaluateGate('rules', rules, { exit_code: 0, skill_signal: 'hold' }).passed).toBe(false);
+    expect(
+      evaluateGate('rules', rules, { exit_code: 0, skill_signal: 'hold' })
+        .passed
+    ).toBe(false);
     // exit_code fails
-    expect(evaluateGate('rules', rules, { exit_code: 1, skill_signal: 'proceed' }).passed).toBe(false);
+    expect(
+      evaluateGate('rules', rules, { exit_code: 1, skill_signal: 'proceed' })
+        .passed
+    ).toBe(false);
   });
 });

@@ -13,34 +13,34 @@
  *   all stages done → complete pipeline_run → write issue events
  */
 import { eq } from 'drizzle-orm';
+import type { GateMode } from '@/core/constants';
+import {
+  DEFAULT_GATE_MODE,
+  EVENT_TYPE,
+  GATE_MODE,
+  GATE_VERDICT,
+  ISSUE_EVENT_TYPE,
+  PIPELINE_RUN_STATUS,
+  STAGE_RUN_STATUS,
+  TRIGGER_TYPE,
+} from '@/core/constants';
 import type { Database } from '@/core/db/connection';
-import type { StageExecutor } from '@/core/ports/stage-executor';
-import type { RealtimeProvider } from '@/core/ports/realtime';
-import type { IsolationProvider } from '@/core/ports/isolation';
-import type { Unsubscribe } from '@/core/ports/auth';
-import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import {
   issue,
   pipeline,
+  type pipelineRun,
   pipelineStage,
-  pipelineRun,
   stageRun,
 } from '@/core/db/schema';
-import { createPipelineRunService } from './pipeline-run-service';
 import { createGateService } from '@/core/gates/service';
+import type { Unsubscribe } from '@/core/ports/auth';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { StageExecutor } from '@/core/ports/stage-executor';
 import { createIssueService } from '@/core/services/issue';
+import { createPipelineRunService } from './pipeline-run-service';
+import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import { executeStageRun } from './stage-runner';
-import {
-  PIPELINE_RUN_STATUS,
-  STAGE_RUN_STATUS,
-  EVENT_TYPE,
-  ISSUE_EVENT_TYPE,
-  GATE_MODE,
-  GATE_VERDICT,
-  DEFAULT_GATE_MODE,
-  TRIGGER_TYPE,
-} from '@/core/constants';
-import type { GateMode } from '@/core/constants';
 
 export interface EventOrchestratorConfig {
   maxConcurrentRuns: number;
@@ -63,7 +63,7 @@ export function createEventOrchestrator(
   realtime: RealtimeProvider,
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
-  config: Partial<EventOrchestratorConfig> = {},
+  config: Partial<EventOrchestratorConfig> = {}
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
@@ -76,7 +76,7 @@ export function createEventOrchestrator(
    */
   async function finishRun(
     run: typeof pipelineRun.$inferSelect,
-    status: typeof PIPELINE_RUN_STATUS[keyof typeof PIPELINE_RUN_STATUS],
+    status: (typeof PIPELINE_RUN_STATUS)[keyof typeof PIPELINE_RUN_STATUS]
   ): Promise<void> {
     await runService.completeRun(run.id, status);
 
@@ -108,7 +108,7 @@ export function createEventOrchestrator(
         if (row.status === PIPELINE_RUN_STATUS.pending) {
           handleNewRun(row.id).catch(logError('handleNewRun'));
         }
-      },
+      }
     );
 
     unsubscribeUpdate = realtime.subscribeToTable(
@@ -120,7 +120,7 @@ export function createEventOrchestrator(
         if (row.status === PIPELINE_RUN_STATUS.pending) {
           handleNewRun(row.id).catch(logError('handleNewRun'));
         }
-      },
+      }
     );
   }
 
@@ -165,11 +165,11 @@ export function createEventOrchestrator(
     // row instead of creating a duplicate stage_run.
     const existingStageRuns = await runService.getStageRuns(run.id);
     const pendingSeed = existingStageRuns.find(
-      (sr) => sr.status === STAGE_RUN_STATUS.pending,
+      (sr) => sr.status === STAGE_RUN_STATUS.pending
     );
     if (pendingSeed) {
       const seedStage = stages.find(
-        (s) => s.id === pendingSeed.pipelineStageId,
+        (s) => s.id === pendingSeed.pipelineStageId
       );
       if (seedStage) {
         await launchStage(run, seedStage, pendingSeed);
@@ -184,12 +184,13 @@ export function createEventOrchestrator(
   async function launchStage(
     run: typeof pipelineRun.$inferSelect,
     stage: typeof pipelineStage.$inferSelect,
-    preExisting?: typeof stageRun.$inferSelect,
+    preExisting?: typeof stageRun.$inferSelect
   ): Promise<void> {
     // Reuse a pre-existing queued stage_run (trigger-path seed) rather
     // than creating a duplicate row. Autonomous starts have no seed and
     // fall through to createStageRun.
-    const sRun = preExisting ?? (await runService.createStageRun(run.id, stage.id));
+    const sRun =
+      preExisting ?? (await runService.createStageRun(run.id, stage.id));
 
     // Evaluate pre-gate
     const gateMode = (stage.gateMode ?? DEFAULT_GATE_MODE) as GateMode;
@@ -209,7 +210,7 @@ export function createEventOrchestrator(
             verdict: GATE_VERDICT.hold,
             reason: `gate mode: ${gateMode}`,
           },
-          'orchestrator',
+          'orchestrator'
         );
       }
       return;
@@ -240,7 +241,7 @@ export function createEventOrchestrator(
           model: result.modelIdentifier,
           driver: result.driverName,
           skill_signal: result.skillSignal,
-        },
+        }
       );
 
       await runService.appendEvent(sRun.id, EVENT_TYPE.gate_checked, {
@@ -255,7 +256,14 @@ export function createEventOrchestrator(
       } else {
         // Use skill signal verdict if present (hold/rework/abort), otherwise gate verdict
         const effectiveVerdict = result.skillSignal ?? gateResult.verdict;
-        await applyVerdict(run, stage, sRun, effectiveVerdict, result.skillSignalReason, result.skillMetadata);
+        await applyVerdict(
+          run,
+          stage,
+          sRun,
+          effectiveVerdict,
+          result.skillSignalReason,
+          result.skillMetadata
+        );
       }
     } catch {
       // Stage execution threw (timeout, signal, etc.)
@@ -272,12 +280,12 @@ export function createEventOrchestrator(
     sRun: typeof stageRun.$inferSelect,
     verdict: string,
     signalReason?: string | null,
-    signalMeta?: Record<string, unknown> | null,
+    signalMeta?: Record<string, unknown> | null
   ): Promise<void> {
     if (verdict === GATE_VERDICT.proceed) {
       const nextStage = await runService.getNextStage(
         run.pipelineId,
-        stage.sortOrder,
+        stage.sortOrder
       );
 
       if (nextStage) {
@@ -290,34 +298,52 @@ export function createEventOrchestrator(
 
       if (run.issueId) {
         const issueService = createIssueService(db);
-        const [issueRow] = await db.select().from(issue).where(eq(issue.id, run.issueId));
+        const [issueRow] = await db
+          .select()
+          .from(issue)
+          .where(eq(issue.id, run.issueId));
 
         if (issueRow) {
           if (signalReason === 'already_complete') {
-            const targetStateKey = signalMeta?.targetState as string | undefined;
+            const targetStateKey = signalMeta?.targetState as
+              | string
+              | undefined;
             if (targetStateKey) {
-              const targetState = await issueService.getStateByKey(issueRow.projectId, targetStateKey);
-              await issueService.stateOverride(run.issueId, targetState.id, issueRow.version, 'orchestrator');
+              const targetState = await issueService.getStateByKey(
+                issueRow.projectId,
+                targetStateKey
+              );
+              await issueService.stateOverride(
+                run.issueId,
+                targetState.id,
+                issueRow.version,
+                'orchestrator'
+              );
               await runService.appendIssueEvent(
                 run.issueId,
                 ISSUE_EVENT_TYPE.state_changed,
                 { reason: 'already_complete', targetState: targetStateKey },
-                'orchestrator',
+                'orchestrator'
               );
             }
           } else {
             // needs_human or unknown reason — block the issue
             const blockedStatusId = await issueService.getStatusIdByConfigKey(
               issueRow.projectId,
-              'issues.status.on_blocked_key',
+              'issues.status.on_blocked_key'
             );
             const question = signalMeta?.question as string | undefined;
-            await issueService.updateStatus(run.issueId, blockedStatusId, 'orchestrator', question);
+            await issueService.updateStatus(
+              run.issueId,
+              blockedStatusId,
+              'orchestrator',
+              question
+            );
             await runService.appendIssueEvent(
               run.issueId,
               ISSUE_EVENT_TYPE.status_changed,
               { reason: signalReason ?? 'needs_human', question },
-              'orchestrator',
+              'orchestrator'
             );
           }
         }
@@ -335,7 +361,7 @@ export function createEventOrchestrator(
             reason: 'Gate verdict: abort',
             failedStage: stage.name,
           },
-          'orchestrator',
+          'orchestrator'
         );
       }
     }
@@ -344,7 +370,7 @@ export function createEventOrchestrator(
   async function handleStageFailed(
     run: typeof pipelineRun.$inferSelect,
     stage: typeof pipelineStage.$inferSelect,
-    sRun: typeof stageRun.$inferSelect,
+    sRun: typeof stageRun.$inferSelect
   ): Promise<void> {
     const maxRetries = stage.maxRetries ?? 0;
     if (sRun.attempt < maxRetries + 1) {
@@ -360,14 +386,14 @@ export function createEventOrchestrator(
             reason: `Stage failed after ${sRun.attempt} attempt(s)`,
             failedStage: stage.name,
           },
-          'orchestrator',
+          'orchestrator'
         );
       }
     }
   }
 
   async function completePipelineRun(
-    run: typeof pipelineRun.$inferSelect,
+    run: typeof pipelineRun.$inferSelect
   ): Promise<void> {
     await finishRun(run, PIPELINE_RUN_STATUS.completed);
     if (run.issueId) {
@@ -375,7 +401,7 @@ export function createEventOrchestrator(
         run.issueId,
         ISSUE_EVENT_TYPE.pipeline_completed,
         { pipelineRunId: run.id },
-        'orchestrator',
+        'orchestrator'
       );
     }
   }
@@ -398,7 +424,11 @@ export function createEventOrchestrator(
           .where(eq(pipelineStage.id, sRun.pipelineStageId));
 
         if (!stage) {
-          await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {});
+          await runService.completeStageRun(
+            sRun.id,
+            STAGE_RUN_STATUS.failed,
+            {}
+          );
           continue;
         }
 
@@ -419,7 +449,10 @@ export function createEventOrchestrator(
           if (run) {
             await finishRun(run, PIPELINE_RUN_STATUS.failed);
           } else {
-            await runService.completeRun(sRun.pipelineRunId, PIPELINE_RUN_STATUS.failed);
+            await runService.completeRun(
+              sRun.pipelineRunId,
+              PIPELINE_RUN_STATUS.failed
+            );
           }
         }
       }
@@ -452,7 +485,7 @@ export function createEventOrchestrator(
  */
 async function resolveProjectIdForRun(
   db: Database,
-  run: typeof pipelineRun.$inferSelect,
+  run: typeof pipelineRun.$inferSelect
 ): Promise<string | null> {
   if (run.issueId) {
     const [issueRow] = await db

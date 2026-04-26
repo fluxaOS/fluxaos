@@ -4,10 +4,11 @@
  * Mirrors path-resolver.test.ts. Uses real tmpdirs for repoPath resolution.
  * Restores process.env between tests so env-var assertions don't leak.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   getArtifactsBase,
   getArtifactsPath,

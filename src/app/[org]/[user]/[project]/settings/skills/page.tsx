@@ -8,7 +8,7 @@ import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { Feature, hasFeature } from '@/core/features/features';
 import { useCurrentUser } from '@/lib/auth/use-current-user';
 import { trpc } from '@/lib/trpc/client';
-import { skillDescriptor, type SkillRecord } from './descriptor';
+import { type SkillRecord, skillDescriptor } from './descriptor';
 
 export default function SkillsSettingsPage() {
   const utils = trpc.useUtils();
@@ -28,7 +28,7 @@ export default function SkillsSettingsPage() {
   const onSave = async (
     id: string,
     patch: Partial<SkillRecord>,
-    expectedVersion: number,
+    expectedVersion: number
   ) => {
     await updateMutation.mutateAsync({
       id,
@@ -92,18 +92,24 @@ export default function SkillsSettingsPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">Scope</label>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Scope
+              </label>
               <select
                 className="bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
                 value={newScope}
-                onChange={(e) => setNewScope(e.target.value as 'global' | 'project')}
+                onChange={(e) =>
+                  setNewScope(e.target.value as 'global' | 'project')
+                }
               >
                 <option value="global">global</option>
                 <option value="project">project</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">Description</label>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Description
+              </label>
               <textarea
                 rows={3}
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
@@ -112,7 +118,9 @@ export default function SkillsSettingsPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">Prompt template</label>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Prompt template
+              </label>
               <textarea
                 rows={8}
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"

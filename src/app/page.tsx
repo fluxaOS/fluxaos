@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
+import { redirect } from 'next/navigation';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
+import { organization, project, user } from '@/core/db/schema';
 import type { DatabaseProvider } from '@/core/ports/database';
-import { organization, user, project } from '@/core/db/schema';
 
 export default async function RootPage() {
   bootstrap();
@@ -18,7 +18,11 @@ export default async function RootPage() {
     );
   }
 
-  const [usr] = await db.select().from(user).where(eq(user.orgId, org.id)).limit(1);
+  const [usr] = await db
+    .select()
+    .from(user)
+    .where(eq(user.orgId, org.id))
+    .limit(1);
   if (!usr) {
     return (
       <div className="flex items-center justify-center min-h-screen text-slate-400">
@@ -27,7 +31,11 @@ export default async function RootPage() {
     );
   }
 
-  const [proj] = await db.select().from(project).where(eq(project.userId, usr.id)).limit(1);
+  const [proj] = await db
+    .select()
+    .from(project)
+    .where(eq(project.userId, usr.id))
+    .limit(1);
   if (!proj) {
     return (
       <div className="flex items-center justify-center min-h-screen text-slate-400">

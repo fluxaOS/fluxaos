@@ -68,9 +68,7 @@ export async function worktreeExists(worktreePath: string): Promise<boolean> {
   }
 }
 
-export async function listWorktrees(
-  repoPath: string
-): Promise<WorktreeInfo[]> {
+export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
   const { stdout } = await runGit(repoPath, [
     'worktree',
     'list',

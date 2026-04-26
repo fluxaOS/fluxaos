@@ -11,7 +11,7 @@ export async function createClient() {
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error(
-      'Missing Supabase config: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.',
+      'Missing Supabase config: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.'
     );
   }
 

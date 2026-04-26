@@ -7,8 +7,8 @@
 import { initTRPC } from '@trpc/server';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
-import type { DatabaseProvider } from '@/core/ports/database';
 import type { Database } from '@/core/db/connection';
+import type { DatabaseProvider } from '@/core/ports/database';
 
 export interface TRPCContext {
   db: Database;

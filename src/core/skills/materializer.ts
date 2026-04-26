@@ -11,9 +11,9 @@
  * Zero vendor imports. Operates on plain objects, writes to filesystem.
  */
 
-import { mkdir, writeFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export interface PersonaInput {
   soul?: string | null;
@@ -69,9 +69,10 @@ const WORKSPACE_ROOT = join(tmpdir(), 'fluxaos-runs');
  * under `${tmpdir}/fluxaos-runs/${stageRunId}` (legacy behavior).
  */
 export async function materialize(
-  options: MaterializeOptions,
+  options: MaterializeOptions
 ): Promise<string> {
-  const workspacePath = options.into ?? join(WORKSPACE_ROOT, options.stageRunId);
+  const workspacePath =
+    options.into ?? join(WORKSPACE_ROOT, options.stageRunId);
 
   // Create workspace directory
   await mkdir(workspacePath, { recursive: true });
@@ -84,12 +85,14 @@ export async function materialize(
     parts.push(personaContent);
   }
   if (options.skill.promptTemplate) {
-    parts.push(`## Skill: ${options.skill.name}\n\n${options.skill.promptTemplate}`);
+    parts.push(
+      `## Skill: ${options.skill.name}\n\n${options.skill.promptTemplate}`
+    );
   }
   if (parts.length > 0) {
     await atomicWrite(
       join(workspacePath, options.contextLayout.instructionsFile),
-      parts.join('\n\n'),
+      parts.join('\n\n')
     );
   }
 
@@ -97,7 +100,7 @@ export async function materialize(
   const contextMd = buildContextContent(options.issue, options.projectName);
   await atomicWrite(
     join(workspacePath, options.contextLayout.contextFile),
-    contextMd,
+    contextMd
   );
 
   return workspacePath;
@@ -143,10 +146,7 @@ function buildPersonaContent(persona?: PersonaInput | null): string | null {
   return parts.length > 0 ? parts.join('\n\n') : null;
 }
 
-function buildContextContent(
-  issue: IssueInput,
-  projectName?: string,
-): string {
+function buildContextContent(issue: IssueInput, projectName?: string): string {
   const lines: string[] = ['# Issue Context', ''];
 
   if (projectName) {

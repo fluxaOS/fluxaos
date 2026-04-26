@@ -8,23 +8,20 @@
  * with no fixtures.
  */
 import 'dotenv/config';
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { appRouter } from '@/server/root';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
+  createIssueCatalogService,
+  createIssueService,
   createOrganizationService,
   createProjectService,
   createUserService,
-  createIssueService,
-  createIssueCatalogService,
 } from '@/core/services';
-import * as schema from '@/core/db/schema';
-import {
-  PIPELINE_RUN_STATUS,
-  STAGE_RUN_STATUS,
-} from '@/core/constants';
-import type { Database } from '@/core/db/connection';
+import { appRouter } from '@/server/root';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -37,8 +34,8 @@ const cleanup: Array<() => Promise<void>> = [];
 
 let projectId: string;
 let secondProjectId: string;
-let pipelineId: string;
-let stageId: string;
+let _pipelineId: string;
+let _stageId: string;
 let issueId: string;
 
 let pendingRunId: string;
@@ -61,7 +58,9 @@ beforeAll(async () => {
     settings: {},
   });
   cleanup.push(async () => {
-    await db.delete(schema.organization).where(eq(schema.organization.id, org.id));
+    await db
+      .delete(schema.organization)
+      .where(eq(schema.organization.id, org.id));
   });
 
   const usr = await userSvc.create({
@@ -117,7 +116,9 @@ beforeAll(async () => {
     isTerminal: false,
   });
   cleanup.push(async () => {
-    await db.delete(schema.issueState).where(eq(schema.issueState.id, state.id));
+    await db
+      .delete(schema.issueState)
+      .where(eq(schema.issueState.id, state.id));
   });
 
   const status = await catalogSvc.statuses.create({
@@ -127,7 +128,9 @@ beforeAll(async () => {
     sortOrder: 1,
   });
   cleanup.push(async () => {
-    await db.delete(schema.issueStatus).where(eq(schema.issueStatus.id, status.id));
+    await db
+      .delete(schema.issueStatus)
+      .where(eq(schema.issueStatus.id, status.id));
   });
 
   const priority = await catalogSvc.priorities.create({
@@ -138,7 +141,9 @@ beforeAll(async () => {
     weight: 100,
   });
   cleanup.push(async () => {
-    await db.delete(schema.issuePriority).where(eq(schema.issuePriority.id, priority.id));
+    await db
+      .delete(schema.issuePriority)
+      .where(eq(schema.issuePriority.id, priority.id));
   });
 
   const [config] = await db
@@ -151,7 +156,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.configEntry).where(eq(schema.configEntry.id, config.id));
+    await db
+      .delete(schema.configEntry)
+      .where(eq(schema.configEntry.id, config.id));
   });
 
   const iss = await issueSvc.create({
@@ -174,7 +181,7 @@ beforeAll(async () => {
   cleanup.push(async () => {
     await db.delete(schema.pipeline).where(eq(schema.pipeline.id, pipe.id));
   });
-  pipelineId = pipe.id;
+  _pipelineId = pipe.id;
 
   const [stage] = await db
     .insert(schema.pipelineStage)
@@ -188,9 +195,11 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.pipelineStage).where(eq(schema.pipelineStage.id, stage.id));
+    await db
+      .delete(schema.pipelineStage)
+      .where(eq(schema.pipelineStage.id, stage.id));
   });
-  stageId = stage.id;
+  _stageId = stage.id;
 
   // Pending run
   const [pendingRun] = await db
@@ -202,7 +211,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.pipelineRun).where(eq(schema.pipelineRun.id, pendingRun.id));
+    await db
+      .delete(schema.pipelineRun)
+      .where(eq(schema.pipelineRun.id, pendingRun.id));
   });
   pendingRunId = pendingRun.id;
 
@@ -217,7 +228,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.pipelineRun).where(eq(schema.pipelineRun.id, runningRun.id));
+    await db
+      .delete(schema.pipelineRun)
+      .where(eq(schema.pipelineRun.id, runningRun.id));
   });
   runningRunId = runningRun.id;
 
@@ -230,7 +243,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.stageRun).where(eq(schema.stageRun.id, runningSr.id));
+    await db
+      .delete(schema.stageRun)
+      .where(eq(schema.stageRun.id, runningSr.id));
   });
   runningStageRunId = runningSr.id;
 
@@ -246,7 +261,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.pipelineRun).where(eq(schema.pipelineRun.id, terminalRun.id));
+    await db
+      .delete(schema.pipelineRun)
+      .where(eq(schema.pipelineRun.id, terminalRun.id));
   });
   terminalRunId = terminalRun.id;
 
@@ -261,7 +278,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.stageRun).where(eq(schema.stageRun.id, terminalSr.id));
+    await db
+      .delete(schema.stageRun)
+      .where(eq(schema.stageRun.id, terminalSr.id));
   });
   terminalStageRunId = terminalSr.id;
 
@@ -281,7 +300,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.issuePullRequest).where(eq(schema.issuePullRequest.id, pr.id));
+    await db
+      .delete(schema.issuePullRequest)
+      .where(eq(schema.issuePullRequest.id, pr.id));
   });
   prId = pr.id;
 });
@@ -308,12 +329,16 @@ describe('R-MISSION-CONTROL mission.summary', () => {
     expect(out.runningRuns[0]?.run.id).toBe(runningRunId);
     expect(out.runningRuns[0]?.currentStage?.id).toBe(runningStageRunId);
     expect(out.runningRuns[0]?.currentStage?.name).toBe('research');
-    expect(out.runningRuns[0]?.currentStage?.status).toBe(STAGE_RUN_STATUS.launching);
+    expect(out.runningRuns[0]?.currentStage?.status).toBe(
+      STAGE_RUN_STATUS.launching
+    );
 
     expect(out.recentTerminal.length).toBe(1);
     expect(out.recentTerminal[0]?.run.id).toBe(terminalRunId);
     expect(out.recentTerminal[0]?.finalStage?.id).toBe(terminalStageRunId);
-    expect(out.recentTerminal[0]?.finalStage?.status).toBe(STAGE_RUN_STATUS.completed);
+    expect(out.recentTerminal[0]?.finalStage?.status).toBe(
+      STAGE_RUN_STATUS.completed
+    );
 
     expect(out.recentPullRequests.length).toBe(1);
     expect(out.recentPullRequests[0]?.id).toBe(prId);

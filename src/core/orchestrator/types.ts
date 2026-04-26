@@ -7,19 +7,19 @@
 
 // Re-export status types and sets from the single source of truth
 export {
-  type PipelineRunStatus,
-  type StageRunStatus,
-  PIPELINE_RUN_TERMINAL,
-  STAGE_RUN_TERMINAL,
-  type EventType as StageEventType,
-  PIPELINE_RUN_STATUS,
-  STAGE_RUN_STATUS,
-  EVENT_TYPE,
-  ISSUE_EVENT_TYPE,
-  GATE_VERDICT,
-  GATE_MODE,
   DEFAULT_STAGE_TIMEOUT_SEC,
+  EVENT_TYPE,
+  type EventType as StageEventType,
+  GATE_MODE,
+  GATE_VERDICT,
+  ISSUE_EVENT_TYPE,
   ORCHESTRATOR_HEARTBEAT_MS,
+  PIPELINE_RUN_STATUS,
+  PIPELINE_RUN_TERMINAL,
+  type PipelineRunStatus,
+  STAGE_RUN_STATUS,
+  STAGE_RUN_TERMINAL,
+  type StageRunStatus,
 } from '@/core/constants';
 
 import { ORCHESTRATOR_HEARTBEAT_MS } from '@/core/constants';

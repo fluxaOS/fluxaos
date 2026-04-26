@@ -7,8 +7,8 @@
  * Tables that don't exist yet are skipped gracefully.
  */
 import 'dotenv/config';
-import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { sql } from 'drizzle-orm';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {
@@ -68,7 +68,7 @@ async function nuke() {
     try {
       // Use raw SQL with identifier quoting to avoid reserved-word issues.
       const result = await db.execute(
-        sql.raw(`DELETE FROM "${table}" RETURNING 1`),
+        sql.raw(`DELETE FROM "${table}" RETURNING 1`)
       );
       const count = Array.isArray(result) ? result.length : 0;
       console.log(`  ✓ ${table}: deleted ${count} row(s)`);
@@ -89,7 +89,7 @@ async function nuke() {
   }
 
   console.log(
-    `\nDone. ${deleted} table(s) cleared, ${skipped} table(s) skipped.`,
+    `\nDone. ${deleted} table(s) cleared, ${skipped} table(s) skipped.`
   );
   process.exit(0);
 }

@@ -7,23 +7,24 @@
  *
  * Fails fast: missing env vars crash the app with a clear error.
  */
-import { registry } from './registry';
-import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
-import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
+
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
-import { SubprocessExecutor } from '@/adapters/subprocess/executor';
-import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 import { createWorktreeIsolationProvider } from '@/adapters/git';
 import { createGitHubAdapter } from '@/adapters/github';
+import { SubprocessExecutor } from '@/adapters/subprocess/executor';
+import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
+import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import type { DatabaseProvider } from '@/core/ports';
+import { registry } from './registry';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(
       `Missing required environment variable: ${name}. ` +
-        'Check your .env file or environment configuration.',
+        'Check your .env file or environment configuration.'
     );
   }
   return value;

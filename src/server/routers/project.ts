@@ -1,7 +1,7 @@
-import { z } from 'zod/v4';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure } from '../trpc';
-import { createProjectService, createPipelineService } from '@/core/services';
+import { z } from 'zod/v4';
+import { createPipelineService, createProjectService } from '@/core/services';
+import { publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -21,26 +21,30 @@ export const projectRouter = router({
     }),
 
   create: publicProcedure
-    .input(z.object({
-      orgId: z.string().uuid(),
-      userId: z.string().uuid(),
-      name: z.string().min(1),
-      slug: z.string().min(1),
-      repoUrl: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        orgId: z.string().uuid(),
+        userId: z.string().uuid(),
+        name: z.string().min(1),
+        slug: z.string().min(1),
+        repoUrl: z.string().optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       return createProjectService(ctx.db).create(input);
     }),
 
   update: publicProcedure
-    .input(z.object({
-      id: z.string().uuid(),
-      name: z.string().min(1).optional(),
-      slug: z.string().min(1).optional(),
-      repoUrl: z.string().optional(),
-      defaultBranch: z.string().min(1).optional(),
-      defaultPipelineId: z.string().uuid().nullable().optional(),
-    }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        slug: z.string().min(1).optional(),
+        repoUrl: z.string().optional(),
+        defaultBranch: z.string().min(1).optional(),
+        defaultPipelineId: z.string().uuid().nullable().optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
       return createProjectService(ctx.db).update(id, data);
@@ -64,13 +68,18 @@ export const projectRouter = router({
       z.object({
         projectId: z.string().uuid(),
         pipelineId: z.string().uuid().nullable(),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       if (input.pipelineId !== null) {
-        const pipe = await createPipelineService(ctx.db).getById(input.pipelineId);
+        const pipe = await createPipelineService(ctx.db).getById(
+          input.pipelineId
+        );
         if (!pipe) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'PIPELINE_NOT_FOUND' });
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'PIPELINE_NOT_FOUND',
+          });
         }
         if (pipe.projectId !== input.projectId) {
           throw new TRPCError({

@@ -10,16 +10,16 @@
  */
 
 import type {
+  FailureAction,
+  GateEvaluation,
+  GateMode,
+  GateVerdict,
+  GroupResult,
   Rule,
   RuleGroup,
   RuleOperator,
-  RuleSeverity,
-  FailureAction,
-  GateVerdict,
   RuleResult,
-  GroupResult,
-  GateEvaluation,
-  GateMode,
+  RuleSeverity,
 } from './types';
 import { isRuleGroup } from './types';
 
@@ -37,7 +37,7 @@ const MAX_NESTING_DEPTH = 3;
 export function evaluateGate(
   mode: GateMode,
   rules: RuleGroup | null,
-  context: Record<string, unknown>,
+  context: Record<string, unknown>
 ): GateEvaluation {
   // Non-rules modes short-circuit
   if (mode === 'auto' || mode === 'skip') {
@@ -90,9 +90,10 @@ export function evaluateGate(
     worstAction,
     ruleResults: allRuleResults,
     groupResult,
-    reason: verdict === 'proceed'
-      ? 'all rules passed'
-      : `${effectiveFailures.length} rule(s) failed — worst action: ${worstAction}`,
+    reason:
+      verdict === 'proceed'
+        ? 'all rules passed'
+        : `${effectiveFailures.length} rule(s) failed — worst action: ${worstAction}`,
   };
 }
 
@@ -102,11 +103,11 @@ function evaluateGroup(
   group: RuleGroup,
   context: Record<string, unknown>,
   depth: number,
-  collector: RuleResult[],
+  collector: RuleResult[]
 ): GroupResult {
   if (depth >= MAX_NESTING_DEPTH) {
     throw new Error(
-      `rule nesting exceeds maximum depth of ${MAX_NESTING_DEPTH}`,
+      `rule nesting exceeds maximum depth of ${MAX_NESTING_DEPTH}`
     );
   }
 
@@ -162,7 +163,7 @@ function collectEffectiveFailures(group: GroupResult): RuleResult[] {
 
 function evaluateRule(
   rule: Rule,
-  context: Record<string, unknown>,
+  context: Record<string, unknown>
 ): RuleResult {
   // Block severity always fails — it's an unconditional hold
   if (rule.severity === 'block') {
@@ -181,9 +182,7 @@ function evaluateRule(
     rule,
     passed,
     actualValue,
-    reason: passed
-      ? ''
-      : formatFailureReason(rule, actualValue),
+    reason: passed ? '' : formatFailureReason(rule, actualValue),
   };
 }
 
@@ -196,7 +195,7 @@ function evaluateRule(
  */
 function resolveField(
   field: string,
-  context: Record<string, unknown>,
+  context: Record<string, unknown>
 ): unknown {
   const parts = field.split('.');
   let current: unknown = context;
@@ -216,7 +215,7 @@ function resolveField(
 function applyOperator(
   operator: RuleOperator,
   actual: unknown,
-  expected: unknown,
+  expected: unknown
 ): boolean {
   switch (operator) {
     case 'exists':
@@ -281,9 +280,7 @@ const ACTION_WEIGHT: Record<FailureAction, number> = {
   proceed: 1,
 };
 
-function resolveWorstAction(
-  failedResults: RuleResult[],
-): FailureAction | null {
+function resolveWorstAction(failedResults: RuleResult[]): FailureAction | null {
   if (failedResults.length === 0) return null;
 
   // Sort by severity first, then by action weight
@@ -341,7 +338,7 @@ function toNumber(value: unknown): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
     const n = Number(value);
-    if (!isNaN(n)) return n;
+    if (!Number.isNaN(n)) return n;
   }
   return NaN;
 }

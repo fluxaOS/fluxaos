@@ -3,9 +3,10 @@
  *
  * Usage: npx tsx src/scripts/db/runs.ts
  */
-import { db, close } from '@/scripts/db/connection';
+
 import { eq } from 'drizzle-orm';
 import { pipelineRun, stageRun } from '@/core/db/schema';
+import { close, db } from '@/scripts/db/connection';
 
 async function main() {
   const pipelineRuns = await db
@@ -21,8 +22,12 @@ async function main() {
 
   for (const pr of pipelineRuns) {
     console.log(`Pipeline Run: ${pr.id}`);
-    console.log(`  Status: ${pr.status}  Pipeline: ${pr.pipelineId}  Issue: ${pr.issueId ?? '–'}`);
-    console.log(`  Started: ${pr.startedAt ?? '–'}  Completed: ${pr.completedAt ?? '–'}`);
+    console.log(
+      `  Status: ${pr.status}  Pipeline: ${pr.pipelineId}  Issue: ${pr.issueId ?? '–'}`
+    );
+    console.log(
+      `  Started: ${pr.startedAt ?? '–'}  Completed: ${pr.completedAt ?? '–'}`
+    );
 
     const stageRuns = await db
       .select()
@@ -35,8 +40,12 @@ async function main() {
     } else {
       for (const sr of stageRuns) {
         console.log(`  Stage Run: ${sr.id}`);
-        console.log(`    Status: ${sr.status}  Exit: ${sr.exitCode ?? '–'}  Trigger: ${sr.trigger}`);
-        console.log(`    Signal: ${sr.skillSignal ?? '–'}  Metadata: ${sr.skillMetadata ? JSON.stringify(sr.skillMetadata) : '–'}`);
+        console.log(
+          `    Status: ${sr.status}  Exit: ${sr.exitCode ?? '–'}  Trigger: ${sr.trigger}`
+        );
+        console.log(
+          `    Signal: ${sr.skillSignal ?? '–'}  Metadata: ${sr.skillMetadata ? JSON.stringify(sr.skillMetadata) : '–'}`
+        );
       }
     }
     console.log('');

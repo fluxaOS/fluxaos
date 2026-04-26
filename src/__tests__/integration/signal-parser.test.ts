@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { parseSignalLine, type SkillSignal } from '@/core/orchestrator/signal-parser';
+import { describe, expect, it } from 'vitest';
+import { parseSignalLine } from '@/core/orchestrator/signal-parser';
 
 describe('signal-parser', () => {
   it('parses a valid flux:signal line with all fields', () => {
@@ -15,26 +15,29 @@ describe('signal-parser', () => {
     });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('proceed');
-    expect(result!.summary).toBe('Implemented the feature');
-    expect(result!.costUsd).toBe(0.12);
-    expect(result!.tokensIn).toBe(8400);
-    expect(result!.tokensOut).toBe(3200);
-    expect(result!.meta).toEqual({ pr_number: 42, branch: 'feat/health' });
+    expect(result?.verdict).toBe('proceed');
+    expect(result?.summary).toBe('Implemented the feature');
+    expect(result?.costUsd).toBe(0.12);
+    expect(result?.tokensIn).toBe(8400);
+    expect(result?.tokensOut).toBe(3200);
+    expect(result?.meta).toEqual({ pr_number: 42, branch: 'feat/health' });
   });
 
   it('parses a minimal signal with only verdict', () => {
     const line = JSON.stringify({ 'flux:signal': { verdict: 'hold' } });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('hold');
-    expect(result!.summary).toBeUndefined();
-    expect(result!.costUsd).toBeUndefined();
-    expect(result!.meta).toBeUndefined();
+    expect(result?.verdict).toBe('hold');
+    expect(result?.summary).toBeUndefined();
+    expect(result?.costUsd).toBeUndefined();
+    expect(result?.meta).toBeUndefined();
   });
 
   it('returns null for non-signal JSON', () => {
-    const line = JSON.stringify({ type: 'assistant', message: { content: [] } });
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: { content: [] },
+    });
     expect(parseSignalLine(line)).toBeNull();
   });
 
@@ -60,7 +63,7 @@ describe('signal-parser', () => {
     for (const verdict of ['proceed', 'hold', 'rework', 'abort']) {
       const line = JSON.stringify({ 'flux:signal': { verdict } });
       const result = parseSignalLine(line);
-      expect(result!.verdict).toBe(verdict);
+      expect(result?.verdict).toBe(verdict);
     }
   });
 
@@ -69,18 +72,21 @@ describe('signal-parser', () => {
       type: 'user',
       message: {
         role: 'user',
-        content: [{
-          tool_use_id: 'toolu_abc',
-          type: 'tool_result',
-          content: '{"flux:signal": {"verdict": "proceed", "summary": "Done"}}',
-          is_error: false,
-        }],
+        content: [
+          {
+            tool_use_id: 'toolu_abc',
+            type: 'tool_result',
+            content:
+              '{"flux:signal": {"verdict": "proceed", "summary": "Done"}}',
+            is_error: false,
+          },
+        ],
       },
     });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('proceed');
-    expect(result!.summary).toBe('Done');
+    expect(result?.verdict).toBe('proceed');
+    expect(result?.summary).toBe('Done');
   });
 
   it('extracts signal from stream-json tool_use_result.stdout', () => {
@@ -88,22 +94,26 @@ describe('signal-parser', () => {
       type: 'user',
       message: {
         role: 'user',
-        content: [{
-          tool_use_id: 'toolu_abc',
-          type: 'tool_result',
-          content: '{"flux:signal": {"verdict": "rework", "summary": "Needs changes"}}',
-          is_error: false,
-        }],
+        content: [
+          {
+            tool_use_id: 'toolu_abc',
+            type: 'tool_result',
+            content:
+              '{"flux:signal": {"verdict": "rework", "summary": "Needs changes"}}',
+            is_error: false,
+          },
+        ],
       },
       tool_use_result: {
-        stdout: '{"flux:signal": {"verdict": "rework", "summary": "Needs changes"}}',
+        stdout:
+          '{"flux:signal": {"verdict": "rework", "summary": "Needs changes"}}',
         stderr: '',
       },
     });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('rework');
-    expect(result!.summary).toBe('Needs changes');
+    expect(result?.verdict).toBe('rework');
+    expect(result?.summary).toBe('Needs changes');
   });
 
   it('returns null for tool_result without signal', () => {
@@ -111,12 +121,14 @@ describe('signal-parser', () => {
       type: 'user',
       message: {
         role: 'user',
-        content: [{
-          tool_use_id: 'toolu_abc',
-          type: 'tool_result',
-          content: 'just some regular output',
-          is_error: false,
-        }],
+        content: [
+          {
+            tool_use_id: 'toolu_abc',
+            type: 'tool_result',
+            content: 'just some regular output',
+            is_error: false,
+          },
+        ],
       },
     });
     expect(parseSignalLine(line)).toBeNull();
@@ -133,9 +145,9 @@ describe('signal-parser', () => {
     });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('hold');
-    expect(result!.reason).toBe('already_complete');
-    expect(result!.meta?.targetState).toBe('deploy');
+    expect(result?.verdict).toBe('hold');
+    expect(result?.reason).toBe('already_complete');
+    expect(result?.meta?.targetState).toBe('deploy');
   });
 
   it('parses signal with reason: needs_human and meta.question', () => {
@@ -149,9 +161,9 @@ describe('signal-parser', () => {
     });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('hold');
-    expect(result!.reason).toBe('needs_human');
-    expect(result!.meta?.question).toBe('Should this use OAuth or API keys?');
+    expect(result?.verdict).toBe('hold');
+    expect(result?.reason).toBe('needs_human');
+    expect(result?.meta?.question).toBe('Should this use OAuth or API keys?');
   });
 
   it('parses signal with no reason field without error', () => {
@@ -160,8 +172,8 @@ describe('signal-parser', () => {
     });
     const result = parseSignalLine(line);
     expect(result).not.toBeNull();
-    expect(result!.verdict).toBe('hold');
-    expect(result!.reason).toBeUndefined();
+    expect(result?.verdict).toBe('hold');
+    expect(result?.reason).toBeUndefined();
   });
 
   it('throws for invalid verdict in embedded signal', () => {
@@ -169,12 +181,14 @@ describe('signal-parser', () => {
       type: 'user',
       message: {
         role: 'user',
-        content: [{
-          tool_use_id: 'toolu_abc',
-          type: 'tool_result',
-          content: '{"flux:signal": {"verdict": "invalid"}}',
-          is_error: false,
-        }],
+        content: [
+          {
+            tool_use_id: 'toolu_abc',
+            type: 'tool_result',
+            content: '{"flux:signal": {"verdict": "invalid"}}',
+            is_error: false,
+          },
+        ],
       },
     });
     expect(() => parseSignalLine(line)).toThrow('invalid skill signal verdict');

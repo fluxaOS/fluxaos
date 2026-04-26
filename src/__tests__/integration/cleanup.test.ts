@@ -5,20 +5,20 @@
  * removeEnvironment, listBreakdown) live in cleanup-triggers.test.ts.
  */
 import 'dotenv/config';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
 import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
   buildService,
+  type CleanupBag,
   divergeBranch,
+  type Fixture,
   makeFixture,
   runCleanupTeardown,
-  type CleanupBag,
-  type Fixture,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;

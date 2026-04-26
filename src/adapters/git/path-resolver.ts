@@ -55,7 +55,7 @@ export function resolveRepoIdentity(
   if (repoUrl) {
     for (const pattern of REPO_URL_PATTERNS) {
       const match = repoUrl.match(pattern);
-      if (match && match[1] && match[2]) {
+      if (match?.[1] && match[2]) {
         return { owner: match[1], repo: match[2] };
       }
     }

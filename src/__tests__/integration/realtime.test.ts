@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { describe, it, expect, beforeAll } from 'vitest';
-import { registry } from '@/config/registry';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { bootstrap } from '@/config/bootstrap';
+import { registry } from '@/config/registry';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 
 describe('realtime adapter', () => {

@@ -33,21 +33,25 @@ import type {
  */
 function parseStreamJsonLine(
   line: string,
-  lineNumber: number,
+  lineNumber: number
 ): TranscriptEntry[] {
   const trimmed = line.trim();
   if (!trimmed) return [];
 
   // Fast path: if it doesn't start with '{', it's not JSON
   if (!trimmed.startsWith('{')) {
-    return [{ id: `raw-${lineNumber}`, kind: 'raw', lineNumber, text: trimmed }];
+    return [
+      { id: `raw-${lineNumber}`, kind: 'raw', lineNumber, text: trimmed },
+    ];
   }
 
   let evt: Record<string, unknown>;
   try {
     evt = JSON.parse(trimmed) as Record<string, unknown>;
   } catch {
-    return [{ id: `raw-${lineNumber}`, kind: 'raw', lineNumber, text: trimmed }];
+    return [
+      { id: `raw-${lineNumber}`, kind: 'raw', lineNumber, text: trimmed },
+    ];
   }
 
   const type = String(evt.type ?? '');
@@ -73,7 +77,7 @@ function parseStreamJsonLine(
       } else if (p.type === 'tool_use') {
         const input = (p.input ?? {}) as Record<string, unknown>;
         const cmd = String(
-          input.command ?? input.description ?? JSON.stringify(input),
+          input.command ?? input.description ?? JSON.stringify(input)
         ).slice(0, 300);
         entries.push({
           id: String(p.id ?? `${msgId}-tool-${entries.length}`),
@@ -120,26 +124,31 @@ function parseStreamJsonLine(
   if (type === 'result') {
     const isError = Boolean(evt.is_error);
     const text = String(evt.result ?? '').trim();
-    const cost = typeof evt.total_cost_usd === 'number' ? evt.total_cost_usd : undefined;
-    return [{
-      id: `result-${lineNumber}`,
-      kind: 'result',
-      lineNumber,
-      text,
-      isError,
-      cost,
-    }];
+    const cost =
+      typeof evt.total_cost_usd === 'number' ? evt.total_cost_usd : undefined;
+    return [
+      {
+        id: `result-${lineNumber}`,
+        kind: 'result',
+        lineNumber,
+        text,
+        isError,
+        cost,
+      },
+    ];
   }
 
   if (type === 'system') {
     const subtype = String(evt.subtype ?? '');
     const text = String(evt.message ?? evt.text ?? subtype).trim();
-    return [{
-      id: `system-${lineNumber}`,
-      kind: 'system',
-      lineNumber,
-      text: text || subtype,
-    }];
+    return [
+      {
+        id: `system-${lineNumber}`,
+        kind: 'system',
+        lineNumber,
+        text: text || subtype,
+      },
+    ];
   }
 
   // Unknown JSON structure → raw
@@ -150,13 +159,12 @@ function parseStreamJsonLine(
  * Parse a plain-text stdout line into a single text TranscriptEntry.
  * Used for drivers with output_format='text'.
  */
-function parseTextLine(
-  line: string,
-  lineNumber: number,
-): TranscriptEntry[] {
+function parseTextLine(line: string, lineNumber: number): TranscriptEntry[] {
   const trimmed = line.trim();
   if (!trimmed) return [];
-  return [{ id: `text-${lineNumber}`, kind: 'text', lineNumber, text: trimmed }];
+  return [
+    { id: `text-${lineNumber}`, kind: 'text', lineNumber, text: trimmed },
+  ];
 }
 
 /**

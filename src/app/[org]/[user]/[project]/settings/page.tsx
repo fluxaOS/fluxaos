@@ -2,22 +2,24 @@
 
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
-import { PageHeader } from '@/components/page-header';
 import { RuleBuilder } from '@/components/gates/RuleBuilder';
 import { RuleTestPanel } from '@/components/gates/RuleTestPanel';
+import { PageHeader } from '@/components/page-header';
+import type { GateMode, RuleGroup } from '@/core/gates/types';
 import { trpc } from '@/lib/trpc/client';
-import type { RuleGroup, GateMode } from '@/core/gates/types';
 
 export default function PipelineSettingsPage() {
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
-  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
+  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(
+    null
+  );
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
   const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId },
+    { enabled: !!orgId }
   );
   const projectRow = projectsQuery.data?.[0];
   const projectId = projectRow?.id;
@@ -25,7 +27,7 @@ export default function PipelineSettingsPage() {
 
   const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
     { projectId: projectId! },
-    { enabled: !!projectId },
+    { enabled: !!projectId }
   );
 
   const pipelines = pipelinesQuery.data ?? [];
@@ -76,10 +78,14 @@ export default function PipelineSettingsPage() {
                   <div>
                     <span className="font-medium">{p.name}</span>
                     {isDefault && (
-                      <span className="ml-2 text-xs text-soft-violet">default</span>
+                      <span className="ml-2 text-xs text-soft-violet">
+                        default
+                      </span>
                     )}
                     {p.description && (
-                      <p className="text-xs text-muted mt-0.5">{p.description}</p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {p.description}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
@@ -102,7 +108,7 @@ export default function PipelineSettingsPage() {
                       type="button"
                       onClick={() =>
                         setEditingPipelineId(
-                          editingPipelineId === p.id ? null : p.id,
+                          editingPipelineId === p.id ? null : p.id
                         )
                       }
                       className="text-xs text-muted hover:text-foreground"
@@ -111,7 +117,9 @@ export default function PipelineSettingsPage() {
                     </button>
                   </div>
                 </div>
-                {editingPipelineId === p.id && <StageEditor pipelineId={p.id} />}
+                {editingPipelineId === p.id && (
+                  <StageEditor pipelineId={p.id} />
+                )}
               </div>
             );
           })}
@@ -179,7 +187,9 @@ function CreatePipelineForm({
 
 function StageEditor({ pipelineId }: { pipelineId: string }) {
   const [showAdd, setShowAdd] = useState(false);
-  const stagesQuery = trpc.pipeline.stages.listByPipeline.useQuery({ pipelineId });
+  const stagesQuery = trpc.pipeline.stages.listByPipeline.useQuery({
+    pipelineId,
+  });
   const stages = stagesQuery.data ?? [];
 
   const skillsQuery = trpc.skill.list.useQuery();
@@ -218,13 +228,21 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
             </tr>
           </thead>
           <tbody>
-            {stages.map((s: typeof stages[number]) => (
+            {stages.map((s: (typeof stages)[number]) => (
               <tr key={s.id} className="text-foreground/80">
                 <td className="pr-3 py-1">{s.sortOrder}</td>
                 <td className="pr-3 py-1 capitalize">{s.name}</td>
                 <td className="pr-3 py-1">{s.gateMode}</td>
-                <td className="pr-3 py-1">{skills.find((sk: typeof skills[number]) => sk.id === s.skillId)?.name ?? '—'}</td>
-                <td className="pr-3 py-1">{drivers.find((d: typeof drivers[number]) => d.id === s.driverId)?.name ?? '—'}</td>
+                <td className="pr-3 py-1">
+                  {skills.find(
+                    (sk: (typeof skills)[number]) => sk.id === s.skillId
+                  )?.name ?? '—'}
+                </td>
+                <td className="pr-3 py-1">
+                  {drivers.find(
+                    (d: (typeof drivers)[number]) => d.id === s.driverId
+                  )?.name ?? '—'}
+                </td>
                 <td className="pr-3 py-1">{s.timeoutSec}s</td>
                 <td className="pr-3 py-1">{s.maxRetries}</td>
               </tr>
@@ -273,8 +291,10 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
               className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
             >
               <option value="">No skill</option>
-              {skills.map((s: typeof skills[number]) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+              {skills.map((s: (typeof skills)[number]) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
               ))}
             </select>
             <select
@@ -283,8 +303,10 @@ function StageEditor({ pipelineId }: { pipelineId: string }) {
               className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
             >
               <option value="">No driver</option>
-              {drivers.map((d: typeof drivers[number]) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
+              {drivers.map((d: (typeof drivers)[number]) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
               ))}
             </select>
             <button

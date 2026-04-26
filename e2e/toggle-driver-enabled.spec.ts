@@ -4,7 +4,7 @@
 // off), so the assertions track the state delta: whichever state we start
 // in, one click must flip to the opposite and survive reload; a second
 // click must return to the original and survive reload.
-import { test, expect, gotoSettings } from './helpers/setup';
+import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @drivers', () => {
   test('toggle-driver-enabled', async ({ page }) => {
@@ -36,7 +36,9 @@ test.describe('@r-ui-1 @settings @drivers', () => {
     // otherwise reload races the mutation and the UI shows the old state.
     await Promise.all([
       page.waitForResponse(
-        (r) => r.url().includes('/api/trpc/driver.update') && r.request().method() === 'POST',
+        (r) =>
+          r.url().includes('/api/trpc/driver.update') &&
+          r.request().method() === 'POST'
       ),
       page
         .locator('li', { hasText: 'Claude Code' })
@@ -51,7 +53,9 @@ test.describe('@r-ui-1 @settings @drivers', () => {
     // Second click — flip back, wait for mutation, reload, confirm
     await Promise.all([
       page.waitForResponse(
-        (r) => r.url().includes('/api/trpc/driver.update') && r.request().method() === 'POST',
+        (r) =>
+          r.url().includes('/api/trpc/driver.update') &&
+          r.request().method() === 'POST'
       ),
       page
         .locator('li', { hasText: 'Claude Code' })

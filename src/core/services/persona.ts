@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { persona } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';

@@ -5,22 +5,23 @@
  * Read-only: the daemon writes the truth; we just project it. No
  * mutations live here. R-MISSION-CONTROL spec §R2.
  */
-import { z } from 'zod/v4';
+
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { router, publicProcedure } from '../trpc';
-import {
-  pipeline,
-  pipelineRun,
-  pipelineStage,
-  stageRun,
-  issue,
-  issuePullRequest,
-} from '@/core/db/schema';
+import { z } from 'zod/v4';
 import {
   PIPELINE_RUN_STATUS,
   PIPELINE_RUN_TERMINAL,
   STAGE_RUN_TERMINAL,
 } from '@/core/constants';
+import {
+  issue,
+  issuePullRequest,
+  pipeline,
+  pipelineRun,
+  pipelineStage,
+  stageRun,
+} from '@/core/db/schema';
+import { publicProcedure, router } from '../trpc';
 
 export const missionRouter = router({
   summary: publicProcedure
@@ -41,7 +42,9 @@ export const missionRouter = router({
       }
 
       const pipelineIds = projectPipelines.map((p) => p.id);
-      const pipelineNameById = new Map(projectPipelines.map((p) => [p.id, p.name]));
+      const pipelineNameById = new Map(
+        projectPipelines.map((p) => [p.id, p.name])
+      );
 
       const [pendingRows, runningRows, terminalRows] = await Promise.all([
         ctx.db
@@ -50,8 +53,8 @@ export const missionRouter = router({
           .where(
             and(
               inArray(pipelineRun.pipelineId, pipelineIds),
-              eq(pipelineRun.status, PIPELINE_RUN_STATUS.pending),
-            ),
+              eq(pipelineRun.status, PIPELINE_RUN_STATUS.pending)
+            )
           )
           .orderBy(desc(pipelineRun.createdAt))
           .limit(5),
@@ -61,8 +64,8 @@ export const missionRouter = router({
           .where(
             and(
               inArray(pipelineRun.pipelineId, pipelineIds),
-              eq(pipelineRun.status, PIPELINE_RUN_STATUS.running),
-            ),
+              eq(pipelineRun.status, PIPELINE_RUN_STATUS.running)
+            )
           )
           .orderBy(desc(pipelineRun.startedAt)),
         ctx.db
@@ -71,8 +74,8 @@ export const missionRouter = router({
           .where(
             and(
               inArray(pipelineRun.pipelineId, pipelineIds),
-              inArray(pipelineRun.status, [...PIPELINE_RUN_TERMINAL]),
-            ),
+              inArray(pipelineRun.status, [...PIPELINE_RUN_TERMINAL])
+            )
           )
           .orderBy(desc(pipelineRun.completedAt))
           .limit(10),
@@ -89,17 +92,28 @@ export const missionRouter = router({
               stageName: pipelineStage.name,
             })
             .from(stageRun)
-            .leftJoin(pipelineStage, eq(stageRun.pipelineStageId, pipelineStage.id))
+            .leftJoin(
+              pipelineStage,
+              eq(stageRun.pipelineStageId, pipelineStage.id)
+            )
             .where(eq(stageRun.pipelineRunId, run.id))
             .orderBy(desc(stageRun.createdAt));
-          const current = stageRows.find((s) => !STAGE_RUN_TERMINAL.has(s.status)) ?? null;
+          const current =
+            stageRows.find((s) => !STAGE_RUN_TERMINAL.has(s.status)) ?? null;
           return {
-            run: { ...run, pipelineName: pipelineNameById.get(run.pipelineId) ?? '' },
+            run: {
+              ...run,
+              pipelineName: pipelineNameById.get(run.pipelineId) ?? '',
+            },
             currentStage: current
-              ? { id: current.id, name: current.stageName ?? '?', status: current.status }
+              ? {
+                  id: current.id,
+                  name: current.stageName ?? '?',
+                  status: current.status,
+                }
               : null,
           };
-        }),
+        })
       );
 
       // For terminal runs: last stage_run by createdAt.
@@ -112,17 +126,27 @@ export const missionRouter = router({
               stageName: pipelineStage.name,
             })
             .from(stageRun)
-            .leftJoin(pipelineStage, eq(stageRun.pipelineStageId, pipelineStage.id))
+            .leftJoin(
+              pipelineStage,
+              eq(stageRun.pipelineStageId, pipelineStage.id)
+            )
             .where(eq(stageRun.pipelineRunId, run.id))
             .orderBy(desc(stageRun.createdAt))
             .limit(1);
           return {
-            run: { ...run, pipelineName: pipelineNameById.get(run.pipelineId) ?? '' },
+            run: {
+              ...run,
+              pipelineName: pipelineNameById.get(run.pipelineId) ?? '',
+            },
             finalStage: last
-              ? { id: last.id, name: last.stageName ?? '?', status: last.status }
+              ? {
+                  id: last.id,
+                  name: last.stageName ?? '?',
+                  status: last.status,
+                }
               : null,
           };
-        }),
+        })
       );
 
       // Project-scoped issue ids for PR filtering.
@@ -150,8 +174,8 @@ export const missionRouter = router({
               .where(
                 inArray(
                   issuePullRequest.issueId,
-                  projectIssues.map((i) => i.id),
-                ),
+                  projectIssues.map((i) => i.id)
+                )
               )
               .orderBy(desc(issuePullRequest.createdAt))
               .limit(10);
@@ -171,7 +195,9 @@ export const missionRouter = router({
         ...r,
         run: {
           ...r.run,
-          issueTitle: r.run.issueId ? (issueTitleById.get(r.run.issueId) ?? '') : '',
+          issueTitle: r.run.issueId
+            ? (issueTitleById.get(r.run.issueId) ?? '')
+            : '',
         },
       }));
 
@@ -179,7 +205,9 @@ export const missionRouter = router({
         ...r,
         run: {
           ...r.run,
-          issueTitle: r.run.issueId ? (issueTitleById.get(r.run.issueId) ?? '') : '',
+          issueTitle: r.run.issueId
+            ? (issueTitleById.get(r.run.issueId) ?? '')
+            : '',
         },
       }));
 

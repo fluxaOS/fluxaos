@@ -1,13 +1,42 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
   "vcs": { "useIgnoreFile": true },
-  "files": { "includes": ["**", "!**/.next", "!website"] },
-  "linter": { "enabled": true },
-  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
+  "files": {
+    "includes": [
+      "**",
+      "!**/.next",
+      "!next-env.d.ts",
+      "!website",
+      "!drizzle/meta",
+      "!docs/insights",
+      "!docs/planning/mockups",
+      "!.superpowers"
+    ]
+  },
   "css": {
     "parser": { "cssModules": true, "tailwindDirectives": true }
   },
   "javascript": {
     "formatter": { "quoteStyle": "single", "trailingCommas": "es5" }
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noArrayIndexKey": "off",
+        "noImplicitAnyLet": "off"
+      },
+      "a11y": {
+        "noLabelWithoutControl": "off",
+        "useKeyWithClickEvents": "off",
+        "noStaticElementInteractions": "off",
+        "useAriaPropsSupportedByRole": "off"
+      }
+    }
   }
 }

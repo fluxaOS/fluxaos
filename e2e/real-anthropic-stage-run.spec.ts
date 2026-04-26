@@ -7,7 +7,7 @@
 // Research stage, waits for the RunDetailModal to show terminal
 // `stage_run.status = 'completed'`, asserts at least one `tool_call` transcript
 // entry is present, and asserts no console errors fired during the run.
-import { test, expect, projectPath } from './helpers/setup';
+import { expect, projectPath, test } from './helpers/setup';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 
@@ -18,7 +18,9 @@ test.describe('@r-rem-w3-a @journey', () => {
   // Bump the default 60s timeout well past the expected completion window.
   test.setTimeout(5 * 60_000);
 
-  test('real Claude advances issue through Research stage end-to-end', async ({ page }) => {
+  test('real Claude advances issue through Research stage end-to-end', async ({
+    page,
+  }) => {
     const pageErrors: Error[] = [];
     const consoleErrors: string[] = [];
 
@@ -30,7 +32,9 @@ test.describe('@r-rem-w3-a @journey', () => {
     // Seed issue #1 is "Add health check endpoint with build metadata" in state "New".
     await page.goto(projectPath('/issues/1'));
 
-    await expect(page.getByRole('heading', { name: /Add health check endpoint/ })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: /Add health check endpoint/ })
+    ).toBeVisible({
       timeout: 15_000,
     });
 
@@ -79,18 +83,24 @@ test.describe('@r-rem-w3-a @journey', () => {
       .locator('span.rounded-full.font-semibold')
       .first();
 
-    await expect.poll(
-      async () => {
-        const text = (await statusBadge.textContent()) ?? '';
-        // Extract the first word: "Completed — research" → "completed"
-        return text.trim().split(/[\s\u2014]/)[0].toLowerCase();
-      },
-      {
-        timeout: 4 * 60_000,
-        intervals: [2_000, 5_000, 10_000],
-        message: 'stage_run never reached terminal completed status. Either live Claude failed to respond, or the Realtime subscription did not deliver the final update.',
-      },
-    ).toBe('completed');
+    await expect
+      .poll(
+        async () => {
+          const text = (await statusBadge.textContent()) ?? '';
+          // Extract the first word: "Completed — research" → "completed"
+          return text
+            .trim()
+            .split(/[\s\u2014]/)[0]
+            .toLowerCase();
+        },
+        {
+          timeout: 4 * 60_000,
+          intervals: [2_000, 5_000, 10_000],
+          message:
+            'stage_run never reached terminal completed status. Either live Claude failed to respond, or the Realtime subscription did not deliver the final update.',
+        }
+      )
+      .toBe('completed');
 
     // Assert at least one tool_call entry rendered. `ToolCallEntry` emits
     // the tool name in a <span class="text-soft-violet font-medium"> (see
@@ -108,16 +118,19 @@ test.describe('@r-rem-w3-a @journey', () => {
     // Final gate: no pageerror, no Supabase registry / env / config errors.
     // Allow unrelated third-party noise (e.g. bundler/HMR warnings that pass
     // through console.error in dev) but fail hard on known regression patterns.
-    const knownErrorPattern = /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config|Uncaught/;
-    const matchedErrors = consoleErrors.filter((e) => knownErrorPattern.test(e));
+    const knownErrorPattern =
+      /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config|Uncaught/;
+    const matchedErrors = consoleErrors.filter((e) =>
+      knownErrorPattern.test(e)
+    );
 
     expect(
       pageErrors,
-      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`,
+      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`
     ).toHaveLength(0);
     expect(
       matchedErrors,
-      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`,
+      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`
     ).toHaveLength(0);
   });
 });

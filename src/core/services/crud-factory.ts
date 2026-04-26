@@ -10,8 +10,8 @@
  * variant additionally requires an integer `version` column.
  */
 import { and, eq } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { Database } from '@/core/db/connection';
-import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 
 type WithIdColumn = { id: PgColumn };
 type WithVersionColumn = { version: PgColumn };
@@ -30,14 +30,14 @@ export interface VersionedCrudService<TInsert, TSelect>
   updateWithVersion(
     id: string,
     expectedVersion: number,
-    data: Partial<TInsert>,
+    data: Partial<TInsert>
   ): Promise<TSelect | null>;
   deleteWithVersion(id: string, expectedVersion: number): Promise<boolean>;
 }
 
 export function createCrudService<TInsert, TSelect>(
   db: Database,
-  table: PgTable & WithIdColumn & WithUpdatedAtColumn,
+  table: PgTable & WithIdColumn & WithUpdatedAtColumn
 ): CrudService<TInsert, TSelect> {
   return {
     async list(): Promise<TSelect[]> {
@@ -77,7 +77,7 @@ export function createCrudService<TInsert, TSelect>(
 
 export function createVersionedCrudService<TInsert, TSelect>(
   db: Database,
-  table: PgTable & WithIdColumn & WithVersionColumn & WithUpdatedAtColumn,
+  table: PgTable & WithIdColumn & WithVersionColumn & WithUpdatedAtColumn
 ): VersionedCrudService<TInsert, TSelect> {
   const base = createCrudService<TInsert, TSelect>(db, table);
 
@@ -86,7 +86,7 @@ export function createVersionedCrudService<TInsert, TSelect>(
     async updateWithVersion(
       id: string,
       expectedVersion: number,
-      data: Partial<TInsert>,
+      data: Partial<TInsert>
     ): Promise<TSelect | null> {
       const [row] = await db
         .update(table)
@@ -101,7 +101,7 @@ export function createVersionedCrudService<TInsert, TSelect>(
     },
     async deleteWithVersion(
       id: string,
-      expectedVersion: number,
+      expectedVersion: number
     ): Promise<boolean> {
       const rows = await db
         .delete(table)

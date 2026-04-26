@@ -6,7 +6,7 @@ import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { Feature, hasFeature } from '@/core/features/features';
 import { useCurrentUser } from '@/lib/auth/use-current-user';
 import { trpc } from '@/lib/trpc/client';
-import { driverDescriptor, type DriverRecord } from './descriptor';
+import { type DriverRecord, driverDescriptor } from './descriptor';
 
 export default function DriversSettingsPage() {
   const utils = trpc.useUtils();
@@ -18,7 +18,7 @@ export default function DriversSettingsPage() {
   const onSave = async (
     id: string,
     patch: Partial<DriverRecord>,
-    expectedVersion: number,
+    expectedVersion: number
   ) => {
     await updateMutation.mutateAsync({
       id,
@@ -31,7 +31,7 @@ export default function DriversSettingsPage() {
   const onToggleEnabled = async (
     id: string,
     enabled: boolean,
-    expectedVersion: number,
+    expectedVersion: number
   ) => {
     await updateMutation.mutateAsync({
       id,

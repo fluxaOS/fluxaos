@@ -12,18 +12,26 @@
  * as vi.fn() fakes so the tests don't depend on W2 having landed yet.
  */
 import 'dotenv/config';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { eq } from 'drizzle-orm';
-import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
-import type { Database } from '@/core/db/connection';
 import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
+import {
+  type ArtifactsFakes,
   buildService,
+  type CleanupBag,
   makeFixture,
   runCleanupTeardown,
-  type ArtifactsFakes,
-  type CleanupBag,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;

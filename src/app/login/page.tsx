@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -56,7 +56,10 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-neutral-300">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-neutral-300"
+            >
               Email
             </label>
             <input
@@ -71,7 +74,10 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-neutral-300">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-neutral-300"
+            >
               Password
             </label>
             <input

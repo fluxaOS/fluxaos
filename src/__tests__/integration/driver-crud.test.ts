@@ -1,7 +1,7 @@
 // src/__tests__/integration/driver-crud.test.ts
 import 'dotenv/config';
-import { describe, expect, it, afterAll } from 'vitest';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { driver } from '@/core/db/schema';
 
@@ -33,8 +33,14 @@ describe('driver CRUD (integration)', () => {
 
     const [updated] = await db
       .update(driver)
-      .set({ notes: 'updated', version: created.version + 1, updatedAt: new Date() })
-      .where(and(eq(driver.id, created.id), eq(driver.version, created.version)))
+      .set({
+        notes: 'updated',
+        version: created.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(driver.id, created.id), eq(driver.version, created.version))
+      )
       .returning();
 
     expect(updated.version).toBe(created.version + 1);
@@ -56,13 +62,21 @@ describe('driver CRUD (integration)', () => {
     await db
       .update(driver)
       .set({ notes: 'v2', version: created.version + 1, updatedAt: new Date() })
-      .where(and(eq(driver.id, created.id), eq(driver.version, created.version)));
+      .where(
+        and(eq(driver.id, created.id), eq(driver.version, created.version))
+      );
 
     // Attempt with stale version
     const rows = await db
       .update(driver)
-      .set({ notes: 'stale', version: created.version + 2, updatedAt: new Date() })
-      .where(and(eq(driver.id, created.id), eq(driver.version, created.version)))
+      .set({
+        notes: 'stale',
+        version: created.version + 2,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(driver.id, created.id), eq(driver.version, created.version))
+      )
       .returning();
 
     expect(rows).toHaveLength(0);
@@ -82,8 +96,14 @@ describe('driver CRUD (integration)', () => {
 
     const [toggled] = await db
       .update(driver)
-      .set({ isEnabled: false, version: created.version + 1, updatedAt: new Date() })
-      .where(and(eq(driver.id, created.id), eq(driver.version, created.version)))
+      .set({
+        isEnabled: false,
+        version: created.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(driver.id, created.id), eq(driver.version, created.version))
+      )
       .returning();
 
     expect(toggled.isEnabled).toBe(false);

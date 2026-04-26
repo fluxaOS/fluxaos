@@ -9,8 +9,8 @@
 
 import { basename, dirname } from 'node:path';
 import { eq, isNotNull } from 'drizzle-orm';
-import type { Database } from '@/core/db/connection';
 import { PIPELINE_RUN_TERMINAL } from '@/core/constants';
+import type { Database } from '@/core/db/connection';
 import { isolationEnvironment, pipelineRun } from '@/core/db/schema';
 import type {
   CleanupGitHelpers,
@@ -181,10 +181,7 @@ export async function sweepArtifacts(
           continue;
         }
         await git.removeArtifactsDir(dir);
-        logger.info(
-          { runId, path: dir },
-          'cleanup.artifacts.reaped'
-        );
+        logger.info({ runId, path: dir }, 'cleanup.artifacts.reaped');
         report.removed.push({
           envId: `artifacts:${runId}`,
           branchName: '',

@@ -4,7 +4,7 @@
 // waitForLoadState('networkidle') calls, one tab may still be fetching the
 // list or the Edit state when the other tab saves, producing spurious "no
 // version in state" failures that look like flake but are really races.
-import { test, expect, gotoSettings } from './helpers/setup';
+import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @concurrency', () => {
   test('conflict-on-save', async ({ browser }) => {
@@ -20,9 +20,13 @@ test.describe('@r-ui-1 @settings @concurrency', () => {
       // a persistent WebSocket subscription, so switching now avoids a
       // latent 60s-timeout bug.
       await gotoSettings(a, 'skills');
-      await expect(a.getByText('research', { exact: true }).first()).toBeVisible();
+      await expect(
+        a.getByText('research', { exact: true }).first()
+      ).toBeVisible();
       await gotoSettings(b, 'skills');
-      await expect(b.getByText('research', { exact: true }).first()).toBeVisible();
+      await expect(
+        b.getByText('research', { exact: true }).first()
+      ).toBeVisible();
 
       // Both tabs select the same record, wait for the detail panel to render,
       // then click Edit. Waiting on the Edit button (not arbitrary timing)

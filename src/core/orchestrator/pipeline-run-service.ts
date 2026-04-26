@@ -4,24 +4,24 @@
  * Creates runs, advances stages, records events, updates costs.
  * No hardcoded stage names or provider names. Receives Database via DI.
  */
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import {
-  pipelineStage,
-  pipelineRun,
-  stageRun,
   event,
   issueEvent,
+  pipelineRun,
+  pipelineStage,
+  stageRun,
 } from '@/core/db/schema';
 import type {
   PipelineRunStatus,
-  StageRunStatus,
   StageEventType,
+  StageRunStatus,
 } from './types';
 import {
-  STAGE_RUN_TERMINAL,
-  STAGE_RUN_STATUS,
   PIPELINE_RUN_STATUS,
+  STAGE_RUN_STATUS,
+  STAGE_RUN_TERMINAL,
 } from './types';
 
 type PipelineRunRow = typeof pipelineRun.$inferSelect;
@@ -50,7 +50,7 @@ export interface PipelineRunService {
   /** Create a stage run. */
   createStageRun(
     pipelineRunId: string,
-    pipelineStageId: string,
+    pipelineStageId: string
   ): Promise<StageRunRow>;
 
   /** Get the current (latest non-terminal) stage run for a pipeline run. */
@@ -77,14 +77,14 @@ export interface PipelineRunService {
       skillMetadata?: Record<string, unknown>;
       trigger?: string;
       errorMessage?: string;
-    },
+    }
   ): Promise<void>;
 
   /** Append an event to the stage run event stream. */
   appendEvent(
     stageRunId: string,
     type: StageEventType,
-    payload: Record<string, unknown>,
+    payload: Record<string, unknown>
   ): Promise<void>;
 
   /**
@@ -98,7 +98,7 @@ export interface PipelineRunService {
   /** Get the next stage after the given one (by sortOrder). */
   getNextStage(
     pipelineId: string,
-    currentSortOrder: number,
+    currentSortOrder: number
   ): Promise<StageRow | null>;
 
   /** Write an issue event (stage_started, stage_completed, etc.) */
@@ -106,7 +106,7 @@ export interface PipelineRunService {
     issueId: string,
     type: string,
     payload: Record<string, unknown>,
-    actor: string,
+    actor: string
   ): Promise<void>;
 
   /** Fail both the stage run and the pipeline run in one call. */
@@ -150,10 +150,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
       if (status === PIPELINE_RUN_STATUS.running) {
         updates.startedAt = new Date();
       }
-      await db
-        .update(pipelineRun)
-        .set(updates)
-        .where(eq(pipelineRun.id, id));
+      await db.update(pipelineRun).set(updates).where(eq(pipelineRun.id, id));
     },
 
     async completeRun(id, status) {
@@ -165,7 +162,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
 
       const totalCost = stages.reduce(
         (sum, s) => sum + Number(s.costUsd ?? 0),
-        0,
+        0
       );
 
       await db
@@ -231,10 +228,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
       if (status === STAGE_RUN_STATUS.running) {
         updates.startedAt = new Date();
       }
-      await db
-        .update(stageRun)
-        .set(updates)
-        .where(eq(stageRun.id, id));
+      await db.update(stageRun).set(updates).where(eq(stageRun.id, id));
     },
 
     async completeStageRun(id, status, results) {
@@ -316,8 +310,8 @@ export function createPipelineRunService(db: Database): PipelineRunService {
         .where(
           and(
             eq(pipelineStage.pipelineId, pipelineId),
-            sql`${pipelineStage.sortOrder} > ${currentSortOrder}`,
-          ),
+            sql`${pipelineStage.sortOrder} > ${currentSortOrder}`
+          )
         )
         .orderBy(asc(pipelineStage.sortOrder))
         .limit(1);

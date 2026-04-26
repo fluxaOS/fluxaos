@@ -26,7 +26,10 @@ export interface TranscriptEntry {
   cost?: number;
 }
 
-export type LineParser = (line: string, lineNumber: number) => TranscriptEntry[];
+export type LineParser = (
+  line: string,
+  lineNumber: number
+) => TranscriptEntry[];
 
 export interface StdoutParser {
   /**

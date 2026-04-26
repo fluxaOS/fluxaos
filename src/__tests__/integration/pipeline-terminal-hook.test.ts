@@ -8,10 +8,10 @@
  * though the external dependencies are faked.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
 import { UncommittedChangesError } from '@/adapters/git';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
 import type { DeployBridge } from '@/core/deploy';
+import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
 import type {
   IsolationEnvironment,
   IsolationProvider,
@@ -34,7 +34,9 @@ function makeLogger() {
   };
 }
 
-function makeFakeEnv(overrides: Partial<IsolationEnvironment> = {}): IsolationEnvironment {
+function makeFakeEnv(
+  overrides: Partial<IsolationEnvironment> = {}
+): IsolationEnvironment {
   return {
     id: 'env-1',
     projectId: 'proj-1',
@@ -105,7 +107,9 @@ describe('pipeline-terminal-hook', () => {
     expect(deploy).toHaveBeenCalledTimes(1);
     expect(deploy).toHaveBeenCalledWith('run-1');
     expect(release).not.toHaveBeenCalled();
-    expect(logger.records.some((r) => r.obj.event === 'deploy.invoked')).toBe(true);
+    expect(logger.records.some((r) => r.obj.event === 'deploy.invoked')).toBe(
+      true
+    );
   });
 
   it('completed + deploy throws → logs deploy.failed and does NOT throw', async () => {
@@ -127,10 +131,12 @@ describe('pipeline-terminal-hook', () => {
         runId: 'run-1',
         projectId: 'proj-1',
         status: PIPELINE_RUN_STATUS.completed,
-      }),
+      })
     ).resolves.toBeUndefined();
 
-    const errRecord = logger.records.find((r) => r.obj.event === 'deploy.failed');
+    const errRecord = logger.records.find(
+      (r) => r.obj.event === 'deploy.failed'
+    );
     expect(errRecord).toBeDefined();
     expect(errRecord?.level).toBe('error');
   });
@@ -157,7 +163,7 @@ describe('pipeline-terminal-hook', () => {
     expect(release).toHaveBeenCalledTimes(1);
     expect(release).toHaveBeenCalledWith('env-1', { force: false });
     expect(
-      logger.records.some((r) => r.obj.event === 'terminal-hook.env-released'),
+      logger.records.some((r) => r.obj.event === 'terminal-hook.env-released')
     ).toBe(true);
   });
 
@@ -213,11 +219,11 @@ describe('pipeline-terminal-hook', () => {
         runId: 'run-1',
         projectId: 'proj-1',
         status: PIPELINE_RUN_STATUS.failed,
-      }),
+      })
     ).resolves.toBeUndefined();
 
     expect(
-      logger.records.some((r) => r.obj.event === 'terminal-hook.env-dirty'),
+      logger.records.some((r) => r.obj.event === 'terminal-hook.env-dirty')
     ).toBe(true);
   });
 
@@ -241,7 +247,7 @@ describe('pipeline-terminal-hook', () => {
     expect(findActiveByRun).not.toHaveBeenCalled();
     expect(release).not.toHaveBeenCalled();
     expect(
-      logger.records.some((r) => r.obj.event === 'terminal-hook.no-project'),
+      logger.records.some((r) => r.obj.event === 'terminal-hook.no-project')
     ).toBe(true);
   });
 });

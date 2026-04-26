@@ -1,5 +1,5 @@
 // e2e/delete-an-unreferenced-skill.spec.ts
-import { test, expect, gotoSettings } from './helpers/setup';
+import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @skills @crud', () => {
   test('delete-an-unreferenced-skill', async ({ page }) => {

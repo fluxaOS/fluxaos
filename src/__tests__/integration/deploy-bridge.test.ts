@@ -6,24 +6,24 @@
  * tmpdir repos are torn down in afterAll.
  */
 import 'dotenv/config';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
-import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
-  createDeployBridge,
   type AdapterRegistryLike,
+  createDeployBridge,
   type DeployBridgeLogger,
 } from '@/core/deploy';
-import { createIssueService } from '@/core/services/issue';
 import type { GitProvider, PullRequest } from '@/core/ports/git';
-import type { Database } from '@/core/db/connection';
+import { createIssueService } from '@/core/services/issue';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -41,9 +41,7 @@ async function gitInTmp(cwd: string, args: string[]): Promise<void> {
 }
 
 async function makeRepo(label: string): Promise<string> {
-  const dir = await mkdtemp(
-    join(tmpdir(), `fluxaos-deploy-${label}-${RUN}-`),
-  );
+  const dir = await mkdtemp(join(tmpdir(), `fluxaos-deploy-${label}-${RUN}-`));
   tmpRepos.push(dir);
   await gitInTmp(dir, ['init', '-b', 'main']);
   await gitInTmp(dir, ['config', 'user.email', 'deploy@fluxaos.local']);
@@ -55,7 +53,11 @@ async function makeRepo(label: string): Promise<string> {
 function makeLogger(): DeployBridgeLogger & {
   records: { level: string; obj: Record<string, unknown>; msg?: string }[];
 } {
-  const records: { level: string; obj: Record<string, unknown>; msg?: string }[] = [];
+  const records: {
+    level: string;
+    obj: Record<string, unknown>;
+    msg?: string;
+  }[] = [];
   return {
     records,
     info: (obj, msg) => records.push({ level: 'info', obj, msg }),
@@ -74,7 +76,10 @@ interface Fixture {
   reviewStateId: string;
 }
 
-async function makeFixture(label: string, attachIssue = true): Promise<Fixture> {
+async function makeFixture(
+  label: string,
+  attachIssue = true
+): Promise<Fixture> {
   const repoPath = await makeRepo(label);
 
   const [org] = await db
@@ -252,9 +257,7 @@ interface FakeGitProviderHarness {
   createPullRequest: ReturnType<typeof vi.fn>;
 }
 
-function makeFakeGitProvider(
-  result?: PullRequest,
-): FakeGitProviderHarness {
+function makeFakeGitProvider(result?: PullRequest): FakeGitProviderHarness {
   const createPullRequest = vi.fn(async (params: { headBranch: string }) => {
     return result ?? makeFakePr(params.headBranch);
   });
@@ -324,13 +327,13 @@ describe('DeployBridge', () => {
     // Dirty the worktree so commitAll has something to commit.
     await writeFile(
       join(env.workingPath, 'deploy.txt'),
-      'contents from deploy-bridge test',
+      'contents from deploy-bridge test'
     );
 
     // Configure a bare "remote" to receive the push — the test fixture repo
     // is already a local on-disk copy; add a bare clone as origin.
     const bareRemote = await mkdtemp(
-      join(tmpdir(), `fluxaos-deploy-remote-${RUN}-`),
+      join(tmpdir(), `fluxaos-deploy-remote-${RUN}-`)
     );
     tmpRepos.push(bareRemote);
     await gitInTmp(bareRemote, ['init', '--bare', '-b', 'main']);

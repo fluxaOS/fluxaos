@@ -6,20 +6,31 @@
  * - Test-evaluating rules against mock context (no persistence)
  */
 import { z } from 'zod/v4';
-import { router, publicProcedure } from '../trpc';
 import { createGateService } from '@/core/gates/service';
+import { publicProcedure, router } from '../trpc';
 
 // ─── Zod schemas for rule structures ────────────────────────────────────────
 
 const ruleOperatorSchema = z.enum([
-  'equals', 'not_equals', 'less_than', 'greater_than',
-  'contains', 'matches', 'in', 'exists',
+  'equals',
+  'not_equals',
+  'less_than',
+  'greater_than',
+  'contains',
+  'matches',
+  'in',
+  'exists',
 ]);
 
 const ruleSeveritySchema = z.enum(['block', 'required', 'warn']);
 
 const failureActionSchema = z.enum([
-  'proceed', 'hold', 'rework', 'abort', 'notify', 'escalate',
+  'proceed',
+  'hold',
+  'rework',
+  'abort',
+  'notify',
+  'escalate',
 ]);
 
 const gateModeSchema = z.enum(['auto', 'rules', 'hold', 'manual', 'skip']);
@@ -46,32 +57,38 @@ export const gateRouter = router({
    * Reads gateMode + gateRules from DB, evaluates, persists audit result.
    */
   evaluate: publicProcedure
-    .input(z.object({
-      stageId: z.string().uuid(),
-      stageRunId: z.string().uuid(),
-      context: z.record(z.string(), z.unknown()),
-    }))
+    .input(
+      z.object({
+        stageId: z.string().uuid(),
+        stageRunId: z.string().uuid(),
+        context: z.record(z.string(), z.unknown()),
+      })
+    )
     .mutation(({ ctx, input }) =>
       createGateService(ctx.db).evaluateStageGate(
         input.stageId,
         input.stageRunId,
-        input.context,
-      )),
+        input.context
+      )
+    ),
 
   /**
    * Test-evaluate rules against a mock context.
    * No persistence — used by the UI rule builder for preview.
    */
   test: publicProcedure
-    .input(z.object({
-      mode: gateModeSchema,
-      rules: ruleGroupSchema.nullable(),
-      context: z.record(z.string(), z.unknown()),
-    }))
+    .input(
+      z.object({
+        mode: gateModeSchema,
+        rules: ruleGroupSchema.nullable(),
+        context: z.record(z.string(), z.unknown()),
+      })
+    )
     .mutation(({ ctx, input }) =>
       createGateService(ctx.db).testEvaluate(
         input.mode,
         input.rules,
-        input.context,
-      )),
+        input.context
+      )
+    ),
 });

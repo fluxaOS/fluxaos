@@ -1,6 +1,6 @@
-import { eq, desc, and, count } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { skill, pipelineStage, stageRun, personaSkill } from '@/core/db/schema';
+import { personaSkill, pipelineStage, skill, stageRun } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
 
 type SkillInsert = typeof skill.$inferInsert;
@@ -15,7 +15,10 @@ type SkillSelect = typeof skill.$inferSelect;
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 
 export function createSkillService(db: DbOrTx) {
-  const crud = createCrudService<SkillInsert, SkillSelect>(db as Database, skill);
+  const crud = createCrudService<SkillInsert, SkillSelect>(
+    db as Database,
+    skill
+  );
 
   return {
     ...crud,
@@ -43,7 +46,7 @@ export function createSkillService(db: DbOrTx) {
     async updateWithVersion(
       id: string,
       expectedVersion: number,
-      data: Partial<SkillInsert>,
+      data: Partial<SkillInsert>
     ): Promise<SkillSelect | null> {
       const [row] = await db
         .update(skill)
@@ -89,7 +92,10 @@ export function createSkillService(db: DbOrTx) {
      * Optimistic-lock delete. Returns true if the row was deleted at the
      * expected version; false if version was stale (no row deleted).
      */
-    async deleteWithVersion(id: string, expectedVersion: number): Promise<boolean> {
+    async deleteWithVersion(
+      id: string,
+      expectedVersion: number
+    ): Promise<boolean> {
       const result = await db
         .delete(skill)
         .where(and(eq(skill.id, id), eq(skill.version, expectedVersion)))

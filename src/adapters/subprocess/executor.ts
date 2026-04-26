@@ -8,13 +8,13 @@
  * path resolver fails on execa's transitive ESM deps (unicorn-magic),
  * blocking any `tsx` entrypoint that imports the bootstrap module graph.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { KILL_GRACE_PERIOD_MS } from '@/core/constants';
 import type {
-  StageExecutor,
   ExecuteParams,
   ExecuteResult,
+  StageExecutor,
 } from '@/core/ports/stage-executor';
 
 const DEFAULT_TIMEOUT_MS = 300_000;

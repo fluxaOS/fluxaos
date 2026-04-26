@@ -3,18 +3,19 @@
  *
  * Usage: npx tsx src/scripts/db/issues.ts
  */
-import { db, close } from '@/scripts/db/connection';
+
 import { eq } from 'drizzle-orm';
 import {
   issue,
+  issuePriority,
   issueState,
   issueStatus,
-  issuePriority,
   issueType,
 } from '@/core/db/schema';
+import { close, db } from '@/scripts/db/connection';
 
 function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 function pad(s: string, width: number): string {
@@ -69,7 +70,7 @@ async function main() {
         pad(row.priority ?? '–', 12),
         pad(row.type ?? '–', 12),
         pad(row.isClosed ? 'yes' : 'no', 6),
-      ].join('  '),
+      ].join('  ')
     );
   }
 

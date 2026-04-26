@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
-import { router, publicProcedure } from '../trpc';
 import { createOrganizationService } from '@/core/services';
+import { publicProcedure, router } from '../trpc';
 
 export const organizationRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -20,13 +20,26 @@ export const organizationRouter = router({
     }),
 
   create: publicProcedure
-    .input(z.object({ name: z.string().min(1), slug: z.string().min(1), settings: z.record(z.string(), z.unknown()).optional() }))
+    .input(
+      z.object({
+        name: z.string().min(1),
+        slug: z.string().min(1),
+        settings: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       return createOrganizationService(ctx.db).create(input);
     }),
 
   update: publicProcedure
-    .input(z.object({ id: z.string().uuid(), name: z.string().min(1).optional(), slug: z.string().min(1).optional(), settings: z.record(z.string(), z.unknown()).optional() }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        slug: z.string().min(1).optional(),
+        settings: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
       return createOrganizationService(ctx.db).update(id, data);

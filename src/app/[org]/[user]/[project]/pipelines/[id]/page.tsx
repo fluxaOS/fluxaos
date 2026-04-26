@@ -1,19 +1,21 @@
 'use client';
 
-import Link from 'next/link';
-import { use, useState } from 'react';
-import { usePathname } from 'next/navigation';
 import { ArrowLeft, Check, RotateCcw, XOctagon } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { use, useState } from 'react';
 import { Card } from '@/components/card';
-import { StatusBadge } from '@/components/status-badge';
 import { VerdictBadge } from '@/components/gates/VerdictBadge';
 import { RunDetailModal } from '@/components/pipeline/RunDetailModal';
+import { StatusBadge } from '@/components/status-badge';
 import { trpc } from '@/lib/trpc/client';
 
 function useBasePath() {
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
-  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+  return segments.length >= 3
+    ? `/${segments[0]}/${segments[1]}/${segments[2]}`
+    : '/';
 }
 
 export default function RunDetailPage({
@@ -32,7 +34,7 @@ export default function RunDetailPage({
         const status = query.state.data?.status;
         return status === 'running' || status === 'pending' ? 2000 : false;
       },
-    },
+    }
   );
 
   const cancelRun = trpc.pipeline.runs.cancel.useMutation({
@@ -98,7 +100,12 @@ export default function RunDetailPage({
           {run.completedAt && (
             <span>Completed: {new Date(run.completedAt).toLocaleString()}</span>
           )}
-          <span>Cost: <span className="font-mono text-slate-400">${run.totalCostUsd ?? '0.00'}</span></span>
+          <span>
+            Cost:{' '}
+            <span className="font-mono text-slate-400">
+              ${run.totalCostUsd ?? '0.00'}
+            </span>
+          </span>
           <button
             type="button"
             onClick={() => setSelectedRunId(run.id)}
@@ -121,7 +128,7 @@ export default function RunDetailPage({
       <div>
         <h3 className="text-sm font-semibold text-slate-400 mb-4">Stages</h3>
         <div className="space-y-0">
-          {stageRuns.map((sr: typeof stageRuns[number], idx: number) => (
+          {stageRuns.map((sr: (typeof stageRuns)[number], idx: number) => (
             <StageRunCard
               key={sr.id}
               stageRun={sr}
@@ -184,15 +191,20 @@ function StageRunCard({
 }) {
   const stage = stageRun.pipelineStage;
   const isCompleted = stageRun.status === 'completed';
-  const isActive = stageRun.status === 'running' || stageRun.status === 'launching';
+  const isActive =
+    stageRun.status === 'running' || stageRun.status === 'launching';
   const isQueued = stageRun.status === 'queued';
   const isGatePending = stageRun.status === 'pending';
 
   // Extract gate verdict from events (gate_checked event has verdict in payload)
   const gateEvent = stageRun.events.find((evt) => evt.type === 'gate_checked');
   const gateVerdict =
-    gateEvent && typeof gateEvent.payload === 'object' && gateEvent.payload !== null
-      ? (gateEvent.payload as Record<string, unknown>).verdict as string | undefined
+    gateEvent &&
+    typeof gateEvent.payload === 'object' &&
+    gateEvent.payload !== null
+      ? ((gateEvent.payload as Record<string, unknown>).verdict as
+          | string
+          | undefined)
       : undefined;
 
   const stepColor = isCompleted
@@ -210,7 +222,9 @@ function StageRunCard({
 
       <div className="flex gap-4 mb-3">
         {/* Step circle */}
-        <div className={`w-[44px] h-[44px] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 ${stepColor}`}>
+        <div
+          className={`w-[44px] h-[44px] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 ${stepColor}`}
+        >
           {isCompleted ? (
             <Check size={18} strokeWidth={2.5} />
           ) : (
@@ -228,7 +242,9 @@ function StageRunCard({
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="font-semibold capitalize text-white">{stage?.name ?? 'Unknown'}</span>
+              <span className="font-semibold capitalize text-white">
+                {stage?.name ?? 'Unknown'}
+              </span>
               <StatusBadge status={stageRun.status} />
               {gateVerdict && <VerdictBadge verdict={gateVerdict} />}
             </div>
@@ -237,7 +253,9 @@ function StageRunCard({
               {stageRun.model && <span>/ {stageRun.model}</span>}
               {stageRun.driver && <span>({stageRun.driver})</span>}
               {stageRun.costUsd && Number(stageRun.costUsd) > 0 && (
-                <span className="font-mono text-slate-400">${stageRun.costUsd}</span>
+                <span className="font-mono text-slate-400">
+                  ${stageRun.costUsd}
+                </span>
               )}
             </div>
           </div>

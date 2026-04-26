@@ -8,19 +8,19 @@
  * services + DB. Does not depend on services.test.ts state.
  */
 import 'dotenv/config';
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
+  createIssueCatalogService,
+  createIssueCommentService,
+  createIssueService,
   createOrganizationService,
   createProjectService,
   createUserService,
-  createIssueService,
-  createIssueCatalogService,
-  createIssueCommentService,
 } from '@/core/services';
-import * as schema from '@/core/db/schema';
-import type { Database } from '@/core/db/connection';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -55,7 +55,9 @@ beforeAll(async () => {
     settings: {},
   });
   cleanup.push(async () => {
-    await db.delete(schema.organization).where(eq(schema.organization.id, org.id));
+    await db
+      .delete(schema.organization)
+      .where(eq(schema.organization.id, org.id));
   });
 
   const usr = await userSvc.create({
@@ -110,7 +112,9 @@ beforeAll(async () => {
     sortOrder: 1,
   });
   cleanup.push(async () => {
-    await db.delete(schema.issueStatus).where(eq(schema.issueStatus.id, status.id));
+    await db
+      .delete(schema.issueStatus)
+      .where(eq(schema.issueStatus.id, status.id));
   });
 
   const priority = await catalogSvc.priorities.create({
@@ -121,7 +125,9 @@ beforeAll(async () => {
     weight: 100,
   });
   cleanup.push(async () => {
-    await db.delete(schema.issuePriority).where(eq(schema.issuePriority.id, priority.id));
+    await db
+      .delete(schema.issuePriority)
+      .where(eq(schema.issuePriority.id, priority.id));
   });
   priorityId = priority.id;
 
@@ -135,7 +141,9 @@ beforeAll(async () => {
     })
     .returning();
   cleanup.push(async () => {
-    await db.delete(schema.configEntry).where(eq(schema.configEntry.id, config.id));
+    await db
+      .delete(schema.configEntry)
+      .where(eq(schema.configEntry.id, config.id));
   });
 
   // Seed two independent issues — one per test
@@ -188,7 +196,7 @@ describe('issue-comment service — transactional softDelete', () => {
       commentSvc.softDelete(comment.id, {
         deletedBy: 'ictest-user',
         version: 999,
-      }),
+      })
     ).rejects.toThrow(/VERSION_CONFLICT/);
 
     // Comment row unchanged
@@ -207,8 +215,8 @@ describe('issue-comment service — transactional softDelete', () => {
       .where(
         and(
           eq(schema.issueEvent.issueId, issueAId),
-          eq(schema.issueEvent.type, 'comment_deleted'),
-        ),
+          eq(schema.issueEvent.type, 'comment_deleted')
+        )
       );
     expect(deletedEvents).toHaveLength(0);
   });
@@ -249,8 +257,8 @@ describe('issue-comment service — transactional softDelete', () => {
       .where(
         and(
           eq(schema.issueEvent.issueId, issueBId),
-          eq(schema.issueEvent.type, 'comment_deleted'),
-        ),
+          eq(schema.issueEvent.type, 'comment_deleted')
+        )
       );
     expect(deletedEvents).toHaveLength(1);
     const payload = deletedEvents[0].payload as Record<string, unknown>;

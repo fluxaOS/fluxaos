@@ -1,10 +1,10 @@
 // src/__tests__/integration/skill-crud.test.ts
 import 'dotenv/config';
-import { describe, expect, it, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { createSkillService } from '@/core/services';
 import * as schema from '@/core/db/schema';
+import { createSkillService } from '@/core/services';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set');
@@ -21,7 +21,9 @@ afterAll(async () => {
   await provider.close();
 });
 
-type SkillCreateInput = Parameters<ReturnType<typeof createSkillService>['create']>[0];
+type SkillCreateInput = Parameters<
+  ReturnType<typeof createSkillService>['create']
+>[0];
 
 function skillInput(data: Record<string, unknown>): SkillCreateInput {
   return data as SkillCreateInput;
@@ -31,39 +33,54 @@ describe('skill service CRUD (integration)', () => {
   it('updates a skill and increments version', async () => {
     const svc = createSkillService(db);
     const created = await svc.create(
-      skillInput({ scope: 'global', name: `test-skill-${RUN}`, description: 'orig', promptTemplate: 'orig prompt' }),
+      skillInput({
+        scope: 'global',
+        name: `test-skill-${RUN}`,
+        description: 'orig',
+        promptTemplate: 'orig prompt',
+      })
     );
     createdIds.push(created.id);
 
-    const updated = await svc.updateWithVersion(created.id, created.version ?? 1, {
-      description: 'updated',
-    });
+    const updated = await svc.updateWithVersion(
+      created.id,
+      created.version ?? 1,
+      {
+        description: 'updated',
+      }
+    );
     expect(updated).not.toBeNull();
-    expect(updated!.description).toBe('updated');
-    expect(updated!.version).toBe((created.version ?? 1) + 1);
+    expect(updated?.description).toBe('updated');
+    expect(updated?.version).toBe((created.version ?? 1) + 1);
   });
 
   it('rejects stale-version update', async () => {
     const svc = createSkillService(db);
     const created = await svc.create(
-      skillInput({ scope: 'global', name: `stale-${RUN}`, description: 'orig' }),
+      skillInput({ scope: 'global', name: `stale-${RUN}`, description: 'orig' })
     );
     createdIds.push(created.id);
 
     // First update succeeds, bumping version
-    await svc.updateWithVersion(created.id, created.version ?? 1, { description: 'v2' });
+    await svc.updateWithVersion(created.id, created.version ?? 1, {
+      description: 'v2',
+    });
 
     // Second update with stale version returns null
-    const again = await svc.updateWithVersion(created.id, created.version ?? 1, {
-      description: 'v-stale',
-    });
+    const again = await svc.updateWithVersion(
+      created.id,
+      created.version ?? 1,
+      {
+        description: 'v-stale',
+      }
+    );
     expect(again).toBeNull();
   });
 
   it('countReferences reports zero for unreferenced skill', async () => {
     const svc = createSkillService(db);
     const created = await svc.create(
-      skillInput({ scope: 'global', name: `unref-${RUN}` }),
+      skillInput({ scope: 'global', name: `unref-${RUN}` })
     );
     createdIds.push(created.id);
 
@@ -99,7 +116,9 @@ describe('skill service CRUD (integration)', () => {
     if (!research) return; // not seeded in this env
 
     const refs = await svc.countReferences(research.id);
-    expect(refs.pipelineStages + refs.stageRuns + refs.personaSkills).toBeGreaterThan(0);
+    expect(
+      refs.pipelineStages + refs.stageRuns + refs.personaSkills
+    ).toBeGreaterThan(0);
 
     // Verify that the service's countReferences is what the router uses
     // to produce its error — the router is tested via Playwright.

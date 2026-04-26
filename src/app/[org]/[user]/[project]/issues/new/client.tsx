@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
@@ -30,10 +30,12 @@ export function IssueCreateClient({
 
   // ── Catalog queries ──────────────────────────────────────────────────────
   const typesQuery = trpc.issueCatalog.types.list.useQuery({ projectId });
-  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({ projectId });
+  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({
+    projectId,
+  });
   const parentQuery = trpc.issue.getById.useQuery(
     { id: parentIssueId ?? '' },
-    { enabled: !!parentIssueId },
+    { enabled: !!parentIssueId }
   );
 
   const types = typesQuery.data ?? [];
@@ -191,7 +193,12 @@ export function IssueCreateClient({
           <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
-              disabled={!title.trim() || !typeId || !priorityId || createMutation.isPending}
+              disabled={
+                !title.trim() ||
+                !typeId ||
+                !priorityId ||
+                createMutation.isPending
+              }
               className="px-5 py-2.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)] hover:shadow-[0_6px_24px_rgba(124,58,237,0.4)]"
             >
               {createMutation.isPending ? 'Creating...' : 'Create Issue'}
@@ -205,7 +212,9 @@ export function IssueCreateClient({
           </div>
 
           {createMutation.error && (
-            <p className="text-sm text-red-400">{createMutation.error.message}</p>
+            <p className="text-sm text-red-400">
+              {createMutation.error.message}
+            </p>
           )}
         </form>
       </Card>

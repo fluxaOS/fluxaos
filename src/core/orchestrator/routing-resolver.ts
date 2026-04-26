@@ -7,16 +7,16 @@
  *
  * Zero vendor imports. Receives Database via DI.
  */
-import { eq, and, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DEFAULT_SORT_STRATEGY } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
-  pipelineStage,
-  routingRule,
-  routingProfile,
-  provider,
   model,
+  pipelineStage,
   project,
+  provider,
+  routingProfile,
+  routingRule,
 } from '@/core/db/schema';
 import type { ResolvedRouting } from './types';
 
@@ -33,7 +33,10 @@ export interface RoutingResolver {
 
 export function createRoutingResolver(db: Database): RoutingResolver {
   return {
-    async resolve(stageId: string, projectId: string): Promise<ResolvedRouting | null> {
+    async resolve(
+      stageId: string,
+      projectId: string
+    ): Promise<ResolvedRouting | null> {
       // 1. Get the stage (for name and driver override)
       const [stage] = await db
         .select({
@@ -95,10 +98,7 @@ export function createRoutingResolver(db: Database): RoutingResolver {
         .from(provider)
         .innerJoin(model, eq(model.providerId, provider.id))
         .where(
-          and(
-            eq(provider.orgId, proj.orgId),
-            eq(provider.isHealthy, true),
-          ),
+          and(eq(provider.orgId, proj.orgId), eq(provider.isHealthy, true))
         );
 
       if (providers.length === 0) return null;
@@ -120,7 +120,7 @@ export function createRoutingResolver(db: Database): RoutingResolver {
       if (rule?.maxCostUsd) {
         const maxCost = Number(rule.maxCostUsd);
         candidates = candidates.filter(
-          (c) => Number(c.costPer1kInput ?? 0) <= maxCost,
+          (c) => Number(c.costPer1kInput ?? 0) <= maxCost
         );
       }
 
@@ -130,7 +130,8 @@ export function createRoutingResolver(db: Database): RoutingResolver {
       const strategy = rule?.sortStrategy ?? DEFAULT_SORT_STRATEGY;
       if (strategy === 'cost') {
         candidates.sort(
-          (a, b) => Number(a.costPer1kInput ?? 0) - Number(b.costPer1kInput ?? 0),
+          (a, b) =>
+            Number(a.costPer1kInput ?? 0) - Number(b.costPer1kInput ?? 0)
         );
       }
       // 'quality' = first available (no cost sorting)
@@ -139,9 +140,7 @@ export function createRoutingResolver(db: Database): RoutingResolver {
 
       // 7. Resolve driver: stage override > rule preferred > rule fallback (fail fast)
       const driver =
-        stage.driver ??
-        rule?.preferredDriver ??
-        rule?.fallbackDriver;
+        stage.driver ?? rule?.preferredDriver ?? rule?.fallbackDriver;
       if (!driver) {
         return null; // No driver configured — caller must handle
       }

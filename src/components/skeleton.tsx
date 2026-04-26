@@ -1,6 +1,8 @@
 export function SkeletonLine({ width = 'w-full' }: { width?: string }) {
   return (
-    <div className={`h-4 ${width} rounded-md bg-slate-700/50 animate-skeleton`} />
+    <div
+      className={`h-4 ${width} rounded-md bg-slate-700/50 animate-skeleton`}
+    />
   );
 }
 
@@ -21,7 +23,10 @@ export function SkeletonTable({ rows = 5 }: { rows?: number }) {
       </div>
       <div className="space-y-0">
         {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="flex gap-8 px-6 py-4 border-t border-slate-700/20">
+          <div
+            key={i}
+            className="flex gap-8 px-6 py-4 border-t border-slate-700/20"
+          >
             <SkeletonLine width="w-32" />
             <SkeletonLine width="w-20" />
             <SkeletonLine width="w-28" />

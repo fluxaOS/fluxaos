@@ -10,34 +10,34 @@
  * event-orchestrator (Realtime-driven state machine).
  */
 import { eq } from 'drizzle-orm';
-import type { Database } from '@/core/db/connection';
-import type { StageExecutor } from '@/core/ports/stage-executor';
-import type { IsolationProvider } from '@/core/ports/isolation';
-import type { PipelineRunService } from './pipeline-run-service';
-import {
-  pipelineRun,
-  pipelineStage,
-  stageRun,
-  issue,
-  skill,
-  driver,
-  persona,
-  brand,
-} from '@/core/db/schema';
-import { materialize } from '@/core/skills/materializer';
-import { buildCommand, renderTemplate } from './command-builder';
 import { registry } from '@/config/registry';
-import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
-import { parseSignalLine, type SkillSignal } from './signal-parser';
-import { createRoutingResolver } from './routing-resolver';
-import { acquireIsolationEnv, resolveProjectId } from './stage-runner-env';
 import type { TriggerType } from '@/core/constants';
 import {
-  STAGE_RUN_STATUS,
+  DEFAULT_STAGE_TIMEOUT_SEC,
   EVENT_TYPE,
   ISSUE_EVENT_TYPE,
-  DEFAULT_STAGE_TIMEOUT_SEC,
+  STAGE_RUN_STATUS,
 } from '@/core/constants';
+import type { Database } from '@/core/db/connection';
+import {
+  brand,
+  driver,
+  issue,
+  persona,
+  pipelineRun,
+  pipelineStage,
+  skill,
+  stageRun,
+} from '@/core/db/schema';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
+import { materialize } from '@/core/skills/materializer';
+import { buildCommand, renderTemplate } from './command-builder';
+import type { PipelineRunService } from './pipeline-run-service';
+import { createRoutingResolver } from './routing-resolver';
+import { parseSignalLine, type SkillSignal } from './signal-parser';
+import { acquireIsolationEnv, resolveProjectId } from './stage-runner-env';
 
 export { TargetRepoPathMissingError } from './stage-runner-env';
 
@@ -85,7 +85,7 @@ export interface StageRunResult {
  * different pipeline progression logic).
  */
 export async function executeStageRun(
-  ctx: StageRunContext,
+  ctx: StageRunContext
 ): Promise<StageRunResult> {
   const { db, executor, runService, isolation, runId, stageRunId } = ctx;
 
@@ -107,7 +107,8 @@ export async function executeStageRun(
     .select()
     .from(pipelineStage)
     .where(eq(pipelineStage.id, sRun.pipelineStageId));
-  if (!stage) throw new Error(`Pipeline stage not found: ${sRun.pipelineStageId}`);
+  if (!stage)
+    throw new Error(`Pipeline stage not found: ${sRun.pipelineStageId}`);
 
   // Driver (required)
   let driverRow: typeof driver.$inferSelect | null = null;
@@ -127,7 +128,9 @@ export async function executeStageRun(
   }
 
   if (!driverRow.outputFormat) {
-    throw new Error(`Driver '${driverRow.name}' has no output_format configured`);
+    throw new Error(
+      `Driver '${driverRow.name}' has no output_format configured`
+    );
   }
 
   // Skill (optional)
@@ -143,10 +146,7 @@ export async function executeStageRun(
   // Issue (optional)
   let issueRow: typeof issue.$inferSelect | null = null;
   if (run.issueId) {
-    const [i] = await db
-      .select()
-      .from(issue)
-      .where(eq(issue.id, run.issueId));
+    const [i] = await db.select().from(issue).where(eq(issue.id, run.issueId));
     issueRow = i ?? null;
   }
 
@@ -162,7 +162,11 @@ export async function executeStageRun(
     : null;
 
   // Persona (optional)
-  let personaRow: (typeof persona.$inferSelect & { brandEntry?: typeof brand.$inferSelect | null }) | null = null;
+  let personaRow:
+    | (typeof persona.$inferSelect & {
+        brandEntry?: typeof brand.$inferSelect | null;
+      })
+    | null = null;
   if (stage.personaId) {
     const [p] = await db
       .select()
@@ -186,7 +190,7 @@ export async function executeStageRun(
   if (!projectId) {
     throw new Error(
       `Stage-runner cannot run without a projectId (runId=${runId}). ` +
-        'Both issueRow.projectId and pipeline.projectId resolved to null.',
+        'Both issueRow.projectId and pipeline.projectId resolved to null.'
     );
   }
   const { env } = await acquireIsolationEnv({
@@ -211,7 +215,10 @@ export async function executeStageRun(
   }
 
   // Read contextLayout from driver config
-  const contextLayout = (driverRow.contextLayout as { instructionsFile: string; contextFile: string }) ?? {
+  const contextLayout = (driverRow.contextLayout as {
+    instructionsFile: string;
+    contextFile: string;
+  }) ?? {
     instructionsFile: 'CLAUDE.md',
     contextFile: 'context.md',
   };
@@ -293,7 +300,7 @@ export async function executeStageRun(
           driver: driverRow.name,
           attempt: sRun.attempt,
         },
-        'stage-runner',
+        'stage-runner'
       );
     }
 
@@ -375,7 +382,8 @@ export async function executeStageRun(
       });
 
       await runService.appendEvent(sRun.id, EVENT_TYPE.error, {
-        message: 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
+        message:
+          'no skill signal emitted — skills must output a {"flux:signal": ...} line',
         exitCode: result.exitCode,
       });
 
@@ -389,7 +397,7 @@ export async function executeStageRun(
             stageName: stage.name,
             reason: 'no skill signal emitted',
           },
-          'stage-runner',
+          'stage-runner'
         );
       }
 
@@ -411,9 +419,10 @@ export async function executeStageRun(
     }
 
     // Signal was emitted — use it
-    const finalStatus = result.exitCode === 0
-      ? STAGE_RUN_STATUS.completed
-      : STAGE_RUN_STATUS.failed;
+    const finalStatus =
+      result.exitCode === 0
+        ? STAGE_RUN_STATUS.completed
+        : STAGE_RUN_STATUS.failed;
 
     // Build skill metadata from signal
     const skillMetadata: Record<string, unknown> = {};
@@ -428,17 +437,16 @@ export async function executeStageRun(
       tokensIn: lastSignal.tokensIn,
       tokensOut: lastSignal.tokensOut,
       skillSignal: lastSignal.verdict,
-      skillMetadata: Object.keys(skillMetadata).length > 0 ? skillMetadata : undefined,
+      skillMetadata:
+        Object.keys(skillMetadata).length > 0 ? skillMetadata : undefined,
       trigger: ctx.trigger,
-      errorMessage: result.exitCode !== 0
-        ? `exit code ${result.exitCode}`
-        : undefined,
+      errorMessage:
+        result.exitCode !== 0 ? `exit code ${result.exitCode}` : undefined,
     });
 
     // Completion event
-    const eventType = result.exitCode === 0
-      ? EVENT_TYPE.completed
-      : EVENT_TYPE.error;
+    const eventType =
+      result.exitCode === 0 ? EVENT_TYPE.completed : EVENT_TYPE.error;
     await runService.appendEvent(sRun.id, eventType, {
       exitCode: result.exitCode,
       duration: result.durationMs,
@@ -448,9 +456,10 @@ export async function executeStageRun(
 
     // Issue events
     if (run.issueId) {
-      const issueEventType = result.exitCode === 0
-        ? ISSUE_EVENT_TYPE.stage_completed
-        : ISSUE_EVENT_TYPE.stage_failed;
+      const issueEventType =
+        result.exitCode === 0
+          ? ISSUE_EVENT_TYPE.stage_completed
+          : ISSUE_EVENT_TYPE.stage_failed;
       await runService.appendIssueEvent(
         run.issueId,
         issueEventType,
@@ -460,7 +469,7 @@ export async function executeStageRun(
           exitCode: result.exitCode,
           skillSignal: lastSignal.verdict,
         },
-        'stage-runner',
+        'stage-runner'
       );
     }
 
@@ -477,7 +486,8 @@ export async function executeStageRun(
       stageId: stage.id,
       skillSignal: lastSignal.verdict,
       skillSignalReason: lastSignal.reason ?? null,
-      skillMetadata: Object.keys(skillMetadata).length > 0 ? skillMetadata : null,
+      skillMetadata:
+        Object.keys(skillMetadata).length > 0 ? skillMetadata : null,
     };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)

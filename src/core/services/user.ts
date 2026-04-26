@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { user } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';

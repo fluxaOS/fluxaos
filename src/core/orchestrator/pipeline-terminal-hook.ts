@@ -20,10 +20,10 @@
  * bridge short-circuits when the run has no issue or the worktree is clean.
  */
 
-import type { DeployBridge } from '@/core/deploy';
-import type { IsolationProvider } from '@/core/ports/isolation';
 import { UncommittedChangesError } from '@/adapters/git';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
+import type { DeployBridge } from '@/core/deploy';
+import type { IsolationProvider } from '@/core/ports/isolation';
 
 export interface PipelineTerminalHookLogger {
   info(obj: Record<string, unknown>, msg?: string): void;
@@ -50,7 +50,7 @@ export interface PipelineTerminalHook {
 }
 
 export function createPipelineTerminalHook(
-  deps: PipelineTerminalHookDeps,
+  deps: PipelineTerminalHookDeps
 ): PipelineTerminalHook {
   const { deployBridge, isolation, logger } = deps;
 
@@ -66,7 +66,7 @@ export function createPipelineTerminalHook(
         const result = await deployBridge.deploy(runId);
         logger.info(
           { runId, skipped: result.skipped, event: 'deploy.invoked' },
-          'deploy.invoked',
+          'deploy.invoked'
         );
       } catch (err) {
         logger.error(
@@ -75,7 +75,7 @@ export function createPipelineTerminalHook(
             event: 'deploy.failed',
             error: err instanceof Error ? err.message : String(err),
           },
-          'deploy.failed: run left at completed; operator must reconcile manually',
+          'deploy.failed: run left at completed; operator must reconcile manually'
         );
       }
       return;
@@ -87,7 +87,7 @@ export function createPipelineTerminalHook(
     if (!projectId) {
       logger.warn(
         { runId, event: 'terminal-hook.no-project' },
-        'pipeline-terminal-hook: no projectId on run; cannot locate env',
+        'pipeline-terminal-hook: no projectId on run; cannot locate env'
       );
       return;
     }
@@ -102,13 +102,13 @@ export function createPipelineTerminalHook(
           envId: env.id,
           event: 'terminal-hook.env-released',
         },
-        'pipeline-terminal-hook: env released on non-completed terminal',
+        'pipeline-terminal-hook: env released on non-completed terminal'
       );
     } catch (err) {
       if (err instanceof UncommittedChangesError) {
         logger.warn(
           { runId, event: 'terminal-hook.env-dirty' },
-          'pipeline-terminal-hook: uncommitted changes — env left for debugging',
+          'pipeline-terminal-hook: uncommitted changes — env left for debugging'
         );
         return;
       }
@@ -118,7 +118,7 @@ export function createPipelineTerminalHook(
           event: 'terminal-hook.release-failed',
           error: err instanceof Error ? err.message : String(err),
         },
-        'pipeline-terminal-hook: env release failed',
+        'pipeline-terminal-hook: env release failed'
       );
     }
   }

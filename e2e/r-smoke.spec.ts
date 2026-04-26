@@ -28,8 +28,8 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
-import { test, expect, projectPath } from './helpers/setup';
-import { spawnDaemon, type DaemonHandle } from './helpers/daemon';
+import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GITHUB_TOKEN = process.env.FLUXAOS_GITHUB_TOKEN;
@@ -47,7 +47,12 @@ if (!DATABASE_URL) missingCreds.push('DATABASE_URL (or DIRECT_URL)');
 const HAS_ALL_CREDS = missingCreds.length === 0;
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-type TrackedPR = { owner: string; repo: string; prNumber: number; branchName: string };
+type TrackedPR = {
+  owner: string;
+  repo: string;
+  prNumber: number;
+  branchName: string;
+};
 const openedPRs: TrackedPR[] = [];
 let handle: DaemonHandle | null = null;
 
@@ -56,16 +61,16 @@ async function transition(
   baseUrl: string,
   issueId: string,
   toStateId: string,
-  version: number,
+  version: number
 ): Promise<void> {
   const resp = await page.request.post(
     `${baseUrl}/api/trpc/issue.transition?batch=1`,
-    { data: { '0': { id: issueId, toStateId, version } } },
+    { data: { '0': { id: issueId, toStateId, version } } }
   );
   if (!resp.ok()) {
     const body = await resp.text();
     throw new Error(
-      `issue.transition to ${toStateId} failed: ${resp.status()} ${body}`,
+      `issue.transition to ${toStateId} failed: ${resp.status()} ${body}`
     );
   }
 }
@@ -73,7 +78,7 @@ async function transition(
 test.describe('@r-smoke @journey @alpha-acceptance', () => {
   test.skip(
     !HAS_ALL_CREDS,
-    `requires live credentials: missing ${missingCreds.join(', ')}`,
+    `requires live credentials: missing ${missingCreds.join(', ')}`
   );
 
   test.setTimeout(8 * 60_000);
@@ -87,7 +92,9 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       try {
         await handle.shutdown();
       } catch (err) {
-        console.warn(`[teardown] daemon shutdown failed: ${(err as Error).message}`);
+        console.warn(
+          `[teardown] daemon shutdown failed: ${(err as Error).message}`
+        );
       }
     }
     if (!HAS_ALL_CREDS) return;
@@ -102,7 +109,7 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
         });
       } catch (err) {
         console.warn(
-          `[teardown] failed to close PR #${pr.prNumber}: ${(err as Error).message}`,
+          `[teardown] failed to close PR #${pr.prNumber}: ${(err as Error).message}`
         );
       }
       try {
@@ -113,22 +120,32 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
         });
       } catch (err) {
         console.warn(
-          `[teardown] failed to delete ref heads/${pr.branchName}: ${(err as Error).message}`,
+          `[teardown] failed to delete ref heads/${pr.branchName}: ${(err as Error).message}`
         );
       }
     }
   });
 
-  test('alpha acceptance: epic + child → daemon → PR → review → close → parent auto-close → cleanup', async ({ page }) => {
+  test('alpha acceptance: epic + child → daemon → PR → review → close → parent auto-close → cleanup', async ({
+    page,
+  }) => {
     if (!existsSync(path.join(TARGET_REPO_PATH!, '.git'))) {
       throw new Error(
-        `FLUXAOS_TARGET_REPO_PATH='${TARGET_REPO_PATH}' is not a git checkout. Clone ${TARGET_REPO} to that path on main before running this test.`,
+        `FLUXAOS_TARGET_REPO_PATH='${TARGET_REPO_PATH}' is not a git checkout. Clone ${TARGET_REPO} to that path on main before running this test.`
       );
     }
 
     // ── 1. Nuke + reseed ──────────────────────────────────────────────────
-    execSync('tsx src/scripts/db/nuke.ts', { cwd: REPO_ROOT, stdio: 'inherit', env: process.env });
-    execSync('npm run db:seed', { cwd: REPO_ROOT, stdio: 'inherit', env: process.env });
+    execSync('tsx src/scripts/db/nuke.ts', {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+      env: process.env,
+    });
+    execSync('npm run db:seed', {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+      env: process.env,
+    });
 
     // ── 1b. Reset sandbox repo to a clean main ───────────────────────────
     // Each test run injects a unique-named file into the sandbox so the
@@ -136,11 +153,14 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     // residue from prior test runs. The journey body fills the issue with
     // a request that references this filename.
     const uniqueArtifact = `R-SMOKE-${Date.now()}.md`;
-    execSync('git fetch origin --prune && git reset --hard origin/main && git clean -fdx', {
-      cwd: TARGET_REPO_PATH!,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    execSync(
+      'git fetch origin --prune && git reset --hard origin/main && git clean -fdx',
+      {
+        cwd: TARGET_REPO_PATH!,
+        stdio: 'inherit',
+        env: process.env,
+      }
+    );
 
     // ── 2. Point seed project at the disposable repo ─────────────────────
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
@@ -175,7 +195,7 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     // ── 3. Visit parent #1, RelationshipsCard renders ────────────────────
     await page.goto(projectPath(`/issues/${parentRow.number}`));
     await expect(
-      page.getByRole('heading', { name: /Add health check endpoint/ }),
+      page.getByRole('heading', { name: /Add health check endpoint/ })
     ).toBeVisible({ timeout: 15_000 });
 
     // ── 4. Create child via the "Create child issue" affordance ──────────
@@ -189,27 +209,33 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     // terminal-with-PR gate. Reference the unique artifact name from the
     // sandbox-reset step so the implement skill can't short-circuit with
     // "already_complete" on a residue file from a prior test run.
-    await page.locator('textarea').first().fill(
-      [
-        `Add a new file \`${uniqueArtifact}\` to the repo root containing exactly:`,
-        '',
-        '```',
-        `# ${uniqueArtifact}`,
-        '',
-        'R-SMOKE journey marker.',
-        '```',
-        '',
-        'No other files should change.',
-      ].join('\n'),
-    );
+    await page
+      .locator('textarea')
+      .first()
+      .fill(
+        [
+          `Add a new file \`${uniqueArtifact}\` to the repo root containing exactly:`,
+          '',
+          '```',
+          `# ${uniqueArtifact}`,
+          '',
+          'R-SMOKE journey marker.',
+          '```',
+          '',
+          'No other files should change.',
+        ].join('\n')
+      );
     await page.getByRole('button', { name: /Create Issue/ }).click();
 
     // ── 5. Land on child's detail page; capture child id + number ────────
     await page.waitForURL(/\/issues\/\d+/, { timeout: 15_000 });
     const childUrl = page.url();
     const childNumberMatch = childUrl.match(/\/issues\/(\d+)/);
-    expect(childNumberMatch, 'failed to parse child issue number from url').toBeTruthy();
-    const childNumber = Number(childNumberMatch![1]);
+    expect(
+      childNumberMatch,
+      'failed to parse child issue number from url'
+    ).toBeTruthy();
+    const childNumber = Number(childNumberMatch?.[1]);
 
     const [childRow] = await sql<
       { id: string; parent_issue_id: string | null; version: number }[]
@@ -220,7 +246,7 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     // ── 6. Verify parent rejection: Run Stage on parent is disabled ──────
     await page.goto(projectPath(`/issues/${parentRow.number}`));
     await expect(
-      page.getByRole('heading', { name: /Add health check endpoint/ }),
+      page.getByRole('heading', { name: /Add health check endpoint/ })
     ).toBeVisible({ timeout: 10_000 });
     const parentRunStage = page.getByRole('button', { name: /Run Stage/ });
     // Either the button is disabled (preferred R-EPIC surface), or absent
@@ -280,7 +306,7 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     }
     expect(
       terminalStatus,
-      'pipeline_run never reached terminal-with-PR within 5 minutes',
+      'pipeline_run never reached terminal-with-PR within 5 minutes'
     ).toBe('completed');
     expect(pipelineRunId).toBeTruthy();
 
@@ -293,7 +319,9 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       JOIN "issue_state" s ON s."id" = i."state_id"
       WHERE i."id" = ${childRow.id}
     `;
-    expect(childAfter?.state_key, 'child issue did not advance to review').toBe('review');
+    expect(childAfter?.state_key, 'child issue did not advance to review').toBe(
+      'review'
+    );
 
     const prRows = await sql<
       {
@@ -320,11 +348,14 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     const isoRows = await sql<
       { status: string; working_path: string }[]
     >`SELECT status, working_path FROM "isolation_environment" WHERE "run_id" = ${pipelineRunId!}`;
-    expect(isoRows, 'expected exactly one isolation_environment row').toHaveLength(1);
+    expect(
+      isoRows,
+      'expected exactly one isolation_environment row'
+    ).toHaveLength(1);
     expect(isoRows[0].status).toBe('inactive');
     expect(
       existsSync(isoRows[0].working_path),
-      `worktree directory should be removed: ${isoRows[0].working_path}`,
+      `worktree directory should be removed: ${isoRows[0].working_path}`
     ).toBe(false);
 
     // ── 10. GitHub assertions ─────────────────────────────────────────────
@@ -347,7 +378,12 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     expect(prResp.data.state).toBe('open');
     expect(prResp.data.head.ref).toBe(branchName);
 
-    openedPRs.push({ owner, repo: repoName, prNumber: prRow.pr_number!, branchName });
+    openedPRs.push({
+      owner,
+      repo: repoName,
+      prNumber: prRow.pr_number!,
+      branchName,
+    });
 
     // ── 11. Walk child review → deploy → complete (terminal) ─────────────
     const stateRows = await sql<
@@ -359,12 +395,24 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     expect(deployStateId, 'seed missing deploy state').toBeTruthy();
     expect(completeStateId, 'seed missing complete state').toBeTruthy();
 
-    await transition(page, baseUrl, childRow.id, deployStateId!, childAfter.version);
+    await transition(
+      page,
+      baseUrl,
+      childRow.id,
+      deployStateId!,
+      childAfter.version
+    );
 
     const [childAfterDeploy] = await sql<
       { version: number }[]
     >`SELECT version FROM "issue" WHERE "id" = ${childRow.id}`;
-    await transition(page, baseUrl, childRow.id, completeStateId!, childAfterDeploy.version);
+    await transition(
+      page,
+      baseUrl,
+      childRow.id,
+      completeStateId!,
+      childAfterDeploy.version
+    );
 
     // ── 12. Parent auto-close assertion ──────────────────────────────────
     const [parentAfter] = await sql<
@@ -376,7 +424,10 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       WHERE i."id" = ${parentRow.id}
     `;
     // Parent should be auto-closed by R-EPIC propagation when last child closed.
-    expect(parentAfter?.is_closed, 'parent did not auto-close after child completion').toBe(true);
+    expect(
+      parentAfter?.is_closed,
+      'parent did not auto-close after child completion'
+    ).toBe(true);
 
     // ── 13. Post-pipeline cleanup state ──────────────────────────────────
     // The terminal hook releases the worktree on stage completion, so by
@@ -395,14 +446,16 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     // ── 14. Console-error gate ────────────────────────────────────────────
     const knownErrorPattern =
       /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config|Uncaught/;
-    const matchedErrors = consoleErrors.filter((e) => knownErrorPattern.test(e));
+    const matchedErrors = consoleErrors.filter((e) =>
+      knownErrorPattern.test(e)
+    );
     expect(
       pageErrors,
-      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`,
+      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`
     ).toHaveLength(0);
     expect(
       matchedErrors,
-      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`,
+      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`
     ).toHaveLength(0);
 
     // ── 15. Daemon liveness ───────────────────────────────────────────────

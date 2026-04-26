@@ -7,12 +7,13 @@
  * Vendor imports (postgres, drizzle-orm/postgres-js) live HERE,
  * not in core/. Core only imports the Database type.
  */
-import { drizzle } from 'drizzle-orm/postgres-js';
+
 import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
 import type { DatabaseProvider } from '@/core/ports/database';
-import type { Database } from '@/core/db/connection';
 
 export class SupabaseDatabaseProvider implements DatabaseProvider {
   private db: Database;
@@ -21,7 +22,7 @@ export class SupabaseDatabaseProvider implements DatabaseProvider {
   constructor(connectionString: string) {
     if (!connectionString) {
       throw new Error(
-        'DATABASE_URL is required. Set it to your Supabase transaction pooler URL (port 6543).',
+        'DATABASE_URL is required. Set it to your Supabase transaction pooler URL (port 6543).'
       );
     }
     this.client = postgres(connectionString, { prepare: false });

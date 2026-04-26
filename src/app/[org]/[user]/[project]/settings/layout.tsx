@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 type TabSpec = {
@@ -28,7 +28,10 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="space-y-6">
-      <nav aria-label="Settings tabs" className="flex gap-1 border-b border-slate-700/40">
+      <nav
+        aria-label="Settings tabs"
+        className="flex gap-1 border-b border-slate-700/40"
+      >
         {TABS.map((t) => {
           const href = t.slug ? `${base}/${t.slug}` : base;
           // Active logic: exact match for root tab (Pipelines), prefix for the rest.

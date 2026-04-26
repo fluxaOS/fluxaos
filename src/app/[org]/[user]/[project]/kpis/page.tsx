@@ -1,6 +1,13 @@
 'use client';
 
-import { Play, CheckCircle, XCircle, Ban, Activity, DollarSign } from 'lucide-react';
+import {
+  Activity,
+  Ban,
+  CheckCircle,
+  DollarSign,
+  Play,
+  XCircle,
+} from 'lucide-react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { SkeletonCard } from '@/components/skeleton';
@@ -12,13 +19,13 @@ export default function KpisPage() {
   const orgId = orgsQuery.data?.[0]?.id;
   const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId },
+    { enabled: !!orgId }
   );
   const projectId = projectsQuery.data?.[0]?.id;
 
   const kpisQuery = trpc.pipeline.runs.kpis.useQuery(
     { projectId: projectId! },
-    { enabled: !!projectId },
+    { enabled: !!projectId }
   );
 
   const kpis = kpisQuery.data;
@@ -29,7 +36,9 @@ export default function KpisPage() {
       <div className="space-y-5">
         <PageHeader title="KPIs" />
         <div className="grid grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       </div>
     );
@@ -44,7 +53,9 @@ export default function KpisPage() {
       <div className="space-y-5">
         <PageHeader title="KPIs" />
         <div className="grid grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       </div>
     );
@@ -55,26 +66,66 @@ export default function KpisPage() {
       <PageHeader title="KPIs" />
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-400 mb-3">Pipeline runs</h3>
+        <h3 className="text-sm font-semibold text-slate-400 mb-3">
+          Pipeline runs
+        </h3>
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total Runs" value={kpis.totalRuns} icon={Play} accent="violet" />
+          <StatCard
+            label="Total Runs"
+            value={kpis.totalRuns}
+            icon={Play}
+            accent="violet"
+          />
           <StatCard
             label="Success Rate"
             value={`${kpis.successRate}%`}
             icon={CheckCircle}
-            accent={kpis.successRate >= 80 ? 'green' : kpis.successRate >= 50 ? 'amber' : 'violet'}
+            accent={
+              kpis.successRate >= 80
+                ? 'green'
+                : kpis.successRate >= 50
+                  ? 'amber'
+                  : 'violet'
+            }
           />
-          <StatCard label="Running" value={kpis.runningRuns} icon={Activity} accent="blue" />
+          <StatCard
+            label="Running"
+            value={kpis.runningRuns}
+            icon={Activity}
+            accent="blue"
+          />
         </div>
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-400 mb-3">Status breakdown</h3>
+        <h3 className="text-sm font-semibold text-slate-400 mb-3">
+          Status breakdown
+        </h3>
         <div className="grid grid-cols-4 gap-4">
-          <StatCard label="Completed" value={kpis.completedRuns} icon={CheckCircle} accent="green" />
-          <StatCard label="Failed" value={kpis.failedRuns} icon={XCircle} accent="amber" />
-          <StatCard label="Cancelled" value={kpis.cancelledRuns} icon={Ban} accent="violet" />
-          <StatCard label="Running" value={kpis.runningRuns} icon={Activity} accent="blue" />
+          <StatCard
+            label="Completed"
+            value={kpis.completedRuns}
+            icon={CheckCircle}
+            accent="green"
+          />
+          <StatCard
+            label="Failed"
+            value={kpis.failedRuns}
+            icon={XCircle}
+            accent="amber"
+          />
+          <StatCard
+            label="Cancelled"
+            value={kpis.cancelledRuns}
+            icon={Ban}
+            accent="violet"
+          />
+          <StatCard
+            label="Running"
+            value={kpis.runningRuns}
+            icon={Activity}
+            accent="blue"
+          />
         </div>
       </div>
 

@@ -23,7 +23,7 @@ describe('features primitive', () => {
 
   it('has exactly the expected seed feature flags', () => {
     expect(Object.keys(Feature).sort()).toEqual(
-      ['PREVIEW_GATE', 'REVISION_HISTORY', 'ROLE_BASED_PERMISSIONS'].sort(),
+      ['PREVIEW_GATE', 'REVISION_HISTORY', 'ROLE_BASED_PERMISSIONS'].sort()
     );
   });
 });

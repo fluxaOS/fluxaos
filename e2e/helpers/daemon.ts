@@ -11,7 +11,7 @@
 // that races a 90s deadline (matches FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS=60
 // + 30s slack).
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const DEFAULT_BOOT_TIMEOUT_MS = 30_000;
@@ -38,7 +38,7 @@ export interface DaemonHandle {
 }
 
 export async function spawnDaemon(
-  options: SpawnDaemonOptions = {},
+  options: SpawnDaemonOptions = {}
 ): Promise<DaemonHandle> {
   const graceSeconds = options.graceSeconds ?? 60;
   const recoveryIntervalMin = options.recoveryIntervalMin ?? 5;
@@ -70,8 +70,8 @@ export async function spawnDaemon(
     const timer = setTimeout(() => {
       rejectReady(
         new Error(
-          `Daemon failed to emit "${DAEMON_READY_REGEX}" within ${bootTimeoutMs}ms. stdout so far:\n${stdout.join('')}\nstderr:\n${stderr.join('')}`,
-        ),
+          `Daemon failed to emit "${DAEMON_READY_REGEX}" within ${bootTimeoutMs}ms. stdout so far:\n${stdout.join('')}\nstderr:\n${stderr.join('')}`
+        )
       );
     }, bootTimeoutMs);
 
@@ -81,13 +81,13 @@ export async function spawnDaemon(
         resolveReady();
       }
     };
-    child.stdout!.on('data', checkReady);
+    child.stdout?.on('data', checkReady);
     child.on('exit', (code) => {
       clearTimeout(timer);
       rejectReady(
         new Error(
-          `Daemon exited before ready (code=${code}). stdout:\n${stdout.join('')}\nstderr:\n${stderr.join('')}`,
-        ),
+          `Daemon exited before ready (code=${code}). stdout:\n${stdout.join('')}\nstderr:\n${stderr.join('')}`
+        )
       );
     });
   });
@@ -105,11 +105,11 @@ export async function spawnDaemon(
           () =>
             reject(
               new Error(
-                `Daemon did not exit within ${shutdownTimeoutMs}ms after SIGTERM.`,
-              ),
+                `Daemon did not exit within ${shutdownTimeoutMs}ms after SIGTERM.`
+              )
             ),
-          shutdownTimeoutMs,
-        ),
+          shutdownTimeoutMs
+        )
       ),
     ]);
   }

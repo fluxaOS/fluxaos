@@ -107,10 +107,7 @@ export function createCleanupScheduler(
     timer = setInterval(() => {
       void cleanupService.runScheduledSweep().catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
-        logger.error(
-          { error: message },
-          'cleanup_scheduler.sweep_failed'
-        );
+        logger.error({ error: message }, 'cleanup_scheduler.sweep_failed');
       });
     }, intervalMs);
 

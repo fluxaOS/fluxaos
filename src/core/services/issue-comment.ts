@@ -9,13 +9,12 @@
  * Uses optimistic concurrency (version field) on all mutations.
  * Body HTML is rendered at write time from markdown.
  */
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { issueComment, issueEvent } from '@/core/db/schema';
 
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
-type IssueCommentInsert = typeof issueComment.$inferInsert;
 type IssueCommentSelect = typeof issueComment.$inferSelect;
 
 // ─── Input types ─────────────────────────────────────────────────────────────
@@ -62,7 +61,7 @@ export function createIssueCommentService(db: Database) {
     issueId: string,
     actor: string,
     type: string,
-    payload: Record<string, unknown>,
+    payload: Record<string, unknown>
   ) {
     await db.insert(issueEvent).values({
       issueId,
@@ -94,16 +93,16 @@ export function createIssueCommentService(db: Database) {
      */
     async create(
       issueId: string,
-      input: CreateCommentInput,
+      input: CreateCommentInput
     ): Promise<IssueCommentSelect> {
       const bodyHtml = renderMarkdown(input.bodyMd);
 
       // Allocate next comment number
       const rows = await db.execute(
-        sql`SELECT COALESCE(MAX(comment_number), 0) + 1 AS "nextNumber" FROM issue_comment WHERE issue_id = ${issueId}`,
+        sql`SELECT COALESCE(MAX(comment_number), 0) + 1 AS "nextNumber" FROM issue_comment WHERE issue_id = ${issueId}`
       );
       const nextNumber = Number(
-        (rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber,
+        (rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber
       );
 
       const [created] = await db
@@ -134,7 +133,7 @@ export function createIssueCommentService(db: Database) {
      */
     async update(
       commentId: string,
-      input: UpdateCommentInput,
+      input: UpdateCommentInput
     ): Promise<IssueCommentSelect> {
       return db.transaction(async (tx) => {
         const [current] = await tx
@@ -146,7 +145,7 @@ export function createIssueCommentService(db: Database) {
         }
         if (current.version !== input.version) {
           throw new Error(
-            `VERSION_CONFLICT: Expected version ${input.version}, but comment has version ${current.version}. Reload and retry.`,
+            `VERSION_CONFLICT: Expected version ${input.version}, but comment has version ${current.version}. Reload and retry.`
           );
         }
 
@@ -164,14 +163,14 @@ export function createIssueCommentService(db: Database) {
           .where(
             and(
               eq(issueComment.id, commentId),
-              eq(issueComment.version, input.version),
-            ),
+              eq(issueComment.version, input.version)
+            )
           )
           .returning();
 
         if (!updated) {
           throw new Error(
-            `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`,
+            `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`
           );
         }
 
@@ -204,7 +203,7 @@ export function createIssueCommentService(db: Database) {
      */
     async softDelete(
       commentId: string,
-      input: SoftDeleteCommentInput,
+      input: SoftDeleteCommentInput
     ): Promise<IssueCommentSelect> {
       return db.transaction(async (tx) => {
         const [current] = await tx
@@ -216,7 +215,7 @@ export function createIssueCommentService(db: Database) {
         }
         if (current.version !== input.version) {
           throw new Error(
-            `VERSION_CONFLICT: Expected version ${input.version}, but comment has version ${current.version}. Reload and retry.`,
+            `VERSION_CONFLICT: Expected version ${input.version}, but comment has version ${current.version}. Reload and retry.`
           );
         }
 
@@ -245,14 +244,14 @@ export function createIssueCommentService(db: Database) {
           .where(
             and(
               eq(issueComment.id, commentId),
-              eq(issueComment.version, input.version),
-            ),
+              eq(issueComment.version, input.version)
+            )
           )
           .returning();
 
         if (!updated) {
           throw new Error(
-            `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`,
+            `VERSION_CONFLICT: Comment ${commentId} was modified concurrently. Reload and retry.`
           );
         }
 

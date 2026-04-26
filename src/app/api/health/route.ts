@@ -4,13 +4,13 @@
  *
  * GET /api/health → JSON showing all adapters and their health.
  */
-import { execSync } from 'child_process';
+import { execSync } from 'node:child_process';
 import { NextResponse } from 'next/server';
+import type { BullMQAdapter } from '@/adapters/bullmq/queue';
+import type { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
 import type { DatabaseProvider } from '@/core/ports/database';
-import type { SupabaseAuthProvider } from '@/adapters/supabase/auth';
-import type { BullMQAdapter } from '@/adapters/bullmq/queue';
 
 /** Read build metadata from env vars (set at build time) or fall back to git at runtime. */
 function getBuildMeta(): { sha: string; buildTime: string; version: string } {
@@ -35,13 +35,13 @@ function getBuildMeta(): { sha: string; buildTime: string; version: string } {
 /** Run a health check with a timeout to prevent hanging. */
 async function withTimeout(
   fn: () => Promise<boolean>,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<boolean | string> {
   try {
     const result = await Promise.race([
       fn(),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), timeoutMs),
+        setTimeout(() => reject(new Error('timeout')), timeoutMs)
       ),
     ]);
     return result;
@@ -52,7 +52,7 @@ async function withTimeout(
 
 async function checkAdapter(
   name: string,
-  healthFn: () => Promise<boolean>,
+  healthFn: () => Promise<boolean>
 ): Promise<{ registered: boolean; healthy: boolean | string }> {
   try {
     registry.get(name);
@@ -71,20 +71,20 @@ export async function GET() {
 
     const [database, auth, queue] = await Promise.all([
       checkAdapter('database', () =>
-        registry.get<DatabaseProvider>('database').healthCheck(),
+        registry.get<DatabaseProvider>('database').healthCheck()
       ),
       checkAdapter('auth', () =>
-        registry.get<SupabaseAuthProvider>('auth').healthCheck(),
+        registry.get<SupabaseAuthProvider>('auth').healthCheck()
       ),
       checkAdapter('queue', () =>
-        registry.get<BullMQAdapter>('queue').healthCheck(),
+        registry.get<BullMQAdapter>('queue').healthCheck()
       ),
     ]);
 
     const adapters = { database, auth, queue };
 
     const allHealthy = Object.values(adapters).every(
-      (a) => a.registered && a.healthy === true,
+      (a) => a.registered && a.healthy === true
     );
 
     const build = getBuildMeta();
@@ -99,7 +99,7 @@ export async function GET() {
         buildTime: build.buildTime,
         version: build.version,
       },
-      { status: allHealthy ? 200 : 503 },
+      { status: allHealthy ? 200 : 503 }
     );
   } catch (e) {
     return NextResponse.json(
@@ -108,7 +108,7 @@ export async function GET() {
         error: e instanceof Error ? e.message : 'bootstrap failed',
         timestamp: new Date().toISOString(),
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

@@ -8,20 +8,20 @@
  * Each test run uses unique slugs: `test-${Date.now()}` (DA Finding #28).
  */
 import 'dotenv/config';
-import { describe, expect, it, afterAll, beforeAll } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
-  createOrganizationService,
-  createProjectService,
-  createUserService,
-  createIssueService,
   createIssueCatalogService,
   createIssueCommentService,
   createIssueEventService,
+  createIssueService,
+  createOrganizationService,
+  createProjectService,
+  createUserService,
 } from '@/core/services';
-import * as schema from '@/core/db/schema';
-import type { Database } from '@/core/db/connection';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -57,15 +57,18 @@ afterAll(async () => {
   for (const { table, id } of cleanup.reverse()) {
     const t = tableMap[table];
     if (t) {
-      await db.delete(t).where(eq(t.id, id)).catch(() => {});
+      await db
+        .delete(t)
+        .where(eq(t.id, id))
+        .catch(() => {});
     }
   }
 });
 
 // ─── Shared state across test groups ────────────────────────────────────────
 
-let orgId: string;
-let userId: string;
+let _orgId: string;
+let _userId: string;
 let projectId: string;
 
 // Catalog IDs (populated in beforeAll of catalog tests)
@@ -75,11 +78,11 @@ let stateInProgressId: string;
 let stateClosedId: string;
 let statusBacklogId: string;
 let priorityHighId: string;
-let labelBugId: string;
+let _labelBugId: string;
 
 // Transition IDs
-let transOpenToInProgress: string;
-let transInProgressToClosed: string;
+let _transOpenToInProgress: string;
+let _transInProgressToClosed: string;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. Organization + User + Project
@@ -98,7 +101,7 @@ describe('organization + user + project', () => {
       settings: {},
     });
     cleanup.push({ table: 'organization', id: org.id });
-    orgId = org.id;
+    _orgId = org.id;
     expect(org.slug).toBe(`test-org-${RUN}`);
 
     // Create user
@@ -109,7 +112,7 @@ describe('organization + user + project', () => {
       slug: `test-user-${RUN}`,
     });
     cleanup.push({ table: 'user', id: usr.id });
-    userId = usr.id;
+    _userId = usr.id;
     expect(usr.name).toBe('Test User');
 
     // Verify getBySlug works
@@ -161,7 +164,7 @@ describe('issue catalogs', () => {
         displayName: 'Duplicate Feature',
         color: '#ff0000',
         sortOrder: 2,
-      }),
+      })
     ).rejects.toThrow();
   });
 
@@ -175,7 +178,7 @@ describe('issue catalogs', () => {
       sortOrder: 1,
     });
     cleanup.push({ table: 'issueLabel', id: active.id });
-    labelBugId = active.id;
+    _labelBugId = active.id;
 
     // Create an inactive label
     const inactive = await catalogSvc.labels.create({
@@ -236,7 +239,7 @@ describe('issue catalogs', () => {
       sortOrder: 1,
     });
     cleanup.push({ table: 'issueTransition', id: t1.id });
-    transOpenToInProgress = t1.id;
+    _transOpenToInProgress = t1.id;
 
     const t2 = await catalogSvc.transitions.create({
       projectId,
@@ -245,7 +248,7 @@ describe('issue catalogs', () => {
       sortOrder: 2,
     });
     cleanup.push({ table: 'issueTransition', id: t2.id });
-    transInProgressToClosed = t2.id;
+    _transInProgressToClosed = t2.id;
 
     // Verify listFrom returns correct targets
     const fromOpen = await catalogSvc.transitions.listFrom(projectId, open.id);
@@ -254,7 +257,7 @@ describe('issue catalogs', () => {
 
     const fromInProgress = await catalogSvc.transitions.listFrom(
       projectId,
-      inProgress.id,
+      inProgress.id
     );
     expect(fromInProgress.length).toBe(1);
     expect(fromInProgress[0].toStateId).toBe(closed.id);
@@ -357,8 +360,8 @@ describe('issue service', () => {
   it('getByNumber returns correct issue', async () => {
     const found = await issueSvc.getByNumber(projectId, 1);
     expect(found).not.toBeNull();
-    expect(found!.id).toBe(issueId);
-    expect(found!.title).toBe('First Issue');
+    expect(found?.id).toBe(issueId);
+    expect(found?.title).toBe('First Issue');
   });
 
   it('transition — valid transition changes state and records event', async () => {
@@ -366,7 +369,7 @@ describe('issue service', () => {
       issueId,
       stateInProgressId,
       issueVersion,
-      'test-user',
+      'test-user'
     );
     issueVersion = transitioned.version;
 
@@ -385,7 +388,7 @@ describe('issue service', () => {
     // open→closed is NOT a valid transition (only open→in_progress and in_progress→closed exist)
     // Issue is currently in_progress, try transitioning to open (no such transition exists)
     await expect(
-      issueSvc.transition(issueId, stateOpenId, issueVersion, 'test-user'),
+      issueSvc.transition(issueId, stateOpenId, issueVersion, 'test-user')
     ).rejects.toThrow('INVALID_TRANSITION');
   });
 
@@ -394,7 +397,7 @@ describe('issue service', () => {
       issueId,
       { title: 'Updated Title' },
       issueVersion,
-      'test-user',
+      'test-user'
     );
     issueVersion = updated.version;
 
@@ -412,12 +415,7 @@ describe('issue service', () => {
 
   it('updateFields — wrong version throws VERSION_CONFLICT', async () => {
     await expect(
-      issueSvc.updateFields(
-        issueId,
-        { title: 'Should Fail' },
-        999,
-        'test-user',
-      ),
+      issueSvc.updateFields(issueId, { title: 'Should Fail' }, 999, 'test-user')
     ).rejects.toThrow('VERSION_CONFLICT');
   });
 
@@ -447,7 +445,7 @@ describe('issue service', () => {
 
     // Remove from cleanup since we already deleted
     const idx = cleanup.findIndex(
-      (c) => c.table === 'issue' && c.id === secondIssueId,
+      (c) => c.table === 'issue' && c.id === secondIssueId
     );
     if (idx !== -1) cleanup.splice(idx, 1);
   });
@@ -466,14 +464,15 @@ describe('comment service', () => {
 
   let firstCommentId: string;
   let firstCommentVersion: number;
-  let secondCommentId: string;
+  let _secondCommentId: string;
 
   // We need to reference the issueId from 'issue service' group.
   // It was created via issueSvc.create and stored in the outer `cleanup` array.
   // Let's grab it from the first 'issue' cleanup entry.
   function getIssueId(): string {
     const entry = cleanup.find((c) => c.table === 'issue');
-    if (!entry) throw new Error('No issue found in cleanup — issue tests must run first');
+    if (!entry)
+      throw new Error('No issue found in cleanup — issue tests must run first');
     return entry.id;
   }
 
@@ -499,7 +498,7 @@ describe('comment service', () => {
       bodyMd: 'Second comment',
       author: 'test-user',
     });
-    secondCommentId = comment.id;
+    _secondCommentId = comment.id;
 
     expect(comment.commentNumber).toBe(2);
   });
@@ -522,10 +521,10 @@ describe('comment service', () => {
     const editEvents = events.filter((e) => e.type === 'comment_edited');
     expect(editEvents.length).toBe(1);
     expect((editEvents[0].payload as any).old_body).toBe(
-      'Hello, this is a test comment',
+      'Hello, this is a test comment'
     );
     expect((editEvents[0].payload as any).new_body).toBe(
-      'Updated comment body',
+      'Updated comment body'
     );
   });
 
@@ -535,7 +534,7 @@ describe('comment service', () => {
         bodyMd: 'Should fail',
         editedBy: 'test-user',
         version: 999,
-      }),
+      })
     ).rejects.toThrow('VERSION_CONFLICT');
   });
 
@@ -555,7 +554,7 @@ describe('comment service', () => {
     const deleteEvents = events.filter((e) => e.type === 'comment_deleted');
     expect(deleteEvents.length).toBe(1);
     expect((deleteEvents[0].payload as any).body_md).toBe(
-      'Updated comment body',
+      'Updated comment body'
     );
   });
 });

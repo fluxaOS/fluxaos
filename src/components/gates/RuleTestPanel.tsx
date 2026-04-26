@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import type { GateMode, RuleGroup } from '@/core/gates/types';
 import { trpc } from '@/lib/trpc/client';
 import { VerdictBadge } from './VerdictBadge';
-import type { GateMode, RuleGroup } from '@/core/gates/types';
 
 const DEFAULT_CONTEXT = JSON.stringify(
   { exit_code: 0, cost_usd: 0.05, files_changed: 3 },
   null,
-  2,
+  2
 );
 
 export function RuleTestPanel({
@@ -38,9 +38,7 @@ export function RuleTestPanel({
 
   return (
     <div className="border border-slate-700/30 rounded-xl p-4 bg-slate-800/20 space-y-4">
-      <h4 className="text-xs font-semibold text-slate-400">
-        Test Gate Rules
-      </h4>
+      <h4 className="text-xs font-semibold text-slate-400">Test Gate Rules</h4>
 
       {/* Context input */}
       <div>

@@ -25,7 +25,7 @@ class AdapterRegistry {
   register<T>(name: string, factory: AdapterFactory<T>): void {
     if (this.adapters.has(name)) {
       throw new Error(
-        `Adapter "${name}" is already registered. Each adapter name must be unique.`,
+        `Adapter "${name}" is already registered. Each adapter name must be unique.`
       );
     }
     this.adapters.set(name, { factory, instance: null });
@@ -41,7 +41,7 @@ class AdapterRegistry {
       throw new Error(
         `Adapter "${name}" is not registered. ` +
           `Registered adapters: [${[...this.adapters.keys()].join(', ')}]. ` +
-          `Check that bootstrap.ts registers all required adapters.`,
+          `Check that bootstrap.ts registers all required adapters.`
       );
     }
     if (entry.instance === null) {
@@ -67,7 +67,7 @@ class AdapterRegistry {
       throw new Error(
         `Missing required adapters: [${missing.join(', ')}]. ` +
           `Registered: [${[...this.adapters.keys()].join(', ')}]. ` +
-          `Check bootstrap.ts and environment variables.`,
+          `Check bootstrap.ts and environment variables.`
       );
     }
   }

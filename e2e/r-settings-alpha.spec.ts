@@ -1,7 +1,7 @@
 // e2e/r-settings-alpha.spec.ts
 // R-SETTINGS-ALPHA journey: exercises the Projects + Pipelines tabs.
 // No ANTHROPIC_API_KEY required — this journey stays in the UI layer.
-import { test, expect, projectPath } from './helpers/setup';
+import { expect, projectPath, test } from './helpers/setup';
 
 test.describe('@r-settings-alpha @journey', () => {
   test.setTimeout(90_000);
@@ -33,7 +33,7 @@ test.describe('@r-settings-alpha @journey', () => {
 
     // Default branch field should be visible and editable.
     const defaultBranchInput = page.locator(
-      'input[aria-label="Default branch"], input[name="defaultBranch"]',
+      'input[aria-label="Default branch"], input[name="defaultBranch"]'
     );
     // Fallback: any input preceded by the "Default branch" label.
     const defaultBranchVisible = await defaultBranchInput
@@ -43,16 +43,16 @@ test.describe('@r-settings-alpha @journey', () => {
     if (!defaultBranchVisible) {
       // Field-detection varies with RecordEditor shape; just assert the
       // readonly "Target repo path (env)" label rendered somewhere.
-      await expect(
-        page.getByText(/Target repo path \(env\)/),
-      ).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByText(/Target repo path \(env\)/)).toBeVisible({
+        timeout: 5_000,
+      });
     }
 
     // Visit Pipelines tab.
     await tabsNav.getByRole('link', { name: 'Pipelines' }).click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(
-      page.getByRole('heading', { name: 'Pipeline settings' }),
+      page.getByRole('heading', { name: 'Pipeline settings' })
     ).toBeVisible({ timeout: 10_000 });
 
     // Seed ships with 1 pipeline; if there are two, Set-as-default is

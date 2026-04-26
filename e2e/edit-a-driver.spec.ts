@@ -1,5 +1,5 @@
 // e2e/edit-a-driver.spec.ts
-import { test, expect, gotoSettings } from './helpers/setup';
+import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @drivers @crud', () => {
   test('edit-a-driver', async ({ page }) => {
@@ -19,7 +19,9 @@ test.describe('@r-ui-1 @settings @drivers @crud', () => {
     // Use label-locator (the field label is "Binary" with an `*` sibling span
     // that makes plain getByText non-unique — it also matches the page
     // description "... AI CLI tool ... (binary, flags, transport, env)").
-    await expect(page.getByRole('heading', { name: 'Claude Code' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Claude Code' })
+    ).toBeVisible();
     await expect(page.locator('label', { hasText: 'Binary' })).toBeVisible();
 
     // Step 5: Click Edit
