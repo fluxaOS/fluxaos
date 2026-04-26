@@ -31,6 +31,7 @@ import {
   skill,
   user,
 } from '@/core/db/schema';
+import { renderMarkdown } from '@/core/markdown';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {
@@ -621,27 +622,30 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     .where(eq(issue.projectId, proj.id));
 
   if (existingIssues.length === 0) {
+    const issue1Md = [
+      '## Summary',
+      '',
+      'Add a `/api/health` endpoint that returns build metadata (git sha, build time, version).',
+      '',
+      '## Implementation Plan',
+      '',
+      '1. Read `src/app/api/health/route.ts`',
+      '2. Update the health endpoint to include git sha from `git rev-parse HEAD`',
+      '3. Add build timestamp',
+      '4. Return JSON with `{ status: "ok", sha, buildTime, version }`',
+      '',
+      '## Acceptance Criteria',
+      '',
+      '- [ ] `/api/health` returns JSON with status, sha, buildTime, version',
+      '- [ ] No hardcoded values — reads from environment or git',
+    ].join('\n');
+
     await db.insert(issue).values({
       projectId: proj.id,
       number: 1,
       title: 'Add health check endpoint with build metadata',
-      bodyMd: [
-        '## Summary',
-        '',
-        'Add a `/api/health` endpoint that returns build metadata (git sha, build time, version).',
-        '',
-        '## Implementation Plan',
-        '',
-        '1. Read `src/app/api/health/route.ts`',
-        '2. Update the health endpoint to include git sha from `git rev-parse HEAD`',
-        '3. Add build timestamp',
-        '4. Return JSON with `{ status: "ok", sha, buildTime, version }`',
-        '',
-        '## Acceptance Criteria',
-        '',
-        '- [ ] `/api/health` returns JSON with status, sha, buildTime, version',
-        '- [ ] No hardcoded values — reads from environment or git',
-      ].join('\n'),
+      bodyMd: issue1Md,
+      bodyHtml: renderMarkdown(issue1Md),
       stateId: stateMap.get('research')!,
       statusId: statusMap.get('open')!,
       typeId: typeMap.get('task')!,
@@ -654,22 +658,25 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     // The health endpoint already exists at src/app/api/health/route.ts.
     // When the research stage runs, the skill should detect this and emit
     // hold/already_complete with targetState: 'complete'.
+    const issue2Md = [
+      '## Summary',
+      '',
+      'Add a `/api/health` endpoint that returns build metadata.',
+      '',
+      'Note: This endpoint already exists at `src/app/api/health/route.ts`',
+      'and fully meets the requirements.',
+      '',
+      '## Acceptance Criteria',
+      '',
+      '- [ ] `/api/health` returns JSON with status and build info',
+    ].join('\n');
+
     await db.insert(issue).values({
       projectId: proj.id,
       number: 2,
       title: 'Add /api/health endpoint with build metadata',
-      bodyMd: [
-        '## Summary',
-        '',
-        'Add a `/api/health` endpoint that returns build metadata.',
-        '',
-        'Note: This endpoint already exists at `src/app/api/health/route.ts`',
-        'and fully meets the requirements.',
-        '',
-        '## Acceptance Criteria',
-        '',
-        '- [ ] `/api/health` returns JSON with status and build info',
-      ].join('\n'),
+      bodyMd: issue2Md,
+      bodyHtml: renderMarkdown(issue2Md),
       stateId: stateMap.get('research')!,
       statusId: statusMap.get('open')!,
       typeId: typeMap.get('task')!,
