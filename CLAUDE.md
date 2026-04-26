@@ -102,7 +102,31 @@ fluxaOS uses `git worktree` as the default isolation strategy when multiple agen
 bash ops/install-hooks.sh   # idempotent; sets core.hooksPath = ops/git-hooks
 ```
 
-Run the installer once after `git clone` and once per `git worktree add`. The hooks enforce: branch protection (no direct commits/pushes to `main`), ESLint on staged TS, the 500-line file-size cap (with documented exemptions), secret-file detection, and the `claude-md-score` trailer gate (see "Editing This File" below).
+Run the installer once after `git clone` and once per `git worktree add`.
+
+**Tracked git hooks (`ops/git-hooks/`):**
+
+| Hook | Purpose |
+|------|---------|
+| `pre-commit` | Branch protection (no direct commits to `main` outside merge), ESLint on staged TS, 500-line file-size cap with documented exemptions, secret-file detection. |
+| `commit-msg` | When `CLAUDE.md` is staged, require `claude-md-score: NN` trailer with `NN >= 90` (see "Editing This File"). |
+| `pre-push` | Refuse direct pushes to `main`. PRs only. |
+| `post-merge` | After merging into `main` (e.g., `git pull` after `gh pr merge`), auto-prune fully-merged local branches that aren't checked out in any worktree and aren't backing an open PR. |
+
+**Branch & state audit (`ops/git-hooks/session-audit.sh`):**
+
+The four-command snapshot — `git status && git stash list && git branch --list && git branch -r --list` — should always show only ACTIVE work and PROTECTED open PRs. The audit script enforces this contract:
+
+- `bash ops/git-hooks/session-audit.sh report` — human-readable banner, classifies every branch as ACTIVE / PROTECTED / ORPHAN-MERGED / ORPHAN-DANGLING (worktree-aware: any branch checked out in any worktree is ACTIVE).
+- `bash ops/git-hooks/session-audit.sh prune` — deletes only `ORPHAN-MERGED` branches (safe `git branch -d`); never touches dangling or open-PR branches.
+- `bash ops/git-hooks/session-audit.sh json` — machine-readable output for tooling.
+
+The audit runs automatically:
+
+- **At every Claude Code SessionStart** via `.claude/hooks/session-start-audit.sh` (advisory, non-blocking — surfaces orphans the moment the agent kicks off).
+- **After every merge into `main`** via `ops/git-hooks/post-merge` (auto-prunes ORPHAN-MERGED branches; leaves dangling branches for human attention).
+
+**Stash convention:** `git stash push -m "<owner>: <reason>"` — unnamed stashes are flagged as orphans. Use `WIP:` or `PROTECTED:` prefixes for short-lived or never-drop entries.
 
 ## Editing This File
 

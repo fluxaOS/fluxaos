@@ -23,7 +23,16 @@
         ]
       }
     ],
-    "SessionStart": []
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start-audit.sh"
+          }
+        ]
+      }
+    ]
   },
   "enabledPlugins": {
     "codex@openai-codex": true,
