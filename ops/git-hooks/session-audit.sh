@@ -192,7 +192,24 @@ case "$MODE" in
       printf '%s\n    {"branch":"%s","reason":"%s"}' "$sep" "${e%%|*}" "${e#*|}"
       sep=","
     done
-    printf '\n  ]\n}\n'
+    printf '\n  ],\n  "stash_active": ['
+    sep=""
+    for s in "${STASH_ACTIVE[@]:-}"; do
+      [ -z "$s" ] && continue
+      esc=$(printf '%s' "$s" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      printf '%s\n    "%s"' "$sep" "$esc"
+      sep=","
+    done
+    printf '\n  ],\n  "stash_orphan": ['
+    sep=""
+    for s in "${STASH_ORPHAN[@]:-}"; do
+      [ -z "$s" ] && continue
+      esc=$(printf '%s' "$s" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      printf '%s\n    "%s"' "$sep" "$esc"
+      sep=","
+    done
+    printf '\n  ],\n  "working_tree_dirty": %s' "$(if [ -n "$(git status --porcelain)" ]; then echo true; else echo false; fi)"
+    printf '\n}\n'
     ;;
 
   report|*)

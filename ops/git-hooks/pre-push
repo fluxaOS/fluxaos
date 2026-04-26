@@ -1,8 +1,47 @@
 #!/bin/bash
-# Pre-push hook for fluxaOS (standalone — no fh-commons dependency)
+# Pre-push hook for fluxaOS
+#
+# Two gates:
+#
+#   1. Direct pushes to main are blocked. PRs only.
+#
+#   2. Cleanliness gate: refuse the push when the four-command snapshot
+#      (`git status && git stash list && git branch && git branch -r &&
+#      git worktree list`) shows leftover work that has not been
+#      accounted for. The agent that calls `git push` is the one that
+#      must triage whatever is left over — even if it isn't theirs.
+#      That's intentional: drift can't accumulate past one push cycle.
+#
+# Cleanliness gate fails on any of:
+#   - Working tree dirty (uncommitted modifications or untracked files
+#     other than ignored paths). The current branch's own work must be
+#     committed before pushing.
+#   - ORPHAN-MERGED branches present (someone forgot `git branch -d`).
+#   - ORPHAN-DANGLING branches present (unmerged + no PR + abandoned).
+#   - Unnamed stashes (no `<owner>:` / `WIP:` / `PROTECTED:` prefix).
+#
+# Cleanliness gate passes when every entry the audit reports is ACTIVE
+# (current HEAD anywhere, ahead of origin/main) or PROTECTED (open PR
+# head). Stashes pass when every entry has an owner prefix.
+#
+# Resolve the failure by:
+#   - Committing or discarding the working-tree changes.
+#   - `git branch -d <orphan>` for merged orphans (or run
+#     `bash ops/git-hooks/session-audit.sh prune`).
+#   - For dangling orphans: open a PR, delete the branch, or rename the
+#     stash with an owner so it stops looking abandoned.
+#   - `git stash drop` or relabel the stash via
+#     `git stash push -m '<owner>: <reason>'`.
+
 set -e
 
-while read local_ref local_sha remote_ref remote_sha; do
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$REPO_ROOT" ]; then
+  exit 0
+fi
+
+# ── Gate 1: refuse direct push to main ─────────────────────────────────────
+while read -r local_ref local_sha remote_ref remote_sha; do
   if [[ "$remote_ref" == "refs/heads/main" ]]; then
     echo "✗ Direct pushes to main are blocked."
     echo ""
@@ -13,4 +52,65 @@ while read local_ref local_sha remote_ref remote_sha; do
   fi
 done
 
-exit 0
+# ── Gate 2: cleanliness ────────────────────────────────────────────────────
+AUDIT="$REPO_ROOT/ops/git-hooks/session-audit.sh"
+if [ ! -x "$AUDIT" ]; then
+  # Audit script missing — skip cleanliness gate rather than block pushes.
+  exit 0
+fi
+
+JSON=$(bash "$AUDIT" json 2>/dev/null || echo '{}')
+
+dirty=$(printf '%s' "$JSON" | grep -E '"working_tree_dirty":[[:space:]]*true' || true)
+orphan_merged_count=$(printf '%s' "$JSON" | awk '/"orphan_merged":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"branch"' || true)
+orphan_dangling_count=$(printf '%s' "$JSON" | awk '/"orphan_dangling":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"branch"' || true)
+stash_orphan_count=$(printf '%s' "$JSON" | awk '/"stash_orphan":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"stash@' || true)
+
+problems=0
+[ -n "$dirty" ] && problems=$((problems + 1))
+[ "$orphan_merged_count" -gt 0 ] && problems=$((problems + 1))
+[ "$orphan_dangling_count" -gt 0 ] && problems=$((problems + 1))
+[ "$stash_orphan_count" -gt 0 ] && problems=$((problems + 1))
+
+if [ "$problems" -eq 0 ]; then
+  exit 0
+fi
+
+# Block + report.
+echo ""
+echo "✗ Push blocked: repo state is not clean."
+echo ""
+echo "Four-command snapshot:"
+echo ""
+echo "── git status ────────────────────────────────────────────────"
+git status
+echo ""
+echo "── git stash list ────────────────────────────────────────────"
+git stash list || true
+echo ""
+echo "── git branch ────────────────────────────────────────────────"
+git branch --list
+echo ""
+echo "── git branch -r ─────────────────────────────────────────────"
+git branch -r --list
+echo ""
+echo "── git worktree list ─────────────────────────────────────────"
+git worktree list
+echo ""
+echo "── audit ─────────────────────────────────────────────────────"
+bash "$AUDIT" report || true
+echo ""
+echo "Resolve every flagged item before pushing again. Whoever pushes"
+echo "next inherits the cleanup obligation — that is by design so drift"
+echo "cannot accumulate past one push cycle."
+echo ""
+echo "If you genuinely need to bypass (rare; document why), set"
+echo "FLUXAOS_SKIP_PREPUSH_GATE=1 for this push only."
+
+if [ "${FLUXAOS_SKIP_PREPUSH_GATE:-0}" = "1" ]; then
+  echo ""
+  echo "⚠  FLUXAOS_SKIP_PREPUSH_GATE=1 — bypassing cleanliness gate."
+  exit 0
+fi
+
+exit 1
