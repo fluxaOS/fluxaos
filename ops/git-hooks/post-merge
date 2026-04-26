@@ -41,9 +41,29 @@ git fetch --prune origin --quiet 2>/dev/null || true
 bash "$AUDIT" prune
 
 # GitHub deletes the head branch asynchronously after `gh pr merge
-# --delete-branch`, so the first fetch above can race the delete and leave
-# a stale `origin/<branch>` ref behind. A second prune after the local
-# branch cleanup catches the lagging delete in the common case.
-git fetch --prune origin --quiet 2>/dev/null || true
+# --delete-branch`, so the first fetch above can leave a stale
+# `origin/<branch>` ref behind. If any remote-tracking ref (other than
+# origin/main and origin/HEAD) is fully merged into origin/main, that's
+# our signal a GH-side delete is in flight — poll-prune until it lands
+# or we exhaust retries. If no such candidate exists, exit immediately.
+has_merged_remote() {
+  git for-each-ref --format='%(refname)' refs/remotes/origin/ \
+    | grep -v -E '^refs/remotes/origin/(HEAD|main)$' \
+    | while IFS= read -r ref; do
+        if git merge-base --is-ancestor "$ref" origin/main 2>/dev/null; then
+          echo "$ref"
+        fi
+      done
+}
+
+if [ -n "$(has_merged_remote)" ]; then
+  for delay in 2 3 5; do
+    sleep "$delay"
+    git fetch --prune origin --quiet 2>/dev/null || true
+    if [ -z "$(has_merged_remote)" ]; then
+      break
+    fi
+  done
+fi
 
 exit 0
