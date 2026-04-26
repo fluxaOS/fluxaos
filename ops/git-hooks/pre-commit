@@ -5,8 +5,12 @@ set -e
 ERRORS=0
 
 # ── Branch protection ──
+# Block direct (non-merge) commits to main. Merge commits finalizing a
+# `git merge <branch>` are permitted because their content was already
+# vetted on the feature branch by this same hook and the commit-msg gate.
+GIT_DIR=$(git rev-parse --git-dir)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$BRANCH" = "main" ]; then
+if [ "$BRANCH" = "main" ] && [ ! -f "$GIT_DIR/MERGE_HEAD" ]; then
   echo "✗ Direct commits to 'main' branch are not allowed"
   echo ""
   echo "Please create a feature branch:"
