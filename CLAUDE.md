@@ -37,6 +37,9 @@ src/
   lib/          # Client helpers (supabase client, tRPC client, context resolution)
   config/       # Bootstrap + adapter registry
   __tests__/    # Integration tests (real Supabase, no unit tests)
+e2e/            # Playwright journey tests (the verification gate)
+ops/            # systemd unit, git-hooks/, install-hooks.sh
+docs/           # session-quick-start, invariants, planning, superpowers/
 ```
 
 ## Tech Stack
@@ -77,10 +80,43 @@ Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
 - `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` — required when running the daemon. Positive integer, seconds to wait for in-flight stage runs to drain after SIGTERM. Daemon refuses to start without it (operator owns the drain window — no default).
 - `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` (optional) — positive integer. If set, daemon runs `orchestrator.recoverOnStartup()` on that cadence to reap stale stage runs whose PIDs are dead. If unset, only the startup sweep runs.
 
+## Issue Tracking
+
+Linear is the source of truth for issues, deferred fixes, and post-alpha roadmap items (adopted 2026-04-26).
+
+- **Workspace:** `rebos`
+- **Team:** `fluxaOS` (key `FLX`)
+- **Projects:**
+  - **fluxaOS Post-Alpha Roadmap** — workstreams after alpha shipped 2026-04-25
+  - **fluxaOS Deferred Fixes** — non-blocking cleanup and follow-ups
+- **Access:** Linear MCP only. No CLI. List issues with `mcp__plugin_linear_linear__list_issues`, save with `mcp__plugin_linear_linear__save_issue`.
+- **Branch convention:** `flx-NNN-short-slug` (e.g., `flx-42-fix-realtime-leak`).
+- **Commit trailer:** include `Fixes FLX-NNN` (or `Refs FLX-NNN`) in the commit body when the work resolves a Linear issue.
+- **Legacy:** `docs/superpowers/deferred-fixes.md` is frozen — historical record only. New findings go to the Linear "fluxaOS Deferred Fixes" project.
+
+## Worktrees & Hooks
+
+fluxaOS uses `git worktree` as the default isolation strategy when multiple agents work in parallel. Git hooks live in the tracked `ops/git-hooks/` directory (not `.git/hooks/`, which is per-clone and not shared with worktrees). Each worktree must point its config at the tracked dir before hooks fire:
+
+```bash
+bash ops/install-hooks.sh   # idempotent; sets core.hooksPath = ops/git-hooks
+```
+
+Run the installer once after `git clone` and once per `git worktree add`. The hooks enforce: branch protection (no direct commits/pushes to `main`), ESLint on staged TS, the 500-line file-size cap (with documented exemptions), secret-file detection, and the `claude-md-score` trailer gate (see "Editing This File" below).
+
+## Editing This File
+
+CLAUDE.md is load-bearing project memory. Every edit must clear the quality gate before commit.
+
+1. After any edit to `/mnt/dev/fluxaos/CLAUDE.md`, invoke the `claude-md-management:claude-md-improver` skill (Claude Code: use the Skill tool with skill name `claude-md-management:claude-md-improver`).
+2. The skill must score the file **≥ 90**. If it scores lower, apply the suggested improvements and re-run until ≥ 90.
+3. Append a `claude-md-score: NN` trailer to the commit message (where `NN` is the final score). The pre-commit hook blocks commits that stage `CLAUDE.md` without this trailer.
+4. The PostToolUse hook (`.claude/hooks/claude-md-gate.sh`) emits a reminder when `CLAUDE.md` is edited — heed it; do not commit until the score is captured.
+
 ## Reference
 
 - **[Session Quick-Start](docs/session-quick-start.md) — READ FIRST: conventions, gotchas, env vars, ports, autonomy details**
 - [Invariants](docs/invariants.md) — hard constraints + issue lifecycle + verification script
 - [Roadmap](docs/superpowers/roadmap.md) — phase status, plans, specs, RCAs
 - [Approved mockup](docs/planning/mockups/dashboard-mockup.html) — visual target
-- All other planning docs: `docs/superpowers/{specs,plans,handoffs,deferred-fixes.md}`
+- All other planning docs: `docs/superpowers/{specs,plans,handoffs}/`

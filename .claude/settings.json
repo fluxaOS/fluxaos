@@ -12,12 +12,22 @@
             "command": "bash .claude/hooks/write-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/claude-md-gate.sh"
+          }
+        ]
       }
     ],
     "SessionStart": []
   },
   "enabledPlugins": {
     "codex@openai-codex": true,
-    "claude-md-management@claude-plugins-official": true
+    "claude-md-management@claude-plugins-official": true,
+    "linear@claude-plugins-official": true
   }
 }

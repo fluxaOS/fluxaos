@@ -1,0 +1,16 @@
+#!/bin/bash
+# Pre-push hook for fluxaOS (standalone — no fh-commons dependency)
+set -e
+
+while read local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" == "refs/heads/main" ]]; then
+    echo "✗ Direct pushes to main are blocked."
+    echo ""
+    echo "Use PR flow instead:"
+    echo "  git push -u origin $(git branch --show-current)"
+    echo "  gh pr create"
+    exit 1
+  fi
+done
+
+exit 0

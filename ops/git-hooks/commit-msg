@@ -1,0 +1,57 @@
+#!/bin/bash
+# commit-msg hook for fluxaOS
+#
+# Enforces the CLAUDE.md edit gate: when CLAUDE.md is staged for commit, the
+# commit message must contain a `claude-md-score: NN` trailer where NN >= 90.
+# The score is produced by the `claude-md-management:claude-md-improver` skill
+# which the agent must run after every CLAUDE.md edit (see CLAUDE.md →
+# "Editing This File").
+#
+# This hook is the only mechanical enforcement. The PostToolUse reminder hook
+# (.claude/hooks/claude-md-gate.sh) prevents the agent from forgetting; this
+# hook prevents commit if it forgot anyway.
+
+set -e
+
+MSG_FILE="$1"
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+  exit 0
+fi
+
+# Only gate when CLAUDE.md is part of the commit.
+if ! git diff --cached --name-only --diff-filter=ACM | grep -Fxq "CLAUDE.md"; then
+  exit 0
+fi
+
+# Look for `claude-md-score: NN` trailer (case-insensitive, allows surrounding whitespace).
+SCORE_LINE="$(grep -iE '^[[:space:]]*claude-md-score:[[:space:]]*[0-9]+[[:space:]]*$' "$MSG_FILE" | head -n 1 || true)"
+
+if [ -z "$SCORE_LINE" ]; then
+  echo "✗ CLAUDE.md is staged but the commit message has no \`claude-md-score: NN\` trailer." >&2
+  echo "" >&2
+  echo "  Run the claude-md-management:claude-md-improver skill on /mnt/dev/fluxaos/CLAUDE.md," >&2
+  echo "  then add a trailer to the commit body. Example:" >&2
+  echo "" >&2
+  echo "    docs(claude): tighten Linear section" >&2
+  echo "" >&2
+  echo "    claude-md-score: 92" >&2
+  exit 1
+fi
+
+# Extract the numeric score.
+SCORE="$(printf '%s\n' "$SCORE_LINE" | sed -E 's/^[[:space:]]*claude-md-score:[[:space:]]*([0-9]+)[[:space:]]*$/\1/I')"
+
+if [ -z "$SCORE" ] || ! [[ "$SCORE" =~ ^[0-9]+$ ]]; then
+  echo "✗ Could not parse \`claude-md-score:\` value: '$SCORE_LINE'" >&2
+  exit 1
+fi
+
+if [ "$SCORE" -lt 90 ]; then
+  echo "✗ claude-md-score is $SCORE, minimum required is 90." >&2
+  echo "  Re-run the claude-md-management:claude-md-improver skill, apply suggestions," >&2
+  echo "  then update the trailer." >&2
+  exit 1
+fi
+
+echo "✓ claude-md-score: $SCORE (>= 90)"
+exit 0

@@ -1,0 +1,91 @@
+#!/bin/bash
+# Pre-commit hook for fluxaOS (standalone — no fh-commons dependency)
+set -e
+
+ERRORS=0
+
+# ── Branch protection ──
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" = "main" ]; then
+  echo "✗ Direct commits to 'main' branch are not allowed"
+  echo ""
+  echo "Please create a feature branch:"
+  echo "  git checkout -b your-branch-name"
+  exit 1
+fi
+
+# ── Lint staged TypeScript files ──
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' || true)
+if [ -n "$STAGED_TS" ]; then
+  echo "Running lint..."
+  npx eslint $STAGED_TS --quiet 2>/dev/null || {
+    echo "✗ ESLint failed"
+    ERRORS=$((ERRORS + 1))
+  }
+fi
+
+# ── File size check (500 lines max) ──
+# Exempt files where length is unavoidable or architecturally justified.
+# Add a new entry below with a one-line rationale comment above it.
+# See DEF-007 (docs/superpowers/deferred-fixes.md) for the canonical-source TODO.
+SIZE_EXEMPT_FILES=(
+  # Declarative Drizzle schema: one entity per block; splitting fragments the FK graph
+  # and makes relations harder to read.
+  "src/core/db/schema.ts"
+  # End-to-end integration test: single-file arrange/act/assert flow is clearer than
+  # split. DEF-008 candidate if we want to split later.
+  "src/__tests__/integration/orchestrator.test.ts"
+  # Catalog + default-org/user/project seed data: linear top-to-bottom reads best as
+  # one file. DEF-008 candidate if we want to split later.
+  "src/scripts/db/seed.ts"
+  # Gate engine integration tests: pure-function + service tests interleaved with
+  # shared fixtures. DEF-008 candidate if we split engine vs service tests later.
+  "src/__tests__/integration/gates.test.ts"
+  # Issue service: single source of truth for issue lifecycle. Splitting the
+  # transition / state-override / epic-auto-close helpers across files
+  # fragments the invariant graph (version locks, close propagation, event
+  # emission). See AUDIT-P2-CQ-CORE-7 for the standing exemption rationale.
+  "src/core/services/issue.ts"
+)
+
+is_size_exempt() {
+  local target="$1"
+  for exempt in "${SIZE_EXEMPT_FILES[@]}"; do
+    if [ "$target" = "$exempt" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' || true)
+for file in $STAGED_FILES; do
+  if [ -f "$file" ]; then
+    if is_size_exempt "$file"; then
+      continue
+    fi
+    LINES=$(wc -l < "$file")
+    if [ "$LINES" -gt 500 ]; then
+      echo "✗ $file exceeds 500 lines ($LINES lines)"
+      ERRORS=$((ERRORS + 1))
+    fi
+  fi
+done
+
+# ── Secret detection ──
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACM || true)
+for file in $STAGED_ALL; do
+  if echo "$file" | grep -qE '\.env$|\.env\.|\.token$|secrets/'; then
+    echo "✗ Potential secret file staged: $file"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
+
+if [ $ERRORS -eq 0 ]; then
+  echo "✓ Pre-commit checks passed"
+  exit 0
+else
+  echo ""
+  echo "✗ Pre-commit checks failed with $ERRORS error(s)"
+  exit 1
+fi
