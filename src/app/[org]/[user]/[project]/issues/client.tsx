@@ -215,7 +215,9 @@ export function IssueListClient({
                 return (
                   <tr
                     key={iss.id}
-                    className="border-t border-slate-700/15 hover:bg-white/[0.02] transition-colors"
+                    className={`border-t border-slate-700/15 hover:bg-white/[0.02] transition-colors ${
+                      iss.isClosed ? 'opacity-60' : ''
+                    }`}
                   >
                     <td className="px-6 py-3.5 text-xs text-slate-500 font-mono">
                       {iss.number}
@@ -223,7 +225,9 @@ export function IssueListClient({
                     <td className="px-6 py-3.5">
                       <Link
                         href={`${basePath}/issues/${iss.number}`}
-                        className="text-slate-200 font-medium hover:text-white transition-colors"
+                        className={`text-slate-200 font-medium hover:text-white transition-colors ${
+                          iss.isClosed ? 'line-through' : ''
+                        }`}
                       >
                         {iss.parentIssueId && (
                           <span
@@ -240,6 +244,11 @@ export function IssueListClient({
                           </span>
                         )}
                       </Link>
+                      {iss.isClosed && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-700/40 text-slate-400">
+                          Closed
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3.5">
                       {typeInfo ? (
