@@ -12,6 +12,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { issueComment, issueEvent } from '@/core/db/schema';
+import { renderMarkdown } from '@/core/markdown';
 
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
@@ -33,23 +34,6 @@ interface UpdateCommentInput {
 interface SoftDeleteCommentInput {
   deletedBy: string;
   version: number;
-}
-
-// ─── Markdown renderer (placeholder) ─────────────────────────────────────────
-
-function renderMarkdown(md: string): string {
-  // Minimal: escape HTML, convert newlines to <br>, wrap in <p>
-  // A proper markdown library will replace this later
-  return (
-    '<p>' +
-    md
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>') +
-    '</p>'
-  );
 }
 
 // ─── Service factory ─────────────────────────────────────────────────────────

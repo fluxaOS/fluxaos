@@ -16,6 +16,7 @@ import {
   issueStatus,
   issueTransition,
 } from '@/core/db/schema';
+import { renderMarkdown } from '@/core/markdown';
 
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
@@ -53,23 +54,6 @@ interface UpdateFieldsInput {
   priorityId?: string;
   assignee?: string | null;
   labels?: unknown[];
-}
-
-// ─── Markdown renderer (placeholder) ─────────────────────────────────────────
-
-function renderMarkdown(md: string): string {
-  // Minimal: escape HTML, convert newlines to <br>, wrap in <p>
-  // A proper markdown library will replace this later
-  return (
-    '<p>' +
-    md
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>') +
-    '</p>'
-  );
 }
 
 // ─── Service factory ─────────────────────────────────────────────────────────
