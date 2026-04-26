@@ -1,3 +1,8 @@
+# CI runs lint + type check only.
+# Integration tests (vitest) require a real Supabase connection per project policy
+# (no mocks, no Postgres service container) and are not run in CI. They are run
+# locally pre-push and via Playwright journey tests in e2e/ which serve as the
+# end-to-end verification gate. See FLX-57.
 name: CI
 
 on:
@@ -24,6 +29,3 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
-
-      - name: Test
-        run: npx vitest run
