@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { Plus } from 'lucide-react';
+import Link from 'next/link';
 import { Card } from '@/components/card';
 import { trpc } from '@/lib/trpc/client';
 
@@ -32,7 +32,7 @@ export function RelationshipsCard({
   const childrenQuery = trpc.issue.getChildren.useQuery({ parentId: issueId });
   const parentQuery = trpc.issue.getById.useQuery(
     { id: parentIssueId ?? '' },
-    { enabled: !!parentIssueId },
+    { enabled: !!parentIssueId }
   );
 
   const children = childrenQuery.data ?? [];
@@ -47,7 +47,9 @@ export function RelationshipsCard({
     return (
       <Card hover={false} padding="p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-400">Relationships</h3>
+          <h3 className="text-sm font-semibold text-slate-400">
+            Relationships
+          </h3>
           <Link
             href={`${basePath}/issues/new?parent=${issueId}`}
             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-electric-violet/10 hover:bg-electric-violet/20 text-electric-violet border border-electric-violet/30 transition-colors"
@@ -93,7 +95,8 @@ export function RelationshipsCard({
       {hasChildren && (
         <div className="pt-2 border-t border-slate-700/20">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 mb-2">
-            Children ({children.filter((c) => !c.isClosed).length} open / {children.length} total)
+            Children ({children.filter((c) => !c.isClosed).length} open /{' '}
+            {children.length} total)
           </div>
           <ul className="space-y-1.5">
             {children.map((child) => (
@@ -102,8 +105,12 @@ export function RelationshipsCard({
                   href={`${basePath}/issues/${child.number}`}
                   className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
                 >
-                  <span className="font-mono text-slate-500">#{child.number}</span>
-                  <span className={child.isClosed ? 'line-through opacity-60' : ''}>
+                  <span className="font-mono text-slate-500">
+                    #{child.number}
+                  </span>
+                  <span
+                    className={child.isClosed ? 'line-through opacity-60' : ''}
+                  >
                     {child.title}
                   </span>
                 </Link>

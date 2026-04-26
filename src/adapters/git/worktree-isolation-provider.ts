@@ -18,6 +18,7 @@
  */
 
 import { and, desc, eq } from 'drizzle-orm';
+import { ensureArtifactsDir, removeArtifactsDir } from '@/adapters/fs';
 import type { Database } from '@/core/db/connection';
 import { isolationEnvironment } from '@/core/db/schema';
 import type {
@@ -26,17 +27,16 @@ import type {
   IsolationProvider,
   ReleaseOptions,
 } from '@/core/ports/isolation';
-import { ensureArtifactsDir, removeArtifactsDir } from '@/adapters/fs';
 import { getArtifactsPath } from './artifacts-path';
 import { ensureGitignoreEntry } from './gitignore';
 import { getWorkspaceRoot, getWorktreePath } from './path-resolver';
-import { copyConfiguredFiles } from './worktree-copy';
 import {
   createWorktree,
   hasUncommittedChanges,
   removeWorktree,
   worktreeExists,
 } from './worktree';
+import { copyConfiguredFiles } from './worktree-copy';
 
 export class UncommittedChangesError extends Error {
   constructor(envId: string, workingPath: string) {
@@ -174,23 +174,25 @@ export function createWorktreeIsolationProvider(
     if (existing && !(await worktreeExists(existing.workingPath))) {
       // Row exists but worktree gone. Repair: recreate worktree, update row.
       await ensureWorktreeGitignored(repoPath);
-      await createWorktree(repoPath, existing.workingPath, existing.branchName, baseBranch).catch(
-        async (err) => {
-          // If the branch already exists locally, fall back to re-adding the
-          // worktree against the existing branch (no -b). Otherwise rethrow.
-          const msg = (err as Error).message ?? '';
-          if (!msg.includes('already exists')) throw err;
-          const { execFile } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const execFileAsync = promisify(execFile);
-          await execFileAsync('git', [
-            'worktree',
-            'add',
-            existing.workingPath,
-            existing.branchName,
-          ], { cwd: repoPath });
-        }
-      );
+      await createWorktree(
+        repoPath,
+        existing.workingPath,
+        existing.branchName,
+        baseBranch
+      ).catch(async (err) => {
+        // If the branch already exists locally, fall back to re-adding the
+        // worktree against the existing branch (no -b). Otherwise rethrow.
+        const msg = (err as Error).message ?? '';
+        if (!msg.includes('already exists')) throw err;
+        const { execFile } = await import('node:child_process');
+        const { promisify } = await import('node:util');
+        const execFileAsync = promisify(execFile);
+        await execFileAsync(
+          'git',
+          ['worktree', 'add', existing.workingPath, existing.branchName],
+          { cwd: repoPath }
+        );
+      });
       // Re-copy configured files on repair so a freshly-recreated worktree
       // is usable immediately.
       if (copyFiles.length > 0) {
@@ -239,9 +241,7 @@ export function createWorktreeIsolationProvider(
           workingPath: worktreePath,
           branchName,
           status: 'active',
-          metadata: copyReport
-            ? { copyReport: copyReport.entries }
-            : {},
+          metadata: copyReport ? { copyReport: copyReport.entries } : {},
           artifactsPath: resolvedArtifactsPath,
         })
         .returning();

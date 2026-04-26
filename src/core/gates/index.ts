@@ -4,15 +4,15 @@
 export { evaluateGate } from './engine';
 export { createGateService, type GateService } from './service';
 export type {
+  FailureAction,
+  GateEvaluation,
+  GateMode,
+  GateVerdict,
+  GroupResult,
   Rule,
   RuleGroup,
   RuleOperator,
-  RuleSeverity,
-  FailureAction,
-  GateMode,
-  GateVerdict,
   RuleResult,
-  GroupResult,
-  GateEvaluation,
+  RuleSeverity,
 } from './types';
 export { isRuleGroup } from './types';

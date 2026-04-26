@@ -1,5 +1,13 @@
 // src/core/orchestrator/manual-run.ts
 
+import { eq } from 'drizzle-orm';
+import {
+  EVENT_TYPE,
+  GATE_VERDICT,
+  ISSUE_EVENT_TYPE,
+  PIPELINE_RUN_STATUS,
+  TRIGGER_TYPE,
+} from '@/core/constants';
 /**
  * Manual Run Executor — runs a single stage without the orchestrator daemon.
  *
@@ -8,22 +16,14 @@
  * completion and gate evaluation.
  */
 import type { Database } from '@/core/db/connection';
-import type { StageExecutor } from '@/core/ports/stage-executor';
-import type { IsolationProvider } from '@/core/ports/isolation';
-import type { PipelineTerminalHook } from './pipeline-terminal-hook';
-import { createPipelineRunService } from './pipeline-run-service';
-import { createGateService } from '@/core/gates/service';
-import { createIssueService } from '@/core/services/issue';
-import { executeStageRun } from './stage-runner';
-import {
-  PIPELINE_RUN_STATUS,
-  ISSUE_EVENT_TYPE,
-  EVENT_TYPE,
-  GATE_VERDICT,
-  TRIGGER_TYPE,
-} from '@/core/constants';
-import { eq } from 'drizzle-orm';
 import { issue, pipeline, stageRun } from '@/core/db/schema';
+import { createGateService } from '@/core/gates/service';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { StageExecutor } from '@/core/ports/stage-executor';
+import { createIssueService } from '@/core/services/issue';
+import { createPipelineRunService } from './pipeline-run-service';
+import type { PipelineTerminalHook } from './pipeline-terminal-hook';
+import { executeStageRun } from './stage-runner';
 
 /**
  * Execute a single stage run. Fire-and-forget — caller does not await.
@@ -35,7 +35,7 @@ export async function executeManualRun(
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
   runId: string,
-  stageRunId: string,
+  stageRunId: string
 ): Promise<void> {
   const runService = createPipelineRunService(db);
   const gateService = createGateService(db);
@@ -69,7 +69,7 @@ export async function executeManualRun(
           model: result.modelIdentifier,
           driver: result.driverName,
           skill_signal: result.skillSignal,
-        },
+        }
       );
       await runService.appendEvent(stageRunId, EVENT_TYPE.gate_checked, {
         verdict: gateResult.verdict,
@@ -81,55 +81,75 @@ export async function executeManualRun(
     // Handle hold verdict from skill signal
     if (result.skillSignal === GATE_VERDICT.hold && result.issueId) {
       const issueService = createIssueService(db);
-      const [issueRow] = await db.select().from(issue).where(eq(issue.id, result.issueId));
+      const [issueRow] = await db
+        .select()
+        .from(issue)
+        .where(eq(issue.id, result.issueId));
 
       if (issueRow) {
         if (result.skillSignalReason === 'already_complete') {
-          const targetStateKey = result.skillMetadata?.targetState as string | undefined;
+          const targetStateKey = result.skillMetadata?.targetState as
+            | string
+            | undefined;
           if (targetStateKey) {
-            const targetState = await issueService.getStateByKey(issueRow.projectId, targetStateKey);
-            await issueService.stateOverride(result.issueId, targetState.id, issueRow.version, 'orchestrator');
+            const targetState = await issueService.getStateByKey(
+              issueRow.projectId,
+              targetStateKey
+            );
+            await issueService.stateOverride(
+              result.issueId,
+              targetState.id,
+              issueRow.version,
+              'orchestrator'
+            );
             await runService.appendIssueEvent(
               result.issueId,
               ISSUE_EVENT_TYPE.state_changed,
               { reason: 'already_complete', targetState: targetStateKey },
-              'manual-run',
+              'manual-run'
             );
           }
         } else {
           // needs_human or unknown reason — block the issue
           const blockedStatusId = await issueService.getStatusIdByConfigKey(
             issueRow.projectId,
-            'issues.status.on_blocked_key',
+            'issues.status.on_blocked_key'
           );
           const question = result.skillMetadata?.question as string | undefined;
-          await issueService.updateStatus(result.issueId, blockedStatusId, 'orchestrator', question);
+          await issueService.updateStatus(
+            result.issueId,
+            blockedStatusId,
+            'orchestrator',
+            question
+          );
           await runService.appendIssueEvent(
             result.issueId,
             ISSUE_EVENT_TYPE.pipeline_failed,
             { reason: result.skillSignalReason ?? 'needs_human', question },
-            'manual-run',
+            'manual-run'
           );
         }
       }
     }
 
     // Complete pipeline run
-    const status = result.exitCode === 0
-      ? PIPELINE_RUN_STATUS.completed
-      : PIPELINE_RUN_STATUS.failed;
+    const status =
+      result.exitCode === 0
+        ? PIPELINE_RUN_STATUS.completed
+        : PIPELINE_RUN_STATUS.failed;
     await runService.completeRun(runId, status);
 
     // Pipeline-level issue events
     if (result.issueId) {
-      const issueEventType = result.exitCode === 0
-        ? ISSUE_EVENT_TYPE.pipeline_completed
-        : ISSUE_EVENT_TYPE.pipeline_failed;
+      const issueEventType =
+        result.exitCode === 0
+          ? ISSUE_EVENT_TYPE.pipeline_completed
+          : ISSUE_EVENT_TYPE.pipeline_failed;
       await runService.appendIssueEvent(
         result.issueId,
         issueEventType,
         { runId, exitCode: result.exitCode },
-        'manual-run',
+        'manual-run'
       );
     }
 
@@ -155,7 +175,7 @@ export async function executeManualRun(
 
 async function resolveProjectIdForRun(
   db: Database,
-  runId: string,
+  runId: string
 ): Promise<string | null> {
   const { pipelineRun } = await import('@/core/db/schema');
   const [run] = await db

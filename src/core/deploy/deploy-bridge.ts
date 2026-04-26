@@ -26,32 +26,28 @@
  * the adapter registry, which keeps the bridge DI-clean.
  */
 
-import { eq, and, desc } from 'drizzle-orm';
-import type { Database } from '@/core/db/connection';
-import type { IsolationProvider } from '@/core/ports/isolation';
-import type { GitProvider, PullRequest } from '@/core/ports/git';
-import type { IssueService } from '@/core/services/issue';
-import type { AdapterRegistryLike } from './registry-types';
-import {
-  pipelineRun,
-  issue,
-  project,
-  stageRun,
-  pipelineStage,
-  issueBranch,
-  issuePullRequest,
-} from '@/core/db/schema';
+import { and, desc, eq } from 'drizzle-orm';
 import {
   commitAll,
   push,
   resolveRepoIdentity,
   UncommittedChangesError,
 } from '@/adapters/git';
+import type { Database } from '@/core/db/connection';
 import {
-  buildCommitMessage,
-  buildPrTitle,
-  buildPrBody,
-} from './templates';
+  issue,
+  issueBranch,
+  issuePullRequest,
+  pipelineRun,
+  pipelineStage,
+  project,
+  stageRun,
+} from '@/core/db/schema';
+import type { GitProvider, PullRequest } from '@/core/ports/git';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { IssueService } from '@/core/services/issue';
+import type { AdapterRegistryLike } from './registry-types';
+import { buildCommitMessage, buildPrBody, buildPrTitle } from './templates';
 
 // ── Logger contract (mirrors cleanup-service.ts) ─────────────────────────────
 
@@ -123,14 +119,14 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     if (!runRow) {
       throw new DeployBridgeError(
         'load-run',
-        `pipeline_run ${runId} not found`,
+        `pipeline_run ${runId} not found`
       );
     }
 
     if (!runRow.issueId) {
       logger.info(
         { runId, event: 'deploy.skipped' },
-        'deploy.skipped: no issue attached to run',
+        'deploy.skipped: no issue attached to run'
       );
       return { skipped: 'no-issue' };
     }
@@ -143,7 +139,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     if (!issueRow) {
       throw new DeployBridgeError(
         'load-issue',
-        `issue ${runRow.issueId} not found`,
+        `issue ${runRow.issueId} not found`
       );
     }
 
@@ -154,13 +150,13 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     if (!projectRow) {
       throw new DeployBridgeError(
         'load-project',
-        `project ${issueRow.projectId} not found`,
+        `project ${issueRow.projectId} not found`
       );
     }
     if (!projectRow.repoUrl) {
       throw new DeployBridgeError(
         'load-project',
-        `project ${projectRow.id} has no repoUrl — cannot deploy`,
+        `project ${projectRow.id} has no repoUrl — cannot deploy`
       );
     }
 
@@ -169,7 +165,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     if (!env) {
       throw new DeployBridgeError(
         'find-env',
-        `no active isolation env for run ${runId} — deploy called without a worktree`,
+        `no active isolation env for run ${runId} — deploy called without a worktree`
       );
     }
 
@@ -199,14 +195,14 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       throw new DeployBridgeError(
         'commit',
         `git commit failed in ${env.workingPath}: ${errorMessage(err)}`,
-        err,
+        err
       );
     }
 
     if (commitResult.noChanges) {
       logger.info(
         { runId, envId: env.id, event: 'deploy.skipped' },
-        'deploy.skipped: worktree is clean, nothing to commit',
+        'deploy.skipped: worktree is clean, nothing to commit'
       );
       return { skipped: 'no-changes' };
     }
@@ -220,7 +216,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       throw new DeployBridgeError(
         'push',
         `git push failed for ${env.branchName}: ${errorMessage(err)}`,
-        err,
+        err
       );
     }
 
@@ -256,7 +252,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       throw new DeployBridgeError(
         'create-pr',
         `createPullRequest failed for ${repoSlug}: ${errorMessage(err)}`,
-        err,
+        err
       );
     }
 
@@ -297,13 +293,13 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
         // Advance issue state to 'review' (per spec: no 'awaiting_review').
         const reviewState = await issueService.getStateByKey(
           issueRow.projectId,
-          'review',
+          'review'
         );
         await issueService.transition(
           issueRow.id,
           reviewState.id,
           issueRow.version,
-          'deploy-bridge',
+          'deploy-bridge'
         );
 
         return { branchRowId: branchRow.id, prRowId: prRow.id };
@@ -318,12 +314,12 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
           event: 'deploy.inconsistent_state',
           error: errorMessage(err),
         },
-        'deploy.inconsistent_state: PR opened on remote but DB record / state advance failed',
+        'deploy.inconsistent_state: PR opened on remote but DB record / state advance failed'
       );
       throw new DeployBridgeError(
         'record-db',
         `DB transaction failed after PR #${pr.number} was created: ${errorMessage(err)}`,
-        err,
+        err
       );
     }
 
@@ -339,7 +335,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
             envId: env.id,
             event: 'deploy.release_dirty',
           },
-          'deploy.release_dirty: worktree still dirty after commit — swallowing',
+          'deploy.release_dirty: worktree still dirty after commit — swallowing'
         );
       } else {
         // Non-fatal to the deploy outcome: log and continue. The cleanup
@@ -351,7 +347,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
             event: 'deploy.release_failed',
             error: errorMessage(err),
           },
-          'deploy.release_failed: env left active, cleanup service will reap',
+          'deploy.release_failed: env left active, cleanup service will reap'
         );
       }
     }
@@ -366,7 +362,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
         commitSha,
         event: 'deploy.succeeded',
       },
-      'deploy.succeeded',
+      'deploy.succeeded'
     );
 
     return {
@@ -385,7 +381,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
 
 async function loadMostRecentStageName(
   db: Database,
-  runId: string,
+  runId: string
 ): Promise<string | null> {
   const rows = await db
     .select({ name: pipelineStage.name })

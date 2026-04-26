@@ -53,7 +53,7 @@ export type RecordEditorProps<TRecord extends RecordWithVersion> = {
   onSave: (
     id: string,
     patch: Partial<TRecord>,
-    expectedVersion: number,
+    expectedVersion: number
   ) => Promise<void>;
 
   // Optional mutations — absence hides the action
@@ -61,7 +61,7 @@ export type RecordEditorProps<TRecord extends RecordWithVersion> = {
   onToggleEnabled?: (
     id: string,
     enabled: boolean,
-    expectedVersion: number,
+    expectedVersion: number
   ) => Promise<void>;
 
   /**

@@ -6,9 +6,10 @@
  *   npx tsx src/scripts/db/events.ts --run <uuid> # filter by stageRunId
  *   npx tsx src/scripts/db/events.ts --issue <uuid> # issue events
  */
-import { db, close } from '@/scripts/db/connection';
+
 import { desc, eq } from 'drizzle-orm';
 import { event, issueEvent } from '@/core/db/schema';
+import { close, db } from '@/scripts/db/connection';
 
 function parseArgs(): { mode: 'recent' | 'run' | 'issue'; id?: string } {
   const args = process.argv.slice(2);
@@ -37,7 +38,9 @@ async function main() {
       console.log('No issue events found.');
     } else {
       for (const row of rows) {
-        console.log(`[${row.timestamp.toISOString()}] ${row.type} by ${row.actor}`);
+        console.log(
+          `[${row.timestamp.toISOString()}] ${row.type} by ${row.actor}`
+        );
         if (row.payload) console.log(`  ${JSON.stringify(row.payload)}`);
       }
       console.log(`\n${rows.length} issue event(s)`);
@@ -45,23 +48,26 @@ async function main() {
   } else {
     // Build query by mode — same terminal shape in both branches.
     // The 'run' branch intentionally omits the limit (surfaces all events for a run).
-    const rows = mode === 'run'
-      ? await db
-          .select()
-          .from(event)
-          .where(eq(event.stageRunId, id!))
-          .orderBy(desc(event.timestamp))
-      : await db
-          .select()
-          .from(event)
-          .orderBy(desc(event.timestamp))
-          .limit(50);
+    const rows =
+      mode === 'run'
+        ? await db
+            .select()
+            .from(event)
+            .where(eq(event.stageRunId, id!))
+            .orderBy(desc(event.timestamp))
+        : await db
+            .select()
+            .from(event)
+            .orderBy(desc(event.timestamp))
+            .limit(50);
 
     if (rows.length === 0) {
       console.log('No events found.');
     } else {
       for (const row of rows) {
-        console.log(`[${row.timestamp.toISOString()}] ${row.type}  run=${row.stageRunId}`);
+        console.log(
+          `[${row.timestamp.toISOString()}] ${row.type}  run=${row.stageRunId}`
+        );
         if (row.payload) console.log(`  ${JSON.stringify(row.payload)}`);
       }
       console.log(`\n${rows.length} event(s)`);

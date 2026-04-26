@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { X, XCircle, Loader2 } from 'lucide-react';
-import { PipelineStatusBadge } from './PipelineStatusBadge';
-import { StageTimeline } from './StageTimeline';
-import { LiveOutput } from './LiveOutput';
-import { GateResultsPanel } from './GateResultsPanel';
-import { trpc } from '@/lib/trpc/client';
+import { Loader2, X, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { registry } from '@/config/registry';
 import type { RealtimeProvider } from '@/core/ports/realtime';
+import { trpc } from '@/lib/trpc/client';
+import { GateResultsPanel } from './GateResultsPanel';
+import { LiveOutput } from './LiveOutput';
+import { PipelineStatusBadge } from './PipelineStatusBadge';
+import { StageTimeline } from './StageTimeline';
 
 // ── Types ─────────────────────────────────────────────────────────────────���──
 
@@ -26,7 +26,9 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-slate-700/20 last:border-0">
       <span className="text-xs text-slate-500 w-24 shrink-0">{label}</span>
-      <div className="min-w-0 flex-1 text-xs text-slate-300 font-medium">{value ?? '--'}</div>
+      <div className="min-w-0 flex-1 text-xs text-slate-300 font-medium">
+        {value ?? '--'}
+      </div>
     </div>
   );
 }
@@ -45,8 +47,14 @@ function formatDateTime(dt: string | Date | null): string {
 
 // ── Main component ─────────────────────────────────��────────────────────────
 
-export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailModalProps) {
-  const [selectedStageRunId, setSelectedStageRunId] = useState<string | null>(null);
+export function RunDetailModal({
+  runId,
+  onClose,
+  initialStageName,
+}: RunDetailModalProps) {
+  const [selectedStageRunId, setSelectedStageRunId] = useState<string | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState<DetailTab>('output');
   const [cancelling, setCancelling] = useState(false);
   const [cancellingStage, setCancellingStage] = useState(false);
@@ -57,7 +65,7 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
     { id: runId! },
     {
       enabled: isOpen,
-    },
+    }
   );
 
   const cancelRunMutation = trpc.pipeline.runs.cancel.useMutation({
@@ -70,14 +78,17 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
 
   const detail = runQuery.data;
   const stageRuns = detail?.stageRuns ?? [];
-  const isRunActive = detail?.status === 'running' || detail?.status === 'pending';
+  const isRunActive =
+    detail?.status === 'running' || detail?.status === 'pending';
 
   // Build timeline items from stage runs
   const timelineStages = useMemo(() => {
-    return stageRuns.map((sr: typeof stageRuns[number]) => {
+    return stageRuns.map((sr: (typeof stageRuns)[number]) => {
       const durationSec = sr.startedAt
         ? sr.completedAt
-          ? (new Date(sr.completedAt).getTime() - new Date(sr.startedAt).getTime()) / 1000
+          ? (new Date(sr.completedAt).getTime() -
+              new Date(sr.startedAt).getTime()) /
+            1000
           : (Date.now() - new Date(sr.startedAt).getTime()) / 1000
         : null;
 
@@ -95,8 +106,9 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
   useEffect(() => {
     if (stageRuns.length === 0) return;
 
-    const running = stageRuns.find((sr: typeof stageRuns[number]) =>
-      sr.status === 'running' || sr.status === 'launching',
+    const running = stageRuns.find(
+      (sr: (typeof stageRuns)[number]) =>
+        sr.status === 'running' || sr.status === 'launching'
     );
     if (running) {
       setSelectedStageRunId(running.id);
@@ -104,8 +116,9 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
     }
 
     if (initialStageName) {
-      const match = stageRuns.find((sr: typeof stageRuns[number]) =>
-        sr.pipelineStage?.name === initialStageName,
+      const match = stageRuns.find(
+        (sr: (typeof stageRuns)[number]) =>
+          sr.pipelineStage?.name === initialStageName
       );
       if (match) {
         setSelectedStageRunId(match.id);
@@ -142,7 +155,7 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
       '*',
       () => {
         runQuery.refetch();
-      },
+      }
     );
 
     const unsubscribePipeline = realtime.subscribeToTable<unknown>(
@@ -151,17 +164,22 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
       'UPDATE',
       () => {
         runQuery.refetch();
-      },
+      }
     );
 
     return () => {
       unsubscribeStage();
       unsubscribePipeline();
     };
-  }, [runId, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [runId, isOpen, runQuery.refetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedStageRun = stageRuns.find((sr: typeof stageRuns[number]) => sr.id === selectedStageRunId) ?? null;
-  const isSelectedStageActive = selectedStageRun?.status === 'running' || selectedStageRun?.status === 'launching';
+  const selectedStageRun =
+    stageRuns.find(
+      (sr: (typeof stageRuns)[number]) => sr.id === selectedStageRunId
+    ) ?? null;
+  const isSelectedStageActive =
+    selectedStageRun?.status === 'running' ||
+    selectedStageRun?.status === 'launching';
 
   const handleCancelRun = async () => {
     if (!runId) return;
@@ -208,7 +226,9 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
                 <h2 className="text-base font-semibold text-white truncate">
                   Pipeline Run
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5 font-mono">{detail.id}</p>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                  {detail.id}
+                </p>
               </div>
               <PipelineStatusBadge
                 status={detail.status}
@@ -232,7 +252,9 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
             </>
           ) : (
             <div className="flex-1 text-sm text-slate-500">
-              {runQuery.isLoading ? 'Loading...' : runQuery.error?.message ?? 'Run Detail'}
+              {runQuery.isLoading
+                ? 'Loading...'
+                : (runQuery.error?.message ?? 'Run Detail')}
             </div>
           )}
           <button
@@ -279,8 +301,12 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
                       detail.startedAt
                         ? formatDuration(
                             detail.completedAt
-                              ? (new Date(detail.completedAt).getTime() - new Date(detail.startedAt).getTime()) / 1000
-                              : (Date.now() - new Date(detail.startedAt).getTime()) / 1000,
+                              ? (new Date(detail.completedAt).getTime() -
+                                  new Date(detail.startedAt).getTime()) /
+                                  1000
+                              : (Date.now() -
+                                  new Date(detail.startedAt).getTime()) /
+                                  1000
                           )
                         : null
                     }
@@ -288,7 +314,11 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
                   {detail.totalCostUsd && Number(detail.totalCostUsd) > 0 && (
                     <MetaRow
                       label="Cost"
-                      value={<span className="font-mono">${detail.totalCostUsd}</span>}
+                      value={
+                        <span className="font-mono">
+                          ${detail.totalCostUsd}
+                        </span>
+                      }
                     />
                   )}
                 </div>
@@ -328,18 +358,28 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
                           {selectedStageRun.model && (
                             <span>Model: {selectedStageRun.model}</span>
                           )}
-                          {selectedStageRun.startedAt && selectedStageRun.completedAt && (
-                            <span>
-                              {formatDuration(
-                                (new Date(selectedStageRun.completedAt).getTime() -
-                                  new Date(selectedStageRun.startedAt).getTime()) / 1000,
-                              )}
-                            </span>
-                          )}
+                          {selectedStageRun.startedAt &&
+                            selectedStageRun.completedAt && (
+                              <span>
+                                {formatDuration(
+                                  (new Date(
+                                    selectedStageRun.completedAt
+                                  ).getTime() -
+                                    new Date(
+                                      selectedStageRun.startedAt
+                                    ).getTime()) /
+                                    1000
+                                )}
+                              </span>
+                            )}
                           {selectedStageRun.exitCode != null && (
-                            <span className={`font-mono ${
-                              selectedStageRun.exitCode === 0 ? 'text-emerald-400' : 'text-red-400'
-                            }`}>
+                            <span
+                              className={`font-mono ${
+                                selectedStageRun.exitCode === 0
+                                  ? 'text-emerald-400'
+                                  : 'text-red-400'
+                              }`}
+                            >
                               exit {selectedStageRun.exitCode}
                             </span>
                           )}
@@ -371,17 +411,20 @@ export function RunDetailModal({ runId, onClose, initialStageName }: RunDetailMo
                       )}
                       {selectedStageRun.status === 'failed' && (
                         <div className="text-sm text-red-400 bg-red-400/5 rounded-lg px-3 py-2 border border-red-400/20 font-mono">
-                          Stage failed{selectedStageRun.exitCode != null ? ` (exit ${selectedStageRun.exitCode})` : ''}
+                          Stage failed
+                          {selectedStageRun.exitCode != null
+                            ? ` (exit ${selectedStageRun.exitCode})`
+                            : ''}
                         </div>
                       )}
                     </div>
 
                     {/* Tab bar */}
                     <div className="flex items-center gap-1 px-6 pt-3 border-b border-slate-700/30">
-                      {([
+                      {[
                         { key: 'output' as const, label: 'Output' },
                         { key: 'gates' as const, label: 'Gates' },
-                      ]).map((tab) => (
+                      ].map((tab) => (
                         <button
                           key={tab.key}
                           type="button"

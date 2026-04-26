@@ -9,18 +9,18 @@
  * end to end.
  */
 import 'dotenv/config';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
-import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
-import { acquireIsolationEnv } from '@/core/orchestrator/stage-runner-env';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
+import { acquireIsolationEnv } from '@/core/orchestrator/stage-runner-env';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -62,7 +62,8 @@ async function gitInTmp(cwd: string, args: string[]): Promise<void> {
 }
 
 beforeAll(async () => {
-  process.env.FLUXAOS_TARGET_REPO_PATH = process.env.FLUXAOS_TARGET_REPO_PATH ?? '';
+  process.env.FLUXAOS_TARGET_REPO_PATH =
+    process.env.FLUXAOS_TARGET_REPO_PATH ?? '';
   repoPath = await mkdtemp(join(tmpdir(), `fluxaos-art-inherit-${RUN}-`));
   await gitInTmp(repoPath, ['init', '-b', 'main']);
   await gitInTmp(repoPath, ['config', 'user.email', 'inherit@fluxaos.local']);
@@ -110,28 +111,51 @@ beforeAll(async () => {
   // Minimal issue-model lookups so we can insert an issue.
   const [itype] = await db
     .insert(schema.issueType)
-    .values({ projectId: proj.id, key: `feat-${RUN}`, displayName: 'Feat', color: '#000', sortOrder: 1 })
+    .values({
+      projectId: proj.id,
+      key: `feat-${RUN}`,
+      displayName: 'Feat',
+      color: '#000',
+      sortOrder: 1,
+    })
     .returning();
   cleanup.push({ table: 'issueType', id: itype.id });
   issueTypeId = itype.id;
 
   const [istate] = await db
     .insert(schema.issueState)
-    .values({ projectId: proj.id, key: `open-${RUN}`, displayName: 'Open', sortOrder: 1, color: '#000' })
+    .values({
+      projectId: proj.id,
+      key: `open-${RUN}`,
+      displayName: 'Open',
+      sortOrder: 1,
+      color: '#000',
+    })
     .returning();
   cleanup.push({ table: 'issueState', id: istate.id });
   issueStateId = istate.id;
 
   const [istatus] = await db
     .insert(schema.issueStatus)
-    .values({ projectId: proj.id, key: `inp-${RUN}`, displayName: 'InP', sortOrder: 1 })
+    .values({
+      projectId: proj.id,
+      key: `inp-${RUN}`,
+      displayName: 'InP',
+      sortOrder: 1,
+    })
     .returning();
   cleanup.push({ table: 'issueStatus', id: istatus.id });
   issueStatusId = istatus.id;
 
   const [iprio] = await db
     .insert(schema.issuePriority)
-    .values({ projectId: proj.id, key: `med-${RUN}`, displayName: 'Med', weight: 1, color: '#000' })
+    .values({
+      projectId: proj.id,
+      key: `med-${RUN}`,
+      displayName: 'Med',
+      weight: 1,
+      color: '#000',
+    })
     .returning();
   cleanup.push({ table: 'issuePriority', id: iprio.id });
   issuePriorityId = iprio.id;
@@ -140,7 +164,7 @@ beforeAll(async () => {
 }, 30000);
 
 describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
-  it('second pipeline_run on same (pipeline, issue) inherits first run\'s artifacts_path', async () => {
+  it("second pipeline_run on same (pipeline, issue) inherits first run's artifacts_path", async () => {
     process.env.FLUXAOS_TARGET_REPO_PATH = repoPath;
 
     // Issue under test
@@ -210,11 +234,11 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
 
     expect(
       result2.env.artifactsPath,
-      'run2 must inherit run1 artifacts_path',
+      'run2 must inherit run1 artifacts_path'
     ).toBe(result1.env.artifactsPath);
     expect(
       result2.env.artifactsPath,
-      'inherited path must contain run1 id (not run2 id)',
+      'inherited path must contain run1 id (not run2 id)'
     ).toContain(run1.id);
 
     await isolationProvider.release(result2.env.id);
@@ -258,7 +282,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
     expect(result.env.artifactsPath).toBeTruthy();
     expect(
       result.env.artifactsPath,
-      'fresh run must use own runId in path',
+      'fresh run must use own runId in path'
     ).toContain(run.id);
 
     await isolationProvider.release(result.env.id);

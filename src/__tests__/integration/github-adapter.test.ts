@@ -7,13 +7,13 @@
  * unconditionally — they don't touch the network.
  */
 import 'dotenv/config';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Octokit } from '@octokit/rest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createGitHubAdapter,
   GitHubAuthError,
-  NotImplementedError,
   getAuthenticatedOctokit,
+  NotImplementedError,
 } from '@/adapters/github';
 
 const TOKEN = process.env.FLUXAOS_GITHUB_TOKEN;
@@ -33,9 +33,9 @@ describe('GitHubAdapter — unit-ish (no network required)', () => {
 
   it('getPullRequest throws NotImplementedError', async () => {
     const adapter = createGitHubAdapter({ octokit: new Octokit() });
-    await expect(adapter.getPullRequest('owner/repo', 1)).rejects.toBeInstanceOf(
-      NotImplementedError
-    );
+    await expect(
+      adapter.getPullRequest('owner/repo', 1)
+    ).rejects.toBeInstanceOf(NotImplementedError);
   });
 
   it('listPullRequests throws NotImplementedError', async () => {

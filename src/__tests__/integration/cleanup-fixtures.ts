@@ -11,18 +11,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
-import * as schema from '@/core/db/schema';
-import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
 import {
   getCanonicalRepoPath,
   hasUncommittedChanges,
   isBranchMerged,
 } from '@/adapters/git/worktree';
+import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
 import {
-  createCleanupService,
   type CleanupLogger,
+  createCleanupService,
 } from '@/core/cleanup/cleanup-service';
 import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 
 const execFileAsync = promisify(execFile);
 
@@ -41,9 +41,7 @@ export async function makeRepo(
   label: string,
   tmpRepos: string[]
 ): Promise<string> {
-  const dir = await mkdtemp(
-    join(tmpdir(), `fluxaos-cleanup-${label}-${RUN}-`)
-  );
+  const dir = await mkdtemp(join(tmpdir(), `fluxaos-cleanup-${label}-${RUN}-`));
   tmpRepos.push(dir);
   await gitInTmp(dir, ['init', '-b', 'main']);
   await gitInTmp(dir, ['config', 'user.email', 'cleanup@fluxaos.local']);
@@ -219,8 +217,11 @@ export interface LoggerWithRecords extends CleanupLogger {
 }
 
 export function makeLogger(): LoggerWithRecords {
-  const records: { level: string; obj: Record<string, unknown>; msg?: string }[] =
-    [];
+  const records: {
+    level: string;
+    obj: Record<string, unknown>;
+    msg?: string;
+  }[] = [];
   return {
     records,
     info: (obj, msg) => records.push({ level: 'info', obj, msg }),
@@ -254,14 +255,12 @@ export function buildService(db: Database, artifacts: ArtifactsFakes = {}) {
       hasUncommittedChanges,
       isBranchMerged,
       getCanonicalRepoPath,
-      listArtifactDirs:
-        artifacts.listArtifactDirs ?? (async () => []),
+      listArtifactDirs: artifacts.listArtifactDirs ?? (async () => []),
       removeArtifactsDir:
         artifacts.removeArtifactsDir ?? (async () => undefined),
       getArtifactsDirAge:
         artifacts.getArtifactsDirAge ?? (async () => new Date()),
-      getArtifactsBase:
-        artifacts.getArtifactsBase ?? ((repoPath) => repoPath),
+      getArtifactsBase: artifacts.getArtifactsBase ?? ((repoPath) => repoPath),
     },
   });
   return { isolation, service, logger };

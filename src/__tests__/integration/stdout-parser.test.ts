@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { describe, it, expect, beforeAll } from 'vitest';
-import { registry } from '@/config/registry';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { bootstrap } from '@/config/bootstrap';
+import { registry } from '@/config/registry';
 import type { StdoutParser } from '@/core/ports/stdout-parser';
 
 describe('stdout parser adapter', () => {
@@ -35,7 +35,14 @@ describe('stdout parser adapter', () => {
       type: 'assistant',
       message: {
         id: 'msg_2',
-        content: [{ type: 'tool_use', id: 'tu_1', name: 'bash', input: { command: 'ls' } }],
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tu_1',
+            name: 'bash',
+            input: { command: 'ls' },
+          },
+        ],
       },
     });
     const entries = parse(line, 1);
@@ -52,7 +59,12 @@ describe('stdout parser adapter', () => {
       type: 'user',
       message: {
         content: [
-          { type: 'tool_result', tool_use_id: 'tool_1', content: 'file contents', is_error: false },
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool_1',
+            content: 'file contents',
+            is_error: false,
+          },
         ],
       },
     });
@@ -105,7 +117,9 @@ describe('stdout parser adapter', () => {
 
   it('unknown output format throws', () => {
     const p = registry.get<StdoutParser>('stdoutParser');
-    expect(() => p.getParser('does-not-exist')).toThrow(/unknown output format/);
+    expect(() => p.getParser('does-not-exist')).toThrow(
+      /unknown output format/
+    );
   });
 
   it('non-JSON stream-json line becomes raw entry', () => {

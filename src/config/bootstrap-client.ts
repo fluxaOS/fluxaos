@@ -10,10 +10,11 @@
  * and server bundles each get their own instance, so registrations here
  * do not collide with bootstrap()'s registrations.
  */
-import { registry } from './registry';
+
+import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
-import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
+import { registry } from './registry';
 
 let bootstrapped = false;
 
@@ -25,7 +26,7 @@ function readPublicSupabaseEnv(): { supabaseUrl: string; supabaseKey: string } {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!supabaseUrl || !supabaseKey) {
     throw new Error(
-      'Missing Supabase config: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.',
+      'Missing Supabase config: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.'
     );
   }
   return { supabaseUrl, supabaseKey };

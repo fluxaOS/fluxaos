@@ -1,14 +1,14 @@
 'use client';
 
+import { Filter, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Filter, Search } from 'lucide-react';
 import { Card } from '@/components/card';
+import { CatalogBadge } from '@/components/catalog-badge';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { SkeletonTable } from '@/components/skeleton';
 import { StatCard } from '@/components/stat-card';
-import { CatalogBadge } from '@/components/catalog-badge';
 import { trpc } from '@/lib/trpc/client';
 
 // ─── Lifecycle filter (Open / Closed / All) ─────────────────────────────────
@@ -31,7 +31,9 @@ export function IssueListClient({
   // ── Catalog queries ──────────────────────────────────────────────────────
   const typesQuery = trpc.issueCatalog.types.list.useQuery({ projectId });
   const statesQuery = trpc.issueCatalog.states.list.useQuery({ projectId });
-  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({ projectId });
+  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({
+    projectId,
+  });
 
   const types = typesQuery.data ?? [];
   const states = statesQuery.data ?? [];
@@ -57,12 +59,14 @@ export function IssueListClient({
   // R-EPIC: one bulk query returns { [parentId]: openCount } for every
   // parent in the project — supports "↳ (N open)" indicators without
   // per-row roundtrips.
-  const openChildCountsQuery = trpc.issue.openChildCountsByProject.useQuery({ projectId });
+  const openChildCountsQuery = trpc.issue.openChildCountsByProject.useQuery({
+    projectId,
+  });
   const openChildCounts = openChildCountsQuery.data ?? {};
 
   // ── Stat counts from fetched issues ──────────────────────────────────────
-  const openCount = issues.filter((i) => !i.isClosed).length;
-  const closedCount = issues.filter((i) => i.isClosed).length;
+  const _openCount = issues.filter((i) => !i.isClosed).length;
+  const _closedCount = issues.filter((i) => i.isClosed).length;
 
   // Count issues per state for stat cards (using full unfiltered query when lifecycle=all)
   const allIssuesQuery = trpc.issue.list.useQuery({ projectId });
@@ -70,7 +74,8 @@ export function IssueListClient({
   const totalOpen = allIssues.filter((i) => !i.isClosed).length;
   const totalClosed = allIssues.filter((i) => i.isClosed).length;
 
-  const catalogsLoading = typesQuery.isLoading || statesQuery.isLoading || prioritiesQuery.isLoading;
+  const catalogsLoading =
+    typesQuery.isLoading || statesQuery.isLoading || prioritiesQuery.isLoading;
   const isLoading = issuesQuery.isLoading || catalogsLoading;
 
   return (
@@ -92,11 +97,7 @@ export function IssueListClient({
         <StatCard label="Total" value={allIssues.length} accent="violet" />
         <StatCard label="Open" value={totalOpen} accent="blue" />
         <StatCard label="Closed" value={totalClosed} accent="green" />
-        <StatCard
-          label="Filtered"
-          value={issues.length}
-          accent="amber"
-        />
+        <StatCard label="Filtered" value={issues.length} accent="amber" />
       </div>
 
       {/* Filters */}
@@ -158,7 +159,10 @@ export function IssueListClient({
 
         {/* Search */}
         <div className="relative ml-auto">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+          />
           <input
             type="text"
             value={searchTerm}
@@ -222,7 +226,12 @@ export function IssueListClient({
                         className="text-slate-200 font-medium hover:text-white transition-colors"
                       >
                         {iss.parentIssueId && (
-                          <span className="text-slate-500 mr-1" title="Child of another issue">↳</span>
+                          <span
+                            className="text-slate-500 mr-1"
+                            title="Child of another issue"
+                          >
+                            ↳
+                          </span>
                         )}
                         {iss.title}
                         {openChildCounts[iss.id] > 0 && (

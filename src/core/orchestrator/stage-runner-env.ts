@@ -8,13 +8,13 @@
  */
 
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm';
+import { resolveRepoIdentity } from '@/adapters/git';
 import type { Database } from '@/core/db/connection';
+import { type issue, pipeline, pipelineRun, project } from '@/core/db/schema';
 import type {
   IsolationEnvironment,
   IsolationProvider,
 } from '@/core/ports/isolation';
-import { project, issue, pipeline, pipelineRun } from '@/core/db/schema';
-import { resolveRepoIdentity } from '@/adapters/git';
 
 /**
  * Error raised when the stage-runner cannot locate the on-disk clone of the
@@ -27,7 +27,7 @@ export class TargetRepoPathMissingError extends Error {
         'stage-runner uses this env var to locate the on-disk clone of the ' +
         'target repo (the one the isolation provider creates worktrees in). ' +
         'Set it to the absolute path of a checked-out clone before running ' +
-        'the orchestrator.',
+        'the orchestrator.'
     );
     this.name = 'TargetRepoPathMissingError';
   }
@@ -41,7 +41,7 @@ interface ResolveProjectIdInput {
 
 /** Resolve the project id from issue (preferred) or pipeline (fallback). */
 export async function resolveProjectId(
-  input: ResolveProjectIdInput,
+  input: ResolveProjectIdInput
 ): Promise<string | null> {
   if (input.issueRow?.projectId) return input.issueRow.projectId;
   const [pipe] = await input.db
@@ -92,7 +92,7 @@ async function findInheritedArtifactsPath(
   db: Database,
   pipelineId: string,
   issueId: string | null,
-  currentRunId: string,
+  currentRunId: string
 ): Promise<string | null> {
   if (!issueId) return null;
   const [prior] = await db
@@ -103,8 +103,8 @@ async function findInheritedArtifactsPath(
         eq(pipelineRun.pipelineId, pipelineId),
         eq(pipelineRun.issueId, issueId),
         ne(pipelineRun.id, currentRunId),
-        isNotNull(pipelineRun.artifactsPath),
-      ),
+        isNotNull(pipelineRun.artifactsPath)
+      )
     )
     .orderBy(desc(pipelineRun.createdAt))
     .limit(1);
@@ -122,7 +122,7 @@ export interface AcquireEnvResult {
  * when FLUXAOS_TARGET_REPO_PATH is missing.
  */
 export async function acquireIsolationEnv(
-  input: AcquireEnvInput,
+  input: AcquireEnvInput
 ): Promise<AcquireEnvResult> {
   const [projectRow] = await input.db
     .select()
@@ -133,7 +133,7 @@ export async function acquireIsolationEnv(
   }
   if (!projectRow.repoUrl) {
     throw new Error(
-      `Project ${projectRow.id} has no repoUrl — R-RUNTIME requires one.`,
+      `Project ${projectRow.id} has no repoUrl — R-RUNTIME requires one.`
     );
   }
 
@@ -160,7 +160,7 @@ export async function acquireIsolationEnv(
     input.db,
     input.pipelineId,
     input.issueId,
-    input.runId,
+    input.runId
   );
 
   const env = await input.isolation.acquire({

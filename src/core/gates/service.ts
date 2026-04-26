@@ -5,15 +5,12 @@
  * to the engine, and persists audit results. Receives Database via DI.
  */
 import { eq } from 'drizzle-orm';
+import type { GateMode } from '@/core/constants';
+import { DEFAULT_GATE_MODE } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import { pipelineStage, stageGateResult } from '@/core/db/schema';
 import { evaluateGate } from './engine';
-import { DEFAULT_GATE_MODE } from '@/core/constants';
-import type { GateMode } from '@/core/constants';
-import type {
-  RuleGroup,
-  GateEvaluation,
-} from './types';
+import type { GateEvaluation, RuleGroup } from './types';
 
 export interface GateService {
   /**
@@ -26,7 +23,7 @@ export interface GateService {
   evaluateStageGate(
     stageId: string,
     stageRunId: string,
-    context: Record<string, unknown>,
+    context: Record<string, unknown>
   ): Promise<GateEvaluation>;
 
   /**
@@ -36,7 +33,7 @@ export interface GateService {
   testEvaluate(
     mode: GateMode,
     rules: RuleGroup | null,
-    context: Record<string, unknown>,
+    context: Record<string, unknown>
   ): GateEvaluation;
 }
 
@@ -45,7 +42,7 @@ export function createGateService(db: Database): GateService {
     async evaluateStageGate(
       stageId: string,
       stageRunId: string,
-      context: Record<string, unknown>,
+      context: Record<string, unknown>
     ): Promise<GateEvaluation> {
       // Read gate configuration from the stage
       const [stage] = await db
@@ -83,7 +80,7 @@ export function createGateService(db: Database): GateService {
     testEvaluate(
       mode: GateMode,
       rules: RuleGroup | null,
-      context: Record<string, unknown>,
+      context: Record<string, unknown>
     ): GateEvaluation {
       return evaluateGate(mode, rules, context);
     },

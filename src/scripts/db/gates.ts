@@ -3,8 +3,9 @@
  *
  * Usage: npx tsx src/scripts/db/gates.ts
  */
-import { db, close } from '@/scripts/db/connection';
+
 import { stageGateResult } from '@/core/db/schema';
+import { close, db } from '@/scripts/db/connection';
 
 function pad(s: string, width: number): string {
   return s.padEnd(width);
@@ -38,8 +39,11 @@ async function main() {
         pad(row.stageRunId, 38),
         pad(row.verdict, 12),
         pad(row.passed ? 'yes' : 'no', 8),
-        pad(row.reason.length > 60 ? row.reason.slice(0, 59) + '…' : row.reason, 60),
-      ].join('  '),
+        pad(
+          row.reason.length > 60 ? `${row.reason.slice(0, 59)}…` : row.reason,
+          60
+        ),
+      ].join('  ')
     );
   }
 

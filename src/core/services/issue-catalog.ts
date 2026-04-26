@@ -7,17 +7,17 @@
  * - deactivate() instead of delete (RESTRICT FKs prevent hard-delete when referenced)
  * - transitions get hard-delete (no RESTRICT from other tables)
  */
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { Database } from '@/core/db/connection';
 import {
-  issueType,
+  issueLabel,
+  issuePriority,
   issueState,
   issueStatus,
-  issuePriority,
-  issueLabel,
   issueTransition,
+  issueType,
 } from '@/core/db/schema';
-import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 
 // ─── Inferred types ───────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ type WeightedCatalogTable = CatalogTable & { weight: PgColumn };
 
 function createCatalogCrud<TInsert, TSelect>(
   db: Database,
-  table: SortableCatalogTable,
+  table: SortableCatalogTable
 ) {
   return {
     async list(projectId: string): Promise<TSelect[]> {
@@ -119,7 +119,7 @@ function createCatalogCrud<TInsert, TSelect>(
 
 function createPriorityCrud<TInsert, TSelect>(
   db: Database,
-  table: WeightedCatalogTable,
+  table: WeightedCatalogTable
 ) {
   return {
     async list(projectId: string): Promise<TSelect[]> {
@@ -185,23 +185,23 @@ export function createIssueCatalogService(db: Database) {
   return {
     types: createCatalogCrud<IssueTypeInsert, IssueTypeSelect>(
       db,
-      issueType as unknown as SortableCatalogTable,
+      issueType as unknown as SortableCatalogTable
     ),
     states: createCatalogCrud<IssueStateInsert, IssueStateSelect>(
       db,
-      issueState as unknown as SortableCatalogTable,
+      issueState as unknown as SortableCatalogTable
     ),
     statuses: createCatalogCrud<IssueStatusInsert, IssueStatusSelect>(
       db,
-      issueStatus as unknown as SortableCatalogTable,
+      issueStatus as unknown as SortableCatalogTable
     ),
     priorities: createPriorityCrud<IssuePriorityInsert, IssuePrioritySelect>(
       db,
-      issuePriority as unknown as WeightedCatalogTable,
+      issuePriority as unknown as WeightedCatalogTable
     ),
     labels: createCatalogCrud<IssueLabelInsert, IssueLabelSelect>(
       db,
-      issueLabel as unknown as SortableCatalogTable,
+      issueLabel as unknown as SortableCatalogTable
     ),
 
     transitions: {
@@ -212,15 +212,15 @@ export function createIssueCatalogService(db: Database) {
           .where(
             and(
               eq(issueTransition.projectId, projectId),
-              eq(issueTransition.isActive, true),
-            ),
+              eq(issueTransition.isActive, true)
+            )
           )
           .orderBy(issueTransition.sortOrder);
       },
 
       async listFrom(
         projectId: string,
-        fromStateId: string,
+        fromStateId: string
       ): Promise<IssueTransitionSelect[]> {
         return db
           .select()
@@ -229,26 +229,21 @@ export function createIssueCatalogService(db: Database) {
             and(
               eq(issueTransition.projectId, projectId),
               eq(issueTransition.fromStateId, fromStateId),
-              eq(issueTransition.isActive, true),
-            ),
+              eq(issueTransition.isActive, true)
+            )
           )
           .orderBy(issueTransition.sortOrder);
       },
 
       async create(
-        data: IssueTransitionInsert,
+        data: IssueTransitionInsert
       ): Promise<IssueTransitionSelect> {
-        const [row] = await db
-          .insert(issueTransition)
-          .values(data)
-          .returning();
+        const [row] = await db.insert(issueTransition).values(data).returning();
         return row;
       },
 
       async delete(id: string): Promise<void> {
-        await db
-          .delete(issueTransition)
-          .where(eq(issueTransition.id, id));
+        await db.delete(issueTransition).where(eq(issueTransition.id, id));
       },
     },
   };

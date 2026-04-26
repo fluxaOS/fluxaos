@@ -60,7 +60,6 @@ export async function ensureGitignoreEntry(
   if (alreadyPresent) return;
 
   const needsLeadingNewline = content.length > 0 && !content.endsWith('\n');
-  const suffix =
-    (needsLeadingNewline ? '\n' : '') + `\n# ${comment}\n${entry}\n`;
+  const suffix = `${needsLeadingNewline ? '\n' : ''}\n# ${comment}\n${entry}\n`;
   await writeFile(gitignorePath, content + suffix, 'utf-8');
 }

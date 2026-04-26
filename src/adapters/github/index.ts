@@ -1,5 +1,5 @@
-export { createGitHubAdapter } from './adapter';
 export {
+  createGitHubAdapter,
   GitHubBranchExistsError,
   GitHubOperationError,
   NotImplementedError,

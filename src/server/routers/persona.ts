@@ -1,8 +1,8 @@
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { eq, and } from 'drizzle-orm';
-import { router, publicProcedure } from '../trpc';
-import { createPersonaService } from '@/core/services';
 import { personaSkill, skill } from '@/core/db/schema';
+import { createPersonaService } from '@/core/services';
+import { publicProcedure, router } from '../trpc';
 
 export const personaRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -26,29 +26,33 @@ export const personaRouter = router({
     }),
 
   create: publicProcedure
-    .input(z.object({
-      scope: z.enum(['global', 'project']),
-      projectId: z.string().uuid().optional(),
-      name: z.string().min(1),
-      soul: z.string().optional(),
-      identity: z.unknown().optional(),
-      brandId: z.string().uuid().optional(),
-      routingProfileId: z.string().uuid().optional(),
-      parentPersonaId: z.string().uuid().optional(),
-    }))
+    .input(
+      z.object({
+        scope: z.enum(['global', 'project']),
+        projectId: z.string().uuid().optional(),
+        name: z.string().min(1),
+        soul: z.string().optional(),
+        identity: z.unknown().optional(),
+        brandId: z.string().uuid().optional(),
+        routingProfileId: z.string().uuid().optional(),
+        parentPersonaId: z.string().uuid().optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       return createPersonaService(ctx.db).create(input);
     }),
 
   update: publicProcedure
-    .input(z.object({
-      id: z.string().uuid(),
-      name: z.string().min(1).optional(),
-      soul: z.string().optional(),
-      identity: z.unknown().optional(),
-      brandId: z.string().uuid().optional(),
-      routingProfileId: z.string().uuid().optional(),
-    }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        soul: z.string().optional(),
+        identity: z.unknown().optional(),
+        brandId: z.string().uuid().optional(),
+        routingProfileId: z.string().uuid().optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
       return createPersonaService(ctx.db).update(id, data);
@@ -79,10 +83,12 @@ export const personaRouter = router({
 
   /** Attach a skill to a persona. */
   attachSkill: publicProcedure
-    .input(z.object({
-      personaId: z.string().uuid(),
-      skillId: z.string().uuid(),
-    }))
+    .input(
+      z.object({
+        personaId: z.string().uuid(),
+        skillId: z.string().uuid(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const [row] = await ctx.db
         .insert(personaSkill)
@@ -98,18 +104,20 @@ export const personaRouter = router({
 
   /** Detach a skill from a persona. */
   detachSkill: publicProcedure
-    .input(z.object({
-      personaId: z.string().uuid(),
-      skillId: z.string().uuid(),
-    }))
+    .input(
+      z.object({
+        personaId: z.string().uuid(),
+        skillId: z.string().uuid(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       await ctx.db
         .delete(personaSkill)
         .where(
           and(
             eq(personaSkill.personaId, input.personaId),
-            eq(personaSkill.skillId, input.skillId),
-          ),
+            eq(personaSkill.skillId, input.skillId)
+          )
         );
       return { detached: true };
     }),

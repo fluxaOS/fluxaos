@@ -7,29 +7,28 @@
  * NOT mocks. Every service test hits the real database.
  */
 import 'dotenv/config';
-import { describe, expect, it, afterAll, beforeAll } from 'vitest';
-import { eq } from 'drizzle-orm';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import type { AnyColumn } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import {
-  createOrganizationService,
-  createProjectService,
-  createUserService,
-  createPipelineService,
-} from '@/core/services';
-import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
   buildCommand,
-  renderTemplate,
   type DriverConfig,
+  renderTemplate,
 } from '@/core/orchestrator/command-builder';
-import { materialize, cleanup } from '@/core/skills/materializer';
-import * as schema from '@/core/db/schema';
-import type { Database } from '@/core/db/connection';
-import type { AnyPgTable } from 'drizzle-orm/pg-core';
-import type { AnyColumn } from 'drizzle-orm';
+import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
+import {
+  createOrganizationService,
+  createPipelineService,
+  createProjectService,
+  createUserService,
+} from '@/core/services';
+import { cleanup, materialize } from '@/core/skills/materializer';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -56,7 +55,11 @@ const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
 afterAll(async () => {
   for (const { table, id } of cleanupList.reverse()) {
     const t = tableMap[table];
-    if (t) await db.delete(t).where(eq(t.id, id)).catch(() => {});
+    if (t)
+      await db
+        .delete(t)
+        .where(eq(t.id, id))
+        .catch(() => {});
   }
 });
 
@@ -156,7 +159,7 @@ describe('command builder', () => {
         skill_name: 'research',
         issue_title: 'Fix the bug',
         issue_number: 42,
-      },
+      }
     );
     expect(result).toBe('research: Fix the bug (42)');
   });
@@ -177,7 +180,10 @@ describe('skill materializer', () => {
   it('creates workspace with skill and context files', async () => {
     workspacePath = await materialize({
       stageRunId: `test-materializer-${RUN}`,
-      contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
+      contextLayout: {
+        instructionsFile: 'CLAUDE.md',
+        contextFile: 'context.md',
+      },
       persona: {
         soul: 'You are a helpful assistant.',
         identity: 'Test Identity',
@@ -207,7 +213,7 @@ describe('skill materializer', () => {
 
     const contextContent = readFileSync(
       join(workspacePath, 'context.md'),
-      'utf-8',
+      'utf-8'
     );
     expect(contextContent).toContain('Test Issue');
     expect(contextContent).toContain('#1');
@@ -231,7 +237,10 @@ describe('orchestrator pipeline run lifecycle', () => {
 
   it('creates a pipeline run', async () => {
     const svc = createPipelineRunService(db);
-    const run = await svc.createRun(pipelineId, '00000000-0000-0000-0000-000000000000');
+    const run = await svc.createRun(
+      pipelineId,
+      '00000000-0000-0000-0000-000000000000'
+    );
     runId = run.id;
     cleanupList.push({ table: 'pipelineRun', id: runId });
     expect(run.status).toBe('pending');
@@ -263,7 +272,7 @@ describe('orchestrator pipeline run lifecycle', () => {
       .where(eq(schema.event.stageRunId, stageRunId));
     const evt = events.find((e) => e.type === 'launched');
     expect(evt).toBeDefined();
-    expect(evt!.stageRunId).toBe(stageRunId);
+    expect(evt?.stageRunId).toBe(stageRunId);
     // Track for cleanup
     for (const e of events) cleanupList.push({ table: 'event', id: e.id });
   });
@@ -320,7 +329,7 @@ describe('event ordering — DEF-017', () => {
     const svc = createPipelineRunService(db);
     const run = await svc.createRun(
       pipelineId,
-      '00000000-0000-0000-0000-000000000000',
+      '00000000-0000-0000-0000-000000000000'
     );
     orderingRunId = run.id;
     cleanupList.push({ table: 'pipelineRun', id: orderingRunId });
@@ -351,7 +360,7 @@ describe('event ordering — DEF-017', () => {
           lineNumber,
           text: `line ${lineNumber}`,
         });
-      }),
+      })
     );
 
     // Trailing lifecycle event (no lineNumber).

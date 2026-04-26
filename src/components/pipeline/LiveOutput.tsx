@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Copy, Check, Terminal, MessageSquare, Zap } from 'lucide-react';
+import { Check, Copy, MessageSquare, Terminal, Zap } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { registry } from '@/config/registry';
-import type { RealtimeProvider } from '@/core/ports/realtime';
-import { trpc } from '@/lib/trpc/client';
-import type { TranscriptEntry, EntryKind } from '@/core/ports/stdout-parser';
 import { EVENT_TYPE } from '@/core/constants';
+import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { EntryKind, TranscriptEntry } from '@/core/ports/stdout-parser';
+import { trpc } from '@/lib/trpc/client';
 
 interface LiveOutputProps {
   stageRunId: string;
@@ -24,30 +24,51 @@ function TextEntry({ entry }: { entry: TranscriptEntry }) {
   );
 }
 
-function ToolCallEntry({ entry, verbose }: { entry: TranscriptEntry; verbose: boolean }) {
+function ToolCallEntry({
+  entry,
+  verbose,
+}: {
+  entry: TranscriptEntry;
+  verbose: boolean;
+}) {
   return (
     <div className="flex gap-2 py-1 opacity-80">
       <Terminal className="h-3 w-3 mt-0.5 shrink-0 text-slate-400" />
       <span className="text-slate-400">
         <span className="text-soft-violet font-medium">{entry.toolName}</span>
-        {entry.toolCommand && (
-          verbose
-            ? <span className="ml-1">{entry.toolCommand}</span>
-            : <span className="ml-1 opacity-70">{entry.toolCommand.split('\n')[0]?.slice(0, 120)}</span>
-        )}
+        {entry.toolCommand &&
+          (verbose ? (
+            <span className="ml-1">{entry.toolCommand}</span>
+          ) : (
+            <span className="ml-1 opacity-70">
+              {entry.toolCommand.split('\n')[0]?.slice(0, 120)}
+            </span>
+          ))}
       </span>
     </div>
   );
 }
 
-function ToolResultEntry({ entry, verbose }: { entry: TranscriptEntry; verbose: boolean }) {
+function ToolResultEntry({
+  entry,
+  verbose,
+}: {
+  entry: TranscriptEntry;
+  verbose: boolean;
+}) {
   if (!verbose && !entry.isError) return null;
   const output = entry.toolOutput ?? '';
-  const preview = verbose ? output : output.slice(0, 300) + (output.length > 300 ? '\n...' : '');
+  const preview = verbose
+    ? output
+    : output.slice(0, 300) + (output.length > 300 ? '\n...' : '');
   return (
-    <div className={`ml-5 pl-2 border-l-2 py-0.5 text-xs whitespace-pre-wrap opacity-70 ${
-      entry.isError ? 'border-red-400 text-red-400' : 'border-slate-700 text-slate-500'
-    }`}>
+    <div
+      className={`ml-5 pl-2 border-l-2 py-0.5 text-xs whitespace-pre-wrap opacity-70 ${
+        entry.isError
+          ? 'border-red-400 text-red-400'
+          : 'border-slate-700 text-slate-500'
+      }`}
+    >
       {preview || '(no output)'}
     </div>
   );
@@ -55,14 +76,20 @@ function ToolResultEntry({ entry, verbose }: { entry: TranscriptEntry; verbose: 
 
 function ResultEntry({ entry }: { entry: TranscriptEntry }) {
   return (
-    <div className={`flex gap-2 py-1.5 mt-1 pt-2 border-t border-slate-700/30 ${
-      entry.isError ? 'text-red-400' : 'text-electric-violet'
-    }`}>
+    <div
+      className={`flex gap-2 py-1.5 mt-1 pt-2 border-t border-slate-700/30 ${
+        entry.isError ? 'text-red-400' : 'text-electric-violet'
+      }`}
+    >
       <Zap className="h-3 w-3 mt-0.5 shrink-0" />
       <span>
         <span className="font-medium">{entry.isError ? 'Failed' : 'Done'}</span>
-        {entry.cost !== undefined && <span className="text-slate-500 ml-2">${entry.cost.toFixed(4)}</span>}
-        {entry.text && <span className="ml-2 text-slate-300">{entry.text}</span>}
+        {entry.cost !== undefined && (
+          <span className="text-slate-500 ml-2">${entry.cost.toFixed(4)}</span>
+        )}
+        {entry.text && (
+          <span className="ml-2 text-slate-300">{entry.text}</span>
+        )}
       </span>
     </div>
   );
@@ -84,7 +111,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
     {
       enabled: !!stageRunId,
       refetchInterval: isActive ? 2000 : false,
-    },
+    }
   );
 
   // Consume event payloads as already-typed TranscriptEntry records.
@@ -102,17 +129,18 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
         e.type === EVENT_TYPE.error
       ) {
         const payload = (e.payload ?? {}) as Record<string, unknown>;
-        const text = typeof payload.content === 'string'
-          ? payload.content
-          : typeof payload.message === 'string'
-          ? payload.message
-          : typeof payload.text === 'string'
-          ? payload.text
-          : typeof payload.summary === 'string'
-          ? payload.summary
-          : typeof payload.error === 'string'
-          ? payload.error
-          : JSON.stringify(payload);
+        const text =
+          typeof payload.content === 'string'
+            ? payload.content
+            : typeof payload.message === 'string'
+              ? payload.message
+              : typeof payload.text === 'string'
+                ? payload.text
+                : typeof payload.summary === 'string'
+                  ? payload.summary
+                  : typeof payload.error === 'string'
+                    ? payload.error
+                    : JSON.stringify(payload);
         out.push({
           id: `sys-${e.id}`,
           kind: 'system' as EntryKind,
@@ -136,20 +164,24 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       () => {
         // Refetch events when new ones arrive via Realtime
         eventsQuery.refetch();
-      },
+      }
     );
 
     return () => {
       unsubscribe();
     };
-  }, [stageRunId, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    stageRunId,
+    isActive, // Refetch events when new ones arrive via Realtime
+    eventsQuery.refetch,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [entries.length, (eventsQuery.data ?? []).length, autoScroll]);
+  }, [autoScroll]);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -165,13 +197,18 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
         .map((e) => `${e.type} ${JSON.stringify(e.payload)}`)
         .join('\n');
     } else {
-      text = entries.map((e) => {
-        if (e.kind === 'text') return e.text ?? '';
-        if (e.kind === 'tool_call') return `> ${e.toolName}: ${e.toolCommand ?? ''}`;
-        if (e.kind === 'tool_result') return e.toolOutput ?? '';
-        if (e.kind === 'result') return `[${e.isError ? 'failed' : 'done'}] ${e.text ?? ''}`;
-        return e.text ?? '';
-      }).filter(Boolean).join('\n');
+      text = entries
+        .map((e) => {
+          if (e.kind === 'text') return e.text ?? '';
+          if (e.kind === 'tool_call')
+            return `> ${e.toolName}: ${e.toolCommand ?? ''}`;
+          if (e.kind === 'tool_result') return e.toolOutput ?? '';
+          if (e.kind === 'result')
+            return `[${e.isError ? 'failed' : 'done'}] ${e.text ?? ''}`;
+          return e.text ?? '';
+        })
+        .filter(Boolean)
+        .join('\n');
     }
     // Clipboard API requires HTTPS; fall back to execCommand on HTTP
     if (navigator.clipboard?.writeText) {
@@ -198,7 +235,9 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-2 px-1">
         <span className="text-xs text-slate-500">
-          {rawJson ? `${(eventsQuery.data ?? []).length} events` : `${entries.length} entries`}
+          {rawJson
+            ? `${(eventsQuery.data ?? []).length} events`
+            : `${entries.length} entries`}
         </span>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
@@ -234,7 +273,11 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
             title="Copy output"
           >
-            {copied ? <Check className="h-3 w-3 text-electric-violet" /> : <Copy className="h-3 w-3" />}
+            {copied ? (
+              <Check className="h-3 w-3 text-electric-violet" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
@@ -250,7 +293,10 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
           <span className="text-slate-600">No output yet.</span>
         ) : rawJson ? (
           (eventsQuery.data ?? []).map((e, idx) => (
-            <div key={e.id ?? idx} className="leading-relaxed whitespace-pre-wrap mb-2">
+            <div
+              key={e.id ?? idx}
+              className="leading-relaxed whitespace-pre-wrap mb-2"
+            >
               <span className="text-slate-600 select-none mr-3">
                 {String(idx + 1).padStart(4, ' ')}
               </span>
@@ -264,16 +310,26 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
           entries.map((entry) => (
             <div key={entry.id}>
               {entry.kind === 'text' && <TextEntry entry={entry} />}
-              {entry.kind === 'tool_call' && <ToolCallEntry entry={entry} verbose={verbose} />}
-              {entry.kind === 'tool_result' && <ToolResultEntry entry={entry} verbose={verbose} />}
+              {entry.kind === 'tool_call' && (
+                <ToolCallEntry entry={entry} verbose={verbose} />
+              )}
+              {entry.kind === 'tool_result' && (
+                <ToolResultEntry entry={entry} verbose={verbose} />
+              )}
               {entry.kind === 'result' && <ResultEntry entry={entry} />}
               {entry.kind === 'system' && (
-                <div className="text-slate-600 opacity-50 py-0.5">{entry.text}</div>
+                <div className="text-slate-600 opacity-50 py-0.5">
+                  {entry.text}
+                </div>
               )}
               {entry.kind === 'raw' && (
-                <div className={`whitespace-pre-wrap py-0.5 ${
-                  entry.isStderr ? 'text-amber-400 border-l-2 border-amber-400/40 pl-2' : ''
-                }`}>
+                <div
+                  className={`whitespace-pre-wrap py-0.5 ${
+                    entry.isStderr
+                      ? 'text-amber-400 border-l-2 border-amber-400/40 pl-2'
+                      : ''
+                  }`}
+                >
                   {entry.text}
                 </div>
               )}

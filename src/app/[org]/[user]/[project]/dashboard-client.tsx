@@ -1,15 +1,15 @@
 'use client';
 
+import { Activity, CircleDot, Loader, Play, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { CircleDot, Loader, Play, Activity, Sparkles } from 'lucide-react';
 import { Card } from '@/components/card';
+import { CatalogBadge } from '@/components/catalog-badge';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton';
 import { StatCard } from '@/components/stat-card';
 import { StatusBadge } from '@/components/status-badge';
-import { CatalogBadge } from '@/components/catalog-badge';
 import { trpc } from '@/lib/trpc/client';
 
 export function DashboardClient({
@@ -25,7 +25,9 @@ export function DashboardClient({
 
   // ── Catalog queries ──────────────────────────────────────────────────────
   const statesQuery = trpc.issueCatalog.states.list.useQuery({ projectId });
-  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({ projectId });
+  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({
+    projectId,
+  });
 
   const states = statesQuery.data ?? [];
   const priorities = prioritiesQuery.data ?? [];
@@ -37,7 +39,7 @@ export function DashboardClient({
   const issues = issuesQuery.data ?? [];
 
   const openIssues = issues.filter((i) => !i.isClosed);
-  const closedIssues = issues.filter((i) => i.isClosed);
+  const _closedIssues = issues.filter((i) => i.isClosed);
 
   // Count issues per state
   const stateCounts = new Map<string, number>();
@@ -47,10 +49,16 @@ export function DashboardClient({
 
   // Find "in progress" count — non-terminal, non-initial states
   const nonTerminalStates = states.filter((s) => !s.isTerminal);
-  const inProgressCount = nonTerminalStates.reduce(
-    (sum, s) => sum + (stateCounts.get(s.id) ?? 0),
-    0,
-  ) - (stateCounts.get(states.find((s) => s.sortOrder === Math.min(...states.map((x) => x.sortOrder)))?.id ?? '') ?? 0);
+  const inProgressCount =
+    nonTerminalStates.reduce(
+      (sum, s) => sum + (stateCounts.get(s.id) ?? 0),
+      0
+    ) -
+    (stateCounts.get(
+      states.find(
+        (s) => s.sortOrder === Math.min(...states.map((x) => x.sortOrder))
+      )?.id ?? ''
+    ) ?? 0);
 
   // ── Pipeline queries ─────────────────────────────────────────────────────
   const kpisQuery = trpc.pipeline.runs.kpis.useQuery({ projectId });
@@ -65,17 +73,22 @@ export function DashboardClient({
   const orgId = orgsQuery.data?.[0]?.id;
   const providersQuery = trpc.provider.list.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId },
+    { enabled: !!orgId }
   );
   const providers = providersQuery.data ?? [];
 
   // Sort open issues by priority weight (highest weight first)
   const priorityWeight = new Map(priorities.map((p) => [p.id, p.weight]));
   const topOpenIssues = [...openIssues]
-    .sort((a, b) => (priorityWeight.get(b.priorityId) ?? 0) - (priorityWeight.get(a.priorityId) ?? 0))
+    .sort(
+      (a, b) =>
+        (priorityWeight.get(b.priorityId) ?? 0) -
+        (priorityWeight.get(a.priorityId) ?? 0)
+    )
     .slice(0, 5);
 
-  const isLoading = statesQuery.isLoading || prioritiesQuery.isLoading || issuesQuery.isLoading;
+  const isLoading =
+    statesQuery.isLoading || prioritiesQuery.isLoading || issuesQuery.isLoading;
 
   if (isLoading) {
     return (
@@ -105,16 +118,40 @@ export function DashboardClient({
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Open issues" value={openIssues.length} icon={CircleDot} accent="violet" />
-        <StatCard label="In progress" value={Math.max(0, inProgressCount)} icon={Loader} accent="blue" />
-        <StatCard label="Total runs" value={totalRuns} icon={Play} accent="green" />
-        <StatCard label="Running now" value={kpis?.runningRuns ?? 0} icon={Activity} accent="amber" />
+        <StatCard
+          label="Open issues"
+          value={openIssues.length}
+          icon={CircleDot}
+          accent="violet"
+        />
+        <StatCard
+          label="In progress"
+          value={Math.max(0, inProgressCount)}
+          icon={Loader}
+          accent="blue"
+        />
+        <StatCard
+          label="Total runs"
+          value={totalRuns}
+          icon={Play}
+          accent="green"
+        />
+        <StatCard
+          label="Running now"
+          value={kpis?.runningRuns ?? 0}
+          icon={Activity}
+          accent="amber"
+        />
       </div>
 
       {/* Bento row: Just Do It + Pipeline Health */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
         {/* Just Do It hero */}
-        <Card hover={false} padding="p-7" className="bg-linear-to-br from-deep-violet/50 to-card relative overflow-hidden">
+        <Card
+          hover={false}
+          padding="p-7"
+          className="bg-linear-to-br from-deep-violet/50 to-card relative overflow-hidden"
+        >
           <div className="absolute -top-12 -right-12 w-48 h-48 bg-electric-violet/10 rounded-full blur-3xl pointer-events-none" />
           <div className="flex items-center gap-2 mb-1">
             <Sparkles size={18} className="text-soft-violet opacity-60" />
@@ -152,18 +189,30 @@ export function DashboardClient({
         <Card padding="p-6" className="relative">
           <h3 className="text-sm font-semibold text-white">Pipeline health</h3>
           <p className="text-xs text-slate-500 mb-5">Last 30 days</p>
-          <p className={`text-[42px] font-extrabold leading-none ${
-            successRate >= 80 ? 'text-emerald-400' : successRate >= 50 ? 'text-amber-400' : 'text-red-400'
-          }`}>
+          <p
+            className={`text-[42px] font-extrabold leading-none ${
+              successRate >= 80
+                ? 'text-emerald-400'
+                : successRate >= 50
+                  ? 'text-amber-400'
+                  : 'text-red-400'
+            }`}
+          >
             {successRate}%
           </p>
           <p className="text-xs text-slate-500 mt-1">success rate</p>
 
           {/* Mini bar chart — based on recent runs */}
           <div className="absolute right-6 bottom-6 flex items-end gap-1.5 h-[60px]">
-            {recentRuns.slice(0, 7).map((run, i) => {
+            {recentRuns.slice(0, 7).map((run) => {
               const isSuccess = run.status === 'completed';
-              const h = 20 + Math.random() * 36;
+              // Deterministic per-run pseudo-height: hash run.id into [20, 56] px
+              // so the bar chart stays stable across re-renders.
+              let hash = 0;
+              for (let i = 0; i < run.id.length; i++) {
+                hash = (hash * 31 + run.id.charCodeAt(i)) | 0;
+              }
+              const h = 20 + (Math.abs(hash) % 37);
               return (
                 <div
                   key={run.id}
@@ -205,14 +254,22 @@ export function DashboardClient({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left">
-                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Pipeline</th>
-                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Status</th>
-                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Started</th>
-                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Cost</th>
+                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                    Pipeline
+                  </th>
+                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                    Status
+                  </th>
+                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                    Started
+                  </th>
+                  <th className="px-6 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                    Cost
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {recentRuns.map((run: typeof recentRuns[number]) => (
+                {recentRuns.map((run: (typeof recentRuns)[number]) => (
                   <tr
                     key={run.id}
                     className="border-t border-slate-700/15 hover:bg-white/[0.02] transition-colors"
@@ -229,7 +286,9 @@ export function DashboardClient({
                       <StatusBadge status={run.status} />
                     </td>
                     <td className="px-6 py-3.5 text-xs text-slate-500">
-                      {run.startedAt ? new Date(run.startedAt).toLocaleString() : '-'}
+                      {run.startedAt
+                        ? new Date(run.startedAt).toLocaleString()
+                        : '-'}
                     </td>
                     <td className="px-6 py-3.5 text-xs font-mono text-slate-400">
                       ${run.totalCostUsd ?? '0.00'}
@@ -251,15 +310,21 @@ export function DashboardClient({
               ${totalCost.toFixed(2)}
             </p>
             <p className="text-xs text-slate-500 mt-1.5">
-              Avg <span className="font-mono text-slate-400">${totalRuns > 0 ? (totalCost / totalRuns).toFixed(3) : '0.000'}</span> / run
+              Avg{' '}
+              <span className="font-mono text-slate-400">
+                ${totalRuns > 0 ? (totalCost / totalRuns).toFixed(3) : '0.000'}
+              </span>{' '}
+              / run
             </p>
             {/* Sparkline */}
             <div className="flex items-end gap-[3px] h-6 mt-3">
-              {runs.slice(0, 14).map((run, i) => (
+              {runs.slice(0, 14).map((run, _i) => (
                 <div
                   key={run.id}
                   className="w-1 rounded-sm bg-soft-violet/50"
-                  style={{ height: `${8 + Number(run.totalCostUsd ?? 0) * 10}px` }}
+                  style={{
+                    height: `${8 + Number(run.totalCostUsd ?? 0) * 10}px`,
+                  }}
                 />
               ))}
             </div>
@@ -322,7 +387,8 @@ export function DashboardClient({
         <div className="space-y-3">
           {states.map((s) => {
             const count = stateCounts.get(s.id) ?? 0;
-            const pct = issues.length > 0 ? Math.round((count / issues.length) * 100) : 0;
+            const pct =
+              issues.length > 0 ? Math.round((count / issues.length) * 100) : 0;
             return (
               <div key={s.id} className="flex items-center gap-3">
                 <CatalogBadge displayName={s.displayName} color={s.color} />
@@ -332,7 +398,9 @@ export function DashboardClient({
                     style={{ width: `${pct}%`, backgroundColor: s.color }}
                   />
                 </div>
-                <span className="text-xs font-mono text-slate-400 w-8 text-right">{count}</span>
+                <span className="text-xs font-mono text-slate-400 w-8 text-right">
+                  {count}
+                </span>
               </div>
             );
           })}
@@ -343,15 +411,23 @@ export function DashboardClient({
       {providers.length > 0 && (
         <Card hover={false} padding="px-6 py-3">
           <div className="flex items-center gap-6 text-xs">
-            <span className="text-slate-500 font-medium uppercase tracking-wider text-[10px]">Providers</span>
+            <span className="text-slate-500 font-medium uppercase tracking-wider text-[10px]">
+              Providers
+            </span>
             {providers.map((p) => (
               <span key={p.id} className="flex items-center gap-1.5">
                 <span
                   className={`w-2 h-2 rounded-full ${p.isHealthy ? 'bg-emerald-400' : 'bg-red-400'}`}
-                  style={{ boxShadow: p.isHealthy ? '0 0 6px rgba(52,211,153,0.5)' : '0 0 6px rgba(248,113,113,0.5)' }}
+                  style={{
+                    boxShadow: p.isHealthy
+                      ? '0 0 6px rgba(52,211,153,0.5)'
+                      : '0 0 6px rgba(248,113,113,0.5)',
+                  }}
                 />
                 <span className="text-slate-300 font-medium">{p.name}</span>
-                <span className="text-slate-500">{p.isHealthy ? 'Online' : 'Offline'}</span>
+                <span className="text-slate-500">
+                  {p.isHealthy ? 'Online' : 'Offline'}
+                </span>
               </span>
             ))}
           </div>

@@ -10,36 +10,40 @@
  * docs/superpowers/plans/2026-04-24-r-daemon-implementation.md.
  */
 import 'dotenv/config';
-import { bootstrap } from '@/config/bootstrap';
-import { registry } from '@/config/registry';
-import { consoleLogger } from '@/core/logger/console';
-import { createEventOrchestrator, type EventOrchestrator } from '@/core/orchestrator/event-orchestrator';
-import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
-import { createDeployBridge } from '@/core/deploy';
-import { createCleanupScheduler, type CleanupScheduler } from '@/core/cleanup/cleanup-scheduler';
-import { createCleanupService } from '@/core/cleanup/cleanup-service';
-import { createIssueService } from '@/core/services/issue';
-import {
-  getArtifactsBase,
-} from '@/adapters/git/artifacts-path';
-import {
-  getCanonicalRepoPath,
-  hasUncommittedChanges,
-  isBranchMerged,
-} from '@/adapters/git/worktree';
+import { eq, sql } from 'drizzle-orm';
 import {
   getArtifactsDirAge,
   listArtifactDirs,
   removeArtifactsDir,
 } from '@/adapters/fs/artifacts';
-import type { DatabaseProvider } from '@/core/ports';
-import type { RealtimeProvider } from '@/core/ports/realtime';
-import type { IsolationProvider } from '@/core/ports/isolation';
-import type { StageExecutor } from '@/core/ports/stage-executor';
+import { getArtifactsBase } from '@/adapters/git/artifacts-path';
+import {
+  getCanonicalRepoPath,
+  hasUncommittedChanges,
+  isBranchMerged,
+} from '@/adapters/git/worktree';
+import { bootstrap } from '@/config/bootstrap';
+import { registry } from '@/config/registry';
+import {
+  type CleanupScheduler,
+  createCleanupScheduler,
+} from '@/core/cleanup/cleanup-scheduler';
+import { createCleanupService } from '@/core/cleanup/cleanup-service';
+import { STAGE_RUN_STATUS } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import { stageRun } from '@/core/db/schema';
-import { eq, sql } from 'drizzle-orm';
-import { STAGE_RUN_STATUS } from '@/core/constants';
+import { createDeployBridge } from '@/core/deploy';
+import { consoleLogger } from '@/core/logger/console';
+import {
+  createEventOrchestrator,
+  type EventOrchestrator,
+} from '@/core/orchestrator/event-orchestrator';
+import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
+import type { DatabaseProvider } from '@/core/ports';
+import type { IsolationProvider } from '@/core/ports/isolation';
+import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { StageExecutor } from '@/core/ports/stage-executor';
+import { createIssueService } from '@/core/services/issue';
 
 const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
 const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
@@ -54,13 +58,13 @@ export function parseEnv(): DaemonEnv {
   if (!graceRaw) {
     throw new Error(
       `Missing required environment variable: ${SHUTDOWN_GRACE_ENV}. ` +
-        'Set to a positive integer — operator owns the drain window (no default).',
+        'Set to a positive integer — operator owns the drain window (no default).'
     );
   }
   const grace = Number.parseInt(graceRaw, 10);
   if (!Number.isFinite(grace) || grace <= 0) {
     throw new Error(
-      `${SHUTDOWN_GRACE_ENV} must be a positive integer; got "${graceRaw}".`,
+      `${SHUTDOWN_GRACE_ENV} must be a positive integer; got "${graceRaw}".`
     );
   }
 
@@ -70,7 +74,7 @@ export function parseEnv(): DaemonEnv {
     const n = Number.parseInt(sweepRaw, 10);
     if (!Number.isFinite(n) || n <= 0) {
       throw new Error(
-        `${RECOVERY_SWEEP_ENV} must be a positive integer when set; got "${sweepRaw}".`,
+        `${RECOVERY_SWEEP_ENV} must be a positive integer when set; got "${sweepRaw}".`
       );
     }
     sweep = n;
@@ -91,7 +95,7 @@ const DRAIN_POLL_INTERVAL_MS = 500;
 
 async function drainRunningStageRuns(
   db: Database,
-  graceMs: number,
+  graceMs: number
 ): Promise<number> {
   const start = Date.now();
   while (Date.now() - start < graceMs) {
@@ -119,13 +123,11 @@ export async function createDaemon(): Promise<Daemon> {
   const env = parseEnv();
   bootstrap();
 
-  consoleLogger.info(
-    {
-      event: 'daemon.booting',
-      shutdownGraceSeconds: env.shutdownGraceSeconds,
-      recoverySweepIntervalMin: env.recoverySweepIntervalMin,
-    },
-  );
+  consoleLogger.info({
+    event: 'daemon.booting',
+    shutdownGraceSeconds: env.shutdownGraceSeconds,
+    recoverySweepIntervalMin: env.recoverySweepIntervalMin,
+  });
 
   const dbProvider = registry.get<DatabaseProvider>('database');
   const db = dbProvider.getConnection();
@@ -153,7 +155,7 @@ export async function createDaemon(): Promise<Daemon> {
     executor,
     realtime,
     isolation,
-    terminalHook,
+    terminalHook
   );
 
   const cleanupService = createCleanupService({
@@ -214,7 +216,7 @@ export async function createDaemon(): Promise<Daemon> {
   const sweepEnabled = recoverySweepTimer !== null;
   // Sentinel line — journey test greps for /daemon\.started /.
   console.log(
-    `daemon.started orchestrator=running cleanup=${cleanupRunning ? 'running' : 'disabled'} recovery_sweep=${sweepEnabled ? 'enabled' : 'disabled'}`,
+    `daemon.started orchestrator=running cleanup=${cleanupRunning ? 'running' : 'disabled'} recovery_sweep=${sweepEnabled ? 'enabled' : 'disabled'}`
   );
 
   let shuttingDown = false;

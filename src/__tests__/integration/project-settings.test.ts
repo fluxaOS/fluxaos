@@ -6,24 +6,24 @@
  * (allowlist shape).
  */
 import 'dotenv/config';
-import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { appRouter } from '@/server/root';
+import { describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import {
-  organization,
-  pipeline,
-  project,
-  user,
-} from '@/core/db/schema';
+import { organization, pipeline, project, user } from '@/core/db/schema';
+import { appRouter } from '@/server/root';
 
 function stamp(label: string): string {
   return `proj-set-${label}-${Date.now()}`;
 }
 
-async function makeFixture(db: ReturnType<SupabaseDatabaseProvider['getConnection']>) {
+async function makeFixture(
+  db: ReturnType<SupabaseDatabaseProvider['getConnection']>
+) {
   const s = stamp('fix');
-  const [org] = await db.insert(organization).values({ name: s, slug: s }).returning();
+  const [org] = await db
+    .insert(organization)
+    .values({ name: s, slug: s })
+    .returning();
   const [userRow] = await db
     .insert(user)
     .values({ orgId: org.id, email: `${s}@test.local`, name: s, slug: s })
@@ -52,12 +52,24 @@ async function makeFixture(db: ReturnType<SupabaseDatabaseProvider['getConnectio
 
 async function teardown(
   db: ReturnType<SupabaseDatabaseProvider['getConnection']>,
-  ids: { orgId: string; userId: string; projectId: string },
+  ids: { orgId: string; userId: string; projectId: string }
 ) {
-  await db.delete(pipeline).where(eq(pipeline.projectId, ids.projectId)).catch(() => undefined);
-  await db.delete(project).where(eq(project.id, ids.projectId)).catch(() => undefined);
-  await db.delete(user).where(eq(user.id, ids.userId)).catch(() => undefined);
-  await db.delete(organization).where(eq(organization.id, ids.orgId)).catch(() => undefined);
+  await db
+    .delete(pipeline)
+    .where(eq(pipeline.projectId, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(project)
+    .where(eq(project.id, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(user)
+    .where(eq(user.id, ids.userId))
+    .catch(() => undefined);
+  await db
+    .delete(organization)
+    .where(eq(organization.id, ids.orgId))
+    .catch(() => undefined);
 }
 
 describe('R-SETTINGS-ALPHA project router', () => {
@@ -119,7 +131,7 @@ describe('R-SETTINGS-ALPHA project router', () => {
         caller.project.setDefaultPipeline({
           projectId: f.projectRow.id,
           pipelineId: other.pipe1.id,
-        }),
+        })
       ).rejects.toThrow(/PIPELINE_NOT_IN_PROJECT/);
     } finally {
       await teardown(db, {
@@ -166,7 +178,7 @@ describe('R-SETTINGS-ALPHA project router', () => {
     // Value may be null (unset) or a string — both are valid shapes.
     expect(
       result.FLUXAOS_TARGET_REPO_PATH === null ||
-        typeof result.FLUXAOS_TARGET_REPO_PATH === 'string',
+        typeof result.FLUXAOS_TARGET_REPO_PATH === 'string'
     ).toBe(true);
   });
 });

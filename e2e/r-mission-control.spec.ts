@@ -6,27 +6,42 @@
 // Case B (@daemon @journey, skips without ANTHROPIC_API_KEY): spawns
 //   the daemon, triggers a Run-Stage from the UI, then asserts mission
 //   control reflects the in-flight transition (Realtime invalidation).
-import { test, expect, projectPath } from './helpers/setup';
-import { spawnDaemon, type DaemonHandle } from './helpers/daemon';
+
+import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { expect, projectPath, test } from './helpers/setup';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 
 test.describe('@r-mission-control', () => {
-  test('renders four sections with empty states when nothing is running', async ({ page }) => {
+  test('renders four sections with empty states when nothing is running', async ({
+    page,
+  }) => {
     await page.goto(projectPath('/mission-control'));
 
-    await expect(page.getByRole('heading', { name: 'Mission control' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Mission control' })
+    ).toBeVisible({
       timeout: 15_000,
     });
 
     // Section headers all render.
-    await expect(page.getByRole('heading', { name: 'Queue depth' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'In-flight runs' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Recent terminal runs' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Recent pull requests' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Queue depth' })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'In-flight runs' })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Recent terminal runs' })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Recent pull requests' })
+    ).toBeVisible();
 
     // Empty-state copies all render (verbatim from spec §R4).
-    await expect(page.getByText(/Queue is empty — waiting for new runs/)).toBeVisible();
+    await expect(
+      page.getByText(/Queue is empty — waiting for new runs/)
+    ).toBeVisible();
     await expect(page.getByText(/^No runs in flight$/)).toBeVisible();
     await expect(page.getByText(/^No terminal runs yet$/)).toBeVisible();
     await expect(page.getByText(/^No PRs opened yet$/)).toBeVisible();
@@ -47,11 +62,13 @@ test.describe('@r-mission-control @daemon @journey', () => {
     if (handle) await handle.shutdown();
   });
 
-  test('mission control reflects daemon-driven transitions', async ({ page }) => {
+  test('mission control reflects daemon-driven transitions', async ({
+    page,
+  }) => {
     // Trigger a run via the existing UI flow.
     await page.goto(projectPath('/issues/1'));
     await expect(
-      page.getByRole('heading', { name: /Add health check endpoint/ }),
+      page.getByRole('heading', { name: /Add health check endpoint/ })
     ).toBeVisible({ timeout: 15_000 });
 
     const stateSelect = page
@@ -67,7 +84,9 @@ test.describe('@r-mission-control @daemon @journey', () => {
 
     // Navigate to mission control.
     await page.goto(projectPath('/mission-control'));
-    await expect(page.getByRole('heading', { name: 'Mission control' })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Mission control' })
+    ).toBeVisible({
       timeout: 15_000,
     });
 
@@ -77,7 +96,9 @@ test.describe('@r-mission-control @daemon @journey', () => {
     // pipeline ends at a review:hold gate, so the run stays at status
     // running and the in-flight section stays populated — terminal-
     // section coverage is R-SMOKE territory.
-    await expect(page.getByText(/^No runs in flight$/)).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByText(/^No runs in flight$/)).toBeHidden({
+      timeout: 30_000,
+    });
 
     // The current-stage badge should show the stage the daemon is
     // executing (one of: launching | running | pending). Using a more
@@ -91,7 +112,7 @@ test.describe('@r-mission-control @daemon @journey', () => {
           timeout: 60_000,
           intervals: [1_000, 2_000, 5_000],
           message: 'in-flight card never rendered a stage status badge',
-        },
+        }
       )
       .toBeGreaterThan(0);
 

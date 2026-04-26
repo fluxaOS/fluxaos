@@ -11,10 +11,10 @@
  * W4 will add a recovery-sweep test. W5 will add the trigger-path test.
  */
 import 'dotenv/config';
-import { describe, expect, it, afterAll, beforeAll } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { createDaemon, parseEnv } from '@/scripts/daemon';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
 import {
   organization,
   pipeline,
@@ -24,7 +24,7 @@ import {
   stageRun,
   user,
 } from '@/core/db/schema';
-import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
+import { createDaemon, parseEnv } from '@/scripts/daemon';
 
 describe('R-DAEMON factory', () => {
   beforeAll(() => {
@@ -40,9 +40,7 @@ describe('R-DAEMON factory', () => {
     const saved = process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS;
     delete process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS;
     try {
-      expect(() => parseEnv()).toThrow(
-        /FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS/,
-      );
+      expect(() => parseEnv()).toThrow(/FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS/);
     } finally {
       if (saved !== undefined) {
         process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS = saved;
@@ -98,120 +96,131 @@ describe('R-DAEMON factory', () => {
     await expect(daemon.shutdown('second')).resolves.toBeUndefined();
   });
 
-  it(
-    'recoverOnStartup fails stage_runs whose pid is dead',
-    async () => {
-      const url = process.env.DATABASE_URL;
-      if (!url) throw new Error('DATABASE_URL required');
-      const dbProvider = new SupabaseDatabaseProvider(url);
-      const db = dbProvider.getConnection();
+  it('recoverOnStartup fails stage_runs whose pid is dead', async () => {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error('DATABASE_URL required');
+    const dbProvider = new SupabaseDatabaseProvider(url);
+    const db = dbProvider.getConnection();
 
-      // Build an isolated fixture rather than relying on seeded data so
-      // the test doesn't race with other suites that truncate pipelines.
-      const stamp = `daemon-recovery-${Date.now()}`;
-      const [org] = await db
-        .insert(organization)
-        .values({ name: stamp, slug: stamp })
-        .returning();
-      const [userRow] = await db
-        .insert(user)
-        .values({
-          orgId: org.id,
-          email: `${stamp}@test.local`,
-          name: stamp,
-          slug: stamp,
-        })
-        .returning();
-      const [projectRow] = await db
-        .insert(project)
-        .values({
-          orgId: org.id,
-          userId: userRow.id,
-          name: stamp,
-          slug: stamp,
-          repoUrl: 'https://github.com/fluxaos/fixture',
-          defaultBranch: 'main',
-        })
-        .returning();
-      const [pipe] = await db
-        .insert(pipeline)
-        .values({ projectId: projectRow.id, name: stamp })
-        .returning();
-      const [stage] = await db
-        .insert(pipelineStage)
+    // Build an isolated fixture rather than relying on seeded data so
+    // the test doesn't race with other suites that truncate pipelines.
+    const stamp = `daemon-recovery-${Date.now()}`;
+    const [org] = await db
+      .insert(organization)
+      .values({ name: stamp, slug: stamp })
+      .returning();
+    const [userRow] = await db
+      .insert(user)
+      .values({
+        orgId: org.id,
+        email: `${stamp}@test.local`,
+        name: stamp,
+        slug: stamp,
+      })
+      .returning();
+    const [projectRow] = await db
+      .insert(project)
+      .values({
+        orgId: org.id,
+        userId: userRow.id,
+        name: stamp,
+        slug: stamp,
+        repoUrl: 'https://github.com/fluxaos/fixture',
+        defaultBranch: 'main',
+      })
+      .returning();
+    const [pipe] = await db
+      .insert(pipeline)
+      .values({ projectId: projectRow.id, name: stamp })
+      .returning();
+    const [stage] = await db
+      .insert(pipelineStage)
+      .values({
+        pipelineId: pipe.id,
+        name: 'research',
+        sortOrder: 0,
+        driver: 'claude-code',
+        gateMode: 'auto',
+        maxRetries: 0,
+      })
+      .returning();
+
+    // Dead pid: a very high number that's effectively never a live process.
+    const DEAD_PID = 2147483646;
+
+    const daemon = await createDaemon();
+
+    let runId: string | null = null;
+    let srId: string | null = null;
+
+    try {
+      const [run] = await db
+        .insert(pipelineRun)
         .values({
           pipelineId: pipe.id,
-          name: 'research',
-          sortOrder: 0,
-          driver: 'claude-code',
-          gateMode: 'auto',
-          maxRetries: 0,
+          status: PIPELINE_RUN_STATUS.running,
         })
         .returning();
+      runId = run.id;
 
-      // Dead pid: a very high number that's effectively never a live process.
-      const DEAD_PID = 2147483646;
+      // attempt high enough to exhaust any reasonable retry budget so
+      // recoverOnStartup takes the finishRun (fail) branch instead of
+      // launchStage (which would try to spawn a subprocess against a
+      // seeded stage with no real repo and hang).
+      const [sr] = await db
+        .insert(stageRun)
+        .values({
+          pipelineRunId: run.id,
+          pipelineStageId: stage.id,
+          status: STAGE_RUN_STATUS.running,
+          pid: DEAD_PID,
+          attempt: 99,
+        })
+        .returning();
+      srId = sr.id;
 
-      const daemon = await createDaemon();
+      await daemon.orchestrator.recoverOnStartup();
 
-      let runId: string | null = null;
-      let srId: string | null = null;
-
-      try {
-        const [run] = await db
-          .insert(pipelineRun)
-          .values({
-            pipelineId: pipe.id,
-            status: PIPELINE_RUN_STATUS.running,
-          })
-          .returning();
-        runId = run.id;
-
-        // attempt high enough to exhaust any reasonable retry budget so
-        // recoverOnStartup takes the finishRun (fail) branch instead of
-        // launchStage (which would try to spawn a subprocess against a
-        // seeded stage with no real repo and hang).
-        const [sr] = await db
-          .insert(stageRun)
-          .values({
-            pipelineRunId: run.id,
-            pipelineStageId: stage.id,
-            status: STAGE_RUN_STATUS.running,
-            pid: DEAD_PID,
-            attempt: 99,
-          })
-          .returning();
-        srId = sr.id;
-
-        await daemon.orchestrator.recoverOnStartup();
-
-        const [after] = await db
-          .select()
-          .from(stageRun)
-          .where(eq(stageRun.id, sr.id));
-        expect(after?.status).toBe(STAGE_RUN_STATUS.failed);
-      } finally {
-        await daemon.shutdown('test');
-        if (srId) {
-          await db
-            .delete(stageRun)
-            .where(and(eq(stageRun.id, srId)))
-            .catch(() => undefined);
-        }
-        if (runId) {
-          await db
-            .delete(pipelineRun)
-            .where(eq(pipelineRun.id, runId))
-            .catch(() => undefined);
-        }
-        await db.delete(pipelineStage).where(eq(pipelineStage.id, stage.id)).catch(() => undefined);
-        await db.delete(pipeline).where(eq(pipeline.id, pipe.id)).catch(() => undefined);
-        await db.delete(project).where(eq(project.id, projectRow.id)).catch(() => undefined);
-        await db.delete(user).where(eq(user.id, userRow.id)).catch(() => undefined);
-        await db.delete(organization).where(eq(organization.id, org.id)).catch(() => undefined);
-        await dbProvider.close();
+      const [after] = await db
+        .select()
+        .from(stageRun)
+        .where(eq(stageRun.id, sr.id));
+      expect(after?.status).toBe(STAGE_RUN_STATUS.failed);
+    } finally {
+      await daemon.shutdown('test');
+      if (srId) {
+        await db
+          .delete(stageRun)
+          .where(and(eq(stageRun.id, srId)))
+          .catch(() => undefined);
       }
-    },
-    30_000,
-  );
+      if (runId) {
+        await db
+          .delete(pipelineRun)
+          .where(eq(pipelineRun.id, runId))
+          .catch(() => undefined);
+      }
+      await db
+        .delete(pipelineStage)
+        .where(eq(pipelineStage.id, stage.id))
+        .catch(() => undefined);
+      await db
+        .delete(pipeline)
+        .where(eq(pipeline.id, pipe.id))
+        .catch(() => undefined);
+      await db
+        .delete(project)
+        .where(eq(project.id, projectRow.id))
+        .catch(() => undefined);
+      await db
+        .delete(user)
+        .where(eq(user.id, userRow.id))
+        .catch(() => undefined);
+      await db
+        .delete(organization)
+        .where(eq(organization.id, org.id))
+        .catch(() => undefined);
+      await dbProvider.close();
+    }
+  }, 30_000);
 });

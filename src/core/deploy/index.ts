@@ -1,15 +1,15 @@
 export {
   createDeployBridge,
-  DeployBridgeError,
   type DeployBridge,
   type DeployBridgeDeps,
+  DeployBridgeError,
   type DeployBridgeLogger,
-  type DeployResult,
   type DeployErrorStage,
+  type DeployResult,
 } from './deploy-bridge';
 export type { AdapterRegistryLike } from './registry-types';
 export {
   buildCommitMessage,
-  buildPrTitle,
   buildPrBody,
+  buildPrTitle,
 } from './templates';

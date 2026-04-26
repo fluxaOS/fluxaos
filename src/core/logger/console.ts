@@ -15,7 +15,7 @@ export interface ConsoleLogger {
 function emit(
   level: 'info' | 'warn' | 'error',
   obj: Record<string, unknown>,
-  msg?: string,
+  msg?: string
 ): void {
   const line = JSON.stringify({
     ts: new Date().toISOString(),

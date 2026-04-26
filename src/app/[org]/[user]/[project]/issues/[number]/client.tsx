@@ -1,16 +1,20 @@
 'use client';
 
+import { ArrowLeft, Clock, Play } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Clock, GitBranch, Play } from 'lucide-react';
+import { useState } from 'react';
 import { Card } from '@/components/card';
-import { SkeletonCard } from '@/components/skeleton';
 import { CatalogBadge } from '@/components/catalog-badge';
 import { RunDetailModal } from '@/components/pipeline/RunDetailModal';
+import { SkeletonCard } from '@/components/skeleton';
 import { trpc } from '@/lib/trpc/client';
 import { ActivityFeed } from './ActivityFeed';
-import { EditableTitle, EditableBody, CatalogSelect } from './IssueDetailEditors';
+import {
+  CatalogSelect,
+  EditableBody,
+  EditableTitle,
+} from './IssueDetailEditors';
 import { RelationshipsCard } from './RelationshipsCard';
 
 // ─── Main client component ──────────────────────────────────────────────────
@@ -37,16 +41,18 @@ export function IssueDetailClient({
 
   const typesQuery = trpc.issueCatalog.types.list.useQuery({ projectId });
   const statesQuery = trpc.issueCatalog.states.list.useQuery({ projectId });
-  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({ projectId });
+  const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({
+    projectId,
+  });
 
   const transitionsQuery = trpc.issue.transitions.useQuery(
     { id: issue?.id ?? '' },
-    { enabled: !!issue?.id },
+    { enabled: !!issue?.id }
   );
 
   const hasOpenChildrenQuery = trpc.issue.hasOpenChildren.useQuery(
     { id: issue?.id ?? '' },
-    { enabled: !!issue?.id },
+    { enabled: !!issue?.id }
   );
 
   const types = typesQuery.data ?? [];
@@ -84,20 +90,21 @@ export function IssueDetailClient({
   // Pipeline: get project's pipelines + stages (always visible)
   const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
     { projectId },
-    { enabled: !!projectId },
+    { enabled: !!projectId }
   );
-  const defaultPipeline = pipelinesQuery.data?.find((p) => p.isDefault) ?? pipelinesQuery.data?.[0];
+  const defaultPipeline =
+    pipelinesQuery.data?.find((p) => p.isDefault) ?? pipelinesQuery.data?.[0];
 
   const stagesQuery = trpc.pipeline.stages.listByPipeline.useQuery(
     { pipelineId: defaultPipeline?.id ?? '' },
-    { enabled: !!defaultPipeline?.id },
+    { enabled: !!defaultPipeline?.id }
   );
   const pipelineStages = stagesQuery.data ?? [];
 
   // Pipeline run state for this issue (if a run exists)
   const pipelineStateQuery = trpc.pipeline.runs.issueState.useQuery(
     { issueId: issue?.id ?? '' },
-    { enabled: !!issue?.id },
+    { enabled: !!issue?.id }
   );
   const pipelineState = pipelineStateQuery.data;
 
@@ -108,7 +115,9 @@ export function IssueDetailClient({
     },
     onError: (err) => {
       if (err.message.includes('ISSUE_IS_EPIC')) {
-        alert('This issue has open child issues. Run pipelines on the children, not the parent.');
+        alert(
+          'This issue has open child issues. Run pipelines on the children, not the parent.'
+        );
         hasOpenChildrenQuery.refetch();
       }
     },
@@ -179,7 +188,9 @@ export function IssueDetailClient({
       <Card hover={false} padding="p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 flex-1">
-            <span className="text-sm font-mono text-slate-500">#{issue.number}</span>
+            <span className="text-sm font-mono text-slate-500">
+              #{issue.number}
+            </span>
             <EditableTitle
               value={issue.title}
               onSave={(title) => saveField({ title })}
@@ -187,8 +198,18 @@ export function IssueDetailClient({
             />
           </div>
           <div className="flex gap-2 shrink-0">
-            {stateInfo && <CatalogBadge displayName={stateInfo.displayName} color={stateInfo.color} />}
-            {priorityInfo && <CatalogBadge displayName={priorityInfo.displayName} color={priorityInfo.color} />}
+            {stateInfo && (
+              <CatalogBadge
+                displayName={stateInfo.displayName}
+                color={stateInfo.color}
+              />
+            )}
+            {priorityInfo && (
+              <CatalogBadge
+                displayName={priorityInfo.displayName}
+                color={priorityInfo.color}
+              />
+            )}
           </div>
         </div>
 
@@ -272,106 +293,120 @@ export function IssueDetailClient({
       />
 
       {/* Pipeline Stages — always visible when pipeline exists */}
-      {pipelineStages.length > 0 && (() => {
-        // Match the issue's current state to a pipeline stage by name
-        const currentStateName = stateInfo?.key ?? stateInfo?.displayName?.toLowerCase();
-        const matchingStage = pipelineStages.find(
-          (s: typeof pipelineStages[number]) => s.name === currentStateName,
-        );
-        const isExecuting = executeStage.isPending || triggerRun.isPending;
+      {pipelineStages.length > 0 &&
+        (() => {
+          // Match the issue's current state to a pipeline stage by name
+          const currentStateName =
+            stateInfo?.key ?? stateInfo?.displayName?.toLowerCase();
+          const matchingStage = pipelineStages.find(
+            (s: (typeof pipelineStages)[number]) => s.name === currentStateName
+          );
+          const isExecuting = executeStage.isPending || triggerRun.isPending;
 
-        return (
-          <Card hover={false} padding="p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-400">Pipeline Stages</h3>
-            <div className="flex gap-2">
-              {pipelineStages.map((s: typeof pipelineStages[number]) => {
-                const sr = pipelineState?.stages?.find(
-                  (ps) => ps.id === s.id,
-                )?.stageRun ?? null;
-                const isCurrent = s.id === matchingStage?.id;
-                const isCompleted = sr?.status === 'completed';
-                const isRunning = sr?.status === 'running' || sr?.status === 'launching';
+          return (
+            <Card hover={false} padding="p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-400">
+                Pipeline Stages
+              </h3>
+              <div className="flex gap-2">
+                {pipelineStages.map((s: (typeof pipelineStages)[number]) => {
+                  const sr =
+                    pipelineState?.stages?.find((ps) => ps.id === s.id)
+                      ?.stageRun ?? null;
+                  const isCurrent = s.id === matchingStage?.id;
+                  const isCompleted = sr?.status === 'completed';
+                  const isRunning =
+                    sr?.status === 'running' || sr?.status === 'launching';
 
-                return (
-                  <div
-                    key={s.id}
-                    className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
-                      isCompleted
-                        ? 'bg-emerald-400/10 border-emerald-400/30 text-emerald-400'
-                        : isRunning
-                          ? 'bg-electric-violet/15 border-soft-violet/40 text-soft-violet'
-                          : isCurrent
-                            ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
-                            : 'bg-white/[0.02] border-slate-700/30 text-slate-500'
-                    }`}
-                  >
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-slate-600 ml-1">({s.gateMode})</span>
-                    {sr && (
-                      <span className="ml-1.5 text-[10px] opacity-70">{sr.status}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Run Stage — always available, triggers the stage matching the issue's state */}
-            {matchingStage && defaultPipeline && issue && (
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // If a pending stage run exists, execute it
-                    const existingSr = pipelineState?.currentStageRun;
-                    if (existingSr && (existingSr.status === 'pending' || existingSr.status === 'queued')) {
-                      executeStage.mutate({ stageRunId: existingSr.id });
-                    } else {
-                      // Otherwise trigger a new pipeline run for this stage
-                      triggerRun.mutate({
-                        pipelineId: defaultPipeline.id,
-                        issueId: issue.id,
-                        stageId: matchingStage.id,
-                      });
-                    }
-                  }}
-                  disabled={isExecuting || isEpic}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
-                >
-                  <Play size={14} />
-                  {isExecuting ? 'Starting...' : `Run Stage`}
-                </button>
-                {isEpic && (
-                  <p className="text-[11px] text-slate-500">
-                    This issue has open child issues. Run pipelines on the children.
-                  </p>
-                )}
+                  return (
+                    <div
+                      key={s.id}
+                      className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                        isCompleted
+                          ? 'bg-emerald-400/10 border-emerald-400/30 text-emerald-400'
+                          : isRunning
+                            ? 'bg-electric-violet/15 border-soft-violet/40 text-soft-violet'
+                            : isCurrent
+                              ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
+                              : 'bg-white/[0.02] border-slate-700/30 text-slate-500'
+                      }`}
+                    >
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-slate-600 ml-1">
+                        ({s.gateMode})
+                      </span>
+                      {sr && (
+                        <span className="ml-1.5 text-[10px] opacity-70">
+                          {sr.status}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            )}
 
-            {pipelineState?.run && (
-              <p className="text-[11px] text-slate-600">
-                Run: {pipelineState.run.status} &middot; Cost: ${pipelineState.run.totalCostUsd ?? '0.00'}
-                {' '}&middot;{' '}
-                <button
-                  type="button"
-                  onClick={() => setActiveRunId(pipelineState.run!.id)}
-                  className="text-soft-violet hover:underline"
-                >
-                  View details
-                </button>
-              </p>
-            )}
+              {/* Run Stage — always available, triggers the stage matching the issue's state */}
+              {matchingStage && defaultPipeline && issue && (
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // If a pending stage run exists, execute it
+                      const existingSr = pipelineState?.currentStageRun;
+                      if (
+                        existingSr &&
+                        (existingSr.status === 'pending' ||
+                          existingSr.status === 'queued')
+                      ) {
+                        executeStage.mutate({ stageRunId: existingSr.id });
+                      } else {
+                        // Otherwise trigger a new pipeline run for this stage
+                        triggerRun.mutate({
+                          pipelineId: defaultPipeline.id,
+                          issueId: issue.id,
+                          stageId: matchingStage.id,
+                        });
+                      }
+                    }}
+                    disabled={isExecuting || isEpic}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
+                  >
+                    <Play size={14} />
+                    {isExecuting ? 'Starting...' : `Run Stage`}
+                  </button>
+                  {isEpic && (
+                    <p className="text-[11px] text-slate-500">
+                      This issue has open child issues. Run pipelines on the
+                      children.
+                    </p>
+                  )}
+                </div>
+              )}
 
-            <RunDetailModal
-              runId={activeRunId}
-              onClose={() => {
-                setActiveRunId(null);
-                pipelineStateQuery.refetch();
-              }}
-            />
-          </Card>
-        );
-      })()}
+              {pipelineState?.run && (
+                <p className="text-[11px] text-slate-600">
+                  Run: {pipelineState.run.status} &middot; Cost: $
+                  {pipelineState.run.totalCostUsd ?? '0.00'} &middot;{' '}
+                  <button
+                    type="button"
+                    onClick={() => setActiveRunId(pipelineState.run?.id)}
+                    className="text-soft-violet hover:underline"
+                  >
+                    View details
+                  </button>
+                </p>
+              )}
+
+              <RunDetailModal
+                runId={activeRunId}
+                onClose={() => {
+                  setActiveRunId(null);
+                  pipelineStateQuery.refetch();
+                }}
+              />
+            </Card>
+          );
+        })()}
 
       {/* Delete Issue */}
       <button
@@ -394,4 +429,3 @@ export function IssueDetailClient({
     </div>
   );
 }
-

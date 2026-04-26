@@ -4,12 +4,13 @@
  * Each test creates a disposable repo in a tmpdir, exercises the helper,
  * then tears down. No DB, no network.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   commitAll,
   createWorktree,
@@ -106,7 +107,7 @@ describe('worktree helpers against real git', () => {
     await createWorktree(repo, wt, 'feat/date', 'main');
     const d = await getLastCommitDate(wt);
     expect(d).toBeInstanceOf(Date);
-    expect(d!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(d?.getTime()).toBeLessThanOrEqual(Date.now());
   });
 
   it('commitAll reports noChanges on a clean tree', async () => {

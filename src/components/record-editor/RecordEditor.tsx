@@ -5,16 +5,16 @@ import { useMemo, useState } from 'react';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { SkeletonTable } from '@/components/skeleton';
+import { type ActionsState, RecordActionsBar } from './RecordActionsBar';
 import { RecordField } from './RecordField';
-import { RecordActionsBar, type ActionsState } from './RecordActionsBar';
 import type {
+  FieldDescriptor,
   RecordEditorProps,
   RecordWithVersion,
-  FieldDescriptor,
 } from './types';
 
 export function RecordEditor<TRecord extends RecordWithVersion>(
-  props: RecordEditorProps<TRecord>,
+  props: RecordEditorProps<TRecord>
 ) {
   const {
     descriptor,
@@ -33,14 +33,15 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
   const [state, setState] = useState<ActionsState>({ kind: 'viewing' });
   const [draft, setDraft] = useState<Partial<TRecord>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [banner, setBanner] = useState<
-    | { kind: 'error' | 'info'; text: string; conflict?: boolean }
-    | null
-  >(null);
+  const [banner, setBanner] = useState<{
+    kind: 'error' | 'info';
+    text: string;
+    conflict?: boolean;
+  } | null>(null);
 
   const selected = useMemo(
     () => records.find((r) => r.id === selectedId) ?? null,
-    [records, selectedId],
+    [records, selectedId]
   );
 
   // When the list refreshes after Save, stay on the same record and exit editing.
@@ -104,8 +105,11 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
       // expectedVersion). Leaving them in the patch would rely on the
       // server-side Zod schema silently stripping unknown keys, which is
       // an invisible correctness dependency — make it explicit here.
-      const { id: _draftId, version: _draftVersion, ...patch } =
-        draft as Partial<TRecord> & { id?: string; version?: number };
+      const {
+        id: _draftId,
+        version: _draftVersion,
+        ...patch
+      } = draft as Partial<TRecord> & { id?: string; version?: number };
       void _draftId;
       void _draftVersion;
       await onSave(selected.id, patch as Partial<TRecord>, selected.version);
@@ -292,8 +296,8 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
           ) : null}
 
           {/* DEF-001 preview gate wraps the fields */}
-          {(previewGate && state.kind === 'viewing') ? (
-            <>{previewGate(selected)}</>
+          {previewGate && state.kind === 'viewing' ? (
+            previewGate(selected)
           ) : (
             <div>
               {descriptor.fields.map((f) => (

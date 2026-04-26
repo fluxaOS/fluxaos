@@ -12,7 +12,8 @@ type Props = {
 };
 
 export function RecordField({ field, value, editing, onChange, error }: Props) {
-  const common = 'w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric-violet/40';
+  const common =
+    'w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric-violet/40';
   const borderClass = error ? 'border-red-500/60' : 'border-slate-700/60';
 
   const label = (

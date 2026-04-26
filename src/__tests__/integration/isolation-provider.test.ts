@@ -6,17 +6,20 @@
  * Teardown removes everything.
  */
 import 'dotenv/config';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { access, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  createWorktreeIsolationProvider,
+  UncommittedChangesError,
+} from '@/adapters/git/worktree-isolation-provider';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
-import { createWorktreeIsolationProvider, UncommittedChangesError } from '@/adapters/git/worktree-isolation-provider';
 import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -126,7 +129,15 @@ describe('WorktreeIsolationProvider', () => {
     // check against the first test's env.
     const [run2] = await db
       .insert(schema.pipelineRun)
-      .values({ pipelineId: (await db.select().from(schema.pipeline).where(eq(schema.pipeline.projectId, projectId)))[0].id, status: 'pending' })
+      .values({
+        pipelineId: (
+          await db
+            .select()
+            .from(schema.pipeline)
+            .where(eq(schema.pipeline.projectId, projectId))
+        )[0].id,
+        status: 'pending',
+      })
       .returning();
     cleanup.push({ table: 'pipelineRun', id: run2.id });
 
@@ -153,7 +164,15 @@ describe('WorktreeIsolationProvider', () => {
   it('release removes worktree and marks row inactive', async () => {
     const [run3] = await db
       .insert(schema.pipelineRun)
-      .values({ pipelineId: (await db.select().from(schema.pipeline).where(eq(schema.pipeline.projectId, projectId)))[0].id, status: 'pending' })
+      .values({
+        pipelineId: (
+          await db
+            .select()
+            .from(schema.pipeline)
+            .where(eq(schema.pipeline.projectId, projectId))
+        )[0].id,
+        status: 'pending',
+      })
       .returning();
     cleanup.push({ table: 'pipelineRun', id: run3.id });
 
@@ -179,7 +198,15 @@ describe('WorktreeIsolationProvider', () => {
   it('release refuses when uncommitted changes exist (unless force)', async () => {
     const [run4] = await db
       .insert(schema.pipelineRun)
-      .values({ pipelineId: (await db.select().from(schema.pipeline).where(eq(schema.pipeline.projectId, projectId)))[0].id, status: 'pending' })
+      .values({
+        pipelineId: (
+          await db
+            .select()
+            .from(schema.pipeline)
+            .where(eq(schema.pipeline.projectId, projectId))
+        )[0].id,
+        status: 'pending',
+      })
       .returning();
     cleanup.push({ table: 'pipelineRun', id: run4.id });
 
@@ -237,7 +264,7 @@ describe('WorktreeIsolationProvider', () => {
 
     // Domain object exposes the resolved absolute path.
     expect(env.artifactsPath).toBeTruthy();
-    expect(env.artifactsPath!.startsWith('/')).toBe(true);
+    expect(env.artifactsPath?.startsWith('/')).toBe(true);
     expect(env.artifactsPath).toBe(
       join(repoPath, '.fluxaos-artifacts', run.id)
     );

@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { pipeline, pipelineStage } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
@@ -9,8 +9,14 @@ type StageInsert = typeof pipelineStage.$inferInsert;
 type StageSelect = typeof pipelineStage.$inferSelect;
 
 export function createPipelineService(db: Database) {
-  const pipelineCrud = createCrudService<PipelineInsert, PipelineSelect>(db, pipeline);
-  const stageCrud = createCrudService<StageInsert, StageSelect>(db, pipelineStage);
+  const pipelineCrud = createCrudService<PipelineInsert, PipelineSelect>(
+    db,
+    pipeline
+  );
+  const stageCrud = createCrudService<StageInsert, StageSelect>(
+    db,
+    pipelineStage
+  );
 
   return {
     ...pipelineCrud,

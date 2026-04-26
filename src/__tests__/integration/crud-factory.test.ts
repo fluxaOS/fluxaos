@@ -1,9 +1,12 @@
 import 'dotenv/config';
-import { describe, expect, it, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { organization, driver } from '@/core/db/schema';
-import { createCrudService, createVersionedCrudService } from '@/core/services/crud-factory';
+import { driver, organization } from '@/core/db/schema';
+import {
+  createCrudService,
+  createVersionedCrudService,
+} from '@/core/services/crud-factory';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -20,10 +23,16 @@ const driverCleanup: string[] = [];
 
 afterAll(async () => {
   for (const id of orgCleanup) {
-    await db.delete(organization).where(eq(organization.id, id)).catch(() => {});
+    await db
+      .delete(organization)
+      .where(eq(organization.id, id))
+      .catch(() => {});
   }
   for (const id of driverCleanup) {
-    await db.delete(driver).where(eq(driver.id, id)).catch(() => {});
+    await db
+      .delete(driver)
+      .where(eq(driver.id, id))
+      .catch(() => {});
   }
   await provider.close();
 });
@@ -32,7 +41,10 @@ describe('createCrudService (non-versioned)', () => {
   it('list / getById / create / update / remove round-trips', async () => {
     const svc = createCrudService<OrgInsert, OrgSelect>(db, organization);
     const ts = Date.now();
-    const created = await svc.create({ name: `CRUD-TEST-${ts}`, slug: `crud-test-${ts}` });
+    const created = await svc.create({
+      name: `CRUD-TEST-${ts}`,
+      slug: `crud-test-${ts}`,
+    });
     orgCleanup.push(created.id);
 
     const fetched = await svc.getById(created.id);
@@ -61,7 +73,10 @@ describe('createCrudService (non-versioned)', () => {
 
 describe('createVersionedCrudService', () => {
   it('updateWithVersion succeeds when version matches and bumps version', async () => {
-    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(db, driver);
+    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(
+      db,
+      driver
+    );
     const ts = Date.now();
     const created = await svc.create({
       name: `driver-v-${ts}`,
@@ -71,14 +86,19 @@ describe('createVersionedCrudService', () => {
     driverCleanup.push(created.id);
     expect(created.version).toBe(1);
 
-    const updated = await svc.updateWithVersion(created.id, 1, { name: 'driver-v-renamed' });
+    const updated = await svc.updateWithVersion(created.id, 1, {
+      name: 'driver-v-renamed',
+    });
     expect(updated).not.toBeNull();
     expect(updated?.version).toBe(2);
     expect(updated?.name).toBe('driver-v-renamed');
   });
 
   it('updateWithVersion returns null when version is stale', async () => {
-    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(db, driver);
+    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(
+      db,
+      driver
+    );
     const ts = Date.now();
     const created = await svc.create({
       name: `driver-stale-${ts}`,
@@ -90,7 +110,9 @@ describe('createVersionedCrudService', () => {
     // first update succeeds at v1 -> v2
     await svc.updateWithVersion(created.id, 1, { name: 'first-update' });
     // second update with the same (now stale) v1 should fail
-    const stale = await svc.updateWithVersion(created.id, 1, { name: 'stale-update' });
+    const stale = await svc.updateWithVersion(created.id, 1, {
+      name: 'stale-update',
+    });
     expect(stale).toBeNull();
 
     // row should still have the first-update value
@@ -100,7 +122,10 @@ describe('createVersionedCrudService', () => {
   });
 
   it('deleteWithVersion succeeds when version matches', async () => {
-    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(db, driver);
+    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(
+      db,
+      driver
+    );
     const ts = Date.now();
     const created = await svc.create({
       name: `driver-del-${ts}`,
@@ -119,7 +144,10 @@ describe('createVersionedCrudService', () => {
   });
 
   it('deleteWithVersion returns false when version is stale', async () => {
-    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(db, driver);
+    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(
+      db,
+      driver
+    );
     const ts = Date.now();
     const created = await svc.create({
       name: `driver-del-stale-${ts}`,
@@ -140,7 +168,10 @@ describe('createVersionedCrudService', () => {
   });
 
   it('list and getById still work on versioned service', async () => {
-    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(db, driver);
+    const svc = createVersionedCrudService<DriverInsert, DriverSelect>(
+      db,
+      driver
+    );
     const ts = Date.now();
     const created = await svc.create({
       name: `driver-list-${ts}`,

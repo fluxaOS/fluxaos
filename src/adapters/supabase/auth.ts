@@ -6,15 +6,19 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
+  AuthEvent,
   AuthProvider,
   AuthResult,
   Session,
-  User,
-  AuthEvent,
   Unsubscribe,
+  User,
 } from '@/core/ports/auth';
 
-function mapUser(raw: { id: string; email?: string; user_metadata?: Record<string, unknown> }): User {
+function mapUser(raw: {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+}): User {
   return {
     id: raw.id,
     email: raw.email ?? '',
@@ -43,8 +47,12 @@ export class SupabaseAuthProvider implements AuthProvider {
     this.client = createClient(config.supabaseUrl, config.supabaseKey);
   }
 
-  async signIn(credentials: { email: string; password: string }): Promise<AuthResult> {
-    const { data, error } = await this.client.auth.signInWithPassword(credentials);
+  async signIn(credentials: {
+    email: string;
+    password: string;
+  }): Promise<AuthResult> {
+    const { data, error } =
+      await this.client.auth.signInWithPassword(credentials);
     if (error) return { success: false, error: error.message };
     return {
       success: true,
@@ -86,7 +94,7 @@ export class SupabaseAuthProvider implements AuthProvider {
   }
 
   onAuthStateChange(
-    callback: (event: AuthEvent, session: Session | null) => void,
+    callback: (event: AuthEvent, session: Session | null) => void
   ): Unsubscribe {
     const { data } = this.client.auth.onAuthStateChange((event, session) => {
       const mapped = event.toUpperCase() as AuthEvent;

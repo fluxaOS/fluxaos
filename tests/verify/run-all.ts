@@ -3,12 +3,10 @@
  *
  * Usage: npx tsx tests/verify/run-all.ts
  */
-import { execSync } from 'child_process';
-import path from 'path';
+import { execSync } from 'node:child_process';
+import path from 'node:path';
 
-const scripts = [
-  { name: 'seed-check', path: 'tests/verify/seed-check.ts' },
-];
+const scripts = [{ name: 'seed-check', path: 'tests/verify/seed-check.ts' }];
 
 const root = path.resolve(__dirname, '..', '..');
 let passed = 0;
@@ -34,7 +32,9 @@ for (const script of scripts) {
 }
 
 console.log('---');
-console.log(`${passed} passed, ${failed} failed out of ${scripts.length} suite(s)`);
+console.log(
+  `${passed} passed, ${failed} failed out of ${scripts.length} suite(s)`
+);
 
 if (failed > 0) {
   process.exit(1);

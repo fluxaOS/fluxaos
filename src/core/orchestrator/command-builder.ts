@@ -56,7 +56,7 @@ export interface TemplateVariables {
  */
 export function renderTemplate(
   template: string,
-  variables: TemplateVariables,
+  variables: TemplateVariables
 ): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
     const value = variables[key as keyof TemplateVariables];
@@ -72,7 +72,7 @@ export function renderTemplate(
  */
 export function buildCommand(
   driver: DriverConfig,
-  options: CommandOptions,
+  options: CommandOptions
 ): BuiltCommand {
   const args: string[] = [];
 
@@ -111,7 +111,9 @@ export function buildCommand(
 
   // 7. Env vars from driver config
   const env: Record<string, string> =
-    driver.envVars && typeof driver.envVars === 'object' && !Array.isArray(driver.envVars)
+    driver.envVars &&
+    typeof driver.envVars === 'object' &&
+    !Array.isArray(driver.envVars)
       ? { ...(driver.envVars as Record<string, string>) }
       : {};
 

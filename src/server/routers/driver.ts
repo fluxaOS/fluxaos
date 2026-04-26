@@ -1,7 +1,7 @@
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { eq, and } from 'drizzle-orm';
-import { router, publicProcedure } from '../trpc';
 import { driver } from '@/core/db/schema';
+import { publicProcedure, router } from '../trpc';
 
 export const driverRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -52,10 +52,13 @@ export const driverRouter = router({
         contextLayout: z.unknown().optional(),
         isEnabled: z.boolean().optional(),
         notes: z.string().optional(),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db.insert(driver).values(input as any).returning();
+      const [row] = await ctx.db
+        .insert(driver)
+        .values(input as any)
+        .returning();
       return row;
     }),
 
@@ -83,7 +86,7 @@ export const driverRouter = router({
         contextLayout: z.unknown().optional(),
         isEnabled: z.boolean().optional(),
         notes: z.string().nullable().optional(),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;

@@ -19,10 +19,10 @@ import {
 } from '@/core/db/schema';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import {
+  type ArtifactsSafetyReason,
   forceRemoveArtifactsDir,
   isArtifactsSafeToRemove as isArtifactsSafeToRemoveImpl,
   sweepArtifacts,
-  type ArtifactsSafetyReason,
 } from './cleanup-service-artifacts';
 
 export type { ArtifactsSafetyReason };
@@ -86,10 +86,7 @@ export interface CleanupServiceDeps {
 }
 
 export interface CleanupService {
-  onPrClosed(
-    prNumber: number,
-    options: { merged: boolean }
-  ): Promise<void>;
+  onPrClosed(prNumber: number, options: { merged: boolean }): Promise<void>;
   removeEnvironment(
     envId: string,
     options?: { force?: boolean }
@@ -249,10 +246,7 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       warnings.push(message);
-      logger.error(
-        { envId: row.id, error: message },
-        'cleanup.remove_failed'
-      );
+      logger.error({ envId: row.id, error: message }, 'cleanup.remove_failed');
       throw err;
     }
   }
@@ -284,10 +278,7 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     };
 
     const active = await listActiveAcrossProjects();
-    logger.info(
-      { count: active.length },
-      'cleanup.sweep_start'
-    );
+    logger.info({ count: active.length }, 'cleanup.sweep_start');
 
     for (const env of active) {
       try {
@@ -329,8 +320,7 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
         removed: report.removed.length,
         skipped: report.skipped.length,
         errors: report.errors.length,
-        durationMs:
-          report.completedAt.getTime() - report.startedAt.getTime(),
+        durationMs: report.completedAt.getTime() - report.startedAt.getTime(),
       },
       'cleanup.sweep_done'
     );

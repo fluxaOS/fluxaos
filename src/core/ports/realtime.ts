@@ -11,7 +11,7 @@ export interface RealtimeProvider {
   subscribe<T>(
     channel: string,
     event: string,
-    callback: (payload: T) => void,
+    callback: (payload: T) => void
   ): Unsubscribe;
 
   /** Subscribe to INSERT/UPDATE/DELETE on a specific table. */
@@ -19,7 +19,7 @@ export interface RealtimeProvider {
     channelName: string,
     table: string,
     event: 'INSERT' | 'UPDATE' | '*',
-    callback: (payload: RealtimeTableEvent<T>) => void,
+    callback: (payload: RealtimeTableEvent<T>) => void
   ): Unsubscribe;
 
   broadcast<T>(channel: string, event: string, payload: T): Promise<void>;

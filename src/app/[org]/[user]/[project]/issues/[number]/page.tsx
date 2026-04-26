@@ -4,7 +4,12 @@ import { IssueDetailClient } from './client';
 export default async function IssueDetailPage({
   params,
 }: {
-  params: Promise<{ org: string; user: string; project: string; number: string }>;
+  params: Promise<{
+    org: string;
+    user: string;
+    project: string;
+    number: string;
+  }>;
 }) {
   const { org, user, project, number } = await params;
   const ctx = await resolveContext(org, user, project);

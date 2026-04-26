@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { project } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
@@ -16,7 +16,10 @@ export function createProjectService(db: Database) {
       return db.select().from(project).where(eq(project.orgId, orgId));
     },
 
-    async getBySlug(orgId: string, slug: string): Promise<ProjectSelect | null> {
+    async getBySlug(
+      orgId: string,
+      slug: string
+    ): Promise<ProjectSelect | null> {
       const [row] = await db
         .select()
         .from(project)
@@ -24,7 +27,10 @@ export function createProjectService(db: Database) {
       return row ?? null;
     },
 
-    async getByUserSlug(userId: string, slug: string): Promise<ProjectSelect | null> {
+    async getByUserSlug(
+      userId: string,
+      slug: string
+    ): Promise<ProjectSelect | null> {
       const [row] = await db
         .select()
         .from(project)

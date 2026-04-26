@@ -1,10 +1,18 @@
 /**
  * Integration tests: src/adapters/git/worktree-copy.ts against real files.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   copyConfiguredFiles,
   copyWorktreeFile,

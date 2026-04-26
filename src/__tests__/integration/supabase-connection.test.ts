@@ -3,10 +3,10 @@
  * This test hits the actual database — not a mock.
  */
 import 'dotenv/config';
-import { describe, expect, it, afterAll } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { organization } from '@/core/db/schema';
-import { eq } from 'drizzle-orm';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');

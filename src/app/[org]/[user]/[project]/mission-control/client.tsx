@@ -1,17 +1,27 @@
 'use client';
 
+import {
+  Activity,
+  Clock,
+  ExternalLink,
+  GitPullRequest,
+  ListChecks,
+  Play,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Activity, Clock, ExternalLink, GitPullRequest, ListChecks, Play } from 'lucide-react';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
-import { trpc } from '@/lib/trpc/client';
 import { registry } from '@/config/registry';
 import type { RealtimeProvider } from '@/core/ports/realtime';
+import { trpc } from '@/lib/trpc/client';
 
-function formatRelative(d: string | Date | null | undefined, nowMs: number): string {
+function formatRelative(
+  d: string | Date | null | undefined,
+  nowMs: number
+): string {
   if (!d) return '–';
   const t = new Date(d).getTime();
   const ms = Math.max(0, nowMs - t);
@@ -23,7 +33,10 @@ function formatRelative(d: string | Date | null | undefined, nowMs: number): str
   return `${hr}h ${min % 60}m`;
 }
 
-function formatDuration(start: string | Date | null, end: string | Date | null): string {
+function formatDuration(
+  start: string | Date | null,
+  end: string | Date | null
+): string {
   if (!start || !end) return '–';
   const ms = new Date(end).getTime() - new Date(start).getTime();
   if (ms < 0) return '–';
@@ -73,19 +86,19 @@ export function MissionControlClient({
       `mission-pipeline-run-insert-${projectId}`,
       'pipeline_run',
       'INSERT',
-      onPipelineChange,
+      onPipelineChange
     );
     const unsubUpdate = realtime.subscribeToTable<unknown>(
       `mission-pipeline-run-update-${projectId}`,
       'pipeline_run',
       'UPDATE',
-      onPipelineChange,
+      onPipelineChange
     );
     const unsubPr = realtime.subscribeToTable<unknown>(
       `mission-issue-pr-insert-${projectId}`,
       'issue_pull_request',
       'INSERT',
-      onPrInsert,
+      onPrInsert
     );
 
     return () => {
@@ -130,7 +143,10 @@ export function MissionControlClient({
             icon={ListChecks}
           />
         ) : (
-          <ul className="divide-y divide-slate-700/20" aria-label="Pending runs">
+          <ul
+            className="divide-y divide-slate-700/20"
+            aria-label="Pending runs"
+          >
             {pending.map((p) => (
               <li
                 key={p.id}
@@ -175,7 +191,10 @@ export function MissionControlClient({
         {running.length === 0 ? (
           <EmptyState title="No runs in flight" icon={Activity} />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" aria-label="Running runs">
+          <div
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+            aria-label="Running runs"
+          >
             {running.map((r) => (
               <Link
                 key={r.run.id}

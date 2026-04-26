@@ -3,16 +3,17 @@
  *
  * Usage: npx tsx tests/verify/seed-check.ts
  */
-import { db, close } from '@/scripts/db/connection';
+
 import { eq } from 'drizzle-orm';
 import {
+  driver,
   issue,
   issueState,
   issueStatus,
   pipelineStage,
   skill,
-  driver,
 } from '@/core/db/schema';
+import { close, db } from '@/scripts/db/connection';
 
 let failures = 0;
 
@@ -48,8 +49,14 @@ async function main() {
   const i2 = issues.find((i) => i.number === 2);
 
   if (i1) {
-    assert(i1.stateKey === 'research', `Issue #1 state=research (got ${i1.stateKey})`);
-    assert(i1.statusKey === 'open', `Issue #1 status=open (got ${i1.statusKey})`);
+    assert(
+      i1.stateKey === 'research',
+      `Issue #1 state=research (got ${i1.stateKey})`
+    );
+    assert(
+      i1.statusKey === 'open',
+      `Issue #1 status=open (got ${i1.statusKey})`
+    );
     assert(i1.isClosed === false, `Issue #1 not closed (got ${i1.isClosed})`);
   } else {
     console.log('  FAIL  Issue #1 not found');
@@ -57,8 +64,14 @@ async function main() {
   }
 
   if (i2) {
-    assert(i2.stateKey === 'research', `Issue #2 state=research (got ${i2.stateKey})`);
-    assert(i2.statusKey === 'open', `Issue #2 status=open (got ${i2.statusKey})`);
+    assert(
+      i2.stateKey === 'research',
+      `Issue #2 state=research (got ${i2.stateKey})`
+    );
+    assert(
+      i2.statusKey === 'open',
+      `Issue #2 status=open (got ${i2.statusKey})`
+    );
     assert(i2.isClosed === false, `Issue #2 not closed (got ${i2.isClosed})`);
   } else {
     console.log('  FAIL  Issue #2 not found');

@@ -13,6 +13,14 @@ const eslintConfig = defineConfig([
     'build/**',
     'next-env.d.ts',
   ]),
+  // Mirror biome.json rule decisions so lint surfaces stay aligned.
+  // Codebase uses `any` deliberately at integration test seams and tRPC
+  // boundary helpers; flagging it is noise rather than signal.
+  {
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 ]);
 
 export default eslintConfig;

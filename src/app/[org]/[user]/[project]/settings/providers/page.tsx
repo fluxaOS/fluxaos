@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
-import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
 
@@ -51,10 +50,7 @@ export default function ProviderSettingsPage() {
       ) : (
         <div className="space-y-3">
           {providers.map((p) => (
-            <div
-              key={p.id}
-              className="card-static p-4"
-            >
+            <div key={p.id} className="card-static p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{p.name}</span>

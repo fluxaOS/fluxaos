@@ -45,8 +45,18 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
       required: true,
       placeholder: 'claude',
     },
-    { key: 'modelFlag', label: 'Model flag', fieldType: 'text', placeholder: '--model' },
-    { key: 'dirFlag', label: 'Directory flag', fieldType: 'text', placeholder: '--cwd' },
+    {
+      key: 'modelFlag',
+      label: 'Model flag',
+      fieldType: 'text',
+      placeholder: '--model',
+    },
+    {
+      key: 'dirFlag',
+      label: 'Directory flag',
+      fieldType: 'text',
+      placeholder: '--cwd',
+    },
     { key: 'sessionNameFlag', label: 'Session-name flag', fieldType: 'text' },
     {
       key: 'promptTransport',
@@ -87,7 +97,11 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
     { key: 'defaultArgs', label: 'Default args (JSON)', fieldType: 'readonly' },
     { key: 'envVars', label: 'Env vars (JSON)', fieldType: 'readonly' },
     { key: 'extraArgs', label: 'Extra args (JSON)', fieldType: 'readonly' },
-    { key: 'contextLayout', label: 'Context layout (JSON)', fieldType: 'readonly' },
+    {
+      key: 'contextLayout',
+      label: 'Context layout (JSON)',
+      fieldType: 'readonly',
+    },
     { key: 'version', label: 'Version', fieldType: 'readonly' },
   ],
   toggleEnabledField: 'isEnabled',

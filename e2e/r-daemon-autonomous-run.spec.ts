@@ -10,8 +10,9 @@
 //
 // Skips cleanly when ANTHROPIC_API_KEY is absent so CI and local runs
 // without the key stay green.
-import { test, expect, projectPath } from './helpers/setup';
-import { spawnDaemon, type DaemonHandle } from './helpers/daemon';
+
+import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { expect, projectPath, test } from './helpers/setup';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 
@@ -30,9 +31,7 @@ test.describe('@r-daemon @journey', () => {
     if (handle) await handle.shutdown();
   });
 
-  test('daemon drives stages forward via Realtime pickup', async ({
-    page,
-  }) => {
+  test('daemon drives stages forward via Realtime pickup', async ({ page }) => {
     // The seeded pipeline is research(auto) → implement(rules) → review(hold).
     // The hold gate at review intentionally stops the run for human sign-off,
     // so pipeline_run never reaches `completed` autonomously. This journey
@@ -50,7 +49,7 @@ test.describe('@r-daemon @journey', () => {
     await page.goto(projectPath('/issues/1'));
 
     await expect(
-      page.getByRole('heading', { name: /Add health check endpoint/ }),
+      page.getByRole('heading', { name: /Add health check endpoint/ })
     ).toBeVisible({ timeout: 15_000 });
 
     const stateSelect = page
@@ -84,7 +83,7 @@ test.describe('@r-daemon @journey', () => {
           intervals: [1_000, 2_000],
           message:
             'pipeline_run never advanced past pending. Daemon likely did not pick up the Realtime INSERT.',
-        },
+        }
       )
       .not.toBe('pending');
 
@@ -108,14 +107,16 @@ test.describe('@r-daemon @journey', () => {
 
     const knownErrorPattern =
       /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config|Uncaught/;
-    const matchedErrors = consoleErrors.filter((e) => knownErrorPattern.test(e));
+    const matchedErrors = consoleErrors.filter((e) =>
+      knownErrorPattern.test(e)
+    );
     expect(
       pageErrors,
-      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`,
+      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`
     ).toHaveLength(0);
     expect(
       matchedErrors,
-      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`,
+      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`
     ).toHaveLength(0);
   });
 });

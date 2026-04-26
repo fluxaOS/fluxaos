@@ -1,25 +1,27 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
+  Activity,
+  BarChart3,
   CircleDot,
   GitBranch,
-  BarChart3,
-  Activity,
-  Workflow,
-  Users,
-  Sparkles,
+  LayoutDashboard,
   Route,
   Server,
+  Sparkles,
   Terminal,
+  Users,
+  Workflow,
 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 function useBasePath() {
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
-  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+  return segments.length >= 3
+    ? `/${segments[0]}/${segments[1]}/${segments[2]}`
+    : '/';
 }
 
 export function Nav() {
@@ -28,19 +30,32 @@ export function Nav() {
 
   const mainLinks = [
     { href: basePath, label: 'Dashboard', icon: LayoutDashboard },
-    { href: `${basePath}/mission-control`, label: 'Mission Control', icon: Activity },
+    {
+      href: `${basePath}/mission-control`,
+      label: 'Mission Control',
+      icon: Activity,
+    },
     { href: `${basePath}/issues`, label: 'Issues', icon: CircleDot },
     { href: `${basePath}/pipelines`, label: 'Pipelines', icon: GitBranch },
     { href: `${basePath}/kpis`, label: 'KPIs', icon: BarChart3 },
   ];
 
   const settingsLinks = [
-    { href: `${basePath}/settings`, label: 'Pipelines', exact: true, icon: Workflow },
+    {
+      href: `${basePath}/settings`,
+      label: 'Pipelines',
+      exact: true,
+      icon: Workflow,
+    },
     { href: `${basePath}/settings/personas`, label: 'Personas', icon: Users },
     { href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
     { href: `${basePath}/settings/drivers`, label: 'Drivers', icon: Terminal },
     { href: `${basePath}/settings/routing`, label: 'Routing', icon: Route },
-    { href: `${basePath}/settings/providers`, label: 'Providers', icon: Server },
+    {
+      href: `${basePath}/settings/providers`,
+      label: 'Providers',
+      icon: Server,
+    },
   ];
 
   return (
@@ -74,7 +89,10 @@ export function Nav() {
                     : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-300'
                 }`}
               >
-                <Icon size={18} className={isActive ? 'opacity-90' : 'opacity-50'} />
+                <Icon
+                  size={18}
+                  className={isActive ? 'opacity-90' : 'opacity-50'}
+                />
                 {link.label}
               </Link>
             </li>
@@ -88,9 +106,10 @@ export function Nav() {
           </span>
           <ul className="space-y-0.5">
             {settingsLinks.map((link) => {
-              const isActive = 'exact' in link && link.exact
-                ? pathname === link.href
-                : pathname.startsWith(link.href);
+              const isActive =
+                'exact' in link && link.exact
+                  ? pathname === link.href
+                  : pathname.startsWith(link.href);
               const Icon = link.icon;
               return (
                 <li key={link.href}>
@@ -102,7 +121,10 @@ export function Nav() {
                         : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-400'
                     }`}
                   >
-                    <Icon size={16} className={isActive ? 'opacity-80' : 'opacity-40'} />
+                    <Icon
+                      size={16}
+                      className={isActive ? 'opacity-80' : 'opacity-40'}
+                    />
                     {link.label}
                   </Link>
                 </li>
@@ -114,7 +136,9 @@ export function Nav() {
 
       {/* Version */}
       <div className="px-6 py-4">
-        <span className="text-[11px] font-mono text-slate-700">v0.1.0-alpha</span>
+        <span className="text-[11px] font-mono text-slate-700">
+          v0.1.0-alpha
+        </span>
       </div>
     </nav>
   );

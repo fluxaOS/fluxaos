@@ -9,7 +9,10 @@ type RuleInsert = typeof routingRule.$inferInsert;
 type RuleSelect = typeof routingRule.$inferSelect;
 
 export function createRoutingService(db: Database) {
-  const profileCrud = createCrudService<ProfileInsert, ProfileSelect>(db, routingProfile);
+  const profileCrud = createCrudService<ProfileInsert, ProfileSelect>(
+    db,
+    routingProfile
+  );
   const ruleCrud = createCrudService<RuleInsert, RuleSelect>(db, routingRule);
 
   return {

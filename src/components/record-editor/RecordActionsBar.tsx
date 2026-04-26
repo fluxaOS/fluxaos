@@ -44,7 +44,12 @@ export function RecordActionsBar(props: Props) {
   if (state.kind === 'viewing') {
     return (
       <div className="flex gap-2 mt-4">
-        <button type="button" className={primary} onClick={onEdit} disabled={!canEdit}>
+        <button
+          type="button"
+          className={primary}
+          onClick={onEdit}
+          disabled={!canEdit}
+        >
           Edit
         </button>
       </div>

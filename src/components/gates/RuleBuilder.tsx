@@ -2,11 +2,11 @@
 
 import { useCallback } from 'react';
 import type {
+  FailureAction,
   Rule,
   RuleGroup,
   RuleOperator,
   RuleSeverity,
-  FailureAction,
 } from '@/core/gates/types';
 import { isRuleGroup } from '@/core/gates/types';
 
@@ -153,7 +153,9 @@ function RuleRow({
         type="text"
         placeholder="label (optional)"
         value={rule.label ?? ''}
-        onChange={(e) => onChange({ ...rule, label: e.target.value || undefined })}
+        onChange={(e) =>
+          onChange({ ...rule, label: e.target.value || undefined })
+        }
         className={`${inputCls} w-32`}
       />
       <button type="button" onClick={onRemove} className={btnDanger}>
@@ -182,7 +184,7 @@ function GroupEditor({
       next[idx] = item;
       onChange({ ...group, rules: next });
     },
-    [group, onChange],
+    [group, onChange]
   );
 
   const removeItem = useCallback(
@@ -190,7 +192,7 @@ function GroupEditor({
       const next = group.rules.filter((_, i) => i !== idx);
       onChange({ ...group, rules: next });
     },
-    [group, onChange],
+    [group, onChange]
   );
 
   const addRule = useCallback(() => {
@@ -220,9 +222,7 @@ function GroupEditor({
         >
           {group.logic}
         </button>
-        <span className="text-[10px] text-slate-500">
-          (click to toggle)
-        </span>
+        <span className="text-[10px] text-slate-500">(click to toggle)</span>
         {onRemove && (
           <button type="button" onClick={onRemove} className={btnDanger}>
             Remove group
@@ -247,7 +247,7 @@ function GroupEditor({
               onChange={(r) => updateItem(idx, r)}
               onRemove={() => removeItem(idx)}
             />
-          ),
+          )
         )}
       </div>
 

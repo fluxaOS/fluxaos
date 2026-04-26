@@ -11,12 +11,12 @@
  * fresh project + issue-lifecycle catalog so cleanup is deterministic.
  */
 import 'dotenv/config';
+import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, and, desc } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
 import { createIssueService } from '@/core/services/issue';
-import type { Database } from '@/core/db/connection';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -53,7 +53,10 @@ afterAll(async () => {
 async function arrangeProject(suffix: string) {
   const [org] = await db
     .insert(schema.organization)
-    .values({ name: `epic-org-${RUN}-${suffix}`, slug: `epic-org-${RUN}-${suffix}` })
+    .values({
+      name: `epic-org-${RUN}-${suffix}`,
+      slug: `epic-org-${RUN}-${suffix}`,
+    })
     .returning();
   cleanup.push({ table: 'organization', id: org.id });
 
@@ -83,7 +86,13 @@ async function arrangeProject(suffix: string) {
 
   const [itype] = await db
     .insert(schema.issueType)
-    .values({ projectId: proj.id, key: `feat-${RUN}-${suffix}`, displayName: 'Feat', color: '#000', sortOrder: 1 })
+    .values({
+      projectId: proj.id,
+      key: `feat-${RUN}-${suffix}`,
+      displayName: 'Feat',
+      color: '#000',
+      sortOrder: 1,
+    })
     .returning();
   cleanup.push({ table: 'issueType', id: itype.id });
 
@@ -128,13 +137,24 @@ async function arrangeProject(suffix: string) {
 
   const [istatus] = await db
     .insert(schema.issueStatus)
-    .values({ projectId: proj.id, key: `open-st-${RUN}-${suffix}`, displayName: 'OpenSt', sortOrder: 1 })
+    .values({
+      projectId: proj.id,
+      key: `open-st-${RUN}-${suffix}`,
+      displayName: 'OpenSt',
+      sortOrder: 1,
+    })
     .returning();
   cleanup.push({ table: 'issueStatus', id: istatus.id });
 
   const [iprio] = await db
     .insert(schema.issuePriority)
-    .values({ projectId: proj.id, key: `med-${RUN}-${suffix}`, displayName: 'Med', weight: 1, color: '#000' })
+    .values({
+      projectId: proj.id,
+      key: `med-${RUN}-${suffix}`,
+      displayName: 'Med',
+      weight: 1,
+      color: '#000',
+    })
     .returning();
   cleanup.push({ table: 'issuePriority', id: iprio.id });
 
@@ -212,11 +232,21 @@ describe('R-EPIC — parent/child hierarchy', () => {
     expect(await svc.hasOpenChildren(parent.id)).toBe(true);
 
     // Close child1 directly via stateOverride (non-terminal → terminal)
-    await svc.stateOverride(child1.id, issueStateIdClosed, child1.version, 'test');
+    await svc.stateOverride(
+      child1.id,
+      issueStateIdClosed,
+      child1.version,
+      'test'
+    );
     expect(await svc.hasOpenChildren(parent.id)).toBe(true); // child2 still open
 
     // Close child2 — last open child
-    await svc.stateOverride(child2.id, issueStateIdClosed, child2.version, 'test');
+    await svc.stateOverride(
+      child2.id,
+      issueStateIdClosed,
+      child2.version,
+      'test'
+    );
     expect(await svc.hasOpenChildren(parent.id)).toBe(false);
   });
 
@@ -243,7 +273,12 @@ describe('R-EPIC — parent/child hierarchy', () => {
     expect(parent.isClosed).toBe(false);
 
     // Close the one child — parent should auto-close.
-    await svc.stateOverride(child.id, issueStateIdClosed, child.version, 'test');
+    await svc.stateOverride(
+      child.id,
+      issueStateIdClosed,
+      child.version,
+      'test'
+    );
 
     // Reload parent and assert closed.
     const parentAfter = await svc.getById(parent.id);
@@ -258,19 +293,21 @@ describe('R-EPIC — parent/child hierarchy', () => {
       .where(
         and(
           eq(schema.issueEvent.issueId, parent.id),
-          eq(schema.issueEvent.type, 'state_changed'),
-        ),
+          eq(schema.issueEvent.type, 'state_changed')
+        )
       )
       .orderBy(desc(schema.issueEvent.createdAt));
 
     const auto = events.find(
       (e) =>
         (e.payload as Record<string, unknown> | null)?.reason ===
-        'auto_close_all_children_closed',
+        'auto_close_all_children_closed'
     );
     expect(auto).toBeDefined();
-    expect((auto!.payload as Record<string, unknown>).last_child).toBe(child.id);
-    expect(auto!.actor).toBe('orchestrator');
+    expect((auto?.payload as Record<string, unknown>).last_child).toBe(
+      child.id
+    );
+    expect(auto?.actor).toBe('orchestrator');
   });
 
   it('transition() path (not just stateOverride) fires auto-close', async () => {
@@ -315,7 +352,7 @@ describe('R-EPIC — parent/child hierarchy', () => {
       db
         .update(schema.issue)
         .set({ parentIssueId: issue.id })
-        .where(eq(schema.issue.id, issue.id)),
+        .where(eq(schema.issue.id, issue.id))
     ).rejects.toThrow();
   });
 
@@ -338,7 +375,7 @@ describe('R-EPIC — parent/child hierarchy', () => {
         typeId: issueTypeIdB,
         priorityId: issuePriorityIdB,
         parentIssueId: parentA.id,
-      }),
+      })
     ).rejects.toThrow(/CROSS_PROJECT_PARENT/);
   });
 
@@ -371,7 +408,12 @@ describe('R-EPIC — parent/child hierarchy', () => {
     });
     cleanup.push({ table: 'issue', id: child.id });
 
-    await svc.stateOverride(child.id, issueStateIdClosed, child.version, 'test');
+    await svc.stateOverride(
+      child.id,
+      issueStateIdClosed,
+      child.version,
+      'test'
+    );
 
     const parentAfter = await svc.getById(parent.id);
     const grandparentAfter = await svc.getById(grandparent.id);

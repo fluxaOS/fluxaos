@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
@@ -51,18 +50,19 @@ export default function RoutingSettingsPage() {
       ) : (
         <div className="space-y-3">
           {profiles.map((p) => (
-            <div
-              key={p.id}
-              className="card-static p-4"
-            >
+            <div key={p.id} className="card-static p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{p.name}</span>
                   {p.isDefault && (
-                    <span className="ml-2 text-xs text-soft-violet">default</span>
+                    <span className="ml-2 text-xs text-soft-violet">
+                      default
+                    </span>
                   )}
                   {p.description && (
-                    <p className="text-xs text-slate-400 mt-0.5">{p.description}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {p.description}
+                    </p>
                   )}
                 </div>
                 <button

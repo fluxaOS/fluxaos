@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { provider, model } from '@/core/db/schema';
+import { model, provider } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
 
 type ProviderInsert = typeof provider.$inferInsert;
@@ -9,7 +9,10 @@ type ModelInsert = typeof model.$inferInsert;
 type ModelSelect = typeof model.$inferSelect;
 
 export function createProviderService(db: Database) {
-  const providerCrud = createCrudService<ProviderInsert, ProviderSelect>(db, provider);
+  const providerCrud = createCrudService<ProviderInsert, ProviderSelect>(
+    db,
+    provider
+  );
   const modelCrud = createCrudService<ModelInsert, ModelSelect>(db, model);
 
   return {

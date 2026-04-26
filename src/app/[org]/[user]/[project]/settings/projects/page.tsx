@@ -4,7 +4,7 @@
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { trpc } from '@/lib/trpc/client';
-import { projectDescriptor, type ProjectRecord } from './descriptor';
+import { type ProjectRecord, projectDescriptor } from './descriptor';
 
 export default function ProjectsSettingsPage() {
   const utils = trpc.useUtils();
@@ -29,7 +29,8 @@ export default function ProjectsSettingsPage() {
       slug: p.slug,
       repoUrl: p.repoUrl,
       defaultBranch: p.defaultBranch,
-      defaultPipelineName: pipe?.name ?? '(none — set one from the Pipelines tab)',
+      defaultPipelineName:
+        pipe?.name ?? '(none — set one from the Pipelines tab)',
       targetRepoPath: envValue ?? '(not set — daemon will refuse to acquire)',
     };
   });
@@ -37,7 +38,7 @@ export default function ProjectsSettingsPage() {
   const onSave = async (
     id: string,
     patch: Partial<ProjectRecord>,
-    _expectedVersion: number,
+    _expectedVersion: number
   ) => {
     // Strip derived/readonly fields — the router only accepts the raw
     // project columns. defaultPipelineName / targetRepoPath are UI-only.

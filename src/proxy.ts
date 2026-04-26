@@ -2,7 +2,7 @@
  * Next.js middleware — intercepts requests before they reach routes.
  * Handles Supabase session refresh and auth redirects.
  */
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
 export async function proxy(request: NextRequest) {

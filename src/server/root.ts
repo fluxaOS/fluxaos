@@ -1,20 +1,21 @@
 /**
  * Root tRPC router — merges all domain routers.
  */
-import { router } from './trpc';
-import { organizationRouter } from './routers/organization';
-import { projectRouter } from './routers/project';
+
+import { driverRouter } from './routers/driver';
+import { gateRouter } from './routers/gate';
 import { issueRouter } from './routers/issue';
 import { issueCatalogRouter } from './routers/issue-catalog';
-import { skillRouter } from './routers/skill';
+import { missionRouter } from './routers/mission-control';
+import { organizationRouter } from './routers/organization';
 import { personaRouter } from './routers/persona';
 import { pipelineRouter } from './routers/pipeline';
-import { gateRouter } from './routers/gate';
+import { projectRouter } from './routers/project';
 import { providerRouter } from './routers/provider';
 import { routingRouter } from './routers/routing';
-import { driverRouter } from './routers/driver';
+import { skillRouter } from './routers/skill';
 import { systemRouter } from './routers/system';
-import { missionRouter } from './routers/mission-control';
+import { router } from './trpc';
 
 export const appRouter = router({
   organization: organizationRouter,

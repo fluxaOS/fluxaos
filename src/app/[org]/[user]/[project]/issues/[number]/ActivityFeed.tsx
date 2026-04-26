@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/card';
-import { trpc } from '@/lib/trpc/client';
 import { registry } from '@/config/registry';
-import type { RealtimeProvider, RealtimeTableEvent } from '@/core/ports/realtime';
+import type {
+  RealtimeProvider,
+  RealtimeTableEvent,
+} from '@/core/ports/realtime';
+import { trpc } from '@/lib/trpc/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,7 +66,6 @@ function CommentCard({
     return (
       <Card hover={false} padding="p-4">
         <textarea
-          autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={4}
@@ -104,7 +106,9 @@ function CommentCard({
     <Card hover={false} padding="p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-300">{comment.author}</span>
+          <span className="text-xs font-semibold text-slate-300">
+            {comment.author}
+          </span>
           <span className="text-[11px] text-slate-600">
             {new Date(comment.createdAt).toLocaleString()}
           </span>
@@ -142,10 +146,13 @@ function CommentCard({
       {comment.bodyHtml ? (
         <div
           className="text-sm text-slate-400 prose prose-invert prose-sm max-w-none"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: bodyHtml is server-sanitized per invariant #14
           dangerouslySetInnerHTML={{ __html: comment.bodyHtml }}
         />
       ) : (
-        <p className="text-sm text-slate-400 whitespace-pre-wrap">{comment.bodyMd}</p>
+        <p className="text-sm text-slate-400 whitespace-pre-wrap">
+          {comment.bodyMd}
+        </p>
       )}
     </Card>
   );
@@ -165,12 +172,12 @@ export function ActivityFeed({
 
   const eventsQuery = trpc.issue.event.list.useQuery(
     { issueId, filter: eventFilter === 'all' ? undefined : eventFilter },
-    { enabled: !!issueId },
+    { enabled: !!issueId }
   );
 
   const commentsQuery = trpc.issue.comment.list.useQuery(
     { issueId },
-    { enabled: !!issueId },
+    { enabled: !!issueId }
   );
 
   const events = eventsQuery.data ?? [];
@@ -208,17 +215,19 @@ export function ActivityFeed({
       '*',
       (payload: RealtimeTableEvent<IssueEventRow>) => {
         const rowIssueId =
-          payload.new?.issue_id ?? payload.new?.issueId ??
-          payload.old?.issue_id ?? payload.old?.issueId;
+          payload.new?.issue_id ??
+          payload.new?.issueId ??
+          payload.old?.issue_id ??
+          payload.old?.issueId;
         if (rowIssueId === issueId) {
           eventsQuery.refetch();
         }
-      },
+      }
     );
     return () => {
       unsubscribe();
     };
-  }, [issueId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [issueId, eventsQuery.refetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -260,7 +269,11 @@ export function ActivityFeed({
                     {new Date(event.timestamp).toLocaleString()}
                   </span>
                   <span className="text-sm text-slate-300">
-                    {formatEvent(event.type, event.payload as Record<string, unknown>, catalogs)}
+                    {formatEvent(
+                      event.type,
+                      event.payload as Record<string, unknown>,
+                      catalogs
+                    )}
                   </span>
                 </div>
               ))}
@@ -298,7 +311,9 @@ export function ActivityFeed({
           {createComment.isPending ? 'Posting...' : 'Post Comment'}
         </button>
         {createComment.error && (
-          <p className="mt-2 text-sm text-red-400">{createComment.error.message}</p>
+          <p className="mt-2 text-sm text-red-400">
+            {createComment.error.message}
+          </p>
         )}
       </Card>
 
@@ -311,7 +326,11 @@ export function ActivityFeed({
           {comments.map((c) => (
             <CommentCard
               key={c.id}
-              comment={{ ...c, bodyMd: c.bodyMd ?? '', author: c.author ?? 'unknown' }}
+              comment={{
+                ...c,
+                bodyMd: c.bodyMd ?? '',
+                author: c.author ?? 'unknown',
+              }}
               onUpdate={(bodyMd) =>
                 updateComment.mutate({
                   commentId: c.id,
@@ -353,7 +372,10 @@ function catalogName(id: unknown, items: CatalogItem[]): string {
   return match ? match.displayName : String(id);
 }
 
-function catalogForField(field: string, catalogs: Catalogs): CatalogItem[] | null {
+function catalogForField(
+  field: string,
+  catalogs: Catalogs
+): CatalogItem[] | null {
   if (field === 'priorityId') return catalogs.priorities;
   if (field === 'typeId') return catalogs.types;
   if (field === 'stateId') return catalogs.states;
@@ -363,7 +385,7 @@ function catalogForField(field: string, catalogs: Catalogs): CatalogItem[] | nul
 function formatEvent(
   type: string,
   payload: Record<string, unknown> | null | undefined,
-  catalogs: Catalogs,
+  catalogs: Catalogs
 ): string {
   const p = payload ?? {};
 
@@ -378,13 +400,19 @@ function formatEvent(
     }
 
     case 'fields_updated': {
-      const changes = p.changes as Record<string, { from: unknown; to: unknown }> | undefined;
+      const changes = p.changes as
+        | Record<string, { from: unknown; to: unknown }>
+        | undefined;
       if (!changes) return 'Fields updated';
       const parts = Object.entries(changes).map(([field, { from, to }]) => {
         const label = FIELD_LABELS[field] ?? field;
         const catalog = catalogForField(field, catalogs);
-        const fromStr = catalog ? catalogName(from, catalog) : String(from ?? '(empty)');
-        const toStr = catalog ? catalogName(to, catalog) : String(to ?? '(empty)');
+        const fromStr = catalog
+          ? catalogName(from, catalog)
+          : String(from ?? '(empty)');
+        const toStr = catalog
+          ? catalogName(to, catalog)
+          : String(to ?? '(empty)');
         return `${label}: ${fromStr} \u2192 ${toStr}`;
       });
       return parts.join(', ');

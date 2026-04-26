@@ -5,19 +5,19 @@
  * listBreakdown. Safety-check pipeline lives in cleanup.test.ts.
  */
 import 'dotenv/config';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
 import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
   buildService,
+  type CleanupBag,
   divergeBranch,
   makeFixture,
   runCleanupTeardown,
-  type CleanupBag,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
@@ -116,7 +116,9 @@ describe('cleanup-service — triggers', () => {
     const report = await service.runScheduledSweep();
 
     const removedIds = new Set(report.removed.map((r) => r.envId));
-    const skippedByEnv = new Map(report.skipped.map((s) => [s.envId, s.reason]));
+    const skippedByEnv = new Map(
+      report.skipped.map((s) => [s.envId, s.reason])
+    );
 
     expect(removedIds.has(env1.id)).toBe(true);
     expect(skippedByEnv.get(env2.id)).toBe('uncommitted');

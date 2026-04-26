@@ -6,10 +6,11 @@
  * (R-ARTIFACTS W3). These tests exercise the generalized behaviour; the
  * isolation-provider.test.ts file covers the R-RUNTIME-specific call site.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
+
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ensureGitignoreEntry } from '@/adapters/git/gitignore';
 
 describe('ensureGitignoreEntry', () => {
@@ -41,8 +42,7 @@ describe('ensureGitignoreEntry', () => {
 
   it('is a no-op when the exact entry is already present', async () => {
     const gitignorePath = join(repoPath, '.gitignore');
-    const initial =
-      'node_modules/\n# existing comment\n.fluxaos-artifacts/\n';
+    const initial = 'node_modules/\n# existing comment\n.fluxaos-artifacts/\n';
     await writeFile(gitignorePath, initial, 'utf-8');
 
     await ensureGitignoreEntry(

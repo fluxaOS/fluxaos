@@ -6,22 +6,21 @@
  * Issue numbers are allocated with FOR UPDATE locking.
  * Body HTML is rendered at write time from markdown.
  */
-import { eq, and, desc, ilike, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import {
+  configEntry,
   issue,
   issueEvent,
   issueState,
   issueStatus,
   issueTransition,
-  configEntry,
 } from '@/core/db/schema';
 
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
 type IssueInsert = typeof issue.$inferInsert;
 type IssueSelect = typeof issue.$inferSelect;
-type IssueEventInsert = typeof issueEvent.$inferInsert;
 type IssueStateSelect = typeof issueState.$inferSelect;
 
 // ─── Input types ─────────────────────────────────────────────────────────────
@@ -78,7 +77,9 @@ function renderMarkdown(md: string): string {
 export function createIssueService(db: Database) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  async function resolveInitialState(projectId: string): Promise<IssueStateSelect> {
+  async function resolveInitialState(
+    projectId: string
+  ): Promise<IssueStateSelect> {
     const [state] = await db
       .select()
       .from(issueState)
@@ -86,15 +87,15 @@ export function createIssueService(db: Database) {
         and(
           eq(issueState.projectId, projectId),
           eq(issueState.isTerminal, false),
-          eq(issueState.isActive, true),
-        ),
+          eq(issueState.isActive, true)
+        )
       )
       .orderBy(issueState.sortOrder)
       .limit(1);
 
     if (!state) {
       throw new Error(
-        `No active non-terminal state found for project ${projectId}. Run seed or configure issue states.`,
+        `No active non-terminal state found for project ${projectId}. Run seed or configure issue states.`
       );
     }
     return state;
@@ -108,13 +109,13 @@ export function createIssueService(db: Database) {
       .where(
         and(
           eq(configEntry.projectId, projectId),
-          eq(configEntry.key, 'issues.status.on_create_key'),
-        ),
+          eq(configEntry.key, 'issues.status.on_create_key')
+        )
       );
 
     if (!config) {
       throw new Error(
-        `Missing config: issues.status.on_create_key for project ${projectId}. Run seed.`,
+        `Missing config: issues.status.on_create_key for project ${projectId}. Run seed.`
       );
     }
 
@@ -127,13 +128,13 @@ export function createIssueService(db: Database) {
       .where(
         and(
           eq(issueStatus.projectId, projectId),
-          eq(issueStatus.key, statusKey),
-        ),
+          eq(issueStatus.key, statusKey)
+        )
       );
 
     if (!status) {
       throw new Error(
-        `Status '${statusKey}' not found for project ${projectId}. Check issue_status catalog.`,
+        `Status '${statusKey}' not found for project ${projectId}. Check issue_status catalog.`
       );
     }
 
@@ -144,7 +145,7 @@ export function createIssueService(db: Database) {
     issueId: string,
     actor: string,
     type: string,
-    payload: Record<string, unknown>,
+    payload: Record<string, unknown>
   ) {
     await db.insert(issueEvent).values({
       issueId,
@@ -154,7 +155,9 @@ export function createIssueService(db: Database) {
     });
   }
 
-  async function findTerminalState(projectId: string): Promise<IssueStateSelect> {
+  async function findTerminalState(
+    projectId: string
+  ): Promise<IssueStateSelect> {
     const [state] = await db
       .select()
       .from(issueState)
@@ -162,21 +165,23 @@ export function createIssueService(db: Database) {
         and(
           eq(issueState.projectId, projectId),
           eq(issueState.isTerminal, true),
-          eq(issueState.isActive, true),
-        ),
+          eq(issueState.isActive, true)
+        )
       )
       .orderBy(issueState.sortOrder)
       .limit(1);
 
     if (!state) {
       throw new Error(
-        `No active terminal state found for project ${projectId}. Check issue_state catalog.`,
+        `No active terminal state found for project ${projectId}. Check issue_state catalog.`
       );
     }
     return state;
   }
 
-  async function findNonTerminalState(projectId: string): Promise<IssueStateSelect> {
+  async function findNonTerminalState(
+    projectId: string
+  ): Promise<IssueStateSelect> {
     const [state] = await db
       .select()
       .from(issueState)
@@ -184,33 +189,38 @@ export function createIssueService(db: Database) {
         and(
           eq(issueState.projectId, projectId),
           eq(issueState.isTerminal, false),
-          eq(issueState.isActive, true),
-        ),
+          eq(issueState.isActive, true)
+        )
       )
       .orderBy(issueState.sortOrder)
       .limit(1);
 
     if (!state) {
       throw new Error(
-        `No active non-terminal state found for project ${projectId}. Check issue_state catalog.`,
+        `No active non-terminal state found for project ${projectId}. Check issue_state catalog.`
       );
     }
     return state;
   }
 
-  async function resolveStatusByConfigKey(projectId: string, configKey: string): Promise<string> {
+  async function resolveStatusByConfigKey(
+    projectId: string,
+    configKey: string
+  ): Promise<string> {
     const [config] = await db
       .select()
       .from(configEntry)
       .where(
         and(
           eq(configEntry.projectId, projectId),
-          eq(configEntry.key, configKey),
-        ),
+          eq(configEntry.key, configKey)
+        )
       );
 
     if (!config) {
-      throw new Error(`Missing config: ${configKey} for project ${projectId}. Run seed.`);
+      throw new Error(
+        `Missing config: ${configKey} for project ${projectId}. Run seed.`
+      );
     }
 
     const statusKey = config.value as string;
@@ -220,18 +230,23 @@ export function createIssueService(db: Database) {
       .where(
         and(
           eq(issueStatus.projectId, projectId),
-          eq(issueStatus.key, statusKey),
-        ),
+          eq(issueStatus.key, statusKey)
+        )
       );
 
     if (!status) {
-      throw new Error(`Status '${statusKey}' not found for project ${projectId}.`);
+      throw new Error(
+        `Status '${statusKey}' not found for project ${projectId}.`
+      );
     }
 
     return status.id;
   }
 
-  async function findStateByKey(projectId: string, key: string): Promise<IssueStateSelect> {
+  async function findStateByKey(
+    projectId: string,
+    key: string
+  ): Promise<IssueStateSelect> {
     const [state] = await db
       .select()
       .from(issueState)
@@ -239,8 +254,8 @@ export function createIssueService(db: Database) {
         and(
           eq(issueState.projectId, projectId),
           eq(issueState.key, key),
-          eq(issueState.isActive, true),
-        ),
+          eq(issueState.isActive, true)
+        )
       );
 
     if (!state) {
@@ -253,7 +268,7 @@ export function createIssueService(db: Database) {
   function assertVersion(current: IssueSelect, expected: number) {
     if (current.version !== expected) {
       throw new Error(
-        `VERSION_CONFLICT: Expected version ${expected}, but issue has version ${current.version}. Reload and retry.`,
+        `VERSION_CONFLICT: Expected version ${expected}, but issue has version ${current.version}. Reload and retry.`
       );
     }
   }
@@ -274,15 +289,14 @@ export function createIssueService(db: Database) {
    * for the grandparent, and so on up the tree.
    */
   async function maybeAutoCloseParent(childId: string): Promise<void> {
-    const [child] = await db
-      .select()
-      .from(issue)
-      .where(eq(issue.id, childId));
-    if (!child || !child.parentIssueId) return;
+    const [child] = await db.select().from(issue).where(eq(issue.id, childId));
+    if (!child?.parentIssueId) return;
 
     const parentId = child.parentIssueId;
 
-    const attempt = async (): Promise<'closed' | 'already_closed' | 'has_open' | 'conflict'> => {
+    const attempt = async (): Promise<
+      'closed' | 'already_closed' | 'has_open' | 'conflict'
+    > => {
       const [parent] = await db
         .select()
         .from(issue)
@@ -291,7 +305,7 @@ export function createIssueService(db: Database) {
       if (parent.isClosed) return 'already_closed';
 
       const [{ openCount }] = (await db.execute(
-        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${parentId} AND is_closed = false`,
+        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${parentId} AND is_closed = false`
       )) as unknown as Array<{ openCount: number }>;
 
       if (openCount > 0) return 'has_open';
@@ -335,7 +349,7 @@ export function createIssueService(db: Database) {
       const second = await attempt();
       if (second === 'conflict') {
         console.warn(
-          `[epic] parent ${parentId} auto-close raced twice — manual close may be required`,
+          `[epic] parent ${parentId} auto-close raced twice — manual close may be required`
         );
       }
     }
@@ -366,7 +380,7 @@ export function createIssueService(db: Database) {
         }
         if (parent.projectId !== data.projectId) {
           throw new Error(
-            `CROSS_PROJECT_PARENT: Parent issue ${data.parentIssueId} belongs to a different project.`,
+            `CROSS_PROJECT_PARENT: Parent issue ${data.parentIssueId} belongs to a different project.`
           );
         }
       }
@@ -374,9 +388,11 @@ export function createIssueService(db: Database) {
       const result = await db.transaction(async (tx) => {
         // Allocate number with FOR UPDATE lock
         const rows = await tx.execute(
-          sql`SELECT COALESCE(MAX(number), 0) + 1 AS "nextNumber" FROM (SELECT number FROM issue WHERE project_id = ${data.projectId} FOR UPDATE) AS locked`,
+          sql`SELECT COALESCE(MAX(number), 0) + 1 AS "nextNumber" FROM (SELECT number FROM issue WHERE project_id = ${data.projectId} FOR UPDATE) AS locked`
         );
-        const nextNumber = Number((rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber);
+        const nextNumber = Number(
+          (rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber
+        );
 
         const [created] = await tx
           .insert(issue)
@@ -413,7 +429,7 @@ export function createIssueService(db: Database) {
 
     async listByProject(
       projectId: string,
-      filters?: ListIssueFilters,
+      filters?: ListIssueFilters
     ): Promise<IssueSelect[]> {
       const conditions = [eq(issue.projectId, projectId)];
 
@@ -443,18 +459,20 @@ export function createIssueService(db: Database) {
         .orderBy(desc(issue.createdAt));
     },
 
-    async getById(id: string): Promise<(IssueSelect & { hasOpenChildren: boolean }) | null> {
+    async getById(
+      id: string
+    ): Promise<(IssueSelect & { hasOpenChildren: boolean }) | null> {
       const [row] = await db.select().from(issue).where(eq(issue.id, id));
       if (!row) return null;
       const [{ openCount }] = (await db.execute(
-        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${id} AND is_closed = false`,
+        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${id} AND is_closed = false`
       )) as unknown as Array<{ openCount: number }>;
       return { ...row, hasOpenChildren: openCount > 0 };
     },
 
     async getByNumber(
       projectId: string,
-      number: number,
+      number: number
     ): Promise<IssueSelect | null> {
       const [row] = await db
         .select()
@@ -467,7 +485,7 @@ export function createIssueService(db: Database) {
       id: string,
       fields: UpdateFieldsInput,
       version: number,
-      userId?: string,
+      userId?: string
     ): Promise<IssueSelect> {
       const current = await db
         .select()
@@ -489,7 +507,8 @@ export function createIssueService(db: Database) {
 
       if (fields.title !== undefined) updates.title = fields.title;
       if (fields.typeId !== undefined) updates.typeId = fields.typeId;
-      if (fields.priorityId !== undefined) updates.priorityId = fields.priorityId;
+      if (fields.priorityId !== undefined)
+        updates.priorityId = fields.priorityId;
       if (fields.assignee !== undefined) updates.assignee = fields.assignee;
       if (fields.labels !== undefined) updates.labels = fields.labels;
       if (fields.bodyMd !== undefined) {
@@ -505,7 +524,7 @@ export function createIssueService(db: Database) {
 
       if (!updated) {
         throw new Error(
-          `VERSION_CONFLICT: Issue ${id} was modified concurrently. Reload and retry.`,
+          `VERSION_CONFLICT: Issue ${id} was modified concurrently. Reload and retry.`
         );
       }
 
@@ -545,7 +564,7 @@ export function createIssueService(db: Database) {
       id: string,
       toStateId: string,
       version: number,
-      userId?: string,
+      userId?: string
     ): Promise<IssueSelect> {
       const current = await db
         .select()
@@ -568,13 +587,13 @@ export function createIssueService(db: Database) {
             eq(issueTransition.projectId, current.projectId),
             eq(issueTransition.fromStateId, current.stateId),
             eq(issueTransition.toStateId, toStateId),
-            eq(issueTransition.isActive, true),
-          ),
+            eq(issueTransition.isActive, true)
+          )
         );
 
       if (!validTransition) {
         throw new Error(
-          'INVALID_TRANSITION: This state change is not allowed by the transition rules.',
+          'INVALID_TRANSITION: This state change is not allowed by the transition rules.'
         );
       }
 
@@ -602,7 +621,7 @@ export function createIssueService(db: Database) {
 
       if (!updated) {
         throw new Error(
-          `VERSION_CONFLICT: Issue ${id} was modified concurrently. Reload and retry.`,
+          `VERSION_CONFLICT: Issue ${id} was modified concurrently. Reload and retry.`
         );
       }
 
@@ -625,7 +644,7 @@ export function createIssueService(db: Database) {
       id: string,
       toStateId: string,
       version: number,
-      userId?: string,
+      userId?: string
     ): Promise<IssueSelect> {
       const current = await db
         .select()
@@ -663,7 +682,7 @@ export function createIssueService(db: Database) {
 
       if (!updated) {
         throw new Error(
-          `VERSION_CONFLICT: Issue ${id} was modified concurrently. Reload and retry.`,
+          `VERSION_CONFLICT: Issue ${id} was modified concurrently. Reload and retry.`
         );
       }
 
@@ -686,7 +705,7 @@ export function createIssueService(db: Database) {
     async close(
       id: string,
       version: number,
-      userId?: string,
+      userId?: string
     ): Promise<IssueSelect> {
       const current = await db
         .select()
@@ -705,7 +724,7 @@ export function createIssueService(db: Database) {
     async reopen(
       id: string,
       version: number,
-      userId?: string,
+      userId?: string
     ): Promise<IssueSelect> {
       const current = await db
         .select()
@@ -725,7 +744,7 @@ export function createIssueService(db: Database) {
       id: string,
       statusId: string,
       actor: string,
-      reason?: string,
+      reason?: string
     ): Promise<IssueSelect> {
       const [updated] = await db
         .update(issue)
@@ -741,11 +760,17 @@ export function createIssueService(db: Database) {
       return updated;
     },
 
-    async getStateByKey(projectId: string, key: string): Promise<IssueStateSelect> {
+    async getStateByKey(
+      projectId: string,
+      key: string
+    ): Promise<IssueStateSelect> {
       return findStateByKey(projectId, key);
     },
 
-    async getStatusIdByConfigKey(projectId: string, configKey: string): Promise<string> {
+    async getStatusIdByConfigKey(
+      projectId: string,
+      configKey: string
+    ): Promise<string> {
       return resolveStatusByConfigKey(projectId, configKey);
     },
 
@@ -766,7 +791,7 @@ export function createIssueService(db: Database) {
         .select({ parentIssueId: issue.parentIssueId })
         .from(issue)
         .where(eq(issue.id, childId));
-      if (!child || !child.parentIssueId) return null;
+      if (!child?.parentIssueId) return null;
       const [parent] = await db
         .select()
         .from(issue)
@@ -776,17 +801,19 @@ export function createIssueService(db: Database) {
 
     async hasOpenChildren(parentId: string): Promise<boolean> {
       const [{ openCount }] = (await db.execute(
-        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${parentId} AND is_closed = false`,
+        sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${parentId} AND is_closed = false`
       )) as unknown as Array<{ openCount: number }>;
       return openCount > 0;
     },
 
-    async countChildren(parentId: string): Promise<{ open: number; closed: number }> {
+    async countChildren(
+      parentId: string
+    ): Promise<{ open: number; closed: number }> {
       const [row] = (await db.execute(
         sql`SELECT
               COUNT(*) FILTER (WHERE is_closed = false)::int AS "open",
               COUNT(*) FILTER (WHERE is_closed = true)::int AS "closed"
-            FROM issue WHERE parent_issue_id = ${parentId}`,
+            FROM issue WHERE parent_issue_id = ${parentId}`
       )) as unknown as Array<{ open: number; closed: number }>;
       return { open: row?.open ?? 0, closed: row?.closed ?? 0 };
     },
@@ -797,21 +824,21 @@ export function createIssueService(db: Database) {
      * Used by the issues list to render the "↳" and "(N open)" indicators
      * without per-row roundtrips.
      */
-    async openChildCountsByProject(projectId: string): Promise<Map<string, number>> {
+    async openChildCountsByProject(
+      projectId: string
+    ): Promise<Map<string, number>> {
       const rows = (await db.execute(
         sql`SELECT parent_issue_id AS "parentId", COUNT(*) FILTER (WHERE is_closed = false)::int AS "openCount"
             FROM issue
             WHERE project_id = ${projectId} AND parent_issue_id IS NOT NULL
-            GROUP BY parent_issue_id`,
+            GROUP BY parent_issue_id`
       )) as unknown as Array<{ parentId: string; openCount: number }>;
       const map = new Map<string, number>();
       for (const r of rows) map.set(r.parentId, r.openCount);
       return map;
     },
 
-    async getValidTransitions(
-      issueId: string,
-    ): Promise<
+    async getValidTransitions(issueId: string): Promise<
       Array<{
         id: string;
         key: string;
@@ -845,8 +872,8 @@ export function createIssueService(db: Database) {
           and(
             eq(issueTransition.projectId, current.projectId),
             eq(issueTransition.fromStateId, current.stateId),
-            eq(issueTransition.isActive, true),
-          ),
+            eq(issueTransition.isActive, true)
+          )
         )
         .orderBy(issueTransition.sortOrder);
 

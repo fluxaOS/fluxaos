@@ -22,24 +22,24 @@
  * (AGENT_BEHAVIOR.md: no invented numeric thresholds).
  */
 import 'dotenv/config';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import * as schema from '@/core/db/schema';
-import type { Database } from '@/core/db/connection';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   getArtifactsDirAge,
   listArtifactDirs,
   removeArtifactsDir,
 } from '@/adapters/fs';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import {
   buildService,
+  type CleanupBag,
   makeFixture,
   runCleanupTeardown,
-  type CleanupBag,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
@@ -69,9 +69,7 @@ afterAll(async () => {
  * `dirname(isolation_environment.artifacts_path)`) isolates to this test.
  */
 async function makeArtifactsBase(label: string): Promise<string> {
-  const base = await mkdtemp(
-    join(tmpdir(), `fluxaos-artifacts-${label}-`)
-  );
+  const base = await mkdtemp(join(tmpdir(), `fluxaos-artifacts-${label}-`));
   tmpArtifactBases.push(base);
   return base;
 }

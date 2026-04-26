@@ -31,7 +31,10 @@ export function EditableTitle({
     return (
       <h2
         className="text-xl font-bold text-white cursor-pointer hover:text-slate-300 transition-colors"
-        onClick={() => { setDraft(value); setEditing(true); }}
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
         title="Click to edit"
       >
         {value}
@@ -41,14 +44,16 @@ export function EditableTitle({
 
   return (
     <input
-      autoFocus
       type="text"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+        if (e.key === 'Escape') {
+          setDraft(value);
+          setEditing(false);
+        }
       }}
       disabled={disabled}
       className="text-xl font-bold text-white bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-electric-violet/30"
@@ -85,13 +90,21 @@ export function EditableBody({
     return (
       <div
         className="text-sm text-slate-400 cursor-pointer hover:bg-white/[0.02] rounded-lg p-2 -m-2 transition-colors min-h-[40px]"
-        onClick={() => { setDraft(bodyMd ?? ''); setEditing(true); }}
+        onClick={() => {
+          setDraft(bodyMd ?? '');
+          setEditing(true);
+        }}
         title="Click to edit"
       >
         {bodyHtml ? (
-          <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+          <div
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: bodyHtml is server-sanitized per invariant #14
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          />
         ) : (
-          <span className="text-slate-600 italic">No description. Click to add one.</span>
+          <span className="text-slate-600 italic">
+            No description. Click to add one.
+          </span>
         )}
       </div>
     );
@@ -100,7 +113,6 @@ export function EditableBody({
   return (
     <div className="space-y-2">
       <textarea
-        autoFocus
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         rows={6}
@@ -119,7 +131,10 @@ export function EditableBody({
         </button>
         <button
           type="button"
-          onClick={() => { setDraft(bodyMd ?? ''); setEditing(false); }}
+          onClick={() => {
+            setDraft(bodyMd ?? '');
+            setEditing(false);
+          }}
           className="px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 text-xs rounded-lg transition-colors"
         >
           Cancel
@@ -151,7 +166,9 @@ export function CatalogSelect({
       <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 w-16 shrink-0">
         {label}
       </span>
-      {current && <CatalogBadge displayName={current.displayName} color={current.color} />}
+      {current && (
+        <CatalogBadge displayName={current.displayName} color={current.color} />
+      )}
       <select
         value={currentId}
         onChange={(e) => {

@@ -6,7 +6,7 @@
  * Alpha: only FLUXAOS_TARGET_REPO_PATH is whitelisted. Add new keys
  * here with explicit intent — do NOT read arbitrary env vars.
  */
-import { router, publicProcedure } from '../trpc';
+import { publicProcedure, router } from '../trpc';
 
 const ALLOWED_ENV_VARS = ['FLUXAOS_TARGET_REPO_PATH'] as const;
 type AllowedEnvVar = (typeof ALLOWED_ENV_VARS)[number];

@@ -14,7 +14,7 @@ function useProjectId() {
   const orgId = orgsQuery.data?.[0]?.id;
   const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId },
+    { enabled: !!orgId }
   );
   return {
     projectId: projectsQuery.data?.[0]?.id ?? null,
@@ -25,7 +25,9 @@ function useProjectId() {
 function useBasePath() {
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
-  return segments.length >= 3 ? `/${segments[0]}/${segments[1]}/${segments[2]}` : '/';
+  return segments.length >= 3
+    ? `/${segments[0]}/${segments[1]}/${segments[2]}`
+    : '/';
 }
 
 export default function PipelinesPage() {
@@ -34,7 +36,7 @@ export default function PipelinesPage() {
 
   const runsQuery = trpc.pipeline.runs.listByProject.useQuery(
     { projectId: projectId! },
-    { enabled: !!projectId },
+    { enabled: !!projectId }
   );
 
   const runs = runsQuery.data ?? [];
@@ -73,16 +75,28 @@ export default function PipelinesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left">
-                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Run</th>
-                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Pipeline</th>
-                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Status</th>
-                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Started</th>
-                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Completed</th>
-                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Cost</th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  Run
+                </th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  Pipeline
+                </th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  Status
+                </th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  Started
+                </th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  Completed
+                </th>
+                <th className="px-6 pt-5 pb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  Cost
+                </th>
               </tr>
             </thead>
             <tbody>
-              {runs.map((run: typeof runs[number]) => (
+              {runs.map((run: (typeof runs)[number]) => (
                 <tr
                   key={run.id}
                   className="border-t border-slate-700/15 hover:bg-white/[0.02] transition-colors"
@@ -102,10 +116,14 @@ export default function PipelinesPage() {
                     <StatusBadge status={run.status} />
                   </td>
                   <td className="px-6 py-3.5 text-xs text-slate-500">
-                    {run.startedAt ? new Date(run.startedAt).toLocaleString() : '-'}
+                    {run.startedAt
+                      ? new Date(run.startedAt).toLocaleString()
+                      : '-'}
                   </td>
                   <td className="px-6 py-3.5 text-xs text-slate-500">
-                    {run.completedAt ? new Date(run.completedAt).toLocaleString() : '-'}
+                    {run.completedAt
+                      ? new Date(run.completedAt).toLocaleString()
+                      : '-'}
                   </td>
                   <td className="px-6 py-3.5 text-xs font-mono text-slate-400">
                     ${run.totalCostUsd ?? '0.00'}

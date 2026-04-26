@@ -29,7 +29,9 @@ export interface SkillSignal {
  * @returns The parsed signal, or null if the object is not a signal.
  * @throws If the object IS a signal but has an invalid verdict.
  */
-function parseSignalObject(parsed: Record<string, unknown>): SkillSignal | null {
+function parseSignalObject(
+  parsed: Record<string, unknown>
+): SkillSignal | null {
   const signal = parsed['flux:signal'];
   if (!signal || typeof signal !== 'object') return null;
 
@@ -38,7 +40,7 @@ function parseSignalObject(parsed: Record<string, unknown>): SkillSignal | null 
 
   if (typeof verdict !== 'string' || !VALID_VERDICTS.has(verdict)) {
     throw new Error(
-      `invalid skill signal verdict: ${JSON.stringify(verdict)}. Must be one of: ${[...VALID_VERDICTS].join(', ')}`,
+      `invalid skill signal verdict: ${JSON.stringify(verdict)}. Must be one of: ${[...VALID_VERDICTS].join(', ')}`
     );
   }
 
@@ -47,9 +49,22 @@ function parseSignalObject(parsed: Record<string, unknown>): SkillSignal | null 
     summary: typeof data.summary === 'string' ? data.summary : undefined,
     reason: typeof data.reason === 'string' ? data.reason : undefined,
     costUsd: typeof data.cost_usd === 'number' ? data.cost_usd : undefined,
-    tokensIn: typeof data.tokens_in === 'number' ? Math.floor(data.tokens_in) : undefined,
-    tokensOut: typeof data.tokens_out === 'number' ? Math.floor(data.tokens_out) : undefined,
-    meta: data.meta && typeof data.meta === 'object' ? (data.meta as { targetState?: string; question?: string; [key: string]: unknown }) : undefined,
+    tokensIn:
+      typeof data.tokens_in === 'number'
+        ? Math.floor(data.tokens_in)
+        : undefined,
+    tokensOut:
+      typeof data.tokens_out === 'number'
+        ? Math.floor(data.tokens_out)
+        : undefined,
+    meta:
+      data.meta && typeof data.meta === 'object'
+        ? (data.meta as {
+            targetState?: string;
+            question?: string;
+            [key: string]: unknown;
+          })
+        : undefined,
   };
 }
 
@@ -66,7 +81,7 @@ function parseSignalObject(parsed: Record<string, unknown>): SkillSignal | null 
  */
 export function parseSignalLine(line: string): SkillSignal | null {
   const trimmed = line.trim();
-  if (!trimmed || !trimmed.startsWith('{')) return null;
+  if (!trimmed?.startsWith('{')) return null;
 
   let parsed: Record<string, unknown>;
   try {
@@ -87,7 +102,9 @@ export function parseSignalLine(line: string): SkillSignal | null {
     if (!msg) return null;
 
     // Check tool_use_result.stdout first (most direct)
-    const toolResult = parsed.tool_use_result as Record<string, unknown> | undefined;
+    const toolResult = parsed.tool_use_result as
+      | Record<string, unknown>
+      | undefined;
     if (toolResult?.stdout && typeof toolResult.stdout === 'string') {
       const signal = extractSignalFromText(toolResult.stdout);
       if (signal) return signal;

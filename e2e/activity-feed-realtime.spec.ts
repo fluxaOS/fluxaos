@@ -2,10 +2,12 @@
 // R-UI-2.5 smoke: posting a comment causes the activity feed to
 // reflect the new comment_added event without a manual page refresh,
 // and no console/pageerror fires.
-import { test, expect, projectPath } from './helpers/setup';
+import { expect, projectPath, test } from './helpers/setup';
 
 test.describe('@r-ui-2-5 @smoke', () => {
-  test('activity feed updates without manual refresh after posting a comment', async ({ page }) => {
+  test('activity feed updates without manual refresh after posting a comment', async ({
+    page,
+  }) => {
     const pageErrors: Error[] = [];
     const consoleErrors: string[] = [];
 
@@ -26,7 +28,9 @@ test.describe('@r-ui-2-5 @smoke', () => {
     // Count current activity items. Works whether the feed is empty ("No
     // activity yet.") or populated — we record the baseline, add a comment,
     // and assert the count grew without touching the browser.
-    const initialCount = await feed.locator('.relative.flex.items-start').count();
+    const initialCount = await feed
+      .locator('.relative.flex.items-start')
+      .count();
 
     // Type a unique comment body so we can verify it lands.
     const marker = `smoke-test-${Date.now()}`;
@@ -36,19 +40,28 @@ test.describe('@r-ui-2-5 @smoke', () => {
 
     // Wait for the new event to appear in the feed WITHOUT any page.reload().
     // The Realtime subscription is responsible for this.
-    await expect.poll(
-      async () => feed.locator('.relative.flex.items-start').count(),
-      {
+    await expect
+      .poll(async () => feed.locator('.relative.flex.items-start').count(), {
         timeout: 15_000,
-        message: 'Activity feed did not update after posting a comment. Realtime subscription may be broken.',
-      },
-    ).toBeGreaterThan(initialCount);
+        message:
+          'Activity feed did not update after posting a comment. Realtime subscription may be broken.',
+      })
+      .toBeGreaterThan(initialCount);
 
     // Known failure patterns we care about:
-    const knownErrorPattern = /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config/;
-    const matchedErrors = consoleErrors.filter((e) => knownErrorPattern.test(e));
+    const knownErrorPattern =
+      /Adapter ".*" is not registered|Missing required environment variable|Missing Supabase config/;
+    const matchedErrors = consoleErrors.filter((e) =>
+      knownErrorPattern.test(e)
+    );
 
-    expect(pageErrors, `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`).toHaveLength(0);
-    expect(matchedErrors, `Unexpected registry/env errors: ${matchedErrors.join('; ')}`).toHaveLength(0);
+    expect(
+      pageErrors,
+      `Unexpected pageerror(s): ${pageErrors.map((e) => e.message).join('; ')}`
+    ).toHaveLength(0);
+    expect(
+      matchedErrors,
+      `Unexpected registry/env errors: ${matchedErrors.join('; ')}`
+    ).toHaveLength(0);
   });
 });

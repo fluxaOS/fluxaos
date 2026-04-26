@@ -16,17 +16,14 @@
  */
 
 import { RequestError } from '@octokit/request-error';
-import { Octokit } from '@octokit/rest';
+import type { Octokit } from '@octokit/rest';
 import type {
   CreatePRParams,
   GitProvider,
   PullRequest,
 } from '@/core/ports/git';
 import { getAuthenticatedOctokit } from './auth';
-import type {
-  PullsCreateResponseData,
-  RepoGetResponseData,
-} from './types';
+import type { PullsCreateResponseData, RepoGetResponseData } from './types';
 
 /** Thrown when a GitProvider method is called that isn't wired for alpha. */
 export class NotImplementedError extends Error {
@@ -41,7 +38,10 @@ export class NotImplementedError extends Error {
 
 /** Thrown when `createBranch` finds the ref already exists on the remote. */
 export class GitHubBranchExistsError extends Error {
-  constructor(public readonly repo: string, public readonly branch: string) {
+  constructor(
+    public readonly repo: string,
+    public readonly branch: string
+  ) {
     super(`Branch '${branch}' already exists on ${repo}.`);
     this.name = 'GitHubBranchExistsError';
   }

@@ -3,10 +3,11 @@
  *
  * Touches real tmpdirs for repoPath resolution. No DB.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   getDefaultHomeWorkspaceRoot,
   getWorkspaceRoot,
@@ -53,9 +54,10 @@ describe('resolveRepoIdentity', () => {
   });
 
   it('falls back to path basename when repoUrl is absent', () => {
-    expect(
-      resolveRepoIdentity({ repoPath: '/mnt/dev/acme/widgets' })
-    ).toEqual({ owner: 'acme', repo: 'widgets' });
+    expect(resolveRepoIdentity({ repoPath: '/mnt/dev/acme/widgets' })).toEqual({
+      owner: 'acme',
+      repo: 'widgets',
+    });
   });
 
   it('prefers override over repoUrl', () => {

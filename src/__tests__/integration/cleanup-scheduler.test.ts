@@ -6,14 +6,7 @@
  * is covered in cleanup-triggers.test.ts. Uses vitest fake timers so a
  * 1-minute interval can be exercised without waiting.
  */
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ARTIFACTS_RETENTION_ENV,
   createCleanupScheduler,
@@ -21,13 +14,19 @@ import {
   STALE_DAYS_ENV,
   SWEEP_INTERVAL_ENV,
 } from '@/core/cleanup/cleanup-scheduler';
-import type { CleanupLogger, CleanupReport } from '@/core/cleanup/cleanup-service';
+import type {
+  CleanupLogger,
+  CleanupReport,
+} from '@/core/cleanup/cleanup-service';
 
 function makeLogger(): CleanupLogger & {
   records: { level: string; obj: Record<string, unknown>; msg?: string }[];
 } {
-  const records: { level: string; obj: Record<string, unknown>; msg?: string }[] =
-    [];
+  const records: {
+    level: string;
+    obj: Record<string, unknown>;
+    msg?: string;
+  }[] = [];
   return {
     records,
     info: (obj, msg) => records.push({ level: 'info', obj, msg }),
@@ -110,7 +109,7 @@ describe('cleanup-scheduler', () => {
       (r) => r.msg === 'cleanup_scheduler.disabled_missing_env'
     );
     expect(warn).toBeDefined();
-    expect((warn?.obj.missing as string[])).toEqual([SWEEP_INTERVAL_ENV]);
+    expect(warn?.obj.missing as string[]).toEqual([SWEEP_INTERVAL_ENV]);
   });
 
   it('starts when all four env vars are set; fires sweep on interval', async () => {

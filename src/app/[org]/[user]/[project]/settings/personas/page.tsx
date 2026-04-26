@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
-import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
 
@@ -42,10 +41,7 @@ export default function PersonaSettingsPage() {
       ) : (
         <div className="space-y-3">
           {personas.map((p) => (
-            <div
-              key={p.id}
-              className="card-static p-4"
-            >
+            <div key={p.id} className="card-static p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{p.name}</span>
@@ -63,7 +59,9 @@ export default function PersonaSettingsPage() {
               </div>
 
               {p.soul && (
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{p.soul}</p>
+                <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                  {p.soul}
+                </p>
               )}
 
               {expandedId === p.id && <PersonaDetail personaId={p.id} />}
@@ -84,7 +82,7 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
   const orgId = orgsQuery.data?.[0]?.id;
   const projectsQuery = trpc.project.listByOrg.useQuery(
     { orgId: orgId! },
-    { enabled: !!orgId },
+    { enabled: !!orgId }
   );
   const projectId = projectsQuery.data?.[0]?.id;
 
@@ -164,8 +162,12 @@ function PersonaDetail({ personaId }: { personaId: string }) {
   const persona = personaQuery.data;
   const attachedSkills = skillsQuery.data ?? [];
   const allSkills = allSkillsQuery.data ?? [];
-  const attachedSkillIds = new Set(attachedSkills.map((s: typeof attachedSkills[number]) => s.skillId));
-  const availableSkills = allSkills.filter((s: typeof allSkills[number]) => !attachedSkillIds.has(s.id));
+  const attachedSkillIds = new Set(
+    attachedSkills.map((s: (typeof attachedSkills)[number]) => s.skillId)
+  );
+  const availableSkills = allSkills.filter(
+    (s: (typeof allSkills)[number]) => !attachedSkillIds.has(s.id)
+  );
 
   if (!persona) return null;
 
@@ -186,7 +188,7 @@ function PersonaDetail({ personaId }: { personaId: string }) {
           <p className="text-xs text-slate-500 mt-1">No skills attached.</p>
         ) : (
           <div className="flex flex-wrap gap-1 mt-1">
-            {attachedSkills.map((ps: typeof attachedSkills[number]) => (
+            {attachedSkills.map((ps: (typeof attachedSkills)[number]) => (
               <span
                 key={ps.skillId}
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/[0.04] rounded text-xs"
@@ -214,13 +216,11 @@ function PersonaDetail({ personaId }: { personaId: string }) {
         <div>
           <span className="text-xs text-slate-400">Attach skill:</span>
           <div className="flex flex-wrap gap-1 mt-1">
-            {availableSkills.map((s: typeof availableSkills[number]) => (
+            {availableSkills.map((s: (typeof availableSkills)[number]) => (
               <button
                 key={s.id}
                 type="button"
-                onClick={() =>
-                  attachSkill.mutate({ personaId, skillId: s.id })
-                }
+                onClick={() => attachSkill.mutate({ personaId, skillId: s.id })}
                 className="px-2 py-0.5 text-xs bg-electric-violet/10 hover:bg-electric-violet/20 text-soft-violet rounded transition-colors"
               >
                 + {s.name}

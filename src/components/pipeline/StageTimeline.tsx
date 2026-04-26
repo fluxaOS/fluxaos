@@ -17,14 +17,14 @@ interface StageTimelineProps {
 }
 
 const dotColors: Record<string, string> = {
-  [STAGE_RUN_STATUS.completed]:  'bg-emerald-400',
-  [STAGE_RUN_STATUS.running]:    'bg-sky-400 animate-pulse',
-  [STAGE_RUN_STATUS.launching]:  'bg-sky-400 animate-pulse',
-  [STAGE_RUN_STATUS.pending]:    'bg-amber-400',
-  hold:                          'bg-amber-400',
-  [STAGE_RUN_STATUS.failed]:     'bg-red-400',
-  queued:                        'bg-slate-500',
-  [STAGE_RUN_STATUS.cancelled]:  'bg-slate-500',
+  [STAGE_RUN_STATUS.completed]: 'bg-emerald-400',
+  [STAGE_RUN_STATUS.running]: 'bg-sky-400 animate-pulse',
+  [STAGE_RUN_STATUS.launching]: 'bg-sky-400 animate-pulse',
+  [STAGE_RUN_STATUS.pending]: 'bg-amber-400',
+  hold: 'bg-amber-400',
+  [STAGE_RUN_STATUS.failed]: 'bg-red-400',
+  queued: 'bg-slate-500',
+  [STAGE_RUN_STATUS.cancelled]: 'bg-slate-500',
 };
 
 function formatDuration(seconds: number): string {
@@ -34,7 +34,11 @@ function formatDuration(seconds: number): string {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
-export function StageTimeline({ stages, selectedStageId, onSelectStage }: StageTimelineProps) {
+export function StageTimeline({
+  stages,
+  selectedStageId,
+  onSelectStage,
+}: StageTimelineProps) {
   if (stages.length === 0) {
     return <p className="text-xs text-slate-500">No stages.</p>;
   }
@@ -63,7 +67,9 @@ export function StageTimeline({ stages, selectedStageId, onSelectStage }: StageT
             )}
 
             {/* Status dot */}
-            <span className={`relative w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`} />
+            <span
+              className={`relative w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`}
+            />
 
             {/* Stage info */}
             <div className="flex-1 min-w-0">

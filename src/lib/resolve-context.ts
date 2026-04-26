@@ -8,11 +8,15 @@ import { registry } from '@/config/registry';
 import type { DatabaseProvider } from '@/core/ports/database';
 import {
   createOrganizationService,
-  createUserService,
   createProjectService,
+  createUserService,
 } from '@/core/services';
 
-export async function resolveContext(orgSlug: string, userSlug: string, projectSlug: string) {
+export async function resolveContext(
+  orgSlug: string,
+  userSlug: string,
+  projectSlug: string
+) {
   bootstrap();
   const db = registry.get<DatabaseProvider>('database').getConnection();
 

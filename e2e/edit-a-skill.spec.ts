@@ -1,5 +1,5 @@
 // e2e/edit-a-skill.spec.ts
-import { test, expect, gotoSettings } from './helpers/setup';
+import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@r-ui-1 @settings @skills @crud', () => {
   test('edit-a-skill', async ({ page }) => {
@@ -8,7 +8,13 @@ test.describe('@r-ui-1 @settings @skills @crud', () => {
     await gotoSettings(page, 'skills');
 
     // Step 2: seeded skills visible
-    for (const name of ['research', 'implement', 'review', 'rework', 'deploy']) {
+    for (const name of [
+      'research',
+      'implement',
+      'review',
+      'rework',
+      'deploy',
+    ]) {
       await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     }
 

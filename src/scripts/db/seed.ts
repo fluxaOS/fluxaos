@@ -8,28 +8,28 @@
  * Idempotent: safe to run multiple times. Uses onConflictDoNothing() throughout.
  */
 import 'dotenv/config';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import {
-  organization,
-  user,
-  project,
-  pipeline,
-  pipelineStage,
-  issueType,
-  issueState,
-  issueStatus,
-  issuePriority,
-  issueLabel,
-  issueTransition,
   configEntry,
   driver,
-  skill,
   issue,
-  provider,
+  issueLabel,
+  issuePriority,
+  issueState,
+  issueStatus,
+  issueTransition,
+  issueType,
   model,
+  organization,
+  pipeline,
+  pipelineStage,
+  project,
+  provider,
   routingProfile,
   routingRule,
+  skill,
+  user,
 } from '@/core/db/schema';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -158,7 +158,12 @@ async function seed() {
 
     const stagesDef = [
       { name: 'research', sortOrder: 1, gateMode: 'auto', gateRules: {} },
-      { name: 'implement', sortOrder: 2, gateMode: 'rules', gateRules: implementGateRules },
+      {
+        name: 'implement',
+        sortOrder: 2,
+        gateMode: 'rules',
+        gateRules: implementGateRules,
+      },
       { name: 'review', sortOrder: 3, gateMode: 'auto', gateRules: {} },
     ];
 
@@ -199,11 +204,15 @@ async function seed() {
       promptTransport: 'argv',
       outputFormat: 'stream-json',
       outputFormatFlag: '--output-format',
-      issuePromptTemplate: '{{skill_name}}: {{issue_title}} — {{issue_description}}',
+      issuePromptTemplate:
+        '{{skill_name}}: {{issue_title}} — {{issue_description}}',
       queuePromptTemplate: '{{issue_title}}',
       defaultArgs: ['-p', '--verbose', '--dangerously-skip-permissions'],
       envVars: {},
-      contextLayout: { instructionsFile: 'CLAUDE.md', contextFile: 'context.md' },
+      contextLayout: {
+        instructionsFile: 'CLAUDE.md',
+        contextFile: 'context.md',
+      },
     })
     .onConflictDoNothing({ target: driver.slug })
     .returning();
@@ -262,10 +271,22 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
   };
 
   const skillsDef = [
-    { name: 'research', description: 'Unified research and planning — assess, decide, execute' },
-    { name: 'implement', description: 'Implementation orchestrator — build features from plans' },
-    { name: 'review', description: 'Code review — review only, no implementation' },
-    { name: 'rework', description: 'Rework — address review feedback and resubmit' },
+    {
+      name: 'research',
+      description: 'Unified research and planning — assess, decide, execute',
+    },
+    {
+      name: 'implement',
+      description: 'Implementation orchestrator — build features from plans',
+    },
+    {
+      name: 'review',
+      description: 'Code review — review only, no implementation',
+    },
+    {
+      name: 'rework',
+      description: 'Rework — address review feedback and resubmit',
+    },
   ];
 
   const skillMap = new Map<string, string>();
@@ -380,7 +401,9 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
           sortStrategy: 'quality',
         })
         .onConflictDoNothing();
-      console.log(`  routing: ${defaultProvider.name} → ${defaultModel?.identifier ?? 'n/a'} via ${defaultProfile.name}`);
+      console.log(
+        `  routing: ${defaultProvider.name} → ${defaultModel?.identifier ?? 'n/a'} via ${defaultProfile.name}`
+      );
     }
   }
 
@@ -389,8 +412,18 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     { key: 'bug', displayName: 'Bug', color: '#ef4444', sortOrder: 10 },
     { key: 'feature', displayName: 'Feature', color: '#3b82f6', sortOrder: 20 },
     { key: 'task', displayName: 'Task', color: '#a855f7', sortOrder: 30 },
-    { key: 'research', displayName: 'Research', color: '#22c55e', sortOrder: 40 },
-    { key: 'enhancement', displayName: 'Enhancement', color: '#f59e0b', sortOrder: 50 },
+    {
+      key: 'research',
+      displayName: 'Research',
+      color: '#22c55e',
+      sortOrder: 40,
+    },
+    {
+      key: 'enhancement',
+      displayName: 'Enhancement',
+      color: '#f59e0b',
+      sortOrder: 50,
+    },
   ];
 
   await db
@@ -401,13 +434,55 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
 
   // ── 7. Issue state catalog ─────────────────────────────────────────────
   const statesDef = [
-    { key: 'new', displayName: 'New', color: '#6b7280', sortOrder: 10, isTerminal: false },
-    { key: 'research', displayName: 'Research', color: '#3b82f6', sortOrder: 20, isTerminal: false },
-    { key: 'implement', displayName: 'Implement', color: '#a855f7', sortOrder: 30, isTerminal: false },
-    { key: 'review', displayName: 'Review', color: '#f59e0b', sortOrder: 40, isTerminal: false },
-    { key: 'rework', displayName: 'Rework', color: '#ef4444', sortOrder: 50, isTerminal: false },
-    { key: 'deploy', displayName: 'Deploy', color: '#22c55e', sortOrder: 60, isTerminal: false },
-    { key: 'complete', displayName: 'Complete', color: '#10b981', sortOrder: 70, isTerminal: true },
+    {
+      key: 'new',
+      displayName: 'New',
+      color: '#6b7280',
+      sortOrder: 10,
+      isTerminal: false,
+    },
+    {
+      key: 'research',
+      displayName: 'Research',
+      color: '#3b82f6',
+      sortOrder: 20,
+      isTerminal: false,
+    },
+    {
+      key: 'implement',
+      displayName: 'Implement',
+      color: '#a855f7',
+      sortOrder: 30,
+      isTerminal: false,
+    },
+    {
+      key: 'review',
+      displayName: 'Review',
+      color: '#f59e0b',
+      sortOrder: 40,
+      isTerminal: false,
+    },
+    {
+      key: 'rework',
+      displayName: 'Rework',
+      color: '#ef4444',
+      sortOrder: 50,
+      isTerminal: false,
+    },
+    {
+      key: 'deploy',
+      displayName: 'Deploy',
+      color: '#22c55e',
+      sortOrder: 60,
+      isTerminal: false,
+    },
+    {
+      key: 'complete',
+      displayName: 'Complete',
+      color: '#10b981',
+      sortOrder: 70,
+      isTerminal: true,
+    },
   ];
 
   await db
@@ -456,7 +531,13 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
   await db
     .insert(issueLabel)
     .values([
-      { projectId: proj.id, key: 'general', displayName: 'General', color: '#6b7280', sortOrder: 10 },
+      {
+        projectId: proj.id,
+        key: 'general',
+        displayName: 'General',
+        color: '#6b7280',
+        sortOrder: 10,
+      },
     ])
     .onConflictDoNothing();
   console.log('  issue labels: 1');
@@ -472,7 +553,11 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     { from: 'rework', to: 'review', description: 'Resubmit for review' },
     { from: 'deploy', to: 'complete', description: 'Mark complete' },
     { from: 'complete', to: 'implement', description: 'Reopen' },
-    { from: 'new', to: 'implement', description: 'Skip research, start implementing' },
+    {
+      from: 'new',
+      to: 'implement',
+      description: 'Skip research, start implementing',
+    },
   ];
 
   await db
