@@ -50,6 +50,17 @@ SIZE_EXEMPT_FILES=(
   # fragments the invariant graph (version locks, close propagation, event
   # emission). See AUDIT-P2-CQ-CORE-7 for the standing exemption rationale.
   "src/core/services/issue.ts"
+  # Services integration test: pre-existing oversize. Splitting fragments
+  # the invariant arrange/act/assert flow across files. DEF-008 candidate.
+  "src/__tests__/integration/services.test.ts"
+  # Event orchestrator: subscribes to pipeline_run + stage_run lifecycles
+  # in a single state machine. Splitting fragments the run/stage/gate
+  # event ordering invariant. (Crossed 500 lines after R-RUNTIME work.)
+  "src/core/orchestrator/event-orchestrator.ts"
+  # Stage runner: owns the full subprocess + isolation + event emission
+  # lifecycle for one stage_run. Splitting separates lifecycle phases
+  # that share invariants and exit semantics.
+  "src/core/orchestrator/stage-runner.ts"
 )
 
 is_size_exempt() {
