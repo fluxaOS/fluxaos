@@ -1,5 +1,9 @@
 # Deferred Fixes
 
+> **FROZEN — 2026-04-26.** This file is a historical record only. New deferred findings go to Linear:
+> **fluxaOS Deferred Fixes** project (team `FLX`, workspace `rebos`). Use the Linear MCP (`mcp__plugin_linear_linear__save_issue`).
+> See `docs/session-quick-start.md` → "Deferred Issues" for the routing rule.
+
 Issues found during verification that aren't showstoppers. Fix before merge or track as follow-up issues.
 
 ---

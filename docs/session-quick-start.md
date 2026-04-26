@@ -4,16 +4,13 @@
 
 ## Deferred Issues
 
-Issues found during verification go to `docs/superpowers/deferred-fixes.md` — NOT Forgejo tickets. The database gets nuked regularly so Forgejo issue state would be lost. Format:
+Issues found during verification go to **Linear** — project **fluxaOS Deferred Fixes** in team **FLX** (workspace `rebos`). Linear was adopted 2026-04-26.
 
-```markdown
-## UI: Brief description
-
-**Found:** YYYY-MM-DD during <context>
-**Severity:** High/Medium/Low
-**Location:** `src/path/to/file.tsx`
-**What's needed:** What to fix
-```
+- Use the Linear MCP: `mcp__plugin_linear_linear__save_issue` to create, `mcp__plugin_linear_linear__list_issues` to query.
+- Title: short, action-oriented (e.g., `UI: GateResultsPanel rule details show empty dots`).
+- Body must include: **Found** (date + context), **Severity** (High/Medium/Low), **Location** (`src/path/to/file.tsx`), **What's needed** (the fix).
+- Branch when picking up the work: `flx-NNN-short-slug`. Commit trailer: `Fixes FLX-NNN`.
+- `docs/superpowers/deferred-fixes.md` is frozen — historical DEF-NNN entries only. Do not append new findings to it.
 
 ## Database Access
 
@@ -39,6 +36,16 @@ Headless box. Dev server runs on port **3003** (port 3000 is taken by semaphore)
 ## CLI Tools
 
 Standalone TypeScript project — no `flu` CLI, no `fhc`. Use npm scripts (see Commands table in CLAUDE.md).
+
+## Worktrees & Hooks
+
+Parallel agent work uses `git worktree`. Git hooks are tracked in `ops/git-hooks/` (not `.git/hooks/`). After `git clone` or `git worktree add`, run:
+
+```bash
+bash ops/install-hooks.sh
+```
+
+This sets `core.hooksPath = ops/git-hooks` for the current worktree. Idempotent — safe to re-run. Without it, `pre-commit` / `pre-push` / `commit-msg` won't fire and the `claude-md-score` gate is bypassed.
 
 ## Verification — Long Form
 
