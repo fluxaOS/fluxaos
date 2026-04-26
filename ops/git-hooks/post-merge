@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# post-merge hook for fluxaOS
+#
+# Runs after every successful merge, including the implicit `git pull` that
+# follows `gh pr merge --squash` when the user syncs their main branch.
+#
+# Goal: keep the four-command snapshot (`git status && git stash list &&
+# git branch --list && git branch -r --list`) showing only ACTIVE work and
+# PROTECTED PRs. After a merge into main, any local feature branch whose
+# commits are now reachable from origin/main is dead weight and should be
+# auto-deleted. Worktree-checked-out branches and branches with open PRs
+# are never touched.
+#
+# Implementation: delegates to `ops/git-hooks/session-audit.sh prune`,
+# which encapsulates the worktree-aware classification logic shared with
+# the SessionStart audit.
+
+set -euo pipefail
+
+# Only act after merges into main (squash merges land here when you `git pull`
+# after `gh pr merge`). Skip merges on feature branches so we don't surprise
+# users mid-rebase.
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [ "$BRANCH" != "main" ]; then
+  exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$REPO_ROOT" ]; then
+  exit 0
+fi
+
+AUDIT="$REPO_ROOT/ops/git-hooks/session-audit.sh"
+if [ ! -x "$AUDIT" ]; then
+  # Audit script missing — skip silently rather than block the merge.
+  exit 0
+fi
+
+echo "[post-merge] pruning merged branches…"
+git fetch --prune origin --quiet 2>/dev/null || true
+bash "$AUDIT" prune
+
+exit 0
