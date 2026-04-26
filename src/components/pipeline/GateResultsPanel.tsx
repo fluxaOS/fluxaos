@@ -28,12 +28,15 @@ export function GateResultsPanel({ stageRunId }: GateResultsPanelProps) {
       {results.map((g: (typeof results)[number]) => {
         const passed = g.passed ?? false;
         const ruleResults = (g.ruleResults ?? []) as Array<{
-          field?: string;
-          operator?: string;
-          expected?: unknown;
-          actual?: unknown;
+          rule?: {
+            field?: string;
+            operator?: string;
+            value?: unknown;
+            label?: string;
+          };
           passed?: boolean;
-          label?: string;
+          actualValue?: unknown;
+          reason?: string;
         }>;
 
         return (
@@ -50,30 +53,33 @@ export function GateResultsPanel({ stageRunId }: GateResultsPanelProps) {
 
             {ruleResults.length > 0 && (
               <div className="space-y-1">
-                {ruleResults.map((rule, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${
-                      rule.passed
-                        ? 'text-emerald-400/80'
-                        : 'text-red-400/80 bg-red-400/5'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                        rule.passed ? 'bg-emerald-400' : 'bg-red-400'
+                {ruleResults.map((rr, idx) => {
+                  const rule = rr.rule ?? {};
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${
+                        rr.passed
+                          ? 'text-emerald-400/80'
+                          : 'text-red-400/80 bg-red-400/5'
                       }`}
-                    />
-                    <span className="font-mono">
-                      {rule.field} {rule.operator} {String(rule.expected ?? '')}
-                    </span>
-                    {rule.label && (
-                      <span className="text-slate-500">
-                        &mdash; {rule.label}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          rr.passed ? 'bg-emerald-400' : 'bg-red-400'
+                        }`}
+                      />
+                      <span className="font-mono">
+                        {rule.field} {rule.operator} {String(rule.value ?? '')}
                       </span>
-                    )}
-                  </div>
-                ))}
+                      {rule.label && (
+                        <span className="text-slate-500">
+                          &mdash; {rule.label}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
