@@ -33,7 +33,7 @@ DB-driven, even at one entry. fluxaOS reads catalog data from the DB at runtime;
 |---|---|---|---|
 | Project — Create | 🟡 | 🔴 | Seed creates one project. No UI form for create. No spec. |
 | Project — Edit / Delete | 🟡 | 🔴 | Settings/projects has a page, edit field-by-field works in code. No spec. |
-| Team — Create / Edit / Delete | ⚪ | 🔴 | No UI surface. Schema may exist; no Settings tab. |
+| Team — Create / Edit / Delete | ✅ | ✅ | `e2e/team-crud.spec.ts` (FLX-61). New `/settings/teams` tab + tRPC router + service. |
 | Skill — Create | 🟡 | 🔴 | Form exists at `/settings/skills`. No spec covers create. |
 | Skill — Edit | ✅ | 🟡 | `e2e/edit-a-skill.spec.ts` — currently red (FLX-58: asserts non-existent `deploy` skill). |
 | Skill — Delete | ✅ | ✅ | `e2e/delete-an-unreferenced-skill.spec.ts`, `e2e/delete-a-referenced-skill-fails-gracefully.spec.ts`. |
@@ -127,9 +127,9 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 
 ## Tally
 
-- **15 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha, FLX-67 issue Create / Edit / Delete, FLX-77 free-walk state dropdown / human override mid-run, FLX-73 vendor-agnostic-core audit.
+- **16 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha, FLX-67 issue Create / Edit / Delete, FLX-77 free-walk state dropdown / human override mid-run, FLX-73 vendor-agnostic-core audit, FLX-61 Team Create / Edit / Delete.
 - **5 partial** (spec exists but red, partial, only happy path, or awaits live execution — includes the FLX-69 alpha-bar spec which is committed but not yet run end-to-end).
-- **15+ rows with no spec at all.**
+- **14+ rows with no spec at all.**
 
 The verified rows exercise real user-facing behavior end-to-end against a real database. The remaining gap is the alpha backlog — Linear `fluxaOS Alpha` project tracks the rest.
 
