@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pre-push hook for fluxaOS
 #
-# Three gates:
+# Four gates:
 #
 #   1. Direct pushes to main are blocked. PRs only.
 #
@@ -19,6 +19,11 @@
 #      this gate enforces the "test exists in the same PR" half of that
 #      contract mechanically. The "test passes" half is enforced by CI
 #      and by manual run before requesting sign-off.
+#
+#   4. Vendor-agnostic core gate (FLX-73): when the push range touches
+#      src/core/ or the audit script itself, run `verify-agnostic-core.ts`
+#      and refuse the push if it exits non-zero. Catches new vendor-name
+#      or stage-name literals leaking into core.
 #
 # Cleanliness gate fails on any of:
 #   - Working tree dirty (uncommitted modifications or untracked files
@@ -138,6 +143,22 @@ if [ -n "$ui_touched" ] && [ -z "$e2e_touched" ]; then
   problems=$((problems + 1))
 fi
 
+# ── Gate 4: vendor-agnostic core (FLX-73) ─────────────────────────────────
+# Refuse push when src/core/ contains unallowed vendor or stage-name
+# literals. Allowlisted hits are tracked in src/scripts/verify-agnostic-core.ts.
+agnostic_gate_violation=0
+agnostic_output=""
+if [ -n "$RANGE_BASE" ]; then
+  core_touched=$(printf '%s\n' "$changed" | grep -E '^src/core/' || true)
+  script_touched=$(printf '%s\n' "$changed" | grep -E '^src/scripts/verify-agnostic-core\.ts$' || true)
+  if [ -n "$core_touched" ] || [ -n "$script_touched" ]; then
+    if ! agnostic_output=$(npx tsx src/scripts/verify-agnostic-core.ts 2>&1); then
+      agnostic_gate_violation=1
+      problems=$((problems + 1))
+    fi
+  fi
+fi
+
 if [ "$problems" -eq 0 ]; then
   exit 0
 fi
@@ -197,6 +218,19 @@ if [ "$journey_gate_violation" -eq 1 ]; then
   echo "    (e.g. type-only refactor in a .tsx file), document the"
   echo "    reason in the PR body and bypass with"
   echo "    FLUXAOS_SKIP_PREPUSH_GATE=1 for this push only."
+  echo ""
+fi
+
+if [ "$agnostic_gate_violation" -eq 1 ]; then
+  echo "── Vendor-agnostic core gate failed ──────────────────────────"
+  echo ""
+  echo "src/core/ contains unallowed vendor-name or stage-name literals."
+  printf '%s\n' "$agnostic_output"
+  echo ""
+  echo "Fix by:"
+  echo "  - Removing the literal (preferred), OR"
+  echo "  - Filing a follow-up ticket and adding the file:line to the"
+  echo "    ALLOWLIST in src/scripts/verify-agnostic-core.ts."
   echo ""
 fi
 

@@ -6,7 +6,10 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 
-const scripts = [{ name: 'seed-check', path: 'tests/verify/seed-check.ts' }];
+const scripts = [
+  { name: 'seed-check', path: 'tests/verify/seed-check.ts' },
+  { name: 'agnostic-core', path: 'src/scripts/verify-agnostic-core.ts' },
+];
 
 const root = path.resolve(__dirname, '..', '..');
 let passed = 0;

@@ -19,6 +19,7 @@
     "db:events": "tsx src/scripts/db/events.ts",
     "verify": "tsx tests/verify/run-all.ts",
     "verify:seed": "tsx tests/verify/seed-check.ts",
+    "verify:agnostic-core": "tsx src/scripts/verify-agnostic-core.ts",
     "daemon": "tsx src/scripts/daemon.ts"
   },
   "dependencies": {
