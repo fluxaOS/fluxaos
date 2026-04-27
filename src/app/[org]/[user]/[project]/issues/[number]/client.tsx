@@ -378,7 +378,7 @@ export function IssueDetailClient({
                     className="flex items-center gap-1.5 px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
                   >
                     <Play size={14} />
-                    {isExecuting ? 'Starting...' : `Run Stage`}
+                    {isExecuting ? 'Starting…' : `Run Stage`}
                   </button>
                   {isEpic && (
                     <p className="text-[11px] text-slate-500">
@@ -398,7 +398,7 @@ export function IssueDetailClient({
                     onClick={() => setActiveRunId(pipelineState.run?.id)}
                     className="text-soft-violet hover:underline"
                   >
-                    View details
+                    View Details
                   </button>
                 </p>
               )}
@@ -425,7 +425,7 @@ export function IssueDetailClient({
         disabled={deleteIssue.isPending}
         className="text-xs px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-400/20 transition-colors disabled:opacity-50"
       >
-        {deleteIssue.isPending ? 'Deleting...' : 'Delete Issue'}
+        {deleteIssue.isPending ? 'Deleting…' : 'Delete Issue'}
       </button>
 
       <ActivityFeed

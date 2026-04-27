@@ -124,7 +124,7 @@ test.describe('@flx-20 @journey', () => {
 
     // The Pipeline Stages card shows a "View details" button when a
     // pipeline_run exists for the issue.
-    const viewDetailsBtn = page.getByRole('button', { name: /View details/ });
+    const viewDetailsBtn = page.getByRole('button', { name: /View Details/i });
     await expect(viewDetailsBtn).toBeVisible({ timeout: 15_000 });
     await viewDetailsBtn.click();
 

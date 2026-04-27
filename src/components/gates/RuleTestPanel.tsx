@@ -63,7 +63,7 @@ export function RuleTestPanel({
         disabled={testMutation.isPending}
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
       >
-        {testMutation.isPending ? 'Testing...' : 'Test Rules'}
+        {testMutation.isPending ? 'Testing…' : 'Test Rules'}
       </button>
 
       {/* Error */}

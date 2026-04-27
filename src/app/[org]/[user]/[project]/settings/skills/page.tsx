@@ -73,13 +73,13 @@ export default function SkillsSettingsPage() {
           className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all"
           onClick={() => setShowCreate((v) => !v)}
         >
-          {showCreate ? 'Cancel new skill' : 'New skill'}
+          {showCreate ? 'Cancel New Skill' : 'New Skill'}
         </button>
       </div>
 
       {showCreate ? (
         <Card padding="p-6">
-          <h3 className="text-sm font-semibold text-white mb-3">New skill</h3>
+          <h3 className="text-sm font-semibold text-white mb-3">New Skill</h3>
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-slate-400 block mb-1">

@@ -44,20 +44,20 @@ export default function PipelinesPage() {
   if (projectLoading) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Pipeline runs" />
+        <PageHeader title="Pipeline Runs" />
         <SkeletonTable />
       </div>
     );
   }
 
   if (!projectId) {
-    return <EmptyState title="No project found" />;
+    return <EmptyState title="No Project Found" />;
   }
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Pipeline runs"
+        title="Pipeline Runs"
         action={
           undefined /* Runs are triggered from issue detail with a specific stage */
         }
@@ -67,7 +67,7 @@ export default function PipelinesPage() {
         <SkeletonTable />
       ) : runs.length === 0 ? (
         <EmptyState
-          title="No pipeline runs yet"
+          title="No Pipeline Runs Yet"
           description="Start a run using the button above or trigger from an issue."
         />
       ) : (

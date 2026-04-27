@@ -55,7 +55,7 @@ export function RelationshipsCard({
             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-electric-violet/10 hover:bg-electric-violet/20 text-electric-violet border border-electric-violet/30 transition-colors"
           >
             <Plus size={12} />
-            Create child issue
+            Create Child Issue
           </Link>
         </div>
       </Card>

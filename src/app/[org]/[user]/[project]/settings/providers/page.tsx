@@ -56,9 +56,9 @@ export default function ProviderSettingsPage() {
                   <span className="font-medium">{p.name}</span>
                   <span className="ml-2 text-xs text-slate-400">{p.type}</span>
                   {p.isHealthy ? (
-                    <span className="ml-2 text-xs text-green-400">healthy</span>
+                    <span className="ml-2 text-xs text-green-400">Healthy</span>
                   ) : (
-                    <span className="ml-2 text-xs text-red-400">unhealthy</span>
+                    <span className="ml-2 text-xs text-red-400">Unhealthy</span>
                   )}
                 </div>
                 <button
@@ -164,7 +164,7 @@ function CreateProviderForm({
         disabled={!name.trim() || !type.trim() || createMutation.isPending}
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
       >
-        {createMutation.isPending ? 'Creating...' : 'Create'}
+        {createMutation.isPending ? 'Creating…' : 'Create'}
       </button>
     </form>
   );

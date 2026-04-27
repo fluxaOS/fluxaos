@@ -225,7 +225,7 @@ function GroupEditor({
         <span className="text-[10px] text-slate-500">(click to toggle)</span>
         {onRemove && (
           <button type="button" onClick={onRemove} className={btnDanger}>
-            Remove group
+            Remove Group
           </button>
         )}
       </div>
@@ -253,11 +253,11 @@ function GroupEditor({
 
       <div className="flex gap-3 mt-2">
         <button type="button" onClick={addRule} className={btnAdd}>
-          + Add rule
+          + Add Rule
         </button>
         {depth < MAX_DEPTH && (
           <button type="button" onClick={addGroup} className={btnAdd}>
-            + Add group
+            + Add Group
           </button>
         )}
       </div>

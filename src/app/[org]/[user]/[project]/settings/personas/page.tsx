@@ -141,7 +141,7 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
         disabled={!name.trim() || createMutation.isPending}
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
       >
-        {createMutation.isPending ? 'Creating...' : 'Create'}
+        {createMutation.isPending ? 'Creating…' : 'Create'}
       </button>
     </form>
   );

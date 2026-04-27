@@ -52,11 +52,11 @@ export default function RunDetailPage({
   const run = runQuery.data;
 
   if (runQuery.isLoading) {
-    return <div className="text-slate-500 py-8 text-center">Loading...</div>;
+    return <div className="text-slate-500 py-8 text-center">Loading…</div>;
   }
 
   if (!run) {
-    return <div className="text-slate-500 py-8 text-center">Run not found</div>;
+    return <div className="text-slate-500 py-8 text-center">Run Not Found</div>;
   }
 
   const stageRuns = run.stageRuns ?? [];
@@ -68,14 +68,14 @@ export default function RunDetailPage({
         className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
       >
         <ArrowLeft size={14} />
-        Back to runs
+        Back to Runs
       </Link>
 
       {/* Run Header */}
       <Card hover={false} padding="p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white">Pipeline run</h2>
+            <h2 className="text-xl font-bold text-white">Pipeline Run</h2>
             <p className="text-xs text-slate-500 font-mono mt-1">{run.id}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -111,7 +111,7 @@ export default function RunDetailPage({
             onClick={() => setSelectedRunId(run.id)}
             className="text-soft-violet hover:underline ml-auto"
           >
-            View in modal
+            View in Modal
           </button>
         </div>
       </Card>

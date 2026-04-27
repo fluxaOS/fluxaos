@@ -125,7 +125,7 @@ function CommentCard({
             }}
             disabled={isMutating}
             className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] rounded-md transition-colors disabled:opacity-50"
-            title="Edit comment"
+            title="Edit Comment"
           >
             <Pencil size={13} />
           </button>
@@ -136,7 +136,7 @@ function CommentCard({
             }}
             disabled={isMutating}
             className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/[0.06] rounded-md transition-colors disabled:opacity-50"
-            title="Delete comment"
+            title="Delete Comment"
           >
             <Trash2 size={13} />
           </button>
@@ -308,7 +308,7 @@ export function ActivityFeed({
           disabled={!commentBody.trim() || createComment.isPending}
           className="px-4 py-2 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
         >
-          {createComment.isPending ? 'Posting...' : 'Post Comment'}
+          {createComment.isPending ? 'Posting…' : 'Post Comment'}
         </button>
         {createComment.error && (
           <p className="mt-2 text-sm text-red-400">
