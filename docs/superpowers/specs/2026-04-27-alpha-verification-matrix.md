@@ -53,10 +53,10 @@ No orchestrator work — pure form/edit/delete. Lifecycle stage execution is in 
 
 | Capability | Code | Spec | Notes |
 |---|---|---|---|
-| Issue — Create | ✅ | 🔴 | Form at `/issues/new`. No dedicated CRUD spec. |
-| Issue — Edit fields (title, body, type, priority, assignee) | ✅ | 🔴 | Editor primitives exist; FLX-20/FLX-27 use edits as setup but no edit-focused spec. |
-| Issue — Delete | ✅ | 🔴 | Confirm + remove flow wired. No spec. |
-| Issue — State dropdown shows ALL states | 🔴 | 🔴 | **Currently filters by transition graph.** Decision: dropdown shows all states (free-form). tRPC accepts any state→state without validation. Transition table stays as advisory hint for orchestrator + future role-gated lock-down. |
+| Issue — Create | ✅ | ✅ | `e2e/issue-crud.spec.ts` — Create test (FLX-67). |
+| Issue — Edit fields (title, body, type, priority, assignee) | ✅ | ✅ | `e2e/issue-crud.spec.ts` — Edit test (FLX-67). |
+| Issue — Delete | ✅ | ✅ | `e2e/issue-crud.spec.ts` — Delete test (FLX-67). |
+| Issue — State dropdown shows ALL states | ✅ | ✅ | `e2e/state-dropdown-free-walk.spec.ts` (FLX-77). Dropdown shows full catalog; tRPC `transition` accepts any state→state. `issue_transition` advisory only. |
 | Issue — State walk via dropdown | ✅ | ✅ | `e2e/closed-issue-indicator.spec.ts` (FLX-27). Walks new → implement → review → deploy → complete via dropdown. |
 
 ---
@@ -72,8 +72,8 @@ Operator clicks **Run Stage**. The orchestrator runs the stage matching the issu
 | Manual: review stage | ✅ | 🔴 | Success → deploy, failure → rework. No spec. |
 | Manual: rework stage | ✅ | 🔴 | Run → state back to review. No spec. |
 | Manual: deploy stage | ✅ | 🔴 | Run → opens PR → state advances to complete. `r-runtime-deploy-journey.spec.ts` tests the deploy bridge but not the from-state-implies-stage flow. |
-| Manual: full chain (research → complete) | 🟡 | 🔴 | **The alpha bar lives here.** Operator runs each stage in turn — no daemon involved. No spec exists. |
-| Manual: human override mid-run | 🔴 | 🔴 | Operator changes state mid-pipeline, clicks Run, gates kick back in. Currently transition validation blocks this; decision: drop validation. |
+| Manual: full chain (research → complete) | 🟡 | 🟡 | **The alpha bar lives here.** Spec lives at `e2e/manual-stage-chain.spec.ts` (FLX-69) — not yet executed end-to-end with live creds. Skips cleanly without ANTHROPIC_API_KEY + deploy creds; turns green only after a live run proves the chain. |
+| Manual: human override mid-run | ✅ | ✅ | Free-walk dropdown (FLX-77) — operator can change state at any time; validation removed. `e2e/state-dropdown-free-walk.spec.ts`. |
 | Manual path independent of daemon | 🟡 | 🔴 | Stage execution must work without the daemon process running. Not verified. |
 
 ---
@@ -98,7 +98,7 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 
 | Capability | Code | Spec | Notes |
 |---|---|---|---|
-| Vendor-agnostic core | 🟡 | 🔴 | No `anthropic` / `claude` / `claude-code` literals in `src/core/` (only in `src/adapters/`). Not audited. |
+| Vendor-agnostic core | 🟡 | ✅ | `src/scripts/verify-agnostic-core.ts` (FLX-73) — pre-push Gate 4 + `npm run verify`. 6 documented allowlist hits tracked: FLX-78 (CLAUDE.md fallback), FLX-79 (`'review'` state literal). New leaks fail builds. |
 | DB-driven config | 🟡 | 🔴 | No hardcoded fallbacks/defaults bypassing the database. Not audited. |
 
 ---
@@ -127,11 +127,11 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 
 ## Tally
 
-- **9 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha.
-- **5 partial** (spec exists but red, partial, or only happy path).
-- **20+ rows with no spec at all.**
+- **15 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha, FLX-67 issue Create / Edit / Delete, FLX-77 free-walk state dropdown / human override mid-run, FLX-73 vendor-agnostic-core audit.
+- **5 partial** (spec exists but red, partial, only happy path, or awaits live execution — includes the FLX-69 alpha-bar spec which is committed but not yet run end-to-end).
+- **15+ rows with no spec at all.**
 
-The 9 verified rows are real wins — they exercise real user-facing behavior end-to-end against a real database. The remaining gap is the alpha backlog.
+The verified rows exercise real user-facing behavior end-to-end against a real database. The remaining gap is the alpha backlog — Linear `fluxaOS Alpha` project tracks the rest.
 
 ---
 
