@@ -19,32 +19,32 @@ test.describe('@r-mission-control', () => {
     await page.goto(projectPath('/mission-control'));
 
     await expect(
-      page.getByRole('heading', { name: 'Mission control' })
+      page.getByRole('heading', { name: 'Mission Control' })
     ).toBeVisible({
       timeout: 15_000,
     });
 
-    // Section headers all render.
+    // Section headers all render (Title Case per FLX-30/FLX-31 sweep).
     await expect(
-      page.getByRole('heading', { name: 'Queue depth' })
+      page.getByRole('heading', { name: 'Queue Depth' })
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'In-flight runs' })
+      page.getByRole('heading', { name: 'In-Flight Runs' })
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Recent terminal runs' })
+      page.getByRole('heading', { name: 'Recent Terminal Runs' })
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Recent pull requests' })
+      page.getByRole('heading', { name: 'Recent Pull Requests' })
     ).toBeVisible();
 
-    // Empty-state copies all render (verbatim from spec §R4).
+    // Empty-state copies all render (Title Case per FLX-30/FLX-31).
     await expect(
-      page.getByText(/Queue is empty — waiting for new runs/)
+      page.getByText(/Queue Is Empty — Waiting for New Runs/)
     ).toBeVisible();
-    await expect(page.getByText(/^No runs in flight$/)).toBeVisible();
-    await expect(page.getByText(/^No terminal runs yet$/)).toBeVisible();
-    await expect(page.getByText(/^No PRs opened yet$/)).toBeVisible();
+    await expect(page.getByText(/^No Runs in Flight$/)).toBeVisible();
+    await expect(page.getByText(/^No Terminal Runs Yet$/)).toBeVisible();
+    await expect(page.getByText(/^No PRs Opened Yet$/)).toBeVisible();
   });
 });
 
@@ -96,7 +96,7 @@ test.describe('@r-mission-control @daemon @journey', () => {
     // pipeline ends at a review:hold gate, so the run stays at status
     // running and the in-flight section stays populated — terminal-
     // section coverage is R-SMOKE territory.
-    await expect(page.getByText(/^No runs in flight$/)).toBeHidden({
+    await expect(page.getByText(/^No Runs in Flight$/)).toBeHidden({
       timeout: 30_000,
     });
 

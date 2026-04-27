@@ -117,7 +117,7 @@ export function MissionControlClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Mission control"
+        title="Mission Control"
         description={`Live daemon activity for ${projectName}`}
       />
 
@@ -127,7 +127,7 @@ export function MissionControlClient({
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <ListChecks size={16} className="text-amber-400" />
-              Queue depth
+              Queue Depth
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Pipeline runs awaiting daemon pickup
@@ -139,7 +139,7 @@ export function MissionControlClient({
         </div>
         {pending.length === 0 ? (
           <EmptyState
-            title="Queue is empty — waiting for new runs"
+            title="Queue Is Empty — Waiting for New Runs"
             icon={ListChecks}
           />
         ) : (
@@ -178,7 +178,7 @@ export function MissionControlClient({
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Activity size={16} className="text-sky-400" />
-              In-flight runs
+              In-Flight Runs
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Pipeline runs the daemon is currently driving
@@ -189,7 +189,7 @@ export function MissionControlClient({
           </span>
         </div>
         {running.length === 0 ? (
-          <EmptyState title="No runs in flight" icon={Activity} />
+          <EmptyState title="No Runs in Flight" icon={Activity} />
         ) : (
           <div
             className="grid grid-cols-1 lg:grid-cols-2 gap-4"
@@ -224,7 +224,7 @@ export function MissionControlClient({
                       <StatusBadge status={r.currentStage.status} />
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-500">starting…</span>
+                    <span className="text-xs text-slate-500">Starting…</span>
                   )}
                   <span className="text-xs font-mono text-slate-500 whitespace-nowrap flex items-center gap-1">
                     <Clock size={11} />
@@ -243,7 +243,7 @@ export function MissionControlClient({
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Play size={16} className="text-emerald-400" />
-              Recent terminal runs
+              Recent Terminal Runs
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Last 10 completed/failed/cancelled
@@ -258,7 +258,7 @@ export function MissionControlClient({
         </div>
         {terminal.length === 0 ? (
           <div className="px-6 pb-6">
-            <EmptyState title="No terminal runs yet" icon={Play} />
+            <EmptyState title="No Terminal Runs Yet" icon={Play} />
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -325,7 +325,7 @@ export function MissionControlClient({
         <div className="px-6 pt-5 pb-4">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <GitPullRequest size={16} className="text-soft-violet" />
-            Recent pull requests
+            Recent Pull Requests
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Last 10 PRs opened by the deploy bridge
@@ -333,7 +333,7 @@ export function MissionControlClient({
         </div>
         {prs.length === 0 ? (
           <div className="px-6 pb-6">
-            <EmptyState title="No PRs opened yet" icon={GitPullRequest} />
+            <EmptyState title="No PRs Opened Yet" icon={GitPullRequest} />
           </div>
         ) : (
           <table className="w-full text-sm">

@@ -187,7 +187,7 @@ export function DashboardClient({
 
         {/* Pipeline Health */}
         <Card padding="p-6" className="relative">
-          <h3 className="text-sm font-semibold text-white">Pipeline health</h3>
+          <h3 className="text-sm font-semibold text-white">Pipeline Health</h3>
           <p className="text-xs text-slate-500 mb-5">Last 30 days</p>
           <p
             className={`text-[42px] font-extrabold leading-none ${
@@ -234,19 +234,19 @@ export function DashboardClient({
         <Card hover={false} padding="p-0">
           <div className="flex items-center justify-between px-6 pt-5 pb-4">
             <h3 className="text-sm font-semibold text-white">
-              Recent pipeline runs
+              Recent Pipeline Runs
             </h3>
             <Link
               href={`${basePath}/pipelines`}
               className="text-xs text-soft-violet hover:text-electric-violet font-medium transition-colors"
             >
-              View all &rarr;
+              View All &rarr;
             </Link>
           </div>
           {recentRuns.length === 0 ? (
             <div className="px-6 pb-6">
               <EmptyState
-                title="No pipeline runs yet"
+                title="No Pipeline Runs Yet"
                 description="Use 'Just Do It' above or start a run from the Pipelines page."
               />
             </div>
@@ -304,7 +304,7 @@ export function DashboardClient({
         <div className="flex flex-col gap-5">
           {/* Cost Summary */}
           <Card padding="p-6">
-            <h3 className="text-sm font-semibold text-white">Total spend</h3>
+            <h3 className="text-sm font-semibold text-white">Total Spend</h3>
             <p className="text-xs text-slate-500 mt-0.5">All pipeline runs</p>
             <p className="text-4xl font-extrabold text-white mt-4 font-mono">
               ${totalCost.toFixed(2)}
@@ -333,12 +333,12 @@ export function DashboardClient({
           {/* Open Issues */}
           <Card padding="p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white">Open issues</h3>
+              <h3 className="text-sm font-semibold text-white">Open Issues</h3>
               <Link
                 href={`${basePath}/issues`}
                 className="text-xs text-soft-violet hover:text-electric-violet font-medium transition-colors"
               >
-                View all &rarr;
+                View All &rarr;
               </Link>
             </div>
             {topOpenIssues.length === 0 ? (
@@ -382,7 +382,7 @@ export function DashboardClient({
 
       {/* Issue State Breakdown */}
       <Card padding="p-6">
-        <h3 className="text-sm font-semibold text-white">Issues by state</h3>
+        <h3 className="text-sm font-semibold text-white">Issues by State</h3>
         <p className="text-xs text-slate-500 mb-5">Current distribution</p>
         <div className="space-y-3">
           {states.map((s) => {

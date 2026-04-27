@@ -200,7 +200,7 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
     return (
       <Card padding="p-8">
         <EmptyState
-          title={`No ${descriptor.entityName}s yet`}
+          title={`No ${descriptor.entityName}s Yet`}
           description={`Seed data or create one to get started.`}
         />
       </Card>

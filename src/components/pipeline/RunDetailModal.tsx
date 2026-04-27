@@ -253,7 +253,7 @@ export function RunDetailModal({
           ) : (
             <div className="flex-1 text-sm text-slate-500">
               {runQuery.isLoading
-                ? 'Loading...'
+                ? 'Loading…'
                 : (runQuery.error?.message ?? 'Run Detail')}
             </div>
           )}

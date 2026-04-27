@@ -99,7 +99,7 @@ export function RecordActionsBar(props: Props) {
         </p>
         <div className="flex gap-2">
           <button type="button" className={danger} onClick={onDeleteConfirm}>
-            Yes, delete
+            Yes, Delete
           </button>
           <button type="button" className={secondary} onClick={onDeleteAbort}>
             Cancel

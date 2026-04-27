@@ -35,7 +35,7 @@ export function EditableTitle({
           setDraft(value);
           setEditing(true);
         }}
-        title="Click to edit"
+        title="Click to Edit"
       >
         {value}
       </h2>
@@ -94,7 +94,7 @@ export function EditableBody({
           setDraft(bodyMd ?? '');
           setEditing(true);
         }}
-        title="Click to edit"
+        title="Click to Edit"
       >
         {bodyHtml ? (
           <div

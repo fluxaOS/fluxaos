@@ -45,7 +45,7 @@ export default function KpisPage() {
   }
 
   if (!projectId) {
-    return <EmptyState title="No project found" />;
+    return <EmptyState title="No Project Found" />;
   }
 
   if (!kpis) {
@@ -67,7 +67,7 @@ export default function KpisPage() {
 
       <div>
         <h3 className="text-sm font-semibold text-slate-400 mb-3">
-          Pipeline runs
+          Pipeline Runs
         </h3>
         <div className="grid grid-cols-3 gap-4">
           <StatCard
@@ -99,7 +99,7 @@ export default function KpisPage() {
 
       <div>
         <h3 className="text-sm font-semibold text-slate-400 mb-3">
-          Status breakdown
+          Status Breakdown
         </h3>
         <div className="grid grid-cols-4 gap-4">
           <StatCard

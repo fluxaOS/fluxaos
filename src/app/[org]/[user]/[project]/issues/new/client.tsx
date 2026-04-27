@@ -145,7 +145,7 @@ export function IssueCreateClient({
                 disabled={catalogsLoading}
                 className="bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-electric-violet/30"
               >
-                {catalogsLoading && <option>Loading...</option>}
+                {catalogsLoading && <option>Loading…</option>}
                 {types.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.displayName}
@@ -165,7 +165,7 @@ export function IssueCreateClient({
                 disabled={catalogsLoading}
                 className="bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-electric-violet/30"
               >
-                {catalogsLoading && <option>Loading...</option>}
+                {catalogsLoading && <option>Loading…</option>}
                 {priorities.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.displayName}
@@ -201,7 +201,7 @@ export function IssueCreateClient({
               }
               className="px-5 py-2.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)] hover:shadow-[0_6px_24px_rgba(124,58,237,0.4)]"
             >
-              {createMutation.isPending ? 'Creating...' : 'Create Issue'}
+              {createMutation.isPending ? 'Creating…' : 'Create Issue'}
             </button>
             <Link
               href={`${basePath}/issues`}

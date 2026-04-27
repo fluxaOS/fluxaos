@@ -63,13 +63,41 @@ const fallback = {
   dot: 'bg-slate-400',
 };
 
+const labelMap: Record<string, string> = {
+  pending: 'Pending',
+  running: 'Running',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+  queued: 'Queued',
+  gate_pending: 'Gate Pending',
+  rework: 'Rework',
+  skipped: 'Skipped',
+  open: 'Open',
+  in_progress: 'In Progress',
+  blocked: 'Blocked',
+  closed: 'Closed',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  critical: 'Critical',
+};
+
+function titleCase(raw: string): string {
+  return raw
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map((w) => (w.length === 0 ? w : w[0].toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const colors = colorMap[status] ?? fallback;
-  const label = status.replace(/_/g, ' ');
+  const label = labelMap[status] ?? titleCase(status);
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${colors.pill}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${colors.pill}`}
     >
       <span className={`w-[7px] h-[7px] rounded-full ${colors.dot}`} />
       {label}

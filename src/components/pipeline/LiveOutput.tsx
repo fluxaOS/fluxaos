@@ -83,7 +83,9 @@ function ResultEntry({ entry }: { entry: TranscriptEntry }) {
     >
       <Zap className="h-3 w-3 mt-0.5 shrink-0" />
       <span>
-        <span className="font-medium">{entry.isError ? 'Failed' : 'Done'}</span>
+        <span className="font-medium">
+          {entry.isError ? 'Failed' : 'Completed'}
+        </span>
         {entry.cost !== undefined && (
           <span className="text-slate-500 ml-2">${entry.cost.toFixed(4)}</span>
         )}
@@ -271,7 +273,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
             type="button"
             onClick={handleCopy}
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-            title="Copy output"
+            title="Copy Output"
           >
             {copied ? (
               <Check className="h-3 w-3 text-electric-violet" />

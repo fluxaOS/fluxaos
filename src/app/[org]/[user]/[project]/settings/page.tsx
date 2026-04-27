@@ -42,7 +42,7 @@ export default function PipelineSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Pipeline settings"
+        title="Pipeline Settings"
         action={
           projectId ? (
             <button
