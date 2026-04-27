@@ -9,7 +9,9 @@ AI does every step from brainstorm to shipped — no questions during a session.
 1. **Verifying finished work via web UI.** Journey test must pass 100% (no warnings, no skips, no "it's fine-ish"), then user personally signs off in the browser. Both required — test + sign-off. No code review from the user.
 2. **Resetting direction** when things go off the rails (hallucination, stuck loop, obvious drift).
 
-**Verification:** journey test simulates a user end-to-end — Playwright for web, XCUITest for iOS, integration test for services, molecule/integration for infra. No human review substitutes for a passing test; no passing test substitutes for the user's UI sign-off.
+**Verification:** journey test simulates a user end-to-end — Playwright for web, XCUITest for iOS, integration test for services, molecule/integration for infra. No human review substitutes for a passing test; no passing test substitutes for the user's UI sign-off; no shipped PR substitutes for a written test.
+
+**UI-touching PRs require a new or extended journey test in the same PR. No exceptions.** The journey test is the *first* gate; the user's browser sign-off is the *second* gate, never the first. Asking the user to verify a UI change without first writing and running a green Playwright spec is a contract violation. The pre-push hook (`ops/git-hooks/pre-push` Gate 3) enforces the "test exists in the same PR" half mechanically; running the spec green before requesting sign-off is on you.
 
 **No invented numeric thresholds** (budgets, retry counts, line limits) in durable artifacts unless the user set them.
 
