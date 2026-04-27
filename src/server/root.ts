@@ -15,6 +15,7 @@ import { providerRouter } from './routers/provider';
 import { routingRouter } from './routers/routing';
 import { skillRouter } from './routers/skill';
 import { systemRouter } from './routers/system';
+import { teamRouter } from './routers/team';
 import { router } from './trpc';
 
 export const appRouter = router({
@@ -30,6 +31,7 @@ export const appRouter = router({
   routing: routingRouter,
   driver: driverRouter,
   system: systemRouter,
+  team: teamRouter,
   mission: missionRouter,
 });
 
