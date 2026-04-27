@@ -4,11 +4,21 @@ Rewriting PAT (Python/FastAPI) as a TypeScript system that actually works. PAT h
 
 ---
 
+## Status
+
+**Alpha is NOT shipped.** The engine is assembled (code merged, tsc green, biome green, one happy-path Playwright smoke spec passes against a sandbox repo) but **verification coverage is incomplete**. The bar for calling alpha shipped is captured in [`specs/2026-04-27-alpha-verification-matrix.md`](specs/2026-04-27-alpha-verification-matrix.md) — every CRUD entity (project, team, skill, driver, routing profile, provider, persona, issue) has a Playwright journey that passes, plus the manual stage-execution chain (research → implement → review → rework → deploy → complete) is verified end-to-end by a journey, plus the daemon-driven path is verified end-to-end, plus vendor-agnostic / DB-driven invariants are audited. Until every row of that matrix is green, alpha is not shipped.
+
+Issue tracking lives in **Linear** (workspace `rebos`, team `FLX`). Two active projects: **fluxaOS Alpha** (verification-matrix-driven work toward alpha) and **fluxaOS Post-Alpha Wishlist** (parked items). Day-to-day bugs live at team level (no project assignment). The repo's `docs/superpowers/deferred-fixes.md` is frozen — historical record only.
+
+---
+
 ## Alpha Scope
 
 **One user, one project, one repo.** The schema already supports multi-tenancy (`orgId`, `userId`, `projectId` foreign keys throughout). Alpha deliberately does not build the UI or flows for multi-anything. Post-alpha layers multi on top of a proven single-tenant loop.
 
-**Alpha definition of done:** fluxaOS can pick up an issue filed in its own UI, run a pipeline against a configured target repo, produce code, open a PR, and advance the issue to an awaiting-review state — end-to-end, driven by a persistent daemon, with no human intervention between "file epic" and "verify PR in browser."
+**Alpha definition of done:** every row in [`specs/2026-04-27-alpha-verification-matrix.md`](specs/2026-04-27-alpha-verification-matrix.md) green — Playwright journey exists for it, last run passing, human signed off in browser. The user files an issue, the orchestrator runs every stage end-to-end (manually click-by-click AND daemon-autonomous), each stage passes its gate, the issue advances state on each success, the deploy stage opens a PR, and the human can override state at any point and re-run any stage independently of what the orchestrator thinks should happen next. Vendor-agnostic core (no anthropic/claude/claude-code literals leaking from `src/core/`), DB-driven config (no hardcoded fallbacks bypassing the database), and manual-path-independent-of-daemon are all audited.
+
+A "code merged" claim does not equal "verified." Self-certification (tsc + biome + CI green) is necessary but not sufficient. The verification matrix is the source of truth for ship readiness.
 
 ---
 
@@ -22,10 +32,12 @@ Pattern catalog with file pointers: [`research/2026-04-22-archon-prior-art.md`](
 
 ---
 
-## Phases — Done
+## Phases — Code Merged
 
-| Phase | Status | Plan | Spec |
-|-------|--------|------|------|
+The table below records phases whose code has been merged to `main`. **Code merged ≠ verified.** Verification status for each capability lives in the [verification matrix](specs/2026-04-27-alpha-verification-matrix.md). A row marked "Done" here means the implementation PR landed; it does not mean a Playwright journey covers it end-to-end or that a human signed off in the browser.
+
+| Phase | Code Merged | Plan | Spec |
+|-------|-------------|------|------|
 | R1 — Infrastructure + Proof of Life | **Done** | [rebuild-plan](plans/2026-04-09-rebuild-plan.md) | [rebuild-spec](specs/2026-04-09-rebuild-spec.md) |
 | R2 — Adapter Registry | **Done** | same | same |
 | R3 — Rich Issue Model + CRUD + UI | **Done** | [rich-issue-plan-v2](plans/2026-04-09-rich-issue-model-plan-v2.md) | [rich-issue-design](specs/2026-04-09-rich-issue-model-design.md) |
@@ -51,31 +63,9 @@ Pattern catalog with file pointers: [`research/2026-04-22-archon-prior-art.md`](
 | R-POLISH-CORE — Engine-correctness polish | **Done** | [r-polish-core-plan](plans/2026-04-25-r-polish-core-implementation.md) | [r-polish-core-design](specs/2026-04-25-r-polish-core-design.md) |
 | R-POLISH-DOCS — Cleanup, terminology, ship docs | **Done** | [r-polish-docs-plan](plans/2026-04-25-r-polish-docs-implementation.md) | [r-polish-docs-design](specs/2026-04-25-r-polish-docs-design.md) |
 
-**Current engine state:** **Alpha shipped.** README is operator-runnable from a fresh clone, terminology is consistent across living docs, and Archon prior-art is attributed where lifted. The full file-an-issue → get-a-PR loop is wired end-to-end with stage-to-stage data flow. Production seed produces a 3-stage autonomous-friendly pipeline (research auto → implement rules → review auto) so R-SMOKE runs against the unmodified seed. Every pipeline run executes inside a git worktree isolated under `<repo>/.fluxaos-worktrees/` on a namespaced `fluxaos/issue-<n>-<run-id>` branch, AND gets a separate artifacts directory under `<repo>/.fluxaos-artifacts/<runId>/` where stages hand off intermediate findings (Research writes `research-findings.md`, Implement reads it and writes `plan.md`, Review reads the plan, Rework reads review findings). When a pipeline terminates successfully the orchestrator commits the worktree, pushes, opens a PR via the GitHub adapter, records the PR + branch on the issue, and advances the issue to `review`. The cleanup service reaps stale worktrees and artifacts on two independent retention windows; the scheduler refuses to start without all four operator-configured thresholds. Issues can form an epic/child hierarchy via `parent_issue_id`: parents with open children are refused at `pipeline.runs.trigger` with `ISSUE_IS_EPIC`, and closing the last open child auto-closes the parent (propagating up the tree). The orchestrator daemon (`npm run daemon`, systemd unit `ops/systemd/fluxaos-daemon.service`) subscribes to `pipeline_run` via Realtime, owns execution end-to-end, runs periodic crash recovery, and is the sole path from `pipeline_run:pending` to `pipeline_run:running`. tRPC triggers are publish-only — they write `pending` and wait for the daemon. The Settings surface exposes Pipelines + Projects tabs: operator edits `repoUrl` / `defaultBranch` on the Project row, sees `FLUXAOS_TARGET_REPO_PATH` readonly, and switches the default pipeline via a one-click "Set as default" button on the Pipelines tab (sourced from `project.default_pipeline_id`). Operators have a live mission-control view at `/[project]/mission-control` showing queue depth, in-flight runs, recent terminal runs, and PR links — all driven by Realtime subscriptions over the daemon's writes. The full alpha acceptance journey (epic + child → daemon → PR → review → close → parent auto-close → cleanup) is captured in `e2e/r-smoke.spec.ts` and runs green against `jdpierce21/fluxaos-alpha-e2e-sandbox` in ~1.2 min.
+**Current engine state:** code merged for the file-an-issue → daemon-runs-pipeline → PR-opened → state-advances loop. The seeded 3-stage pipeline (research auto → implement rules → review auto) executes inside an isolated worktree at `<repo>/.fluxaos-worktrees/` and writes per-run artifacts to `<repo>/.fluxaos-artifacts/<runId>/`. The orchestrator daemon (`npm run daemon`, `ops/systemd/fluxaoaos-daemon.service`) subscribes to `pipeline_run` via Realtime and owns execution end-to-end. The Settings surface exposes Pipelines + Projects tabs. Operators have a Mission Control view at `/[project]/mission-control`. The R-SMOKE happy-path Playwright spec passes against `jdpierke21/fluxaos-alpha-e2e-sandbox`.
 
----
-
-## Phases — Alpha
-
-**Alpha SHIPPED 2026-04-25.** All seven alpha-row deliverables are Done: R-DAEMON, R-SETTINGS-ALPHA, R-MISSION-CONTROL, R-SMOKE, R-POLISH-CORE, R-POLISH-DOCS (and the R-RUNTIME / R-EPIC / R-ARTIFACTS dependencies that fed them). See the Done table above for full provenance. Outstanding deferrals: DEF-018 (biome format drift), DEF-019/DEF-025 (drizzle meta drift; redundant entries — DEF-025 is the canonical version), DEF-023 [RESOLVED 2026-04-24].
-
----
-
-## Phases — Post-Alpha
-
-Work deliberately out of scope for alpha, captured here so the boundary is explicit:
-
-- **Multi-user / multi-project / multi-repo UI flows** — schema supports this; UI flows are deferred
-- **CLI** (`src/cli/`) — all alpha control is via the web UI; CLI is a post-alpha convenience
-- **Remaining Settings tabs** — Teams, Users, System, Cron Jobs
-- **Additional forge adapters** — GitLab, Gitea, Forgejo follow the same port pattern as the alpha GitHub adapter; community-contributable
-- **IssueProvider** port — retired entirely (same precedent as AIProvider deletion in R-REM-W3-a); fluxaOS's issue model is native and not synced to external trackers
-- **OpenAI adapter** — Anthropic is the sole alpha AI provider
-- **Just Do It mode** — per R-AUDIT triage
-- **Brand service** — per R-AUDIT triage
-- **Dogfooding** — fluxaOS managing its own development through its own pipelines. Philosophically attractive but carries bootstrap-fragility risk. Revisit once alpha is stable
-- **GitHub Issues adoption for fluxaOS's own dev process** (R7 "open to the world" milestone)
-- **OpenClaw preview gate, role-based permissions, version history for skills/drivers, subscription tiers** (DEF-001 through DEF-004)
+**What that does NOT mean:** alpha is shipped. The verification matrix (linked in Status above) lists every CRUD entity and lifecycle the alpha bar requires. Most rows have no Playwright journey at all. The handful of green rows in the matrix are real wins; the red and yellow rows are the alpha backlog. Until the matrix is fully green, the engine is *assembled*, not *verified*.
 
 ---
 
