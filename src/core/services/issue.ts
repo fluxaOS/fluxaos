@@ -227,6 +227,30 @@ export function createIssueService(db: Database) {
     return status.id;
   }
 
+  async function resolveStateByConfigKey(
+    projectId: string,
+    configKey: string
+  ): Promise<IssueStateSelect> {
+    const [config] = await db
+      .select()
+      .from(configEntry)
+      .where(
+        and(
+          eq(configEntry.projectId, projectId),
+          eq(configEntry.key, configKey)
+        )
+      );
+
+    if (!config) {
+      throw new Error(
+        `Missing config: ${configKey} for project ${projectId}. Run seed.`
+      );
+    }
+
+    const stateKey = config.value as string;
+    return findStateByKey(projectId, stateKey);
+  }
+
   async function findStateByKey(
     projectId: string,
     key: string
@@ -739,6 +763,13 @@ export function createIssueService(db: Database) {
       configKey: string
     ): Promise<string> {
       return resolveStatusByConfigKey(projectId, configKey);
+    },
+
+    async getStateByConfigKey(
+      projectId: string,
+      configKey: string
+    ): Promise<IssueStateSelect> {
+      return resolveStateByConfigKey(projectId, configKey);
     },
 
     async delete(id: string): Promise<void> {

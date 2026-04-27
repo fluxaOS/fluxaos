@@ -166,6 +166,18 @@ async function makeFixture(
     .returning();
   cleanup.push({ table: 'issueState', id: reviewState.id });
 
+  // FLX-79: deploy bridge reads the post-deploy state from this config_entry.
+  const [postDeployStateConfig] = await db
+    .insert(schema.configEntry)
+    .values({
+      scope: 'project',
+      projectId: projectRow.id,
+      key: 'issues.state.on_deploy_complete_key',
+      value: '"review"',
+    })
+    .returning();
+  cleanup.push({ table: 'configEntry', id: postDeployStateConfig.id });
+
   const [transitionRow] = await db
     .insert(schema.issueTransition)
     .values({

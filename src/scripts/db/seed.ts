@@ -575,13 +575,15 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     .onConflictDoNothing();
   console.log(`  issue transitions: ${transitionsDef.length}`);
 
-  // ── 12. Status automation config ───────────────────────────────────────
+  // ── 12. Status + state automation config ───────────────────────────────
   const configDef = [
     { key: 'issues.status.on_create_key', value: '"open"' },
     { key: 'issues.status.on_enqueued_key', value: '"queued"' },
     { key: 'issues.status.on_running_key', value: '"running"' },
     { key: 'issues.status.on_blocked_key', value: '"blocked"' },
     { key: 'issues.status.on_completed_key', value: '"completed"' },
+    // FLX-79: deploy bridge advances issue state to this key after PR opens.
+    { key: 'issues.state.on_deploy_complete_key', value: '"review"' },
   ];
 
   await db

@@ -82,6 +82,7 @@ describe('createVersionedCrudService', () => {
       name: `driver-v-${ts}`,
       slug: `driver-v-${ts}`,
       binary: 'echo',
+      contextLayout: { instructionsFile: 'TEST.md', contextFile: 'context.md' },
     });
     driverCleanup.push(created.id);
     expect(created.version).toBe(1);
@@ -104,6 +105,7 @@ describe('createVersionedCrudService', () => {
       name: `driver-stale-${ts}`,
       slug: `driver-stale-${ts}`,
       binary: 'echo',
+      contextLayout: { instructionsFile: 'TEST.md', contextFile: 'context.md' },
     });
     driverCleanup.push(created.id);
 
@@ -131,6 +133,7 @@ describe('createVersionedCrudService', () => {
       name: `driver-del-${ts}`,
       slug: `driver-del-${ts}`,
       binary: 'echo',
+      contextLayout: { instructionsFile: 'TEST.md', contextFile: 'context.md' },
     });
     driverCleanup.push(created.id);
 
@@ -153,6 +156,7 @@ describe('createVersionedCrudService', () => {
       name: `driver-del-stale-${ts}`,
       slug: `driver-del-stale-${ts}`,
       binary: 'echo',
+      contextLayout: { instructionsFile: 'TEST.md', contextFile: 'context.md' },
     });
     driverCleanup.push(created.id);
 
@@ -177,6 +181,7 @@ describe('createVersionedCrudService', () => {
       name: `driver-list-${ts}`,
       slug: `driver-list-${ts}`,
       binary: 'echo',
+      contextLayout: { instructionsFile: 'TEST.md', contextFile: 'context.md' },
     });
     driverCleanup.push(created.id);
 

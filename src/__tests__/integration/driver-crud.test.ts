@@ -27,6 +27,10 @@ describe('driver CRUD (integration)', () => {
         name: `test-driver-${Date.now()}`,
         slug: `test-driver-${Date.now()}`,
         binary: 'echo',
+        contextLayout: {
+          instructionsFile: 'TEST.md',
+          contextFile: 'context.md',
+        },
       })
       .returning();
     createdIds.push(created.id);
@@ -54,6 +58,10 @@ describe('driver CRUD (integration)', () => {
         name: `stale-driver-${Date.now()}`,
         slug: `stale-driver-${Date.now()}`,
         binary: 'echo',
+        contextLayout: {
+          instructionsFile: 'TEST.md',
+          contextFile: 'context.md',
+        },
       })
       .returning();
     createdIds.push(created.id);
@@ -89,6 +97,10 @@ describe('driver CRUD (integration)', () => {
         name: `toggle-${Date.now()}`,
         slug: `toggle-${Date.now()}`,
         binary: 'echo',
+        contextLayout: {
+          instructionsFile: 'TEST.md',
+          contextFile: 'context.md',
+        },
         isEnabled: true,
       })
       .returning();

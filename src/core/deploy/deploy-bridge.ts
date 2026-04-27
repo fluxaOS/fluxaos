@@ -290,14 +290,16 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
           })
           .returning({ id: issuePullRequest.id });
 
-        // Advance issue state to 'review' (per spec: no 'awaiting_review').
-        const reviewState = await issueService.getStateByKey(
+        // FLX-79: post-deploy state advance is config-driven, not literal.
+        // The seeded value resolves to whatever the operator configured;
+        // the engine never holds the literal — repoint via config_entry.
+        const postDeployState = await issueService.getStateByConfigKey(
           issueRow.projectId,
-          'review'
+          'issues.state.on_deploy_complete_key'
         );
         await issueService.transition(
           issueRow.id,
-          reviewState.id,
+          postDeployState.id,
           issueRow.version,
           'deploy-bridge'
         );
