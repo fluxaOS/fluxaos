@@ -562,26 +562,9 @@ export function createIssueService(db: Database) {
 
       assertVersion(current, version);
 
-      // Validate transition exists in DB
-      const [validTransition] = await db
-        .select()
-        .from(issueTransition)
-        .where(
-          and(
-            eq(issueTransition.projectId, current.projectId),
-            eq(issueTransition.fromStateId, current.stateId),
-            eq(issueTransition.toStateId, toStateId),
-            eq(issueTransition.isActive, true)
-          )
-        );
-
-      if (!validTransition) {
-        throw new Error(
-          'INVALID_TRANSITION: This state change is not allowed by the transition rules.'
-        );
-      }
-
-      // Check if target state is terminal
+      // FLX-77: free state→state. issue_transition rows stay in DB as advisory
+      // hint for orchestrator + future role-gated lock-down. Operator-driven
+      // transitions accept any target state.
       const [targetState] = await db
         .select()
         .from(issueState)
