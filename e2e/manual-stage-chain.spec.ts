@@ -2,30 +2,38 @@
 //
 // FLX-69 — THE ALPHA BAR.
 //
-// Drives the full manual stage execution chain end-to-end against live Claude:
-// research → implement → review → deploy → complete. The operator changes
-// state in the dropdown at each step, clicks Run Stage, waits for the stage
-// to terminate, observes the gate verdict, then advances state manually.
-// No daemon involved.
+// Drives the full pipeline end-to-end against live Claude:
+// research → implement → review → deploy. Operator clicks Run Stage ONCE
+// at state=Research; the daemon walks every stage in the seeded pipeline
+// back-to-back (this is the engine's only execution path — see FLX-80).
+// The deploy bridge auto-advances state to Review and opens a PR; the
+// operator then walks state to Complete.
 //
-// Skips cleanly when ANTHROPIC_API_KEY (research/implement/review require
-// live Claude) or the deploy creds (FLUXAOS_GITHUB_TOKEN /
-// FLUXAOS_TEST_TARGET_REPO / FLUXAOS_TARGET_REPO_PATH / DATABASE_URL) are
-// missing. With everything set, this proves:
+// Skips cleanly when ANTHROPIC_API_KEY (live Claude required) or any
+// deploy cred (FLUXAOS_GITHUB_TOKEN / FLUXAOS_TEST_TARGET_REPO /
+// FLUXAOS_TARGET_REPO_PATH / DATABASE_URL) is missing. With everything
+// set, this proves:
 //
-//   - the engine can execute every stage in the seeded pipeline manually
-//   - each stage completes (stage_run.status = 'completed'), gate verdict
-//     row written, no console / page errors
-//   - the operator can free-walk the state dropdown between stages (FLX-77)
-//   - the deploy stage opens a real PR and auto-advances state to complete
+//   - Engine boot + Realtime pickup + daemon execution loop work
+//     end-to-end against live Claude.
+//   - Every seeded stage (research / implement / review) lands a
+//     completed stage_run row with a stage_gate_result verdict written.
+//   - The deploy bridge opens a real PR on GitHub and isolation
+//     cleanup happens (worktree gone, isolation_environment inactive).
+//   - The operator can free-walk state (FLX-77) to Complete and the
+//     Closed indicator renders.
 //
-// State at end: complete. Reseed to reset.
+// Distinct from r-smoke (R-EPIC parent/child propagation, child-issue
+// path) and r-runtime-deploy-journey (starts at Implement, asserts the
+// runtime cleanup contract): this spec asserts the FULL chain for the
+// parent-issue path with explicit per-stage_run gate-verdict checks.
 
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
+import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
 import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -45,13 +53,6 @@ const HAS_ALL_CREDS = missingCreds.length === 0;
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-// Stages walked in the manual chain. The seed pipeline contains research,
-// implement, review (auto/rules gates) — deploy is wired by R-RUNTIME and
-// auto-advances state via the deploy bridge. We click Run Stage at each
-// state; for the non-deploy stages we manually advance state after the
-// stage completes.
-const NON_DEPLOY_STAGES = ['Research', 'Implement', 'Review'] as const;
-
 type TrackedPR = {
   owner: string;
   repo: string;
@@ -59,6 +60,7 @@ type TrackedPR = {
   branchName: string;
 };
 const openedPRs: TrackedPR[] = [];
+let handle: DaemonHandle | null = null;
 
 test.describe('@flx-69 @journey @alpha-bar', () => {
   test.skip(
@@ -66,10 +68,49 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
     `requires live credentials: missing ${missingCreds.join(', ')}`
   );
 
-  // 5 stages × ~2 min live Claude + deploy git ops. Cap at 25 minutes.
-  test.setTimeout(25 * 60_000);
+  // Live Claude × 3 stages + deploy git ops + Complete walk. Cap at 15 min.
+  test.setTimeout(15 * 60_000);
 
-  test('manual chain: research → implement → review → deploy → complete', async ({
+  test.beforeAll(async () => {
+    handle = await spawnDaemon();
+  });
+
+  test.afterAll(async () => {
+    if (handle) {
+      try {
+        await handle.shutdown();
+      } catch (err) {
+        console.warn(
+          `[teardown] daemon shutdown failed: ${(err as Error).message}`
+        );
+      }
+    }
+    if (!GITHUB_TOKEN || openedPRs.length === 0) return;
+    const octokit = new Octokit({ auth: GITHUB_TOKEN });
+    for (const tracked of openedPRs) {
+      try {
+        await octokit.rest.pulls.update({
+          owner: tracked.owner,
+          repo: tracked.repo,
+          pull_number: tracked.prNumber,
+          state: 'closed',
+        });
+      } catch {
+        // best-effort
+      }
+      try {
+        await octokit.rest.git.deleteRef({
+          owner: tracked.owner,
+          repo: tracked.repo,
+          ref: `heads/${tracked.branchName}`,
+        });
+      } catch {
+        // best-effort
+      }
+    }
+  });
+
+  test('full chain: research → implement → review → deploy → complete', async ({
     page,
   }) => {
     if (!existsSync(path.join(TARGET_REPO_PATH!, '.git'))) {
@@ -78,8 +119,7 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
       );
     }
 
-    // Reset DB so the issue starts clean. Same pattern as
-    // r-runtime-deploy-journey.spec.ts.
+    // Reset DB and sandbox repo so the run starts clean.
     execSync('npx tsx src/scripts/db/nuke.ts', {
       cwd: REPO_ROOT,
       stdio: 'inherit',
@@ -90,6 +130,14 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
       stdio: 'inherit',
       env: process.env,
     });
+    execSync(
+      'git fetch origin --prune && git reset --hard origin/main && git clean -fdx',
+      {
+        cwd: TARGET_REPO_PATH!,
+        stdio: 'inherit',
+        env: process.env,
+      }
+    );
 
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
     const targetRepoUrl = `https://github.com/${TARGET_REPO}`;
@@ -107,7 +155,6 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
     >`SELECT id, project_id, number FROM "issue" WHERE "number" = 1 LIMIT 1`;
     expect(issueRow, 'seed did not produce issue #1').toBeTruthy();
 
-    // Console-error capture.
     const pageErrors: Error[] = [];
     const consoleErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(err));
@@ -115,6 +162,7 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
+    // ── Open issue, set state to Research, click Run Stage once ──────────
     await page.goto(projectPath('/issues/1'));
     await expect(
       page.getByRole('heading', { name: /Add health check endpoint/ })
@@ -125,126 +173,39 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
         has: page.locator('span', { hasText: /^State$/ }),
       })
       .locator('select');
-
-    // ─── Walk each non-deploy stage ───────────────────────────────────────
-    for (const stageLabel of NON_DEPLOY_STAGES) {
-      // FLX-77: dropdown is free-walk; pick the state directly.
-      await stateSelect.selectOption({ label: stageLabel });
-      await expect
-        .poll(
-          async () =>
-            stateSelect.evaluate((el) => {
-              const select = el as HTMLSelectElement;
-              return select.options[select.selectedIndex]?.text ?? '';
-            }),
-          { timeout: 10_000, intervals: [250, 500, 1_000] }
-        )
-        .toBe(stageLabel);
-
-      // Snapshot pipeline_run count before triggering this stage.
-      const stageKey = stageLabel.toLowerCase();
-      const beforeRows = await sql<
-        { id: string }[]
-      >`SELECT pr.id FROM "pipeline_run" pr WHERE pr."issue_id" = ${issueRow.id}`;
-      const beforeCount = beforeRows.length;
-
-      const runStageButton = page.getByRole('button', { name: /Run Stage/ });
-      await expect(runStageButton).toBeVisible({ timeout: 15_000 });
-      await runStageButton.click();
-
-      // Wait for a NEW pipeline_run row to land + reach a terminal status.
-      const POLL_DEADLINE = Date.now() + 5 * 60_000;
-      let runStatus: string | null = null;
-      let runId: string | null = null;
-      while (Date.now() < POLL_DEADLINE) {
-        const rows = await sql<{ id: string; status: string }[]>`
-          SELECT pr.id, pr.status
-          FROM "pipeline_run" pr
-          WHERE pr."issue_id" = ${issueRow.id}
-          ORDER BY pr."created_at" DESC
-          LIMIT 1
-        `;
-        if (rows[0] && rows.length === beforeCount + 1) {
-          runId = rows[0].id;
-          if (
-            ['completed', 'failed', 'cancelled', 'error'].includes(
-              rows[0].status
-            )
-          ) {
-            runStatus = rows[0].status;
-            break;
-          }
-        }
-        await new Promise((r) => setTimeout(r, 2_000));
-      }
-
-      expect(
-        runStatus,
-        `${stageKey} stage never reached terminal status within 5 minutes`
-      ).toBe('completed');
-      expect(
-        runId,
-        `pipeline_run row not visible for ${stageKey}`
-      ).toBeTruthy();
-
-      // Gate verdict row exists for this stage_run.
-      const gateRows = await sql<
-        { id: string; verdict: string }[]
-      >`SELECT g.id, g.verdict
-        FROM "stage_gate_result" g
-        JOIN "stage_run" sr ON sr.id = g.stage_run_id
-        WHERE sr.run_id = ${runId!}`;
-      expect(
-        gateRows,
-        `no gate result written for ${stageKey} stage_run`
-      ).not.toHaveLength(0);
-    }
-
-    // ─── Deploy stage: state → Deploy, click Run, deploy bridge takes over.
-    await stateSelect.selectOption({ label: 'Deploy' });
-    await expect
-      .poll(
-        async () =>
-          stateSelect.evaluate((el) => {
-            const select = el as HTMLSelectElement;
-            return select.options[select.selectedIndex]?.text ?? '';
-          }),
-        { timeout: 10_000, intervals: [250, 500, 1_000] }
-      )
-      .toBe('Deploy');
-
-    const beforeDeployRows = await sql<
-      { id: string }[]
-    >`SELECT pr.id FROM "pipeline_run" pr WHERE pr."issue_id" = ${issueRow.id}`;
-    const beforeDeployCount = beforeDeployRows.length;
+    await stateSelect.selectOption({ label: 'Research' });
 
     const runStageButton = page.getByRole('button', { name: /Run Stage/ });
     await expect(runStageButton).toBeVisible({ timeout: 15_000 });
     await runStageButton.click();
 
-    // Wait for terminal-with-PR (same DEF-020 condition as
-    // r-runtime-deploy-journey).
-    let deployTerminal: string | null = null;
-    const DEPLOY_DEADLINE = Date.now() + 5 * 60_000;
-    while (Date.now() < DEPLOY_DEADLINE) {
-      const rows = await sql<{ id: string; status: string }[]>`
-        SELECT pr.id, pr.status
-        FROM "pipeline_run" pr
-        WHERE pr."issue_id" = ${issueRow.id}
-        ORDER BY pr."created_at" DESC
-        LIMIT 1
-      `;
-      if (rows[0] && rows.length >= beforeDeployCount + 1) {
-        if (['failed', 'cancelled', 'error'].includes(rows[0].status)) {
-          deployTerminal = rows[0].status;
+    await expect(page.getByText(/Pipeline Run/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // ── Poll for terminal-with-PR (DEF-020): pipeline_run.status flips to
+    // `completed` before the deploy bridge's commit/push/PR sequence. Wait
+    // for both. Cap at 10 min for 3 live Claude stages + deploy git ops.
+    let terminalStatus: string | null = null;
+    let pipelineRunId: string | null = null;
+    const POLL_DEADLINE = Date.now() + 10 * 60_000;
+    while (Date.now() < POLL_DEADLINE) {
+      const rows = await sql<
+        { id: string; status: string }[]
+      >`SELECT id, status FROM "pipeline_run" WHERE "issue_id" = ${issueRow.id} ORDER BY "created_at" DESC LIMIT 1`;
+      if (rows[0]) {
+        pipelineRunId = rows[0].id;
+        const status = rows[0].status;
+        if (['failed', 'cancelled', 'error'].includes(status)) {
+          terminalStatus = status;
           break;
         }
-        if (rows[0].status === 'completed') {
+        if (status === 'completed') {
           const prRows = await sql<
             { id: string }[]
           >`SELECT id FROM "issue_pull_request" WHERE "issue_id" = ${issueRow.id} LIMIT 1`;
           if (prRows.length > 0) {
-            deployTerminal = rows[0].status;
+            terminalStatus = status;
             break;
           }
         }
@@ -252,47 +213,97 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
       await new Promise((r) => setTimeout(r, 2_000));
     }
     expect(
-      deployTerminal,
-      'deploy run never reached terminal-with-PR within 5 minutes'
+      terminalStatus,
+      'pipeline_run never reached terminal-with-PR within 10 minutes'
     ).toBe('completed');
+    expect(pipelineRunId).toBeTruthy();
 
-    // Deploy bridge auto-advances state. Per the seeded transition graph the
-    // deploy stage advances the issue to "review"; the operator then walks
-    // it to complete. (Pre-FLX-77 the spec would assert auto-advance to
-    // "complete" but the deploy bridge currently writes "review".) We
-    // assert the auto-advance happened, then walk to complete to close
-    // the chain.
-    const [issueAfterDeploy] = await sql<{ state_key: string | null }[]>`
-      SELECT s."key" AS state_key
-      FROM "issue" i
-      JOIN "issue_state" s ON s."id" = i."state_id"
-      WHERE i."id" = ${issueRow.id}
-    `;
-    expect(
-      issueAfterDeploy?.state_key,
-      'deploy did not auto-advance state'
-    ).toBeTruthy();
-    expect(['review', 'complete']).toContain(issueAfterDeploy.state_key);
-
-    // Track PR for teardown.
-    const prRows = await sql<
+    // ── Per-stage assertions: every seeded stage_run completed and a gate
+    // verdict row exists. The full-chain proof = N completed stage_runs +
+    // N gate rows + a PR. Stage names come from pipeline_stage so the
+    // engine stays agnostic.
+    const stageRows = await sql<
       {
-        pr_number: number | null;
-        head_branch: string;
+        id: string;
+        status: string;
+        stage_name: string;
+        skill_signal: string | null;
       }[]
-    >`SELECT pr_number, head_branch FROM "issue_pull_request" WHERE "issue_id" = ${issueRow.id}`;
-    if (prRows[0]?.pr_number) {
-      const [owner, repoName] = TARGET_REPO!.split('/');
-      openedPRs.push({
-        owner,
-        repo: repoName,
-        prNumber: prRows[0].pr_number,
-        branchName: prRows[0].head_branch,
-      });
+    >`SELECT sr.id, sr.status, ps.name AS stage_name, sr.skill_signal
+        FROM "stage_run" sr
+        JOIN "pipeline_stage" ps ON ps.id = sr.pipeline_stage_id
+        WHERE sr.pipeline_run_id = ${pipelineRunId!}
+        ORDER BY ps.sort_order`;
+    expect(
+      stageRows.length,
+      'expected at least one stage_run per seeded stage'
+    ).toBeGreaterThanOrEqual(3);
+    for (const sr of stageRows) {
+      expect(sr.status, `stage_run for ${sr.stage_name} did not complete`).toBe(
+        'completed'
+      );
+      const gateRows = await sql<
+        { verdict: string }[]
+      >`SELECT verdict FROM "stage_gate_result" WHERE stage_run_id = ${sr.id}`;
+      expect(
+        gateRows,
+        `no gate result row for ${sr.stage_name} stage_run`
+      ).not.toHaveLength(0);
+      expect(
+        ['proceed', 'rework', 'hold', 'abort'],
+        `unexpected gate verdict for ${sr.stage_name}: ${gateRows[0].verdict}`
+      ).toContain(gateRows[0].verdict);
     }
 
-    // Walk to Complete (terminal). Reload to refresh state from server.
+    // ── Deploy assertions: PR opened, branch on remote, isolation cleaned.
+    const prRows = await sql<
+      {
+        pr_url: string | null;
+        pr_number: number | null;
+        state: string;
+        head_branch: string;
+      }[]
+    >`SELECT pr_url, pr_number, state, head_branch FROM "issue_pull_request" WHERE "issue_id" = ${issueRow.id}`;
+    expect(prRows, 'expected one PR row for issue #1').toHaveLength(1);
+    const prRow = prRows[0];
+    expect(prRow.pr_url).toBeTruthy();
+    expect(prRow.pr_number).toBeTruthy();
+    expect(prRow.state).toBe('open');
+
+    const isoRows = await sql<
+      { status: string; working_path: string }[]
+    >`SELECT status, working_path FROM "isolation_environment" WHERE "run_id" = ${pipelineRunId!}`;
+    expect(isoRows).toHaveLength(1);
+    expect(isoRows[0].status).toBe('inactive');
+    expect(
+      existsSync(isoRows[0].working_path),
+      `worktree directory should be removed: ${isoRows[0].working_path}`
+    ).toBe(false);
+
+    const [owner, repoName] = TARGET_REPO!.split('/');
+    const octokit = new Octokit({ auth: GITHUB_TOKEN! });
+    const prResp = await octokit.rest.pulls.get({
+      owner,
+      repo: repoName,
+      pull_number: prRow.pr_number!,
+    });
+    expect(prResp.status).toBe(200);
+    expect(prResp.data.state).toBe('open');
+
+    openedPRs.push({
+      owner,
+      repo: repoName,
+      prNumber: prRow.pr_number!,
+      branchName: prRow.head_branch,
+    });
+
+    // ── Walk state to Complete (FLX-77 free-walk dropdown). Reload to get
+    // a fresh version after deploy bridge auto-advance, then transition.
     await page.goto(projectPath('/issues/1'));
+    await expect(
+      page.getByRole('heading', { name: /Add health check endpoint/ })
+    ).toBeVisible({ timeout: 15_000 });
+
     const stateSelect2 = page
       .locator('div.flex.items-center.gap-2', {
         has: page.locator('span', { hasText: /^State$/ }),
@@ -310,7 +321,6 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
       )
       .toBe('Complete');
 
-    // Closed badge proves terminal state took (isClosed flipped true).
     await expect(page.getByText('Closed', { exact: true })).toBeVisible({
       timeout: 10_000,
     });
@@ -331,28 +341,5 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
     ).toHaveLength(0);
 
     await sql.end();
-  });
-
-  // Teardown: close any PRs we opened so the disposable repo doesn't grow.
-  test.afterAll(async () => {
-    if (!GITHUB_TOKEN || openedPRs.length === 0) return;
-    const octokit = new Octokit({ auth: GITHUB_TOKEN });
-    for (const tracked of openedPRs) {
-      try {
-        await octokit.rest.pulls.update({
-          owner: tracked.owner,
-          repo: tracked.repo,
-          pull_number: tracked.prNumber,
-          state: 'closed',
-        });
-        await octokit.rest.git.deleteRef({
-          owner: tracked.owner,
-          repo: tracked.repo,
-          ref: `heads/${tracked.branchName}`,
-        });
-      } catch {
-        // best-effort cleanup
-      }
-    }
   });
 });
