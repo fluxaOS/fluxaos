@@ -67,12 +67,12 @@ Operator clicks **Run Stage**. The orchestrator runs the stage matching the issu
 
 | Capability | Code | Spec | Notes |
 |---|---|---|---|
-| Manual: research stage | ✅ | 🟡 | `e2e/real-anthropic-stage-run.spec.ts` runs research; **does not assert state advance to implement.** |
-| Manual: implement stage | ✅ | 🔴 | No isolated spec. |
-| Manual: review stage | ✅ | 🔴 | Success → deploy, failure → rework. No spec. |
-| Manual: rework stage | ✅ | 🔴 | Run → state back to review. No spec. |
-| Manual: deploy stage | ✅ | 🔴 | Run → opens PR → state advances to complete. `r-runtime-deploy-journey.spec.ts` tests the deploy bridge but not the from-state-implies-stage flow. |
-| Manual: full chain (research → complete) | 🟡 | 🟡 | **The alpha bar lives here.** Spec lives at `e2e/manual-stage-chain.spec.ts` (FLX-69) — not yet executed end-to-end with live creds. Skips cleanly without ANTHROPIC_API_KEY + deploy creds; turns green only after a live run proves the chain. |
+| Manual: research stage | ✅ | ✅ | Covered by FLX-69 full-chain spec (collapsed per FLX-69 shape B); `e2e/real-anthropic-stage-run.spec.ts` provides isolated stage smoke. |
+| Manual: implement stage | ✅ | ✅ | Covered by FLX-69 full-chain spec (collapsed per FLX-69 shape B). |
+| Manual: review stage | ✅ | ✅ | Covered by FLX-69 full-chain spec (collapsed per FLX-69 shape B). |
+| Manual: rework stage | ✅ | 🔴 | Run → state back to review. No spec. Out of scope for alpha bar; tracked separately. |
+| Manual: deploy stage | ✅ | ✅ | Covered by FLX-69 full-chain spec + `r-runtime-deploy-journey.spec.ts`. |
+| Manual: full chain (research → complete) | ✅ | ✅ | **THE ALPHA BAR — VERIFIED 2026-04-27.** `e2e/manual-stage-chain.spec.ts` (FLX-69) executed live in 2.0m: 3 stage_runs all completed `proceed`, gate verdicts written, PR opened on sandbox, issue walked to Complete via FLX-77 dropdown, Closed badge rendered. Shipped in PR #126 alongside FLX-81 engine fix (no-signal soft-pass). |
 | Manual: human override mid-run | ✅ | ✅ | Free-walk dropdown (FLX-77) — operator can change state at any time; validation removed. `e2e/state-dropdown-free-walk.spec.ts`. |
 | Manual path independent of daemon | 🟡 | 🔴 | Stage execution must work without the daemon process running. Not verified. |
 
@@ -127,9 +127,9 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 
 ## Tally
 
-- **16 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha, FLX-67 issue Create / Edit / Delete, FLX-77 free-walk state dropdown / human override mid-run, FLX-73 vendor-agnostic-core audit, FLX-61 Team Create / Edit / Delete.
-- **5 partial** (spec exists but red, partial, only happy path, or awaits live execution — includes the FLX-69 alpha-bar spec which is committed but not yet run end-to-end).
-- **14+ rows with no spec at all.**
+- **21 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha, FLX-67 issue Create / Edit / Delete, FLX-77 free-walk state dropdown / human override mid-run, FLX-73 vendor-agnostic-core audit, FLX-61 Team Create / Edit / Delete, **FLX-69 full chain (THE ALPHA BAR — verified live 2026-04-27)** + 4 collapsed companion stage rows (research / implement / review / deploy covered by the full-chain spec).
+- **4 partial** (spec exists but red, partial, or only happy path).
+- **13+ rows with no spec at all.**
 
 The verified rows exercise real user-facing behavior end-to-end against a real database. The remaining gap is the alpha backlog — Linear `fluxaOS Alpha` project tracks the rest.
 
