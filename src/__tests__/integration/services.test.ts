@@ -384,12 +384,17 @@ describe('issue service', () => {
     expect((stateEvents[0].payload as any).to_state).toBe(stateInProgressId);
   });
 
-  it('transition — invalid transition throws INVALID_TRANSITION', async () => {
-    // open→closed is NOT a valid transition (only open→in_progress and in_progress→closed exist)
-    // Issue is currently in_progress, try transitioning to open (no such transition exists)
-    await expect(
-      issueSvc.transition(issueId, stateOpenId, issueVersion, 'test-user')
-    ).rejects.toThrow('INVALID_TRANSITION');
+  it('transition — FLX-77: free state→state, no graph validation', async () => {
+    // Operator-driven transitions accept any target state. Issue is in_progress;
+    // walk back to open even though no transition row exists for that edge.
+    const transitioned = await issueSvc.transition(
+      issueId,
+      stateOpenId,
+      issueVersion,
+      'test-user'
+    );
+    issueVersion = transitioned.version;
+    expect(transitioned.stateId).toBe(stateOpenId);
   });
 
   it('updateFields — correct version succeeds, increments version, records event', async () => {
@@ -402,7 +407,7 @@ describe('issue service', () => {
     issueVersion = updated.version;
 
     expect(updated.title).toBe('Updated Title');
-    expect(updated.version).toBe(3);
+    expect(updated.version).toBe(4);
 
     // Verify fields_updated event
     const events = await eventSvc.list(issueId);

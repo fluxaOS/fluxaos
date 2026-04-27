@@ -45,11 +45,6 @@ export function IssueDetailClient({
     projectId,
   });
 
-  const transitionsQuery = trpc.issue.transitions.useQuery(
-    { id: issue?.id ?? '' },
-    { enabled: !!issue?.id }
-  );
-
   const hasOpenChildrenQuery = trpc.issue.hasOpenChildren.useQuery(
     { id: issue?.id ?? '' },
     { enabled: !!issue?.id }
@@ -58,13 +53,11 @@ export function IssueDetailClient({
   const types = typesQuery.data ?? [];
   const states = statesQuery.data ?? [];
   const priorities = prioritiesQuery.data ?? [];
-  const transitions = transitionsQuery.data ?? [];
 
   // ── Mutations ───────────────────────────────────────────────────────────
 
   function refetchIssue() {
     issueQuery.refetch();
-    transitionsQuery.refetch();
   }
 
   const updateFields = trpc.issue.updateFields.useMutation({
@@ -268,15 +261,12 @@ export function IssueDetailClient({
           disabled={isMutating}
         />
 
-        {/* State dropdown */}
-        {transitions.length > 0 && (
+        {/* State dropdown — FLX-77: shows ALL states (free-form, no graph filter) */}
+        {states.length > 0 && (
           <div className="flex flex-wrap gap-4 pt-3 border-t border-slate-700/20">
             <CatalogSelect
               label="State"
-              items={[
-                ...(stateInfo ? [stateInfo] : []),
-                ...transitions.filter((t) => t.id !== issue.stateId),
-              ]}
+              items={states}
               currentId={issue.stateId}
               onSelect={(toStateId) =>
                 transitionMutation.mutate({
