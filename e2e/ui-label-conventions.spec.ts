@@ -26,9 +26,9 @@ test.describe('@flx-30 @flx-31 @journey', () => {
     // ── Dashboard ─────────────────────────────────────────────────
     await page.goto(projectPath(''));
 
-    await expect(
-      page.getByRole('heading', { name: 'Just Do It' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Just Do It' })).toBeVisible(
+      { timeout: 15_000 }
+    );
     await expect(
       page.getByRole('heading', { name: 'Pipeline Health' })
     ).toBeVisible();
@@ -61,13 +61,11 @@ test.describe('@flx-30 @flx-31 @journey', () => {
 
     // ── Issues list ────────────────────────────────────────────────
     await page.goto(projectPath('/issues'));
-    await expect(
-      page.getByRole('heading', { name: 'Issues' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Issues' })).toBeVisible({
+      timeout: 15_000,
+    });
     // "New Issue" CTA button.
-    await expect(
-      page.getByRole('link', { name: 'New Issue' })
-    ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'New Issue' })).toBeVisible();
 
     // ── Issue detail ──────────────────────────────────────────────
     await page.goto(projectPath('/issues/1'));
@@ -77,9 +75,7 @@ test.describe('@flx-30 @flx-31 @journey', () => {
     await expect(
       page.getByRole('heading', { name: 'Pipeline Stages' })
     ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Activity' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Add Comment' })
     ).toBeVisible();
@@ -116,18 +112,16 @@ test.describe('@flx-30 @flx-31 @journey', () => {
 
     // ── KPIs ──────────────────────────────────────────────────────
     await page.goto(projectPath('/kpis'));
-    await expect(
-      page.getByRole('heading', { name: 'KPIs' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'KPIs' })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
       page.getByRole('heading', { name: 'Pipeline Runs' })
     ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Status Breakdown' })
     ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Cost' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cost' })).toBeVisible();
 
     // ── Settings hub ──────────────────────────────────────────────
     await page.goto(projectPath('/settings'));
@@ -137,12 +131,10 @@ test.describe('@flx-30 @flx-31 @journey', () => {
 
     // ── Settings → Skills ─────────────────────────────────────────
     await page.goto(projectPath('/settings/skills'));
-    await expect(
-      page.getByRole('heading', { name: 'Skills' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Skills' })).toBeVisible({
+      timeout: 15_000,
+    });
     // "New Skill" CTA button — was previously sentence-case "New skill".
-    await expect(
-      page.getByRole('button', { name: 'New Skill' })
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New Skill' })).toBeVisible();
   });
 });
