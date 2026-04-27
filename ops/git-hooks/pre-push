@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pre-push hook for fluxaOS
 #
-# Two gates:
+# Three gates:
 #
 #   1. Direct pushes to main are blocked. PRs only.
 #
@@ -11,6 +11,14 @@
 #      accounted for. The agent that calls `git push` is the one that
 #      must triage whatever is left over — even if it isn't theirs.
 #      That's intentional: drift can't accumulate past one push cycle.
+#
+#   3. Journey-test coverage gate: refuse the push when the push range
+#      touches UI source (src/components/** or src/app/**/*.tsx) but
+#      ships no new or modified Playwright spec under e2e/. AGENT_BEHAVIOR.md
+#      requires a passing journey test BEFORE human browser sign-off;
+#      this gate enforces the "test exists in the same PR" half of that
+#      contract mechanically. The "test passes" half is enforced by CI
+#      and by manual run before requesting sign-off.
 #
 # Cleanliness gate fails on any of:
 #   - Working tree dirty (uncommitted modifications or untracked files
@@ -32,6 +40,17 @@
 #     stash with an owner so it stops looking abandoned.
 #   - `git stash drop` or relabel the stash via
 #     `git stash push -m '<owner>: <reason>'`.
+#
+# Journey-test gate fails when:
+#   - Push range touches src/components/** or src/app/**/*.tsx (or
+#     src/app/**/*.ts under app router), AND
+#   - Push range contains zero new or modified files under e2e/*.spec.ts.
+#
+# Resolve by writing a Playwright spec for the changed UI. If the change
+# is genuinely unobservable from the UI (e.g. type-only refactor that
+# touches a .tsx file), set FLUXAOS_SKIP_PREPUSH_GATE=1 for that push
+# only and document the reason in the PR body. Bypassing without
+# documentation is a violation of AGENT_BEHAVIOR.md.
 
 set -e
 
@@ -72,44 +91,121 @@ problems=0
 [ "$orphan_dangling_count" -gt 0 ] && problems=$((problems + 1))
 [ "$stash_orphan_count" -gt 0 ] && problems=$((problems + 1))
 
+if [ "$problems" -gt 0 ]; then
+  # Block + report cleanliness failure (handled by the block below).
+  :
+fi
+
+# ── Gate 3: journey-test coverage ──────────────────────────────────────────
+# Determine the push range. Stdin lines from git push are
+# "<local_ref> <local_sha> <remote_ref> <remote_sha>". When the remote
+# ref is new (remote_sha = 0000…), use the merge-base against
+# origin/main as the lower bound so we diff only what this push adds.
+#
+# We accumulate violations across all refs being pushed (rare but
+# possible to push multiple branches at once).
+ui_touched=""
+e2e_touched=""
+
+# stdin was already consumed by Gate 1's `while read` loop. Re-read it
+# from the args git pre-push passes via stdin? Pre-push hooks are given
+# stdin once; once consumed it's gone. Workaround: walk HEAD ranges
+# against remote tracking branches we know we're about to push to.
+#
+# Practical heuristic that matches the common case (push current branch
+# to its tracking remote): diff the current branch against origin/main.
+# If the user is pushing something exotic (multiple branches, detached
+# HEAD), we err on the side of running the gate against
+# `origin/main..HEAD` — which still catches anything the agent did on
+# this branch.
+RANGE_BASE="origin/main"
+if ! git rev-parse --verify "$RANGE_BASE" >/dev/null 2>&1; then
+  # No origin/main yet — first push to a fresh repo. Skip Gate 3.
+  RANGE_BASE=""
+fi
+
+if [ -n "$RANGE_BASE" ]; then
+  # File set being pushed.
+  changed=$(git diff --name-only "$RANGE_BASE...HEAD" 2>/dev/null || true)
+
+  ui_touched=$(printf '%s\n' "$changed" | grep -E '^(src/components/|src/app/.*\.tsx?$)' || true)
+  e2e_touched=$(printf '%s\n' "$changed" | grep -E '^e2e/.+\.spec\.ts$' || true)
+fi
+
+journey_gate_violation=0
+if [ -n "$ui_touched" ] && [ -z "$e2e_touched" ]; then
+  journey_gate_violation=1
+  problems=$((problems + 1))
+fi
+
 if [ "$problems" -eq 0 ]; then
   exit 0
 fi
 
 # Block + report.
 echo ""
-echo "✗ Push blocked: repo state is not clean."
+echo "✗ Push blocked."
 echo ""
-echo "Four-command snapshot:"
-echo ""
-echo "── git status ────────────────────────────────────────────────"
-git status
-echo ""
-echo "── git stash list ────────────────────────────────────────────"
-git stash list || true
-echo ""
-echo "── git branch ────────────────────────────────────────────────"
-git branch --list
-echo ""
-echo "── git branch -r ─────────────────────────────────────────────"
-git branch -r --list
-echo ""
-echo "── git worktree list ─────────────────────────────────────────"
-git worktree list
-echo ""
-echo "── audit ─────────────────────────────────────────────────────"
-bash "$AUDIT" report || true
-echo ""
-echo "Resolve every flagged item before pushing again. Whoever pushes"
-echo "next inherits the cleanup obligation — that is by design so drift"
-echo "cannot accumulate past one push cycle."
-echo ""
+
+if [ -n "$dirty" ] || [ "$orphan_merged_count" -gt 0 ] || [ "$orphan_dangling_count" -gt 0 ] || [ "$stash_orphan_count" -gt 0 ]; then
+  echo "── Cleanliness gate failed ───────────────────────────────────"
+  echo ""
+  echo "Four-command snapshot:"
+  echo ""
+  echo "── git status ────────────────────────────────────────────────"
+  git status
+  echo ""
+  echo "── git stash list ────────────────────────────────────────────"
+  git stash list || true
+  echo ""
+  echo "── git branch ────────────────────────────────────────────────"
+  git branch --list
+  echo ""
+  echo "── git branch -r ─────────────────────────────────────────────"
+  git branch -r --list
+  echo ""
+  echo "── git worktree list ─────────────────────────────────────────"
+  git worktree list
+  echo ""
+  echo "── audit ─────────────────────────────────────────────────────"
+  bash "$AUDIT" report || true
+  echo ""
+  echo "Resolve every flagged item before pushing again. Whoever pushes"
+  echo "next inherits the cleanup obligation — that is by design so drift"
+  echo "cannot accumulate past one push cycle."
+  echo ""
+fi
+
+if [ "$journey_gate_violation" -eq 1 ]; then
+  echo "── Journey-test coverage gate failed ─────────────────────────"
+  echo ""
+  echo "Push range touches UI source but adds no Playwright spec."
+  echo ""
+  echo "AGENT_BEHAVIOR.md: journey test must be written + passing"
+  echo "BEFORE the user is asked to sign off in the browser. Shipping"
+  echo "UI changes without a journey test violates the contract."
+  echo ""
+  echo "UI files in this push:"
+  printf '%s\n' "$ui_touched" | sed 's/^/  - /'
+  echo ""
+  echo "Expected: at least one new or modified spec under e2e/."
+  echo ""
+  echo "Resolve by:"
+  echo "  - Writing a Playwright spec under e2e/<feature>.spec.ts that"
+  echo "    exercises the changed UI end-to-end, OR"
+  echo "  - If the change is genuinely unobservable from the UI"
+  echo "    (e.g. type-only refactor in a .tsx file), document the"
+  echo "    reason in the PR body and bypass with"
+  echo "    FLUXAOS_SKIP_PREPUSH_GATE=1 for this push only."
+  echo ""
+fi
+
 echo "If you genuinely need to bypass (rare; document why), set"
 echo "FLUXAOS_SKIP_PREPUSH_GATE=1 for this push only."
 
 if [ "${FLUXAOS_SKIP_PREPUSH_GATE:-0}" = "1" ]; then
   echo ""
-  echo "⚠  FLUXAOS_SKIP_PREPUSH_GATE=1 — bypassing cleanliness gate."
+  echo "⚠  FLUXAOS_SKIP_PREPUSH_GATE=1 — bypassing pre-push gates."
   exit 0
 fi
 
