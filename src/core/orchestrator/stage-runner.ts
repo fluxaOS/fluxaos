@@ -371,31 +371,58 @@ export async function executeStageRun(
 
     // ── Completion with signal handling ──────────────────────────────
 
-    // No signal emitted → fail the stage
+    // No signal emitted. Behavior depends on exit_code:
+    //   - exit 0:    skill exited cleanly without emitting flux:signal.
+    //                Headless skill drivers may finish their task and
+    //                exit without running the final
+    //                `echo '{"flux:signal":...}'` Bash call. Files were
+    //                written, work happened — treat as `proceed` and
+    //                attach a warning event so it's still observable.
+    //                FLX-81 (2026-04-27): originally hard-failed; now
+    //                soft-pass on clean exit.
+    //   - exit !=0:  skill crashed / aborted — failure stands.
     if (!lastSignal) {
-      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+      const cleanExit = result.exitCode === 0;
+      const status = cleanExit
+        ? STAGE_RUN_STATUS.completed
+        : STAGE_RUN_STATUS.failed;
+      const synthSignal = cleanExit ? 'proceed' : null;
+      const reason = cleanExit
+        ? 'no_signal_clean_exit'
+        : 'no skill signal emitted';
+
+      await runService.completeStageRun(sRun.id, status, {
         provider: routing?.providerName,
         model: routing?.modelIdentifier,
         driver: driverRow.name,
         trigger: ctx.trigger,
-        errorMessage: 'no skill signal emitted',
+        skillSignal: synthSignal ?? undefined,
+        errorMessage: cleanExit ? undefined : 'no skill signal emitted',
       });
 
-      await runService.appendEvent(sRun.id, EVENT_TYPE.error, {
-        message:
-          'no skill signal emitted — skills must output a {"flux:signal": ...} line',
-        exitCode: result.exitCode,
-      });
+      await runService.appendEvent(
+        sRun.id,
+        cleanExit ? EVENT_TYPE.completed : EVENT_TYPE.error,
+        {
+          message: cleanExit
+            ? 'no flux:signal emitted but skill exited 0 — synthesizing proceed (FLX-81)'
+            : 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
+          exitCode: result.exitCode,
+        }
+      );
 
-      // Issue event for failure
+      // Issue event
       if (run.issueId) {
         await runService.appendIssueEvent(
           run.issueId,
-          ISSUE_EVENT_TYPE.stage_failed,
+          cleanExit
+            ? ISSUE_EVENT_TYPE.stage_completed
+            : ISSUE_EVENT_TYPE.stage_failed,
           {
             stageRunId: sRun.id,
             stageName: stage.name,
-            reason: 'no skill signal emitted',
+            reason,
+            exitCode: result.exitCode,
           },
           'stage-runner'
         );
@@ -412,8 +439,8 @@ export async function executeStageRun(
         modelIdentifier: routing?.modelIdentifier ?? null,
         issueId: run.issueId,
         stageId: stage.id,
-        skillSignal: null,
-        skillSignalReason: null,
+        skillSignal: synthSignal,
+        skillSignalReason: cleanExit ? 'no_signal_clean_exit' : null,
         skillMetadata: null,
       };
     }
