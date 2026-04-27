@@ -182,7 +182,10 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
         runStatus,
         `${stageKey} stage never reached terminal status within 5 minutes`
       ).toBe('completed');
-      expect(runId, `pipeline_run row not visible for ${stageKey}`).toBeTruthy();
+      expect(
+        runId,
+        `pipeline_run row not visible for ${stageKey}`
+      ).toBeTruthy();
 
       // Gate verdict row exists for this stage_run.
       const gateRows = await sql<
@@ -222,7 +225,6 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
     // Wait for terminal-with-PR (same DEF-020 condition as
     // r-runtime-deploy-journey).
     let deployTerminal: string | null = null;
-    let deployRunId: string | null = null;
     const DEPLOY_DEADLINE = Date.now() + 5 * 60_000;
     while (Date.now() < DEPLOY_DEADLINE) {
       const rows = await sql<{ id: string; status: string }[]>`
@@ -233,7 +235,6 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
         LIMIT 1
       `;
       if (rows[0] && rows.length >= beforeDeployCount + 1) {
-        deployRunId = rows[0].id;
         if (['failed', 'cancelled', 'error'].includes(rows[0].status)) {
           deployTerminal = rows[0].status;
           break;
