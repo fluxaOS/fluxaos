@@ -17,9 +17,9 @@ test.describe('@flx-67 @journey @issue-crud', () => {
   }) => {
     await page.goto(projectPath('/issues/new'));
 
-    await expect(
-      page.getByRole('heading', { name: 'New Issue' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'New Issue' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     const uniqueTitle = `CRUD Create Test ${Date.now()}`;
     const uniqueBody = '## Body\n\nTest description with **markdown**.';
@@ -54,9 +54,9 @@ test.describe('@flx-67 @journey @issue-crud', () => {
     // Cleanup: delete via UI Delete Issue button. Auto-accept the confirm.
     page.once('dialog', (d) => d.accept());
     await page.getByRole('button', { name: /Delete Issue/ }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Issues' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Issues' })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test('Edit — fields persist via inline editors and dropdowns', async ({
@@ -73,9 +73,7 @@ test.describe('@flx-67 @journey @issue-crud', () => {
 
     // ── Edit title via inline EditableTitle ────────────────────────────────
     const updated = `${original} EDITED`;
-    await page
-      .getByRole('heading', { name: new RegExp(original) })
-      .click();
+    await page.getByRole('heading', { name: new RegExp(original) }).click();
     const titleInput = page.locator('input[type="text"]').first();
     await titleInput.fill(updated);
     await titleInput.press('Enter');
@@ -92,9 +90,11 @@ test.describe('@flx-67 @journey @issue-crud', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     // Body text renders in two places after save: inline body view and the
     // ActivityFeed change-summary entry. Use .first() (the body render).
-    await expect(page.getByText(newBody, { exact: false }).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(page.getByText(newBody, { exact: false }).first()).toBeVisible(
+      {
+        timeout: 10_000,
+      }
+    );
 
     // ── Change priority via CatalogSelect ──────────────────────────────────
     const prioritySelect = page
@@ -129,7 +129,9 @@ test.describe('@flx-67 @journey @issue-crud', () => {
     await expect(
       page.getByRole('heading', { name: new RegExp(updated) })
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(newBody, { exact: false }).first()).toBeVisible();
+    await expect(
+      page.getByText(newBody, { exact: false }).first()
+    ).toBeVisible();
     const prioritySelect2 = page
       .locator('div.flex.items-center.gap-2', {
         has: page.locator('span', { hasText: /^Priority$/ }),
@@ -144,14 +146,12 @@ test.describe('@flx-67 @journey @issue-crud', () => {
     // Cleanup.
     page.once('dialog', (d) => d.accept());
     await page.getByRole('button', { name: /Delete Issue/ }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Issues' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Issues' })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
-  test('Delete — confirm + redirect + row gone from list', async ({
-    page,
-  }) => {
+  test('Delete — confirm + redirect + row gone from list', async ({ page }) => {
     // Create a fresh issue to delete.
     await page.goto(projectPath('/issues/new'));
     const title = `CRUD Delete Test ${Date.now()}`;
@@ -170,9 +170,9 @@ test.describe('@flx-67 @journey @issue-crud', () => {
     await page.getByRole('button', { name: /Delete Issue/ }).click();
 
     // Redirects to /issues list.
-    await expect(
-      page.getByRole('heading', { name: 'Issues' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Issues' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // The deleted row is no longer present.
     await page.waitForLoadState('networkidle');
@@ -189,8 +189,8 @@ test.describe('@flx-67 @journey @issue-crud', () => {
 
     // Direct nav to the deleted issue: detail view should report not found.
     await page.goto(issueUrl);
-    await expect(
-      page.getByText(/not found/i, { exact: false })
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/not found/i, { exact: false })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });
