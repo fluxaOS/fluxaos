@@ -1,0 +1,417 @@
+<h2>Alpha Verification Matrix (v3)</h2>
+<p class="subtitle">Two columns separated: code existence vs spec status. Honest tally.</p>
+
+<style>
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    color: #94a3b8;
+    margin: 12px 0 16px;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .d-green { background: #10b981; }
+  .d-yellow { background: #f59e0b; }
+  .d-red { background: #ef4444; }
+  .d-gray { background: #475569; }
+
+  .matrix {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(124,58,237,0.2);
+    border-radius: 12px;
+    padding: 8px 0;
+    margin: 12px 0;
+    overflow: hidden;
+  }
+  .matrix-header {
+    display: grid;
+    grid-template-columns: 360px 110px 110px 1fr;
+    gap: 12px;
+    padding: 12px 24px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .matrix-row {
+    display: grid;
+    grid-template-columns: 360px 110px 110px 1fr;
+    gap: 12px;
+    padding: 8px 24px;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px;
+  }
+  .matrix-row:last-child { border-bottom: none; }
+  .row-label {
+    font-weight: 600;
+    color: #cbd5e1;
+  }
+  .row-label .sub {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: #64748b;
+    margin-top: 2px;
+  }
+  .cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .cell-green { color: #10b981; }
+  .cell-yellow { color: #f59e0b; }
+  .cell-red { color: #ef4444; }
+  .cell-gray { color: #64748b; }
+  .spec-name {
+    font-size: 10px;
+    color: #94a3b8;
+    font-family: ui-monospace, monospace;
+  }
+
+  .section {
+    color: #a78bfa;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 20px 0 8px;
+    padding: 8px 24px 6px;
+    border-bottom: 1px solid rgba(167,139,250,0.2);
+  }
+  .section .section-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: #64748b;
+    text-transform: none;
+    letter-spacing: 0;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .summary {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 20px 0;
+    color: #cbd5e1;
+    font-size: 13px;
+  }
+  .summary strong { color: #fff; }
+  .tally {
+    display: flex;
+    gap: 24px;
+    margin: 12px 0 8px;
+    font-size: 12px;
+  }
+  .tally-item { display: flex; align-items: center; gap: 6px; }
+</style>
+
+<div class="legend">
+  <div class="legend-item"><span class="dot d-green"></span>Green = spec exists AND passing</div>
+  <div class="legend-item"><span class="dot d-yellow"></span>Yellow = spec exists but red/partial</div>
+  <div class="legend-item"><span class="dot d-red"></span>Red = no spec</div>
+  <div class="legend-item"><span class="dot d-gray"></span>Gray = no code</div>
+</div>
+
+<div class="matrix">
+  <div class="matrix-header">
+    <div>Capability</div>
+    <div>Code</div>
+    <div>Spec</div>
+    <div>Notes</div>
+  </div>
+
+  <div class="section">CRUD — Catalog Entities (DB-driven, even at one entry)</div>
+
+  <div class="matrix-row">
+    <div class="row-label">Project — Create<span class="sub">UI form → DB → list refresh</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Seed creates one. No UI CRUD.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Project — Edit / Delete<span class="sub"></span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Settings/projects has page; CRUD untested.</div>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Team — Create / Edit / Delete<span class="sub">Catalog entity</span></div>
+    <div class="cell cell-gray"><span class="dot d-gray"></span>None</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">No UI surface. Schema may exist; no Settings tab.</div>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Skill — Create<span class="sub">Form → DB → list</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Form exists. No spec covers create.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Skill — Edit<span class="sub"></span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Red</div>
+    <div class="spec-name">edit-a-skill.spec.ts — currently red (FLX-58)</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Skill — Delete (unref'd / ref'd)<span class="sub"></span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">delete-an-unref'd-skill, delete-a-ref'd-skill-fails-gracefully</div>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Driver — Create<span class="sub"></span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Form may exist; no spec covers create.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Driver — Edit / Toggle<span class="sub"></span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">edit-a-driver.spec.ts, toggle-driver-enabled.spec.ts</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Driver — Delete<span class="sub"></span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">No spec.</div>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Routing Profile — Create / Edit / Delete<span class="sub"></span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Settings/routing tab exists. No spec.</div>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Provider — Create / Edit / Delete<span class="sub"></span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Settings/providers tab exists. No spec.</div>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Persona — Create / Edit / Delete<span class="sub"></span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Settings/personas tab exists. No spec.</div>
+  </div>
+
+  <div class="section">Issue CRUD
+    <span class="section-sub">No orchestrator work — pure form/edit/delete</span>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Issue — Create<span class="sub">Form → DB → list / detail</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Form exists. No dedicated CRUD spec.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Issue — Edit fields<span class="sub">Title, body, type, priority, assignee</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">FLX-20/27 use edits as setup, no edit spec.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Issue — Delete<span class="sub">Confirm + remove</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Code wired. No spec.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Issue — State dropdown shows ALL states<span class="sub">Free-form, no transition filter (per Q3 decision)</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Wrong</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Currently filters by transition graph. Decision: show all.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Issue — State walk via dropdown<span class="sub">UI dropdown drives state — no orchestrator</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">closed-issue-indicator.spec.ts (FLX-27)</div>
+  </div>
+
+  <div class="section">Stage Execution — Manual Path
+    <span class="section-sub">Click Run Stage → orchestrator runs that stage → state auto-advances on success</span>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Manual: research stage<span class="sub">at "research" → run → expect success → state → "implement"</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="spec-name">real-anthropic-stage-run runs research; does not assert state advance.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual: implement stage<span class="sub">at "implement" → run → state → "review"</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">No isolated spec.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual: review stage<span class="sub">success → "deploy", failure → "rework"</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">No spec.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual: rework stage<span class="sub">run → state back to "review"</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">No spec.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual: deploy stage<span class="sub">run → opens PR → state → "complete"</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">r-runtime-deploy-journey tests deploy bridge, not state advance.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual: full chain (research → complete)<span class="sub">Operator runs each stage in turn — no daemon</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Pieces</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Your alpha bar lives here.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual: human override mid-run<span class="sub">Change state, click Run, gates kick back in (per Q5 decision)</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Wrong</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Currently transition validation blocks. Decision: drop validation.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Manual path independent of daemon<span class="sub">Stage runs without daemon process running</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Unknown</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Not verified.</div>
+  </div>
+
+  <div class="section">Stage Execution — Daemon-Driven Path
+    <span class="section-sub">Daemon picks up new pipeline_run via Realtime, runs everything autonomously</span>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Daemon picks up pending pipeline_run<span class="sub">Realtime → daemon → first stage starts</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Red</div>
+    <div class="spec-name">r-daemon-autonomous-run.spec.ts — currently red.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Stage chain (research → implement)<span class="sub">Artifacts handoff between stages</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">r-artifacts-chain.spec.ts</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Gate evaluation<span class="sub">Rules-mode gate produces results</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">gate-results-rule-details.spec.ts (FLX-20)</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Full daemon journey<span class="sub">Issue file → daemon → all stages → PR → close</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Partial</div>
+    <div class="spec-name">r-smoke.spec.ts — happy path only, no edges.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Crash recovery<span class="sub">Daemon restart picks up stale runs</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Code</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">recoverOnStartup() exists. No spec.</div>
+  </div>
+
+  <div class="section">Architecture Invariants
+    <span class="section-sub">Audits, not journey tests</span>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Vendor-agnostic core<span class="sub">No anthropic/claude/claude-code in src/core (only adapters)</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Unknown</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Not audited.</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">DB-driven config<span class="sub">No hardcoded fallbacks/defaults bypassing DB</span></div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Unknown</div>
+    <div class="cell cell-red"><span class="dot d-red"></span>None</div>
+    <div class="spec-name">Not audited.</div>
+  </div>
+
+  <div class="section">UI / Polish</div>
+
+  <div class="matrix-row">
+    <div class="row-label">Mission Control empty states<span class="sub">All four sections render correctly</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">r-mission-control.spec.ts (non-daemon test)</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">UI label conventions<span class="sub">Title Case + ellipsis sweep</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">ui-label-conventions.spec.ts (FLX-30/31)</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Activity feed Realtime<span class="sub">Comments + events stream live</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">activity-feed-realtime.spec.ts</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Concurrent edits — version conflict<span class="sub">Optimistic concurrency on save</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">conflict-on-save.spec.ts</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Epic / child-issue hierarchy<span class="sub">Parent + open children blocking</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">r-epic-hierarchy.spec.ts</div>
+  </div>
+  <div class="matrix-row">
+    <div class="row-label">Settings — alpha tab set<span class="sub">Pipelines + Projects tabs functional</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Pass</div>
+    <div class="spec-name">r-settings-alpha.spec.ts</div>
+  </div>
+
+  <div class="section">Pre-Existing Reds
+    <span class="section-sub">Filed in Linear, NOT alpha-blocking</span>
+  </div>
+
+  <div class="matrix-row">
+    <div class="row-label">Run Stage smoke<span class="sub">FLX-59 — fails on Run Stage click</span></div>
+    <div class="cell cell-green"><span class="dot d-green"></span>Done</div>
+    <div class="cell cell-yellow"><span class="dot d-yellow"></span>Red</div>
+    <div class="spec-name">run-stage-smoke.spec.ts. FLX-59 filed.</div>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="tally">
+    <div class="tally-item"><span class="dot d-green"></span><strong>9 fully verified</strong> (spec exists + passing)</div>
+    <div class="tally-item"><span class="dot d-yellow"></span><strong>5 partial</strong> (spec red or only happy path)</div>
+    <div class="tally-item"><span class="dot d-red"></span><strong>20+ no spec</strong></div>
+  </div>
+  <strong>Reading the matrix:</strong> "Code" column = does the feature exist in the app. "Spec" column = does a Playwright journey verify it.
+  Two columns lets us see clearly: feature exists but no spec (most catalog CRUD), spec exists but red (FLX-58, FLX-59), nothing exists (Team UI).
+</div>
