@@ -214,13 +214,17 @@ export async function executeStageRun(
       .catch(() => undefined);
   }
 
-  // Read contextLayout from driver config
-  const contextLayout = (driverRow.contextLayout as {
+  // FLX-78: contextLayout must come from the driver row in the DB. No
+  // hardcoded fallback in core. Seed/migration owns the default value.
+  if (!driverRow.contextLayout) {
+    throw new Error(
+      `Driver '${driverRow.name}' (${driverRow.id}) is missing contextLayout. ` +
+        `Update the driver row to set instructionsFile + contextFile (see seed.ts).`
+    );
+  }
+  const contextLayout = driverRow.contextLayout as {
     instructionsFile: string;
     contextFile: string;
-  }) ?? {
-    instructionsFile: 'CLAUDE.md',
-    contextFile: 'context.md',
   };
 
   const workspacePath = await materialize({
@@ -237,7 +241,7 @@ export async function executeStageRun(
       : null,
     skill: {
       name: skillRow?.name ?? stage.name,
-      // DEF-024: render {{artifacts_path}} etc. before materialize() writes CLAUDE.md.
+      // DEF-024: render {{artifacts_path}} etc. before materialize() writes the instructions file.
       promptTemplate: skillRow?.promptTemplate
         ? renderTemplate(skillRow.promptTemplate, {
             artifacts_path: env.artifactsPath ?? '',

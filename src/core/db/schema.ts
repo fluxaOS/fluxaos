@@ -192,11 +192,10 @@ export const driver = pgTable('driver', {
   queuePromptTemplate: text('queue_prompt_template'),
   envVars: jsonb('env_vars').notNull().default(sql`'{}'::jsonb`),
   extraArgs: jsonb('extra_args').notNull().default(sql`'{}'::jsonb`),
-  contextLayout: jsonb('context_layout')
-    .notNull()
-    .default(
-      sql`'{"instructionsFile":"CLAUDE.md","contextFile":"context.md"}'::jsonb`
-    ),
+  // FLX-78: no driver-specific default in core schema. Driver rows are
+  // seeded with concrete contextLayout values (see src/scripts/db/seed.ts).
+  // Engine fails fast if a driver row is created without one.
+  contextLayout: jsonb('context_layout').notNull(),
   isEnabled: boolean('is_enabled').notNull().default(true),
   notes: text('notes'),
   version: integer('version').notNull().default(1),

@@ -77,8 +77,8 @@ export async function materialize(
   // Create workspace directory
   await mkdir(workspacePath, { recursive: true });
 
-  // 1. Write instructions file — persona + skill instructions combined
-  //    Filename comes from driver config (e.g. CLAUDE.md, AGENTS.md, GEMINI.md)
+  // 1. Write instructions file — persona + skill instructions combined.
+  //    Filename comes from driver.contextLayout.instructionsFile (DB-owned).
   const parts: string[] = [];
   const personaContent = buildPersonaContent(options.persona);
   if (personaContent) {

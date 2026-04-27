@@ -42,45 +42,11 @@ const STATE_PLAIN_GREP = "'research'|'implement'|'review'|'deploy'|'complete'";
 
 // Documented allowlist: file:line → Linear ticket. New hits anywhere else
 // are failures. Pre-existing hits get retired by the linked tickets.
+//
+// FLX-78 + FLX-79 retired 2026-04-27 — list intentionally empty. Any new
+// vendor-name or stage/state literal in src/core/ fails the build.
 type Allow = { file: string; line: number; reason: string; ticket: string };
-const ALLOWLIST: Allow[] = [
-  {
-    file: 'src/core/orchestrator/stage-runner.ts',
-    line: 222,
-    reason: 'fallback default for driver.contextLayout when DB row is null',
-    ticket: 'FLX-78', // to be filed
-  },
-  {
-    file: 'src/core/orchestrator/stage-runner.ts',
-    line: 240,
-    reason: 'comment reference, not executable',
-    ticket: 'FLX-78',
-  },
-  {
-    file: 'src/core/skills/materializer.ts',
-    line: 81,
-    reason: 'comment reference, not executable',
-    ticket: 'FLX-78',
-  },
-  {
-    file: 'src/core/db/schema.ts',
-    line: 198,
-    reason: 'driver.contextLayout column default — Claude-shaped seed default',
-    ticket: 'FLX-78',
-  },
-  {
-    file: 'src/core/deploy/deploy-bridge.ts',
-    line: 296,
-    reason: "hardcoded 'review' state key — should come from config_entry",
-    ticket: 'FLX-79',
-  },
-  {
-    file: 'src/core/deploy/deploy-bridge.ts',
-    line: 293,
-    reason: "comment referencing 'review' state",
-    ticket: 'FLX-79',
-  },
-];
+const ALLOWLIST: Allow[] = [];
 
 interface Hit {
   file: string;
