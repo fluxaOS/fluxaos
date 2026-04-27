@@ -65,7 +65,7 @@ const ALLOWLIST: Allow[] = [
   {
     file: 'src/core/db/schema.ts',
     line: 198,
-    reason: "driver.contextLayout column default — Claude-shaped seed default",
+    reason: 'driver.contextLayout column default — Claude-shaped seed default',
     ticket: 'FLX-78',
   },
   {
