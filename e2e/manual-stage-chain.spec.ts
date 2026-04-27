@@ -4,9 +4,15 @@
 //
 // Drives the full manual stage execution chain end-to-end against live Claude:
 // research → implement → review → deploy → complete. The operator changes
-// state in the dropdown at each step, clicks Run Stage, waits for the stage
-// to terminate, observes the gate verdict, then advances state manually.
-// No daemon involved.
+// state in the dropdown at each step, clicks Run Stage, then the daemon
+// (spawned in beforeAll) picks up the pending pipeline_run via Realtime and
+// drives the stage to terminal. After each non-deploy stage completes, the
+// operator manually advances state in the dropdown.
+//
+// The daemon is mandatory: pipeline.runs.trigger writes pending stage_run
+// rows but does not execute. Without the daemon picking those rows up,
+// pipeline_run sits at `pending` forever (see src/server/routers/pipeline.ts
+// lines 124-128). Pattern matches r-smoke.spec.ts and r-daemon-autonomous-run.
 //
 // Skips cleanly when ANTHROPIC_API_KEY (research/implement/review require
 // live Claude) or the deploy creds (FLUXAOS_GITHUB_TOKEN /
@@ -26,6 +32,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
+import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
 import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -59,6 +66,7 @@ type TrackedPR = {
   branchName: string;
 };
 const openedPRs: TrackedPR[] = [];
+let handle: DaemonHandle | null = null;
 
 test.describe('@flx-69 @journey @alpha-bar', () => {
   test.skip(
@@ -68,6 +76,10 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
 
   // 5 stages × ~2 min live Claude + deploy git ops. Cap at 25 minutes.
   test.setTimeout(25 * 60_000);
+
+  test.beforeAll(async () => {
+    handle = await spawnDaemon();
+  });
 
   test('manual chain: research → implement → review → deploy → complete', async ({
     page,
@@ -333,8 +345,18 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
     await sql.end();
   });
 
-  // Teardown: close any PRs we opened so the disposable repo doesn't grow.
+  // Teardown: shut down the daemon, then close any PRs we opened so the
+  // disposable repo doesn't grow.
   test.afterAll(async () => {
+    if (handle) {
+      try {
+        await handle.shutdown();
+      } catch (err) {
+        console.warn(
+          `[teardown] daemon shutdown failed: ${(err as Error).message}`
+        );
+      }
+    }
     if (!GITHUB_TOKEN || openedPRs.length === 0) return;
     const octokit = new Octokit({ auth: GITHUB_TOKEN });
     for (const tracked of openedPRs) {
