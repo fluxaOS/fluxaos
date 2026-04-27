@@ -26,4 +26,5 @@ export { createProjectService, type ProjectService } from './project';
 export { createProviderService, type ProviderService } from './provider';
 export { createRoutingService, type RoutingService } from './routing';
 export { createSkillService, type SkillService } from './skill';
+export { createTeamService, type TeamService } from './team';
 export { createUserService, type UserService } from './user';
