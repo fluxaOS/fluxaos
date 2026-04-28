@@ -1,6 +1,7 @@
 // src/app/[org]/[user]/[project]/settings/projects/page.tsx
 'use client';
 
+import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { trpc } from '@/lib/trpc/client';
@@ -8,15 +9,24 @@ import { type ProjectRecord, projectDescriptor } from './descriptor';
 
 export default function ProjectsSettingsPage() {
   const utils = trpc.useUtils();
+  const [showCreate, setShowCreate] = useState(false);
+
   const projectsQuery = trpc.project.list.useQuery();
   const envQuery = trpc.system.env.getPublic.useQuery();
   const pipelinesQuery = trpc.pipeline.list.useQuery();
 
   const updateMutation = trpc.project.update.useMutation();
+  const deleteMutation = trpc.project.delete.useMutation();
 
   const projects = projectsQuery.data ?? [];
   const pipelines = pipelinesQuery.data ?? [];
   const envValue = envQuery.data?.FLUXAOS_TARGET_REPO_PATH ?? null;
+
+  // FLX-60: Create form needs an orgId + userId. The seeded project provides
+  // both. Multi-org/user is out of scope for alpha (matrix § Out of Scope),
+  // so the first project's identifiers are the canonical handle for now.
+  const seedOrgId = projects[0]?.orgId ?? null;
+  const seedUserId = projects[0]?.userId ?? null;
 
   const records: ProjectRecord[] = projects.map((p) => {
     const pipe = p.defaultPipelineId
@@ -54,22 +64,124 @@ export default function ProjectsSettingsPage() {
     await utils.project.list.invalidate();
   };
 
+  const onDelete = async (id: string, _expectedVersion: number) => {
+    await deleteMutation.mutateAsync({ id });
+    await utils.project.list.invalidate();
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Projects"
         description="Configure the target repository and default pipeline. The target repo path is env-backed (FLUXAOS_TARGET_REPO_PATH) for alpha."
+        action={
+          seedOrgId && seedUserId ? (
+            <button
+              type="button"
+              onClick={() => setShowCreate(!showCreate)}
+              className="px-4 py-2 bg-electric-violet hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
+            >
+              {showCreate ? 'Cancel' : 'New Project'}
+            </button>
+          ) : undefined
+        }
       />
+
+      {showCreate && seedOrgId && seedUserId && (
+        <CreateProjectForm
+          orgId={seedOrgId}
+          userId={seedUserId}
+          onCreated={async () => {
+            setShowCreate(false);
+            await utils.project.list.invalidate();
+          }}
+        />
+      )}
 
       <RecordEditor<ProjectRecord>
         descriptor={projectDescriptor}
         records={records}
         isLoading={projectsQuery.isLoading}
         onSave={onSave}
+        onDelete={onDelete}
         onRefresh={async () => {
           await utils.project.list.invalidate();
         }}
       />
     </div>
+  );
+}
+
+function CreateProjectForm({
+  orgId,
+  userId,
+  onCreated,
+}: {
+  orgId: string;
+  userId: string;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [repoUrl, setRepoUrl] = useState('');
+
+  const createMutation = trpc.project.create.useMutation({
+    onSuccess: () => onCreated(),
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim() || !slug.trim()) return;
+        createMutation.mutate({
+          orgId,
+          userId,
+          name: name.trim(),
+          slug: slug.trim(),
+          repoUrl: repoUrl.trim() || undefined,
+        });
+      }}
+      className="card-static p-4 flex gap-3 items-end flex-wrap"
+    >
+      <label className="flex-1 min-w-[180px]">
+        <span className="text-xs text-slate-400">Name</span>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Project name"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        />
+      </label>
+      <label className="flex-1 min-w-[180px]">
+        <span className="text-xs text-slate-400">Slug</span>
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          aria-label="Project slug"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        />
+      </label>
+      <label className="flex-1 min-w-[220px]">
+        <span className="text-xs text-slate-400">Repo URL (optional)</span>
+        <input
+          type="text"
+          value={repoUrl}
+          onChange={(e) => setRepoUrl(e.target.value)}
+          aria-label="Project repo URL"
+          placeholder="https://github.com/owner/repo"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={!name.trim() || !slug.trim() || createMutation.isPending}
+        className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+      >
+        {createMutation.isPending ? 'Creating…' : 'Create'}
+      </button>
+    </form>
   );
 }

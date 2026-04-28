@@ -31,8 +31,7 @@ DB-driven, even at one entry. fluxaOS reads catalog data from the DB at runtime;
 
 | Capability | Code | Spec | Notes |
 |---|---|---|---|
-| Project — Create | 🟡 | 🔴 | Seed creates one project. No UI form for create. No spec. |
-| Project — Edit / Delete | 🟡 | 🔴 | Settings/projects has a page, edit field-by-field works in code. No spec. |
+| Project — Create / Edit / Delete | ✅ | ✅ | `e2e/project-crud.spec.ts` (FLX-60). New Project button + RecordEditor onDelete wired in same PR. |
 | Team — Create / Edit / Delete | ✅ | ✅ | `e2e/team-crud.spec.ts` (FLX-61). New `/settings/teams` tab + tRPC router + service. |
 | Skill — Create | 🟡 | 🔴 | Form exists at `/settings/skills`. No spec covers create. |
 | Skill — Edit | ✅ | 🟡 | `e2e/edit-a-skill.spec.ts` — currently red (FLX-58: asserts non-existent `deploy` skill). |
