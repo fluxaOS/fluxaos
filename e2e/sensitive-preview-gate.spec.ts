@@ -38,9 +38,9 @@ test.describe('@flx-11 @settings @sensitive-gate', () => {
 
     // Issue template is now revealed: the textarea contains the seeded
     // template text, and the Preview button is gone for this field.
-    await expect(
-      page.getByLabel('Issue prompt template')
-    ).toHaveValue(new RegExp(issueTemplateText.replace(/[{}]/g, '\\$&')));
+    await expect(page.getByLabel('Issue prompt template')).toHaveValue(
+      new RegExp(issueTemplateText.replace(/[{}]/g, '\\$&'))
+    );
     await expect(
       issueGate.getByRole('button', { name: 'Preview' })
     ).toHaveCount(0);
@@ -54,12 +54,12 @@ test.describe('@flx-11 @settings @sensitive-gate', () => {
     // Click Edit — the gate bypasses for the queue template too because
     // edit mode reveals everything.
     await page.getByRole('button', { name: 'Edit' }).click();
-    await expect(
-      page.getByLabel('Queue prompt template')
-    ).toHaveValue(new RegExp(queueTemplateText.replace(/[{}]/g, '\\$&')));
-    await expect(page.getByTestId('sensitive-gate-Queue prompt template')).toHaveCount(
-      0
+    await expect(page.getByLabel('Queue prompt template')).toHaveValue(
+      new RegExp(queueTemplateText.replace(/[{}]/g, '\\$&'))
     );
+    await expect(
+      page.getByTestId('sensitive-gate-Queue prompt template')
+    ).toHaveCount(0);
 
     // Cancel — back to viewing; both gates re-applied. Reveal state from
     // before Edit must NOT persist (edit-flip resets revealed=false).
