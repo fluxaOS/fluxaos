@@ -7,8 +7,14 @@ import {
   pipelineStage,
   stageRun,
 } from '@/core/db/schema';
+import { Feature } from '@/core/features/features';
 import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
-import { protectedMutation, publicProcedure, router } from '../trpc';
+import {
+  featureGated,
+  protectedMutation,
+  publicProcedure,
+  router,
+} from '../trpc';
 
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 type DriverSelect = typeof driver.$inferSelect;
@@ -159,7 +165,8 @@ export const driverRouter = router({
     }),
 
   // FLX-91: list revisions for a driver, newest first.
-  listHistory: publicProcedure
+  // FLX-14: revision history is a paid-tier feature.
+  listHistory: featureGated(Feature.REVISION_HISTORY)
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return ctx.db

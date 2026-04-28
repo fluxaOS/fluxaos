@@ -1,8 +1,14 @@
 import { z } from 'zod/v4';
 import type { skill } from '@/core/db/schema';
+import { Feature } from '@/core/features/features';
 import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createSkillService } from '@/core/services';
-import { protectedMutation, publicProcedure, router } from '../trpc';
+import {
+  featureGated,
+  protectedMutation,
+  publicProcedure,
+  router,
+} from '../trpc';
 
 type SkillInsert = typeof skill.$inferInsert;
 
@@ -70,7 +76,8 @@ export const skillRouter = router({
       return row;
     }),
 
-  listHistory: publicProcedure
+  // FLX-14: revision history is a paid-tier feature.
+  listHistory: featureGated(Feature.REVISION_HISTORY)
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => {
       return createSkillService(ctx.db).listRevisions(input.id);

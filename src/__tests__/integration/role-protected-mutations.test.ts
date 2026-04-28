@@ -38,7 +38,12 @@ afterAll(async () => {
 function ctxFor(role: Role): TRPCContext {
   return {
     db,
-    viewer: { authUserId: null, fluxaUserId: null, role },
+    viewer: {
+      authUserId: null,
+      fluxaUserId: null,
+      role,
+      tier: 'enterprise',
+    },
   };
 }
 

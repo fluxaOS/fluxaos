@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
+import { Feature } from '@/core/features/features';
 import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
+import { useHasFeature } from '@/lib/auth/use-viewer-tier';
 import { trpc } from '@/lib/trpc/client';
 import { DriverRevisionHistory } from './DriverRevisionHistory';
 import { type DriverRecord, driverDescriptor } from './descriptor';
@@ -98,6 +100,8 @@ export default function DriversSettingsPage() {
   // is the actual security boundary; this disables buttons before the click.
   const canEdit = useCanEdit();
   const canDelete = useCanDelete();
+  // FLX-14: revision history is a paid-tier feature.
+  const hasRevisionHistory = useHasFeature(Feature.REVISION_HISTORY);
 
   return (
     <div className="space-y-5">
@@ -205,7 +209,9 @@ export default function DriversSettingsPage() {
         canDelete={() => canDelete}
       />
 
-      {selected ? <DriverRevisionHistory driver={selected} /> : null}
+      {selected && hasRevisionHistory ? (
+        <DriverRevisionHistory driver={selected} />
+      ) : null}
     </div>
   );
 }

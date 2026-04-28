@@ -18,6 +18,14 @@ export const userRouter = router({
     return { role: ctx.viewer.role };
   }),
 
+  // FLX-14: client-side feature gates need to know the viewer's effective
+  // subscription tier. Returns the tier resolved by tRPC context
+  // (organization.subscription_tier, or 'enterprise' under the homelab
+  // LAN bypass).
+  viewerTier: publicProcedure.query(({ ctx }) => {
+    return { tier: ctx.viewer.tier };
+  }),
+
   listByOrg: publicProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {

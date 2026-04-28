@@ -79,7 +79,12 @@ describe('R-SETTINGS-ALPHA project router', () => {
   const db = dbProvider.getConnection();
   const caller = appRouter.createCaller({
     db,
-    viewer: { authUserId: null, fluxaUserId: null, role: 'admin' },
+    viewer: {
+      authUserId: null,
+      fluxaUserId: null,
+      role: 'admin',
+      tier: 'enterprise',
+    },
   });
 
   it('project.update accepts defaultBranch + defaultPipelineId', async () => {

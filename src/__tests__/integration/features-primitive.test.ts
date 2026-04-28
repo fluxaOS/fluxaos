@@ -2,28 +2,28 @@ import 'dotenv/config';
 import { describe, expect, it } from 'vitest';
 import { Feature, hasFeature } from '@/core/features/features';
 
-describe('features primitive', () => {
-  it('every Feature enum value resolves to true for a signed-in user today', () => {
-    // DEF-004: when tier gating is wired, these expectations will change per-tier.
-    // Today, every user has every feature (pre-SaaS stub).
-    const userId = 'test-user';
+describe('features primitive (FLX-14 tier-keyed)', () => {
+  it('free tier has no gated features', () => {
     for (const feature of Object.values(Feature)) {
-      expect(hasFeature(userId, feature)).toBe(true);
+      expect(hasFeature('free', feature)).toBe(false);
     }
   });
 
-  it('accepts null userId (anonymous / LAN-bypass sessions)', () => {
-    // The UI hook useCurrentUser returns null when no session cookie exists
-    // (including during FLUXAOS_LAN_AUTH_BYPASS runs). hasFeature must
-    // accept the null case without throwing.
+  it('pro tier has every catalog feature', () => {
     for (const feature of Object.values(Feature)) {
-      expect(hasFeature(null, feature)).toBe(true);
+      expect(hasFeature('pro', feature)).toBe(true);
     }
   });
 
-  it('has exactly the expected seed feature flags', () => {
+  it('enterprise tier has every catalog feature', () => {
+    for (const feature of Object.values(Feature)) {
+      expect(hasFeature('enterprise', feature)).toBe(true);
+    }
+  });
+
+  it('Feature enum lists exactly the expected entries', () => {
     expect(Object.keys(Feature).sort()).toEqual(
-      ['PREVIEW_GATE', 'REVISION_HISTORY', 'ROLE_BASED_PERMISSIONS'].sort()
+      ['PREVIEW_GATE', 'REVISION_HISTORY'].sort()
     );
   });
 });

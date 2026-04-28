@@ -317,7 +317,12 @@ afterAll(async () => {
 describe('R-MISSION-CONTROL mission.summary', () => {
   const caller = appRouter.createCaller({
     db,
-    viewer: { authUserId: null, fluxaUserId: null, role: 'admin' },
+    viewer: {
+      authUserId: null,
+      fluxaUserId: null,
+      role: 'admin',
+      tier: 'enterprise',
+    },
   });
 
   it('returns each section populated for the project', async () => {
