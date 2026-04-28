@@ -712,6 +712,8 @@ export const configEntry = pgTable(
   'config_entry',
   {
     id,
+    // Optimistic concurrency token — required by RecordEditor (FLX-89).
+    version: integer('version').notNull().default(1),
     scope: text('scope').notNull().default('global'),
     projectId: uuid('project_id').references(() => project.id),
     key: text('key').notNull(),
