@@ -16,6 +16,10 @@ export function createProjectService(db: Database) {
       return db.select().from(project).where(eq(project.orgId, orgId));
     },
 
+    async listByUser(userId: string): Promise<ProjectSelect[]> {
+      return db.select().from(project).where(eq(project.userId, userId));
+    },
+
     async getBySlug(
       orgId: string,
       slug: string
