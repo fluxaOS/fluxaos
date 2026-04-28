@@ -2,6 +2,7 @@
  * Root tRPC router — merges all domain routers.
  */
 
+import { configRouter } from './routers/config';
 import { driverRouter } from './routers/driver';
 import { gateRouter } from './routers/gate';
 import { issueRouter } from './routers/issue';
@@ -31,6 +32,7 @@ export const appRouter = router({
   provider: providerRouter,
   routing: routingRouter,
   driver: driverRouter,
+  config: configRouter,
   system: systemRouter,
   team: teamRouter,
   user: userRouter,

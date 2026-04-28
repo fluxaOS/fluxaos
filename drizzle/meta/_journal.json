@@ -71,6 +71,13 @@
       "when": 1777939200000,
       "tag": "0011_flx_3_user_version",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777939260000,
+      "tag": "0012_flx_89_config_entry_version",
+      "breakpoints": true
     }
   ]
 }
