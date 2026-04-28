@@ -43,9 +43,9 @@ test.describe('@flx-60 @journey @project-crud', () => {
     // Wait for save to settle: RecordEditor exits editing state on success,
     // which makes the Edit button reappear. Reloading before settle races
     // the mutation and the spec sees stale data.
-    await expect(
-      page.getByRole('button', { name: 'Edit' })
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Persistence: reload, reselect, assert the persisted value.
     await page.reload();
