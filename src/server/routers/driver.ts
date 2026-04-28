@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { driver } from '@/core/db/schema';
+import { driver, pipelineStage, stageRun } from '@/core/db/schema';
 import { publicProcedure, router } from '../trpc';
 
 export const driverRouter = router({
@@ -100,13 +100,52 @@ export const driverRouter = router({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .delete(driver)
-        .where(eq(driver.id, input.id))
-        .returning();
-      if (!row) throw new Error(`Driver not found: ${input.id}`);
-      return row;
+      // Wrap FK count + version-locked delete in a single transaction so a
+      // concurrent insert into pipelineStage / stageRun between the count
+      // and the delete cannot orphan a reference. Without the transaction,
+      // a concurrent writer could add a reference between the count (0)
+      // and the delete (succeeds), then the DB's FK RESTRICT fires as an
+      // unhandled tRPC 500 instead of the friendly "referenced by N" path.
+      // Mirrors the FLX-63-equivalent skill.delete shape.
+      return await ctx.db.transaction(async (tx) => {
+        // 1. FK guard
+        const [{ pipelineStages, stageRuns }] = await tx
+          .select({
+            pipelineStages: sql<number>`count(distinct ${pipelineStage.id})`,
+            stageRuns: sql<number>`count(distinct ${stageRun.id})`,
+          })
+          .from(driver)
+          .leftJoin(pipelineStage, eq(pipelineStage.driverId, driver.id))
+          .leftJoin(stageRun, eq(stageRun.driverId, driver.id))
+          .where(eq(driver.id, input.id));
+
+        const pStages = Number(pipelineStages);
+        const sRuns = Number(stageRuns);
+        if (pStages + sRuns > 0) {
+          throw new Error(
+            `Cannot delete driver — referenced by ${pStages} pipeline stage(s) and ${sRuns} stage run(s). Remove references first.`
+          );
+        }
+
+        // 2. Version-locked delete
+        const [row] = await tx
+          .delete(driver)
+          .where(
+            and(eq(driver.id, input.id), eq(driver.version, input.version))
+          )
+          .returning();
+        if (!row) {
+          // Either id missing or version mismatch — try to distinguish.
+          const [exists] = await tx
+            .select({ version: driver.version })
+            .from(driver)
+            .where(eq(driver.id, input.id));
+          if (!exists) throw new Error(`Driver not found: ${input.id}`);
+          throw new Error('Optimistic concurrency conflict');
+        }
+        return row;
+      });
     }),
 });

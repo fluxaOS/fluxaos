@@ -15,6 +15,7 @@ export default function DriversSettingsPage() {
   const listQuery = trpc.driver.list.useQuery();
   const updateMutation = trpc.driver.update.useMutation();
   const createMutation = trpc.driver.create.useMutation();
+  const deleteMutation = trpc.driver.delete.useMutation();
 
   const records = (listQuery.data ?? []) as unknown as DriverRecord[];
 
@@ -52,6 +53,11 @@ export default function DriversSettingsPage() {
       version: expectedVersion,
       isEnabled: enabled,
     });
+    await utils.driver.list.invalidate();
+  };
+
+  const onDelete = async (id: string, expectedVersion: number) => {
+    await deleteMutation.mutateAsync({ id, version: expectedVersion });
     await utils.driver.list.invalidate();
   };
 
@@ -181,6 +187,7 @@ export default function DriversSettingsPage() {
         records={records}
         isLoading={listQuery.isLoading}
         onSave={onSave}
+        onDelete={onDelete}
         onToggleEnabled={onToggleEnabled}
         onRefresh={async () => {
           await utils.driver.list.invalidate();

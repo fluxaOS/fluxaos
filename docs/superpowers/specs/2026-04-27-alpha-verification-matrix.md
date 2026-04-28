@@ -39,7 +39,7 @@ DB-driven, even at one entry. fluxaOS reads catalog data from the DB at runtime;
 | Driver — Create | ✅ | ✅ | `e2e/create-a-driver.spec.ts` (FLX-62). New Driver form added in same PR (was missing); contextLayout JSON field has a seed-shape default. |
 | Driver — Edit | ✅ | ✅ | `e2e/edit-a-driver.spec.ts`. |
 | Driver — Toggle enabled | ✅ | ✅ | `e2e/toggle-driver-enabled.spec.ts`. |
-| Driver — Delete | 🟡 | 🔴 | No spec. |
+| Driver — Delete | ✅ | ✅ | `e2e/delete-an-unreferenced-driver.spec.ts`, `e2e/delete-a-referenced-driver-fails-gracefully.spec.ts` (FLX-63). FK guard added to driver.delete in same PR (mirrors skill.delete pattern). |
 | Routing Profile — Create / Edit / Delete | 🟡 | 🔴 | `/settings/routing` tab exists. No spec for any operation. |
 | Provider — Create / Edit / Delete | 🟡 | 🔴 | `/settings/providers` tab exists. No spec for any operation. |
 | Persona — Create / Edit / Delete | 🟡 | 🔴 | `/settings/personas` tab exists. No spec for any operation. |
