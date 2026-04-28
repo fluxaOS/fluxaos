@@ -8,6 +8,7 @@ import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { Feature, hasFeature } from '@/core/features/features';
 import { useCurrentUser } from '@/lib/auth/use-current-user';
 import { trpc } from '@/lib/trpc/client';
+import { DriverRevisionHistory } from './DriverRevisionHistory';
 import { type DriverRecord, driverDescriptor } from './descriptor';
 
 export default function DriversSettingsPage() {
@@ -29,6 +30,7 @@ export default function DriversSettingsPage() {
     '{\n  "instructionsFile": "CLAUDE.md",\n  "contextFile": "context.md"\n}'
   );
   const [createError, setCreateError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<DriverRecord | null>(null);
 
   const onSave = async (
     id: string,
@@ -41,6 +43,8 @@ export default function DriversSettingsPage() {
       ...(patch as Record<string, unknown>),
     });
     await utils.driver.list.invalidate();
+    // FLX-91: edits create a new driver_revision row, refetch history.
+    await utils.driver.listHistory.invalidate({ id });
   };
 
   const onToggleEnabled = async (
@@ -54,6 +58,8 @@ export default function DriversSettingsPage() {
       isEnabled: enabled,
     });
     await utils.driver.list.invalidate();
+    // FLX-91: toggling enabled creates a new driver_revision row.
+    await utils.driver.listHistory.invalidate({ id });
   };
 
   const onDelete = async (id: string, expectedVersion: number) => {
@@ -189,6 +195,7 @@ export default function DriversSettingsPage() {
         onSave={onSave}
         onDelete={onDelete}
         onToggleEnabled={onToggleEnabled}
+        onSelectionChange={setSelected}
         onRefresh={async () => {
           await utils.driver.list.invalidate();
         }}
@@ -196,6 +203,8 @@ export default function DriversSettingsPage() {
         canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
         canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
       />
+
+      {selected ? <DriverRevisionHistory driver={selected} /> : null}
     </div>
   );
 }

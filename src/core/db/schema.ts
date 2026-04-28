@@ -205,6 +205,50 @@ export const driver = pgTable('driver', {
   updatedAt,
 });
 
+// FLX-91: append-only revision log for driver edits. Mirror of
+// skill_revision (FLX-13). Snapshot is taken after the row is updated,
+// so revision_number 1 captures the state produced by the first
+// user-driven save (not the seed insert).
+export const driverRevision = pgTable(
+  'driver_revision',
+  {
+    id,
+    driverId: uuid('driver_id')
+      .notNull()
+      .references(() => driver.id, { onDelete: 'cascade' }),
+    revisionNumber: integer('revision_number').notNull(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    binary: text('binary').notNull(),
+    defaultArgs: jsonb('default_args').notNull(),
+    modelFlag: text('model_flag'),
+    dirFlag: text('dir_flag'),
+    sessionNameFlag: text('session_name_flag'),
+    promptTransport: text('prompt_transport').notNull(),
+    outputFormat: text('output_format').notNull(),
+    outputFormatFlag: text('output_format_flag'),
+    promptSendDelayMs: integer('prompt_send_delay_ms').notNull(),
+    probeCommand: text('probe_command'),
+    issuePromptTemplate: text('issue_prompt_template'),
+    queuePromptTemplate: text('queue_prompt_template'),
+    envVars: jsonb('env_vars').notNull(),
+    extraArgs: jsonb('extra_args').notNull(),
+    contextLayout: jsonb('context_layout').notNull(),
+    isEnabled: boolean('is_enabled').notNull(),
+    notes: text('notes'),
+    snapshotAt: timestamp('snapshot_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    snapshotBy: text('snapshot_by'),
+  },
+  (t) => [
+    uniqueIndex('driver_revision_driver_id_revision_idx').on(
+      t.driverId,
+      t.revisionNumber
+    ),
+  ]
+);
+
 // ─── Event Store (append-only) ──────────────────────────────────────────────
 
 export const event = pgTable('event', {
