@@ -708,6 +708,29 @@ export const memory = pgTable('memory', {
 
 // ─── System ─────────────────────────────────────────────────────────────────
 
+export const cronJob = pgTable(
+  'cron_job',
+  {
+    id,
+    // Optimistic concurrency token (FLX-90).
+    version: integer('version').notNull().default(1),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    cronExpression: text('cron_expression').notNull(),
+    actionType: text('action_type').notNull(),
+    actionPayload: jsonb('action_payload'),
+    isEnabled: boolean('is_enabled').notNull().default(true),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [uniqueIndex('cron_job_project_slug_idx').on(t.projectId, t.slug)]
+);
+
 export const configEntry = pgTable(
   'config_entry',
   {
