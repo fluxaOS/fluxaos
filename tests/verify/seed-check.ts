@@ -87,8 +87,14 @@ async function main() {
   assert(skills.length === 4, `4 skills (got ${skills.length})`);
 
   // --- Drivers ---
+  // FLX-6: seed adds the OpenAI Codex CLI driver alongside Claude Code.
   const drivers = await db.select().from(driver);
-  assert(drivers.length === 1, `1 driver (got ${drivers.length})`);
+  assert(drivers.length === 2, `2 drivers (got ${drivers.length})`);
+  const driverSlugs = drivers.map((d) => d.slug).sort();
+  assert(
+    driverSlugs.join(',') === 'claude-code,openai-codex',
+    `seeded driver slugs (got ${driverSlugs.join(',')})`
+  );
 
   // --- Summary ---
   console.log('');

@@ -226,6 +226,47 @@ async function seed() {
   }
   console.log(`  driver: ${claudeDriver.name} (${claudeDriver.id})`);
 
+  // FLX-6: OpenAI Codex CLI driver. Mirror of the Claude Code driver
+  // shape, configured for the `codex` CLI binary. Seeded as disabled
+  // (isEnabled: false) because the binary may not be installed on every
+  // homelab. Operators flip isEnabled in Settings → Drivers when they
+  // have the CLI configured.
+  let [codexDriver] = await db
+    .insert(driver)
+    .values({
+      name: 'OpenAI Codex CLI',
+      slug: 'openai-codex',
+      binary: 'codex',
+      modelFlag: '--model',
+      dirFlag: '--cwd',
+      sessionNameFlag: null,
+      promptTransport: 'argv',
+      outputFormat: 'stream-json',
+      outputFormatFlag: '--output-format',
+      issuePromptTemplate:
+        '{{skill_name}}: {{issue_title}} — {{issue_description}}',
+      queuePromptTemplate: '{{issue_title}}',
+      defaultArgs: ['--print'],
+      envVars: {},
+      contextLayout: {
+        instructionsFile: 'AGENTS.md',
+        contextFile: 'context.md',
+      },
+      isEnabled: false,
+      notes:
+        'OpenAI Codex CLI driver (FLX-6). Disabled by default — flip isEnabled once the `codex` binary is installed and authenticated.',
+    })
+    .onConflictDoNothing({ target: driver.slug })
+    .returning();
+
+  if (!codexDriver) {
+    [codexDriver] = await db
+      .select()
+      .from(driver)
+      .where(eq(driver.slug, 'openai-codex'));
+  }
+  console.log(`  driver: ${codexDriver.name} (${codexDriver.id})`);
+
   // ── 5c. Skills ─────────────────────────────────────────────────────────
   // Lean pipeline prompts — designed for headless --print mode in isolated workspaces.
   // The workspace contains only CLAUDE.md (persona + skill definition) and context.md
@@ -406,6 +447,44 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
         `  routing: ${defaultProvider.name} → ${defaultModel?.identifier ?? 'n/a'} via ${defaultProfile.name}`
       );
     }
+  }
+
+  // FLX-6: OpenAI provider + model. Seeded so operators see OpenAI in
+  // Settings → Providers and can wire a routing rule to the codex driver
+  // when their CLI is configured. Model identifier and costs reflect
+  // GPT-5.4 pricing as published; adjust in Settings → Providers if
+  // OpenAI updates the price sheet.
+  let [openaiProvider] = await db
+    .insert(provider)
+    .values({
+      orgId: org.id,
+      name: 'OpenAI',
+      type: 'openai',
+      apiKeyRef: 'env:OPENAI_API_KEY',
+      isHealthy: false,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!openaiProvider) {
+    [openaiProvider] = await db
+      .select()
+      .from(provider)
+      .where(and(eq(provider.orgId, org.id), eq(provider.type, 'openai')));
+  }
+
+  if (openaiProvider) {
+    await db
+      .insert(model)
+      .values({
+        providerId: openaiProvider.id,
+        name: 'GPT-5.4',
+        identifier: 'gpt-5.4',
+        costPer1kInput: '0.005',
+        costPer1kOutput: '0.020',
+      })
+      .onConflictDoNothing();
+    console.log(`  provider: ${openaiProvider.name} (gpt-5.4)`);
   }
 
   // ── 6. Issue type catalog ──────────────────────────────────────────────
