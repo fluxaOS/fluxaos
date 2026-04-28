@@ -7,7 +7,8 @@ import {
   pipelineStage,
   stageRun,
 } from '@/core/db/schema';
-import { publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 type DriverSelect = typeof driver.$inferSelect;
@@ -79,7 +80,7 @@ export const driverRouter = router({
       return row;
     }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         name: z.string().min(1),
@@ -111,7 +112,7 @@ export const driverRouter = router({
       return row;
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -170,7 +171,7 @@ export const driverRouter = router({
 
   // FLX-91: revert a driver to a snapshotted revision. Writes a NEW
   // revision capturing the reverted state (history is append-only).
-  revertToRevision: publicProcedure
+  revertToRevision: protectedMutation(REVERT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -229,7 +230,7 @@ export const driverRouter = router({
       });
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       // Wrap FK count + version-locked delete in a single transaction so a

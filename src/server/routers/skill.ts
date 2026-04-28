@@ -1,7 +1,8 @@
 import { z } from 'zod/v4';
 import type { skill } from '@/core/db/schema';
+import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createSkillService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 type SkillInsert = typeof skill.$inferInsert;
 
@@ -28,7 +29,7 @@ export const skillRouter = router({
       return createSkillService(ctx.db).getById(input.id);
     }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         scope,
@@ -45,7 +46,7 @@ export const skillRouter = router({
       return createSkillService(ctx.db).create(input as SkillInsert);
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -75,7 +76,7 @@ export const skillRouter = router({
       return createSkillService(ctx.db).listRevisions(input.id);
     }),
 
-  revertToRevision: publicProcedure
+  revertToRevision: protectedMutation(REVERT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -99,7 +100,7 @@ export const skillRouter = router({
       return createSkillService(ctx.db).countReferences(input.id);
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       // Wrap the FK-count + version-locked delete in a single transaction

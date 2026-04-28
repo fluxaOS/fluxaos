@@ -77,7 +77,10 @@ describe('R-SETTINGS-ALPHA project router', () => {
   if (!url) throw new Error('DATABASE_URL required');
   const dbProvider = new SupabaseDatabaseProvider(url);
   const db = dbProvider.getConnection();
-  const caller = appRouter.createCaller({ db });
+  const caller = appRouter.createCaller({
+    db,
+    viewer: { authUserId: null, fluxaUserId: null, role: 'admin' },
+  });
 
   it('project.update accepts defaultBranch + defaultPipelineId', async () => {
     const f = await makeFixture(db);

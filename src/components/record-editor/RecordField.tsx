@@ -162,6 +162,30 @@ function RecordFieldInner({
     );
   }
 
+  // SELECT (dropdown of allowed string values; FLX-12)
+  if (field.fieldType === 'select') {
+    const options = field.options ?? [];
+    return (
+      <div className="mb-3">
+        {label}
+        <select
+          disabled={!editing}
+          value={String(value ?? options[0] ?? '')}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={field.label}
+          className={`${common} ${borderClass} disabled:opacity-75`}
+        >
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+      </div>
+    );
+  }
+
   // TEXTAREA-LARGE
   if (field.fieldType === 'textarea-large') {
     return (

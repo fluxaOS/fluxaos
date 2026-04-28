@@ -47,6 +47,9 @@ export const user = pgTable(
     name: text('name').notNull(),
     slug: text('slug').notNull(),
     avatarUrl: text('avatar_url'),
+    // FLX-12: 'admin' | 'maintainer' | 'viewer'. Grandfathered to 'admin'
+    // for existing rows. Engine treats unknown values as 'viewer'.
+    role: text('role').notNull().default('admin'),
     createdAt,
     updatedAt,
   },

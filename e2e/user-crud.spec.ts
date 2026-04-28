@@ -56,6 +56,30 @@ test.describe('@flx-3 @journey @users-crud', () => {
       timeout: 10_000,
     });
 
+    // ── Edit role (FLX-12) ──────────────────────────────────────────────
+    // The Role field is a select with admin/maintainer/viewer.
+    await page.getByText(editedName).first().click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    const roleSelect = page.getByLabel('Role', { exact: true });
+    await expect(roleSelect).toBeVisible();
+    // Default is 'admin' (grandfathered). Change to 'maintainer' and save.
+    await roleSelect.selectOption('maintainer');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+
+    // Reload — role persists. Read from the select's value, not text
+    // (the select renders all options as <option>, so getByText would
+    // match the hidden options too).
+    await page.reload();
+    await page.getByText(editedName).first().click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByLabel('Role', { exact: true })).toHaveValue(
+      'maintainer'
+    );
+    // Cancel out of edit mode without saving.
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+
     // ── Delete ──────────────────────────────────────────────────────────
     await page.getByText(editedName).first().click();
     await page.getByRole('button', { name: 'Edit' }).click();

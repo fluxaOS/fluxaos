@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
-import { Feature, hasFeature } from '@/core/features/features';
-import { useCurrentUser } from '@/lib/auth/use-current-user';
+import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
 import { trpc } from '@/lib/trpc/client';
 import { DriverRevisionHistory } from './DriverRevisionHistory';
 import { type DriverRecord, driverDescriptor } from './descriptor';
@@ -95,7 +94,10 @@ export default function DriversSettingsPage() {
     }
   };
 
-  const { userId } = useCurrentUser();
+  // FLX-12: role-based gating. Server-side enforcement via protectedMutation
+  // is the actual security boundary; this disables buttons before the click.
+  const canEdit = useCanEdit();
+  const canDelete = useCanDelete();
 
   return (
     <div className="space-y-5">
@@ -199,9 +201,8 @@ export default function DriversSettingsPage() {
         onRefresh={async () => {
           await utils.driver.list.invalidate();
         }}
-        // DEF-002 role gates — today always true (see features.ts)
-        canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
-        canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
+        canEdit={() => canEdit}
+        canDelete={() => canDelete}
       />
 
       {selected ? <DriverRevisionHistory driver={selected} /> : null}

@@ -99,6 +99,13 @@
       "when": 1777939440000,
       "tag": "0015_flx_91_driver_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777939500000,
+      "tag": "0016_flx_12_user_role",
+      "breakpoints": true
     }
   ]
 }

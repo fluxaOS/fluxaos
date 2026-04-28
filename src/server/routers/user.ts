@@ -1,11 +1,21 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { user } from '@/core/db/schema';
-import { publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES, ROLE_VALUES } from '@/core/features/roles';
+import { protectedMutation, publicProcedure, router } from '../trpc';
+
+const roleEnum = z.enum(ROLE_VALUES as readonly [string, ...string[]]);
 
 export const userRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(user).orderBy(user.name);
+  }),
+
+  // FLX-12: client-side gates need to know the viewer's effective role.
+  // Returns the role resolved by tRPC context (Supabase session ↦ user.role,
+  // or 'admin' under the homelab LAN bypass).
+  viewerRole: publicProcedure.query(({ ctx }) => {
+    return { role: ctx.viewer.role };
   }),
 
   listByOrg: publicProcedure
@@ -29,7 +39,7 @@ export const userRouter = router({
       return row;
     }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         orgId: z.string().uuid(),
@@ -43,6 +53,7 @@ export const userRouter = router({
             'slug must be kebab-case (lowercase, digits, dashes only)'
           ),
         avatarUrl: z.string().url().nullable().optional(),
+        role: roleEnum.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -50,7 +61,7 @@ export const userRouter = router({
       return row;
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -63,6 +74,7 @@ export const userRouter = router({
           .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be kebab-case')
           .optional(),
         avatarUrl: z.string().url().nullable().optional(),
+        role: roleEnum.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -76,7 +88,7 @@ export const userRouter = router({
       return row;
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       const [row] = await ctx.db
