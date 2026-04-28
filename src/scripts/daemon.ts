@@ -29,7 +29,11 @@ import {
   createCleanupScheduler,
 } from '@/core/cleanup/cleanup-scheduler';
 import { createCleanupService } from '@/core/cleanup/cleanup-service';
-import { STAGE_RUN_STATUS } from '@/core/constants';
+import {
+  EVENT_TYPE,
+  PIPELINE_RUN_STATUS,
+  STAGE_RUN_STATUS,
+} from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import { stageRun } from '@/core/db/schema';
 import { createDeployBridge } from '@/core/deploy';
@@ -38,6 +42,7 @@ import {
   createEventOrchestrator,
   type EventOrchestrator,
 } from '@/core/orchestrator/event-orchestrator';
+import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
 import type { DatabaseProvider } from '@/core/ports';
 import type { IsolationProvider } from '@/core/ports/isolation';
@@ -135,6 +140,7 @@ export async function createDaemon(): Promise<Daemon> {
   const isolation = registry.get<IsolationProvider>('isolation');
   const executor = registry.get<StageExecutor>('executor');
   const issueService = createIssueService(db);
+  const runService = createPipelineRunService(db);
 
   const deployBridge = createDeployBridge({
     db,
@@ -148,6 +154,24 @@ export async function createDaemon(): Promise<Daemon> {
     deployBridge,
     isolation,
     logger: consoleLogger,
+    onDeployFailure: async ({ runId, error }) => {
+      const stageRuns = await runService.getStageRuns(runId);
+      const latestStageRun = stageRuns.at(-1);
+      const message = error instanceof Error ? error.message : String(error);
+      if (latestStageRun) {
+        await runService.completeStageRun(
+          latestStageRun.id,
+          STAGE_RUN_STATUS.failed,
+          {
+            errorMessage: `deploy failed: ${message}`,
+          }
+        );
+        await runService.appendEvent(latestStageRun.id, EVENT_TYPE.error, {
+          message: `deploy failed: ${message}`,
+        });
+      }
+      await runService.completeRun(runId, PIPELINE_RUN_STATUS.failed);
+    },
   });
 
   const orchestrator = createEventOrchestrator(

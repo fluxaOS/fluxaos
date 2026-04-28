@@ -112,18 +112,20 @@ describe('pipeline-terminal-hook', () => {
     );
   });
 
-  it('completed + deploy throws → logs deploy.failed and does NOT throw', async () => {
+  it('completed + deploy throws → logs, marks failure via callback, and releases env', async () => {
     const deploy = vi.fn(async () => {
       throw new Error('PR creation blew up');
     });
     const bridge: DeployBridge = { deploy };
-    const { isolation } = makeFakeIsolation();
+    const { isolation, release } = makeFakeIsolation();
     const logger = makeLogger();
+    const onDeployFailure = vi.fn(async () => undefined);
 
     const hook = createPipelineTerminalHook({
       deployBridge: bridge,
       isolation,
       logger,
+      onDeployFailure,
     });
 
     await expect(
@@ -139,6 +141,17 @@ describe('pipeline-terminal-hook', () => {
     );
     expect(errRecord).toBeDefined();
     expect(errRecord?.level).toBe('error');
+    expect(onDeployFailure).toHaveBeenCalledWith({
+      runId: 'run-1',
+      projectId: 'proj-1',
+      error: expect.any(Error),
+    });
+    expect(release).toHaveBeenCalledWith('env-1', { force: false });
+    expect(
+      logger.records.some(
+        (r) => r.obj.event === 'terminal-hook.env-released-after-deploy-failure'
+      )
+    ).toBe(true);
   });
 
   it('failed status → releases the active env and does NOT call deploy', async () => {
