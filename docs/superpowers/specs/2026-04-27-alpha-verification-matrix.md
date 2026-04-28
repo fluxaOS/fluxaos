@@ -33,10 +33,10 @@ DB-driven, even at one entry. fluxaOS reads catalog data from the DB at runtime;
 |---|---|---|---|
 | Project — Create / Edit / Delete | ✅ | ✅ | `e2e/project-crud.spec.ts` (FLX-60). New Project button + RecordEditor onDelete wired in same PR. |
 | Team — Create / Edit / Delete | ✅ | ✅ | `e2e/team-crud.spec.ts` (FLX-61). New `/settings/teams` tab + tRPC router + service. |
-| Skill — Create | 🟡 | 🔴 | Form exists at `/settings/skills`. No spec covers create. |
+| Skill — Create | ✅ | ✅ | `e2e/create-a-skill.spec.ts` (FLX-62). |
 | Skill — Edit | ✅ | 🟡 | `e2e/edit-a-skill.spec.ts` — currently red (FLX-58: asserts non-existent `deploy` skill). |
 | Skill — Delete | ✅ | ✅ | `e2e/delete-an-unreferenced-skill.spec.ts`, `e2e/delete-a-referenced-skill-fails-gracefully.spec.ts`. |
-| Driver — Create | 🟡 | 🔴 | Form may exist; no spec covers create. |
+| Driver — Create | ✅ | ✅ | `e2e/create-a-driver.spec.ts` (FLX-62). New Driver form added in same PR (was missing); contextLayout JSON field has a seed-shape default. |
 | Driver — Edit | ✅ | ✅ | `e2e/edit-a-driver.spec.ts`. |
 | Driver — Toggle enabled | ✅ | ✅ | `e2e/toggle-driver-enabled.spec.ts`. |
 | Driver — Delete | 🟡 | 🔴 | No spec. |

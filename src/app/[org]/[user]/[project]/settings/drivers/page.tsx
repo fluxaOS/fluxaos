@@ -1,6 +1,8 @@
 // src/app/[org]/[user]/[project]/settings/drivers/page.tsx
 'use client';
 
+import { useState } from 'react';
+import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { Feature, hasFeature } from '@/core/features/features';
@@ -12,8 +14,20 @@ export default function DriversSettingsPage() {
   const utils = trpc.useUtils();
   const listQuery = trpc.driver.list.useQuery();
   const updateMutation = trpc.driver.update.useMutation();
+  const createMutation = trpc.driver.create.useMutation();
 
   const records = (listQuery.data ?? []) as unknown as DriverRecord[];
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newSlug, setNewSlug] = useState('');
+  const [newBinary, setNewBinary] = useState('');
+  // Operators paste/edit a JSON object. Driver schema requires this column
+  // to be non-null (FLX-78). Default placeholder mirrors the seeded shape.
+  const [newContextLayout, setNewContextLayout] = useState(
+    '{\n  "instructionsFile": "CLAUDE.md",\n  "contextFile": "context.md"\n}'
+  );
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const onSave = async (
     id: string,
@@ -41,6 +55,34 @@ export default function DriversSettingsPage() {
     await utils.driver.list.invalidate();
   };
 
+  const onCreate = async () => {
+    setCreateError(null);
+    let contextLayout: unknown;
+    try {
+      contextLayout = JSON.parse(newContextLayout);
+    } catch (err) {
+      setCreateError(
+        `Context layout must be valid JSON: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    try {
+      await createMutation.mutateAsync({
+        name: newName.trim(),
+        slug: newSlug.trim(),
+        binary: newBinary.trim(),
+        contextLayout,
+      });
+      setNewName('');
+      setNewSlug('');
+      setNewBinary('');
+      setShowCreate(false);
+      await utils.driver.list.invalidate();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const { userId } = useCurrentUser();
 
   return (
@@ -48,7 +90,91 @@ export default function DriversSettingsPage() {
       <PageHeader
         title="Drivers"
         description="Definitions for each AI CLI tool fluxaOS invokes (binary, flags, transport, env)."
+        action={
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all"
+            onClick={() => setShowCreate((v) => !v)}
+          >
+            {showCreate ? 'Cancel' : 'New Driver'}
+          </button>
+        }
       />
+
+      {showCreate ? (
+        <Card padding="p-6">
+          <h3 className="text-sm font-semibold text-white mb-3">New Driver</h3>
+          {createError ? (
+            <div className="mb-3 px-3 py-2 rounded-lg text-sm bg-red-600/10 text-red-300 border border-red-600/30">
+              {createError}
+            </div>
+          ) : null}
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                aria-label="Driver name"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Slug <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                aria-label="Driver slug"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newSlug}
+                onChange={(e) => setNewSlug(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Binary <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                aria-label="Driver binary"
+                placeholder="claude"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newBinary}
+                onChange={(e) => setNewBinary(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Context layout (JSON) <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                rows={5}
+                aria-label="Driver context layout"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"
+                value={newContextLayout}
+                onChange={(e) => setNewContextLayout(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
+              disabled={
+                !newName.trim() ||
+                !newSlug.trim() ||
+                !newBinary.trim() ||
+                createMutation.isPending
+              }
+              onClick={onCreate}
+            >
+              {createMutation.isPending ? 'Creating…' : 'Create'}
+            </button>
+          </div>
+        </Card>
+      ) : null}
 
       <RecordEditor<DriverRecord>
         descriptor={driverDescriptor}

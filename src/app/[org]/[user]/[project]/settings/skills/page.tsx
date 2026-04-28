@@ -86,6 +86,7 @@ export default function SkillsSettingsPage() {
                 Name <span className="text-red-400">*</span>
               </label>
               <input
+                aria-label="Skill name"
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -96,6 +97,7 @@ export default function SkillsSettingsPage() {
                 Scope
               </label>
               <select
+                aria-label="Skill scope"
                 className="bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
                 value={newScope}
                 onChange={(e) =>
@@ -112,6 +114,7 @@ export default function SkillsSettingsPage() {
               </label>
               <textarea
                 rows={3}
+                aria-label="Skill description"
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
@@ -123,6 +126,7 @@ export default function SkillsSettingsPage() {
               </label>
               <textarea
                 rows={8}
+                aria-label="Skill prompt template"
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"
                 value={newPrompt}
                 onChange={(e) => setNewPrompt(e.target.value)}
