@@ -6,6 +6,7 @@ export type FieldType =
   | 'textarea-large'
   | 'tags'
   | 'boolean'
+  | 'jsonb'
   | 'readonly';
 
 export type FieldDescriptor<TRecord> = {

@@ -5,7 +5,8 @@ import type { RecordDescriptor } from '@/components/record-editor/types';
 // - outputFormatFlag is read by command-builder.ts
 // - contextLayout is read by stage-runner.ts to choose instructions file name
 // JSON-valued fields (defaultArgs, envVars, extraArgs, contextLayout) are
-// displayed readonly for MVP; DEF-006 tracks a structured editor upgrade.
+// edited via the jsonb field type — the renderer parses on every keystroke
+// and blocks Save until the JSON is valid (FLX-38).
 export type DriverRecord = {
   id: string;
   version: number;
@@ -24,7 +25,7 @@ export type DriverRecord = {
   queuePromptTemplate: string | null;
   notes: string | null;
   isEnabled: boolean;
-  // JSON-valued columns — readonly in MVP (DEF-006)
+  // JSON-valued columns — see field descriptors below for shape constraints
   defaultArgs: unknown;
   envVars: unknown;
   extraArgs: unknown;
@@ -93,14 +94,61 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
       label: 'Queue prompt template',
       fieldType: 'textarea-large',
     },
-    // JSON fields — readonly in MVP; DEF-006 adds a structured editor later
-    { key: 'defaultArgs', label: 'Default args (JSON)', fieldType: 'readonly' },
-    { key: 'envVars', label: 'Env vars (JSON)', fieldType: 'readonly' },
-    { key: 'extraArgs', label: 'Extra args (JSON)', fieldType: 'readonly' },
+    // JSON fields — server-side Zod validates the *shape* (string[],
+    // record<string,string>, record<string,unknown>, unknown). The renderer
+    // only validates JSON parseability — shape errors will surface as a
+    // tRPC error banner if the user enters something the column rejects.
+    {
+      key: 'defaultArgs',
+      label: 'Default args (JSON array of strings)',
+      fieldType: 'jsonb',
+      placeholder: '["--print", "--output-format", "json"]',
+      validate: (v) => {
+        if (v === undefined || v === null) return null;
+        if (!Array.isArray(v) || !v.every((item) => typeof item === 'string')) {
+          return 'Must be a JSON array of strings';
+        }
+        return null;
+      },
+    },
+    {
+      key: 'envVars',
+      label: 'Env vars (JSON object of string→string)',
+      fieldType: 'jsonb',
+      placeholder: '{ "ANTHROPIC_API_KEY": "..." }',
+      validate: (v) => {
+        if (v === undefined || v === null) return null;
+        if (
+          typeof v !== 'object' ||
+          Array.isArray(v) ||
+          !Object.values(v as Record<string, unknown>).every(
+            (val) => typeof val === 'string'
+          )
+        ) {
+          return 'Must be a JSON object with string values';
+        }
+        return null;
+      },
+    },
+    {
+      key: 'extraArgs',
+      label: 'Extra args (JSON object)',
+      fieldType: 'jsonb',
+      placeholder: '{ "--verbose": true }',
+      validate: (v) => {
+        if (v === undefined || v === null) return null;
+        if (typeof v !== 'object' || Array.isArray(v)) {
+          return 'Must be a JSON object';
+        }
+        return null;
+      },
+    },
     {
       key: 'contextLayout',
       label: 'Context layout (JSON)',
-      fieldType: 'readonly',
+      fieldType: 'jsonb',
+      required: true,
+      placeholder: '{ "instructionsFile": "CLAUDE.md" }',
     },
     { key: 'version', label: 'Version', fieldType: 'readonly' },
   ],

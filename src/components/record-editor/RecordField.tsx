@@ -1,6 +1,7 @@
 // src/components/record-editor/RecordField.tsx
 'use client';
 
+import { useEffect, useId, useRef, useState } from 'react';
 import type { FieldDescriptor } from './types';
 
 type Props = {
@@ -9,9 +10,22 @@ type Props = {
   editing: boolean;
   onChange: (next: unknown) => void;
   error?: string | null;
+  /**
+   * Reports field-local validity errors (e.g. JSON parse failures) up to
+   * the editor so Save can block. Called with `null` when the field is
+   * back in a valid state.
+   */
+  onValidityChange?: (key: string, error: string | null) => void;
 };
 
-export function RecordField({ field, value, editing, onChange, error }: Props) {
+export function RecordField({
+  field,
+  value,
+  editing,
+  onChange,
+  error,
+  onValidityChange,
+}: Props) {
   const common =
     'w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-electric-violet/40';
   const borderClass = error ? 'border-red-500/60' : 'border-slate-700/60';
@@ -102,6 +116,23 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
     );
   }
 
+  // JSONB (structured JSON edit/view)
+  if (field.fieldType === 'jsonb') {
+    return (
+      <JsonField
+        field={field}
+        value={value}
+        editing={editing}
+        onChange={onChange}
+        error={error}
+        onValidityChange={onValidityChange}
+        common={common}
+        borderClass={borderClass}
+        label={label}
+      />
+    );
+  }
+
   // TEXTAREA-LARGE
   if (field.fieldType === 'textarea-large') {
     return (
@@ -154,6 +185,122 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
         className={`${common} ${borderClass} disabled:opacity-75`}
       />
       {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+    </div>
+  );
+}
+
+type JsonFieldProps = {
+  field: FieldDescriptor<Record<string, unknown>>;
+  value: unknown;
+  editing: boolean;
+  onChange: (next: unknown) => void;
+  error?: string | null;
+  onValidityChange?: (key: string, error: string | null) => void;
+  common: string;
+  borderClass: string;
+  label: React.ReactNode;
+};
+
+function formatJson(v: unknown): string {
+  if (v === undefined || v === null) return '';
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch {
+    return String(v);
+  }
+}
+
+function JsonField({
+  field,
+  value,
+  editing,
+  onChange,
+  error,
+  onValidityChange,
+  common,
+  borderClass,
+  label,
+}: JsonFieldProps) {
+  const fieldKey = field.key;
+  // Track raw textarea content separately from the parsed value. Parents
+  // only see successfully-parsed objects; invalid edits stay local until
+  // the user fixes them, while validity is reported up so Save can block.
+  const [raw, setRaw] = useState<string>(() => formatJson(value));
+  const [parseError, setParseError] = useState<string | null>(null);
+  // Resync raw text from `value` whenever we transition between view and
+  // edit modes — derived during render via `useState`'s "store previous
+  // input" pattern so we never fire a setState inside an effect.
+  const [prevEditing, setPrevEditing] = useState(editing);
+  if (prevEditing !== editing) {
+    setPrevEditing(editing);
+    setRaw(formatJson(value));
+    setParseError(null);
+  }
+  const lastReportedRef = useRef<string | null>(null);
+  const errId = useId();
+
+  // Report validity changes only when the message actually flips. Without
+  // this guard the parent's setState fires every keystroke even when the
+  // value is unchanged, churning React.
+  useEffect(() => {
+    const next = editing ? parseError : null;
+    if (lastReportedRef.current !== next) {
+      lastReportedRef.current = next;
+      onValidityChange?.(fieldKey, next);
+    }
+  }, [editing, parseError, fieldKey, onValidityChange]);
+
+  if (!editing) {
+    const display = formatJson(value) || '—';
+    return (
+      <div className="mb-3">
+        {label}
+        <pre className="text-xs font-mono text-slate-300 px-3 py-2 bg-slate-900/60 rounded-lg whitespace-pre-wrap break-all max-h-64 overflow-auto">
+          {display}
+        </pre>
+      </div>
+    );
+  }
+
+  const handleChange = (next: string) => {
+    setRaw(next);
+    if (next.trim() === '') {
+      setParseError(null);
+      onChange(undefined);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(next);
+      setParseError(null);
+      onChange(parsed);
+    } catch (err) {
+      setParseError(
+        `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  };
+
+  const showError = parseError ?? error ?? null;
+
+  return (
+    <div className="mb-3">
+      {label}
+      <textarea
+        value={raw}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder={field.placeholder ?? '{ }'}
+        aria-label={field.label}
+        aria-invalid={Boolean(showError)}
+        aria-describedby={showError ? errId : undefined}
+        rows={8}
+        spellCheck={false}
+        className={`${common} ${borderClass} font-mono text-xs leading-relaxed`}
+      />
+      {showError ? (
+        <p id={errId} className="mt-1 text-xs text-red-400">
+          {showError}
+        </p>
+      ) : null}
     </div>
   );
 }

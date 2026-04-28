@@ -1,7 +1,7 @@
 // src/components/record-editor/RecordEditor.tsx
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { SkeletonTable } from '@/components/skeleton';
@@ -33,6 +33,28 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
   const [state, setState] = useState<ActionsState>({ kind: 'viewing' });
   const [draft, setDraft] = useState<Partial<TRecord>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Errors raised by the field renderer itself (e.g. JSON parse). Kept
+  // separate from `fieldErrors` so descriptor-level validation can't
+  // accidentally clear them.
+  const [fieldValidity, setFieldValidity] = useState<Record<string, string>>(
+    {}
+  );
+
+  const handleValidityChange = useCallback(
+    (key: string, error: string | null) => {
+      setFieldValidity((prev) => {
+        if (error == null) {
+          if (!(key in prev)) return prev;
+          const { [key]: _omit, ...rest } = prev;
+          void _omit;
+          return rest;
+        }
+        if (prev[key] === error) return prev;
+        return { ...prev, [key]: error };
+      });
+    },
+    []
+  );
   const [banner, setBanner] = useState<{
     kind: 'error' | 'info';
     text: string;
@@ -55,6 +77,7 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
     setState({ kind: 'viewing' });
     setDraft({});
     setFieldErrors({});
+    setFieldValidity({});
     setBanner(null);
   };
 
@@ -70,6 +93,7 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
   const handleCancel = () => {
     setDraft({});
     setFieldErrors({});
+    setFieldValidity({});
     setState({ kind: 'viewing' });
     setBanner(null);
   };
@@ -93,8 +117,11 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
   const handleSave = async () => {
     if (!selected) return;
     const errs = validate(draft);
-    if (Object.keys(errs).length > 0) {
-      setFieldErrors(errs);
+    // Merge field-renderer errors (e.g. JSON parse) so Save blocks while
+    // any field is in an unparseable state.
+    const merged = { ...errs, ...fieldValidity };
+    if (Object.keys(merged).length > 0) {
+      setFieldErrors(merged);
       return;
     }
     setFieldErrors({});
@@ -114,6 +141,7 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
       void _draftVersion;
       await onSave(selected.id, patch as Partial<TRecord>, selected.version);
       setDraft({});
+      setFieldValidity({});
       setState({ kind: 'viewing' });
       setBanner(null);
     } catch (err) {
@@ -186,6 +214,15 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
 
   const setFieldValue = (field: FieldDescriptor<TRecord>, value: unknown) => {
     setDraft({ ...draft, [field.key]: value });
+    // Clear any stale error for this field — it'll be recomputed on Save.
+    // Without this, an error surfaced by a prior failed Save sticks even
+    // after the user has typed a fix.
+    setFieldErrors((prev) => {
+      if (!(field.key in prev)) return prev;
+      const { [field.key]: _omit, ...rest } = prev;
+      void _omit;
+      return rest;
+    });
   };
 
   if (isLoading) {
@@ -307,7 +344,8 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
                   value={getFieldValue(f)}
                   editing={state.kind === 'editing' || state.kind === 'saving'}
                   onChange={(v) => setFieldValue(f, v)}
-                  error={fieldErrors[f.key]}
+                  error={fieldErrors[f.key] ?? fieldValidity[f.key]}
+                  onValidityChange={handleValidityChange}
                 />
               ))}
             </div>
