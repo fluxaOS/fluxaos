@@ -6,9 +6,8 @@
  * Fires when a pipeline_run flips to a terminal status. Two branches:
  *
  *   completed → invoke deployBridge.deploy(runId). Wrap in try/catch. On
- *               failure, log `deploy.failed` and leave the pipeline_run at
- *               `completed` (alpha: no dedicated "deploy-failed" terminal
- *               status; operator reconciles manually via logs).
+ *               failure, log `deploy.failed`, allow the caller to mark DB
+ *               failure state, then release the env.
  *
  *   failed    → call isolation.release(envId, { force: false }). If the
  *               worktree has uncommitted changes, swallow the error and
@@ -35,6 +34,11 @@ export interface PipelineTerminalHookDeps {
   deployBridge: DeployBridge;
   isolation: IsolationProvider;
   logger: PipelineTerminalHookLogger;
+  onDeployFailure?: (input: {
+    runId: string;
+    projectId: string | null;
+    error: unknown;
+  }) => Promise<void>;
 }
 
 export interface PipelineTerminalHook {
@@ -52,7 +56,7 @@ export interface PipelineTerminalHook {
 export function createPipelineTerminalHook(
   deps: PipelineTerminalHookDeps
 ): PipelineTerminalHook {
-  const { deployBridge, isolation, logger } = deps;
+  const { deployBridge, isolation, logger, onDeployFailure } = deps;
 
   async function onTerminal(input: {
     runId: string;
@@ -75,8 +79,16 @@ export function createPipelineTerminalHook(
             event: 'deploy.failed',
             error: err instanceof Error ? err.message : String(err),
           },
-          'deploy.failed: run left at completed; operator must reconcile manually'
+          'deploy.failed'
         );
+        await onDeployFailure?.({ runId, projectId, error: err });
+        await releaseTerminalEnv({
+          runId,
+          projectId,
+          releaseEvent: 'terminal-hook.env-released-after-deploy-failure',
+          releaseMessage:
+            'pipeline-terminal-hook: env released after deploy failure',
+        });
       }
       return;
     }
@@ -84,6 +96,22 @@ export function createPipelineTerminalHook(
     // All other terminal statuses (failed, timed_out, cancelled) → release
     // the env. Swallow UncommittedChangesError so a dirty worktree doesn't
     // block the orchestrator — it stays for debugging.
+    await releaseTerminalEnv({
+      runId,
+      projectId,
+      releaseEvent: 'terminal-hook.env-released',
+      releaseMessage:
+        'pipeline-terminal-hook: env released on non-completed terminal',
+    });
+  }
+
+  async function releaseTerminalEnv(input: {
+    runId: string;
+    projectId: string | null;
+    releaseEvent: string;
+    releaseMessage: string;
+  }): Promise<void> {
+    const { runId, projectId, releaseEvent, releaseMessage } = input;
     if (!projectId) {
       logger.warn(
         { runId, event: 'terminal-hook.no-project' },
@@ -100,9 +128,9 @@ export function createPipelineTerminalHook(
         {
           runId,
           envId: env.id,
-          event: 'terminal-hook.env-released',
+          event: releaseEvent,
         },
-        'pipeline-terminal-hook: env released on non-completed terminal'
+        releaseMessage
       );
     } catch (err) {
       if (err instanceof UncommittedChangesError) {
