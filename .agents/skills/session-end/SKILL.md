@@ -1,7 +1,7 @@
 ---
 name: "session-end"
 id: "session-end"
-description: "Session wrap-up ritual for fluxaOS. Recaps what was built since the session-start marker, writes a handoff to docs/superpowers/handoffs/, ships or stashes pending work, cleans the repo via the shared clean-slate contract, writes a session-end marker, and prints a copy/paste next-session prompt. Run at the end of every agent context session."
+description: "Session wrap-up ritual for fluxaOS. Recaps recent work, writes a non-overwriting handoff to docs/superpowers/handoffs/, ships or preserves pending work, cleans the repo via the shared clean-slate contract, writes a session-end marker, and prints a copy/paste next-session prompt. Run at the end of every agent context session."
 default_model: "sonnet"
 ---
 
@@ -48,29 +48,17 @@ ls -1 /home/jpierce/.claude/projects/-mnt-dev-fluxaos/memory/session/ 2>/dev/nul
 
 Find the most recent `session-start-*` file and the most recent `session-end-*` file.
 
-- If the latest `session-end-*` is **newer than** the latest `session-start-*`, stop:
+- If the latest `session-start-*` is newer than the latest `session-end-*`, set `SESSION_START` to the ISO timestamp from the latest `session-start-*` file name.
 
-```
-✗ Most recent marker is session-end (<timestamp>). No new session to close.
-Run /session-start first if you want a new session boundary.
-```
+- If the latest `session-end-*` is newer than or equal to the latest `session-start-*`, set `SESSION_START` to the ISO timestamp from the latest `session-end-*` file name and set `SESSION_BOUNDARY_REASON="No newer session-start marker; using latest session-end as fallback boundary."`
 
-Exit without writing anything.
+- If no `session-start-*` file exists but a `session-end-*` file exists, set `SESSION_START` to the ISO timestamp from the latest `session-end-*` file name and set `SESSION_BOUNDARY_REASON="No session-start marker found; using latest session-end as fallback boundary."`
 
-- If no `session-start-*` file exists **and** no `--since*` override was given, stop:
+- If no marker files exist and no `--since*` override was given, set `SESSION_START` from `git log -1 --format=%cI origin/main` and set `SESSION_BOUNDARY_REASON="No session markers found; using last origin/main commit as fallback boundary."`
 
-```
-✗ No session-start marker found.
-Options:
-  1. Provide a start timestamp: /session-end --since "YYYY-MM-DDTHH:MM"
-  2. Accept a best-effort window: /session-end --since-last-commit-on-main
-```
+Do not stop just because `/session-start` was missed. A missing or stale start marker changes the boundary reason recorded in the handoff; it does not block session-end.
 
-Exit without writing anything. Never silently fall back to a time window.
-
-- Otherwise: `SESSION_START` is the ISO timestamp from the most recent `session-start-*` file name.
-
-If the markers directory itself is missing, treat it as "no marker found" above.
+If the markers directory itself is missing, treat it as "no marker files exist" above.
 
 ---
 
@@ -95,9 +83,18 @@ Group the commits by theme, phase (R-REM-W3, R-UI-*, etc.), or DEF-NNN. Write 2-
 
 Location convention: `docs/superpowers/handoffs/YYYY-MM-DD-<topic>-session-handoff.md`. Use the session date (Pacific time) in the filename. `<topic>` is a short slug describing the session's main thread (e.g. `def-017-fix`, `r-rem-w3-github-adapter-brainstorm`, `session-lifecycle-consolidation`).
 
+Never overwrite an existing handoff. If the target filename already exists, append `-2`, then `-3`, and so on before `.md` until the path is unused:
+
+```
+docs/superpowers/handoffs/YYYY-MM-DD-<topic>-session-handoff.md
+docs/superpowers/handoffs/YYYY-MM-DD-<topic>-session-handoff-2.md
+docs/superpowers/handoffs/YYYY-MM-DD-<topic>-session-handoff-3.md
+```
+
 Structure matches what actually happened — if nothing shipped, it's a short file. Include only sections that apply:
 
 - Date, operator, branch at start, branch at end (with SHAs)
+- Session boundary used, including `SESSION_BOUNDARY_REASON` when set
 - Session scope (one paragraph)
 - What shipped (PRs merged, with brief per-PR notes)
 - Deferred findings captured (any new DEF-NNN entries)
@@ -137,13 +134,15 @@ Pending work detected:
 
 Options:
   (y) ship — commit/push/PR via gh
-  (s) stash — git stash push -m "session-end: $(date -I)"
+  (w) wip  — save as WIP commit: git add . && git commit -m "WIP: session-end $(date -I)"
   (n) leave — note in handoff and continue
 ```
 
 - **y**: commit the handoff doc in its own commit first, then for each feature branch with unpushed commits: push the branch, open a PR with `gh pr create` using a HEREDOC body, report the PR URL. Do not auto-merge — leave that to the user or `/ship` flow.
-- **s**: run `git stash push -m "session-end: $(date -I)"`; add the stash name to the handoff.
+- **w**: run `git add . && git commit -m "WIP: session-end $(date -I)"`; add the WIP commit SHA to the handoff.
 - **n**: add an "Unfinished Work" section to the handoff doc naming branches, files, and next steps.
+
+Do not use `git stash` as the normal preservation path. Stashes are shared mutable repo state and are easy to lose across agent sessions. Use WIP commits or explicitly leave and document the work.
 
 ---
 
