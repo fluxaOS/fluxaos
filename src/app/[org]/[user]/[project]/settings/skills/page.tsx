@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
+import { Feature } from '@/core/features/features';
 import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
+import { useHasFeature } from '@/lib/auth/use-viewer-tier';
 import { trpc } from '@/lib/trpc/client';
 import { type SkillRecord, skillDescriptor } from './descriptor';
 import { SkillRevisionHistory } from './SkillRevisionHistory';
@@ -66,6 +68,8 @@ export default function SkillsSettingsPage() {
   // is the actual security boundary; this disables buttons before the click.
   const canEdit = useCanEdit();
   const canDelete = useCanDelete();
+  // FLX-14: revision history is a paid-tier feature.
+  const hasRevisionHistory = useHasFeature(Feature.REVISION_HISTORY);
 
   return (
     <div className="space-y-5">
@@ -165,7 +169,9 @@ export default function SkillsSettingsPage() {
         canDelete={() => canDelete}
       />
 
-      {selected ? <SkillRevisionHistory skill={selected} /> : null}
+      {selected && hasRevisionHistory ? (
+        <SkillRevisionHistory skill={selected} />
+      ) : null}
     </div>
   );
 }

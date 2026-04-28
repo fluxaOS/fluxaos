@@ -30,6 +30,10 @@ export const organization = pgTable('organization', {
   name: text('name').notNull(),
   slug: text('slug').unique().notNull(),
   settings: jsonb('settings'),
+  // FLX-14: 'free' | 'pro' | 'enterprise'. Existing rows grandfathered to
+  // 'enterprise' by migration 0017; new rows default to 'free'. Engine
+  // treats unknown values as 'free'.
+  subscriptionTier: text('subscription_tier').notNull().default('free'),
   createdAt,
   updatedAt,
 });
