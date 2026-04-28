@@ -147,6 +147,7 @@ function parseStreamJsonLine(
         kind: 'system',
         lineNumber,
         text: text || subtype,
+        systemSubtype: subtype || undefined,
       },
     ];
   }

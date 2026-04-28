@@ -24,6 +24,13 @@ export interface TranscriptEntry {
   isError?: boolean;
   isStderr?: boolean;
   cost?: number;
+  /**
+   * For `kind: 'system'` entries: the parsed `subtype` field from the
+   * driver's stream-json line (e.g. "init", "hook_started", "hook_response").
+   * Lets the UI hide lifecycle chatter in verbose mode while keeping the
+   * entries available in the raw-JSON view.
+   */
+  systemSubtype?: string;
 }
 
 export type LineParser = (
