@@ -4,9 +4,10 @@
 
 ## Deferred Issues
 
-Issues found during verification go to **Linear** — project **fluxaOS Deferred Fixes** in team **FLX** (workspace `rebos`). Linear was adopted 2026-04-26.
+Issues found during verification go to **Linear** — project **fluxaOS Bug Backlog** in team **FLX** (workspace `rebos`). Linear was adopted 2026-04-26.
 
-- Use the Linear MCP: `mcp__plugin_linear_linear__save_issue` to create, `mcp__plugin_linear_linear__list_issues` to query.
+- Use the Linear MCP only; no Linear CLI. Verified tools in this Codex app surface: `mcp__codex_apps__linear_mcp_server._list_issues`, `_list_projects`, `_search`, `_fetch`, `_save_issue`, `_save_comment`, `_list_issue_statuses`, and `_list_issue_labels`.
+- Do **not** rely on `mcp__codex_apps__linear_mcp_server._research` until FLX-88 is resolved. As of 2026-04-28 it is advertised by the connector but fails with `MCP error -32602: Tool research not found`. Use `_list_issues` for structured backlog queries, `_search` for full-text discovery, and `_fetch` for full details by ID.
 - Title: short, action-oriented (e.g., `UI: GateResultsPanel rule details show empty dots`).
 - Body must include: **Found** (date + context), **Severity** (High/Medium/Low), **Location** (`src/path/to/file.tsx`), **What's needed** (the fix).
 - Branch when picking up the work: `flx-NNN-short-slug`. Commit trailer: `Fixes FLX-NNN`.
