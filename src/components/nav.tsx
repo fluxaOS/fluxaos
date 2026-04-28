@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ContextSwitcher } from './context-switcher';
 
 function useBasePath() {
   const pathname = usePathname();
@@ -70,6 +71,9 @@ export function Nav() {
       </div>
 
       <div className="mx-4 my-3 h-px bg-slate-700/30" />
+
+      {/* FLX-1: org / user / project context switcher */}
+      <ContextSwitcher />
 
       {/* Main nav */}
       <ul className="flex-1 px-3 space-y-0.5">

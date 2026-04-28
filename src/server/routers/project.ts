@@ -14,6 +14,12 @@ export const projectRouter = router({
       return createProjectService(ctx.db).listByOrg(input.orgId);
     }),
 
+  listByUser: publicProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .query(({ ctx, input }) => {
+      return createProjectService(ctx.db).listByUser(input.userId);
+    }),
+
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => {
