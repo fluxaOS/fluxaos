@@ -41,7 +41,7 @@ DB-driven, even at one entry. fluxaOS reads catalog data from the DB at runtime;
 | Driver — Toggle enabled | ✅ | ✅ | `e2e/toggle-driver-enabled.spec.ts`. |
 | Driver — Delete | ✅ | ✅ | `e2e/delete-an-unreferenced-driver.spec.ts`, `e2e/delete-a-referenced-driver-fails-gracefully.spec.ts` (FLX-63). FK guard added to driver.delete in same PR (mirrors skill.delete pattern). |
 | Routing Profile — Create / Edit / Delete | ✅ | ✅ | `e2e/routing-profile-crud.spec.ts` (FLX-64). updateProfile tRPC endpoint + Edit/Delete affordances added in same PR. |
-| Provider — Create / Edit / Delete | 🟡 | 🔴 | `/settings/providers` tab exists. No spec for any operation. |
+| Provider — Create / Edit / Delete | ✅ | ✅ | `e2e/provider-crud.spec.ts` (FLX-65). Edit + Delete affordances added in same PR. |
 | Persona — Create / Edit / Delete | 🟡 | 🔴 | `/settings/personas` tab exists. No spec for any operation. |
 
 ---

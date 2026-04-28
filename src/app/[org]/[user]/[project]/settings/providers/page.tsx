@@ -5,9 +5,20 @@ import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
 
+type Provider = {
+  id: string;
+  name: string;
+  type: string;
+  baseUrl: string | null;
+  apiKeyRef: string | null;
+  isHealthy: boolean;
+};
+
 export default function ProviderSettingsPage() {
+  const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
@@ -16,7 +27,7 @@ export default function ProviderSettingsPage() {
     { orgId: orgId! },
     { enabled: !!orgId }
   );
-  const providers = providersQuery.data ?? [];
+  const providers = (providersQuery.data ?? []) as Provider[];
 
   return (
     <div className="space-y-6">
@@ -38,9 +49,9 @@ export default function ProviderSettingsPage() {
       {showCreate && orgId && (
         <CreateProviderForm
           orgId={orgId}
-          onCreated={() => {
+          onCreated={async () => {
             setShowCreate(false);
-            providersQuery.refetch();
+            await utils.provider.list.invalidate();
           }}
         />
       )}
@@ -48,37 +59,71 @@ export default function ProviderSettingsPage() {
       {providers.length === 0 ? (
         <EmptyState title="No providers configured" />
       ) : (
-        <div className="space-y-3">
+        <ul className="space-y-3">
           {providers.map((p) => (
-            <div key={p.id} className="card-static p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">{p.name}</span>
-                  <span className="ml-2 text-xs text-slate-400">{p.type}</span>
-                  {p.isHealthy ? (
-                    <span className="ml-2 text-xs text-green-400">Healthy</span>
-                  ) : (
-                    <span className="ml-2 text-xs text-red-400">Unhealthy</span>
+            <li key={p.id} className="card-static p-4">
+              {editingId === p.id ? (
+                <EditProviderForm
+                  provider={p}
+                  onSaved={async () => {
+                    setEditingId(null);
+                    await utils.provider.list.invalidate();
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">{p.name}</span>
+                      <span className="ml-2 text-xs text-slate-400">
+                        {p.type}
+                      </span>
+                      {p.isHealthy ? (
+                        <span className="ml-2 text-xs text-green-400">
+                          Healthy
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-xs text-red-400">
+                          Unhealthy
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedId(expandedId === p.id ? null : p.id)
+                        }
+                        className="text-xs text-slate-400 hover:text-slate-300"
+                      >
+                        {expandedId === p.id ? 'Close' : 'Models'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(p.id)}
+                        className="text-xs text-slate-400 hover:text-slate-300"
+                      >
+                        Edit
+                      </button>
+                      <DeleteProviderButton
+                        providerId={p.id}
+                        onDeleted={() => utils.provider.list.invalidate()}
+                      />
+                    </div>
+                  </div>
+                  {p.baseUrl && (
+                    <p className="text-xs text-slate-400 mt-0.5">{p.baseUrl}</p>
                   )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedId(expandedId === p.id ? null : p.id)
-                  }
-                  className="text-xs text-slate-400 hover:text-slate-300"
-                >
-                  {expandedId === p.id ? 'Close' : 'Models'}
-                </button>
-              </div>
-              {p.baseUrl && (
-                <p className="text-xs text-slate-400 mt-0.5">{p.baseUrl}</p>
+                </>
               )}
 
-              {expandedId === p.id && <ModelsEditor providerId={p.id} />}
-            </div>
+              {editingId !== p.id && expandedId === p.id && (
+                <ModelsEditor providerId={p.id} />
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
@@ -122,6 +167,7 @@ function CreateProviderForm({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            aria-label="Provider name"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -132,6 +178,7 @@ function CreateProviderForm({
             value={type}
             onChange={(e) => setType(e.target.value)}
             placeholder="provider slug"
+            aria-label="Provider type"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -143,6 +190,7 @@ function CreateProviderForm({
             type="text"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
+            aria-label="Provider base URL"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -155,6 +203,7 @@ function CreateProviderForm({
             value={apiKeyRef}
             onChange={(e) => setApiKeyRef(e.target.value)}
             placeholder="env:API_KEY_NAME"
+            aria-label="Provider API key reference"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -167,6 +216,130 @@ function CreateProviderForm({
         {createMutation.isPending ? 'Creating…' : 'Create'}
       </button>
     </form>
+  );
+}
+
+function EditProviderForm({
+  provider,
+  onSaved,
+  onCancel,
+}: {
+  provider: Provider;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(provider.name);
+  const [type, setType] = useState(provider.type);
+  const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? '');
+  const [apiKeyRef, setApiKeyRef] = useState(provider.apiKeyRef ?? '');
+
+  const updateMutation = trpc.provider.update.useMutation({
+    onSuccess: () => onSaved(),
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim() || !type.trim()) return;
+        updateMutation.mutate({
+          id: provider.id,
+          name: name.trim(),
+          type: type.trim(),
+          baseUrl: baseUrl.trim() || undefined,
+          apiKeyRef: apiKeyRef.trim() || undefined,
+        });
+      }}
+      className="space-y-3"
+    >
+      <div className="flex gap-3">
+        <label className="flex-1">
+          <span className="text-xs text-slate-400">Name</span>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Provider name"
+            className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+          />
+        </label>
+        <label className="flex-1">
+          <span className="text-xs text-slate-400">Type</span>
+          <input
+            type="text"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            aria-label="Provider type"
+            className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+          />
+        </label>
+      </div>
+      <div className="flex gap-3">
+        <label className="flex-1">
+          <span className="text-xs text-slate-400">Base URL</span>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            aria-label="Provider base URL"
+            className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+          />
+        </label>
+        <label className="flex-1">
+          <span className="text-xs text-slate-400">API Key Reference</span>
+          <input
+            type="text"
+            value={apiKeyRef}
+            onChange={(e) => setApiKeyRef(e.target.value)}
+            aria-label="Provider API key reference"
+            className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+          />
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={!name.trim() || !type.trim() || updateMutation.isPending}
+          className="px-3 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-1.5 text-slate-400 text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DeleteProviderButton({
+  providerId,
+  onDeleted,
+}: {
+  providerId: string;
+  onDeleted: () => void;
+}) {
+  const deleteMutation = trpc.provider.delete.useMutation({
+    onSuccess: () => onDeleted(),
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (confirm('Delete this provider?')) {
+          deleteMutation.mutate({ id: providerId });
+        }
+      }}
+      disabled={deleteMutation.isPending}
+      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+    >
+      {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+    </button>
   );
 }
 
