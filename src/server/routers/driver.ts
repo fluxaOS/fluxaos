@@ -1,7 +1,56 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { driver, pipelineStage, stageRun } from '@/core/db/schema';
+import type { Database } from '@/core/db/connection';
+import {
+  driver,
+  driverRevision,
+  pipelineStage,
+  stageRun,
+} from '@/core/db/schema';
 import { publicProcedure, router } from '../trpc';
+
+type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
+type DriverSelect = typeof driver.$inferSelect;
+
+// FLX-91: append a driver_revision row capturing the post-update state.
+// Computes the next revision_number atomically via a (SELECT max+1 …)
+// subquery so concurrent saves on the same driver cannot collide on the
+// unique (driver_id, revision_number) index. Mirror of
+// snapshotSkillRevision in src/core/services/skill.ts.
+async function snapshotDriverRevision(
+  db: DbOrTx,
+  row: DriverSelect,
+  snapshotBy: string | null
+): Promise<void> {
+  await db.insert(driverRevision).values({
+    driverId: row.id,
+    revisionNumber: sql<number>`(
+      SELECT COALESCE(MAX(${driverRevision.revisionNumber}), 0) + 1
+      FROM ${driverRevision}
+      WHERE ${driverRevision.driverId} = ${row.id}
+    )`,
+    name: row.name,
+    slug: row.slug,
+    binary: row.binary,
+    defaultArgs: row.defaultArgs,
+    modelFlag: row.modelFlag,
+    dirFlag: row.dirFlag,
+    sessionNameFlag: row.sessionNameFlag,
+    promptTransport: row.promptTransport,
+    outputFormat: row.outputFormat,
+    outputFormatFlag: row.outputFormatFlag,
+    promptSendDelayMs: row.promptSendDelayMs,
+    probeCommand: row.probeCommand,
+    issuePromptTemplate: row.issuePromptTemplate,
+    queuePromptTemplate: row.queuePromptTemplate,
+    envVars: row.envVars,
+    extraArgs: row.extraArgs,
+    contextLayout: row.contextLayout,
+    isEnabled: row.isEnabled,
+    notes: row.notes,
+    snapshotBy,
+  });
+}
 
 export const driverRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -90,13 +139,94 @@ export const driverRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      const [row] = await ctx.db
-        .update(driver)
-        .set({ ...(data as any), version: version + 1, updatedAt: new Date() })
-        .where(and(eq(driver.id, id), eq(driver.version, version)))
-        .returning();
-      if (!row) throw new Error('Optimistic concurrency conflict');
-      return row;
+      // FLX-91: wrap update + snapshot in a transaction so a successful
+      // update without a snapshot can never be observed.
+      return await ctx.db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(driver)
+          .set({
+            ...(data as any),
+            version: version + 1,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(driver.id, id), eq(driver.version, version)))
+          .returning();
+        if (!row) throw new Error('Optimistic concurrency conflict');
+        await snapshotDriverRevision(tx, row as DriverSelect, null);
+        return row;
+      });
+    }),
+
+  // FLX-91: list revisions for a driver, newest first.
+  listHistory: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(driverRevision)
+        .where(eq(driverRevision.driverId, input.id))
+        .orderBy(desc(driverRevision.revisionNumber));
+    }),
+
+  // FLX-91: revert a driver to a snapshotted revision. Writes a NEW
+  // revision capturing the reverted state (history is append-only).
+  revertToRevision: publicProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        version: z.number().int(),
+        revisionNumber: z.number().int().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.transaction(async (tx) => {
+        const [target] = await tx
+          .select()
+          .from(driverRevision)
+          .where(
+            and(
+              eq(driverRevision.driverId, input.id),
+              eq(driverRevision.revisionNumber, input.revisionNumber)
+            )
+          );
+        if (!target) {
+          throw new Error(
+            `Revision ${input.revisionNumber} not found for driver ${input.id}`
+          );
+        }
+        const [row] = await tx
+          .update(driver)
+          .set({
+            name: target.name,
+            slug: target.slug,
+            binary: target.binary,
+            defaultArgs: target.defaultArgs as any,
+            modelFlag: target.modelFlag,
+            dirFlag: target.dirFlag,
+            sessionNameFlag: target.sessionNameFlag,
+            promptTransport: target.promptTransport,
+            outputFormat: target.outputFormat,
+            outputFormatFlag: target.outputFormatFlag,
+            promptSendDelayMs: target.promptSendDelayMs,
+            probeCommand: target.probeCommand,
+            issuePromptTemplate: target.issuePromptTemplate,
+            queuePromptTemplate: target.queuePromptTemplate,
+            envVars: target.envVars as any,
+            extraArgs: target.extraArgs as any,
+            contextLayout: target.contextLayout,
+            isEnabled: target.isEnabled,
+            notes: target.notes,
+            version: input.version + 1,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(driver.id, input.id), eq(driver.version, input.version))
+          )
+          .returning();
+        if (!row) throw new Error('Optimistic concurrency conflict');
+        await snapshotDriverRevision(tx, row as DriverSelect, null);
+        return row;
+      });
     }),
 
   delete: publicProcedure
