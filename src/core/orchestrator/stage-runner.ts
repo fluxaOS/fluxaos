@@ -1,5 +1,7 @@
 // src/core/orchestrator/stage-runner.ts
 
+import { join } from 'node:path';
+
 /**
  * Stage Runner — shared execution logic for a single stage run.
  *
@@ -240,10 +242,15 @@ export async function executeStageRun(
     contextFile: string;
   };
 
+  const targetWorkspacePath = env.workingPath;
+  const materializedWorkspacePath = env.artifactsPath
+    ? join(env.artifactsPath, 'stage-runs', sRun.id, 'workspace')
+    : env.workingPath;
+
   const workspacePath = await materialize({
     stageRunId: sRun.id,
     contextLayout,
-    into: env.workingPath,
+    into: materializedWorkspacePath,
     persona: personaRow
       ? {
           soul: personaRow.soul,
@@ -258,7 +265,7 @@ export async function executeStageRun(
       promptTemplate: skillRow?.promptTemplate
         ? renderTemplate(skillRow.promptTemplate, {
             artifacts_path: env.artifactsPath ?? '',
-            workspace_path: env.workingPath,
+            workspace_path: targetWorkspacePath,
             skill_name: skillRow.name,
           })
         : null,
@@ -279,7 +286,7 @@ export async function executeStageRun(
       issue_title: issueRow?.title ?? '',
       issue_description: issueRow?.bodyMd ?? '',
       skill_name: skillRow?.name ?? stage.name,
-      workspace_path: workspacePath,
+      workspace_path: targetWorkspacePath,
       artifacts_path: env.artifactsPath ?? '',
     });
 
@@ -289,6 +296,10 @@ export async function executeStageRun(
       workspacePath,
       prompt,
       sessionName: `fluxaos-${sRun.id.slice(0, 8)}`,
+      additionalDirs:
+        targetWorkspacePath === workspacePath
+          ? undefined
+          : [targetWorkspacePath],
     });
 
     // Mark running

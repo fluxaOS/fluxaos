@@ -2,7 +2,7 @@
  * FLX-83: stage-runner must fail fast on missing DB-owned config.
  */
 import 'dotenv/config';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AnyColumn } from 'drizzle-orm';
@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { bootstrap } from '@/config/bootstrap';
 import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
@@ -46,6 +47,7 @@ const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
   routingRule: schema.routingRule,
   routingProfile: schema.routingProfile,
   driver: schema.driver,
+  skill: schema.skill,
   project: schema.project,
   user: schema.user,
   organization: schema.organization,
@@ -58,6 +60,7 @@ let pipelineId: string;
 let previousTargetRepoPath: string | undefined;
 
 beforeAll(async () => {
+  bootstrap();
   previousTargetRepoPath = process.env.FLUXAOS_TARGET_REPO_PATH;
   const targetRepoPath = await mkdtemp(join(tmpdir(), 'fluxaos-target-'));
   tempDirs.push(targetRepoPath);
@@ -142,11 +145,42 @@ describe('stage-runner config validation', () => {
     );
     expect(harness.executeCalls()).toBe(0);
   });
+
+  it('materializes driver instructions outside the target worktree', async () => {
+    const harness = await createStageRunnerHarness({
+      issuePromptTemplate: 'work in {{workspace_path}}',
+      withRouting: true,
+      withArtifactsPath: true,
+    });
+    await writeFile(join(harness.workingPath, 'CLAUDE.md'), 'project memory');
+
+    await harness.run();
+
+    expect(
+      await readFile(join(harness.workingPath, 'CLAUDE.md'), 'utf-8')
+    ).toBe('project memory');
+    expect(harness.lastExecuteParams()?.cwd).toBe(harness.materializedPath);
+    expect(harness.lastExecuteParams()?.args).toEqual(
+      expect.arrayContaining([
+        '--add-dir',
+        harness.materializedPath,
+        '--add-dir',
+        harness.workingPath,
+      ])
+    );
+    expect(
+      await readFile(join(harness.materializedPath, 'CLAUDE.md'), 'utf-8')
+    ).toContain('## Skill:');
+    expect(
+      await readFile(join(harness.materializedPath, 'context.md'), 'utf-8')
+    ).toContain('Issue Context');
+  });
 });
 
 async function createStageRunnerHarness(input: {
   issuePromptTemplate: string | null;
   withRouting: boolean;
+  withArtifactsPath?: boolean;
 }) {
   const svc = createPipelineRunService(db);
   const [driverRow] = await db
@@ -172,13 +206,25 @@ async function createStageRunnerHarness(input: {
     .returning();
   cleanupList.push({ table: 'driver', id: driverRow.id });
 
+  const [skillRow] = await db
+    .insert(schema.skill)
+    .values({
+      projectId,
+      name: `flx-83-skill-${RUN}-${cleanupList.length}`,
+      promptTemplate: 'Use {{workspace_path}} for source edits.',
+    })
+    .returning();
+  cleanupList.push({ table: 'skill', id: skillRow.id });
+
   const stage = await createPipelineService(db).stages.create({
     pipelineId,
     name: `flx-83-stage-${cleanupList.length}`,
     sortOrder: cleanupList.length,
     gateMode: 'auto',
     maxRetries: 0,
+    driver: input.withRouting ? driverRow.slug : null,
     driverId: driverRow.id,
+    skillId: skillRow.id,
   });
   cleanupList.push({ table: 'pipelineStage', id: stage.id });
 
@@ -196,9 +242,11 @@ async function createStageRunnerHarness(input: {
   cleanupList.push({ table: 'stageRun', id: stageRun.id });
 
   let executeCallCount = 0;
+  let lastExecuteParams: Parameters<StageExecutor['execute']>[0] | null = null;
   const executor: StageExecutor = {
-    async execute() {
+    async execute(params) {
       executeCallCount += 1;
+      lastExecuteParams = params;
       return {
         exitCode: 0,
         stdout: '',
@@ -210,14 +258,32 @@ async function createStageRunnerHarness(input: {
     async cancel() {},
   };
 
+  const workingPath = await mkdtemp(join(tmpdir(), 'fluxaos-worktree-'));
+  tempDirs.push(workingPath);
+  const artifactsPath = input.withArtifactsPath
+    ? await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-'))
+    : null;
+  if (artifactsPath) tempDirs.push(artifactsPath);
+  const materializedPath = artifactsPath
+    ? join(artifactsPath, 'stage-runs', stageRun.id, 'workspace')
+    : workingPath;
+
   return {
     executeCalls: () => executeCallCount,
+    lastExecuteParams: () => lastExecuteParams,
+    workingPath,
+    artifactsPath,
+    materializedPath,
     run: () =>
       executeStageRun({
         db,
         executor,
         runService: svc,
-        isolation: createIsolationProvider(stageRun.id),
+        isolation: createIsolationProvider({
+          stageRunId: stageRun.id,
+          workingPath,
+          artifactsPath,
+        }),
         runId: run.id,
         stageRunId: stageRun.id,
         trigger: 'manual',
@@ -266,21 +332,23 @@ async function createRoutingFixture(stageName: string) {
   cleanupList.push({ table: 'routingRule', id: ruleRow.id });
 }
 
-function createIsolationProvider(stageRunId: string): IsolationProvider {
+function createIsolationProvider(input: {
+  stageRunId: string;
+  workingPath: string;
+  artifactsPath: string | null;
+}): IsolationProvider {
   return {
     async acquire(params) {
-      const workingPath = await mkdtemp(join(tmpdir(), 'fluxaos-worktree-'));
-      tempDirs.push(workingPath);
       return {
-        id: `env-${stageRunId}`,
+        id: `env-${input.stageRunId}`,
         projectId: params.projectId,
         runId: params.runId,
         provider: 'test',
-        workingPath,
+        workingPath: input.workingPath,
         branchName: params.branchName,
         status: 'active',
         metadata: {},
-        artifactsPath: null,
+        artifactsPath: input.artifactsPath,
         createdAt: new Date(),
         updatedAt: new Date(),
       } satisfies IsolationEnvironment;
