@@ -45,6 +45,16 @@ function formatDateTime(dt: string | Date | null): string {
   return new Date(dt).toLocaleString();
 }
 
+function getDurationSeconds(
+  startedAt: string | Date | null,
+  completedAt: string | Date | null,
+  now: number
+): number | null {
+  if (!startedAt) return null;
+  const end = completedAt ? new Date(completedAt).getTime() : now;
+  return (end - new Date(startedAt).getTime()) / 1000;
+}
+
 // ── Main component ─────────────────────────────────��────────────────────────
 
 export function RunDetailModal({
@@ -58,6 +68,7 @@ export function RunDetailModal({
   const [activeTab, setActiveTab] = useState<DetailTab>('output');
   const [cancelling, setCancelling] = useState(false);
   const [cancellingStage, setCancellingStage] = useState(false);
+  const [now, setNow] = useState<number>(() => Date.now());
 
   const isOpen = runId !== null;
 
@@ -84,13 +95,7 @@ export function RunDetailModal({
   // Build timeline items from stage runs
   const timelineStages = useMemo(() => {
     return stageRuns.map((sr: (typeof stageRuns)[number]) => {
-      const durationSec = sr.startedAt
-        ? sr.completedAt
-          ? (new Date(sr.completedAt).getTime() -
-              new Date(sr.startedAt).getTime()) /
-            1000
-          : (Date.now() - new Date(sr.startedAt).getTime()) / 1000
-        : null;
+      const durationSec = getDurationSeconds(sr.startedAt, sr.completedAt, now);
 
       return {
         id: sr.id,
@@ -100,7 +105,13 @@ export function RunDetailModal({
         durationSec,
       };
     });
-  }, [stageRuns]);
+  }, [stageRuns, now]);
+
+  useEffect(() => {
+    if (!isOpen || !isRunActive) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isOpen, isRunActive]);
 
   // Auto-select stage: running > initialStageName > last
   useEffect(() => {
@@ -180,6 +191,16 @@ export function RunDetailModal({
   const isSelectedStageActive =
     selectedStageRun?.status === 'running' ||
     selectedStageRun?.status === 'launching';
+  const runDurationSec = detail
+    ? getDurationSeconds(detail.startedAt, detail.completedAt, now)
+    : null;
+  const selectedStageDurationSec = selectedStageRun
+    ? getDurationSeconds(
+        selectedStageRun.startedAt,
+        selectedStageRun.completedAt,
+        now
+      )
+    : null;
 
   const handleCancelRun = async () => {
     if (!runId) return;
@@ -298,17 +319,9 @@ export function RunDetailModal({
                   <MetaRow
                     label="Duration"
                     value={
-                      detail.startedAt
-                        ? formatDuration(
-                            detail.completedAt
-                              ? (new Date(detail.completedAt).getTime() -
-                                  new Date(detail.startedAt).getTime()) /
-                                  1000
-                              : (Date.now() -
-                                  new Date(detail.startedAt).getTime()) /
-                                  1000
-                          )
-                        : null
+                      runDurationSec === null
+                        ? null
+                        : formatDuration(runDurationSec)
                     }
                   />
                   {detail.totalCostUsd && Number(detail.totalCostUsd) > 0 && (
@@ -361,15 +374,7 @@ export function RunDetailModal({
                           {selectedStageRun.startedAt &&
                             selectedStageRun.completedAt && (
                               <span>
-                                {formatDuration(
-                                  (new Date(
-                                    selectedStageRun.completedAt
-                                  ).getTime() -
-                                    new Date(
-                                      selectedStageRun.startedAt
-                                    ).getTime()) /
-                                    1000
-                                )}
+                                {formatDuration(selectedStageDurationSec!)}
                               </span>
                             )}
                           {selectedStageRun.exitCode != null && (
