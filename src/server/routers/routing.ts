@@ -24,6 +24,20 @@ export const routingRouter = router({
     )
     .mutation(({ ctx, input }) => createRoutingService(ctx.db).create(input)),
 
+  updateProfile: publicProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        description: z.string().nullable().optional(),
+        isDefault: z.boolean().optional(),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      const { id, ...patch } = input;
+      return createRoutingService(ctx.db).update(id, patch);
+    }),
+
   deleteProfile: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(({ ctx, input }) =>

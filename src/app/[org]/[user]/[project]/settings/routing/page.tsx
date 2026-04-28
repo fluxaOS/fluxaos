@@ -5,9 +5,18 @@ import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
 
+type Profile = {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+};
+
 export default function RoutingSettingsPage() {
+  const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
@@ -16,7 +25,7 @@ export default function RoutingSettingsPage() {
     { orgId: orgId! },
     { enabled: !!orgId }
   );
-  const profiles = profilesQuery.data ?? [];
+  const profiles = (profilesQuery.data ?? []) as Profile[];
 
   return (
     <div className="space-y-6">
@@ -38,9 +47,9 @@ export default function RoutingSettingsPage() {
       {showCreate && orgId && (
         <CreateProfileForm
           orgId={orgId}
-          onCreated={() => {
+          onCreated={async () => {
             setShowCreate(false);
-            profilesQuery.refetch();
+            await utils.routing.listProfiles.invalidate();
           }}
         />
       )}
@@ -48,38 +57,64 @@ export default function RoutingSettingsPage() {
       {profiles.length === 0 ? (
         <EmptyState title="No routing profiles configured" />
       ) : (
-        <div className="space-y-3">
+        <ul className="space-y-3">
           {profiles.map((p) => (
-            <div key={p.id} className="card-static p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">{p.name}</span>
-                  {p.isDefault && (
-                    <span className="ml-2 text-xs text-soft-violet">
-                      default
-                    </span>
-                  )}
-                  {p.description && (
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {p.description}
-                    </p>
-                  )}
+            <li key={p.id} className="card-static p-4">
+              {editingId === p.id ? (
+                <EditProfileForm
+                  profile={p}
+                  onSaved={async () => {
+                    setEditingId(null);
+                    await utils.routing.listProfiles.invalidate();
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium">{p.name}</span>
+                    {p.isDefault && (
+                      <span className="ml-2 text-xs text-soft-violet">
+                        default
+                      </span>
+                    )}
+                    {p.description && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {p.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedId(expandedId === p.id ? null : p.id)
+                      }
+                      className="text-xs text-slate-400 hover:text-slate-300"
+                    >
+                      {expandedId === p.id ? 'Close' : 'Rules'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(p.id)}
+                      className="text-xs text-slate-400 hover:text-slate-300"
+                    >
+                      Edit
+                    </button>
+                    <DeleteProfileButton
+                      profileId={p.id}
+                      onDeleted={() => utils.routing.listProfiles.invalidate()}
+                    />
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedId(expandedId === p.id ? null : p.id)
-                  }
-                  className="text-xs text-slate-400 hover:text-slate-300"
-                >
-                  {expandedId === p.id ? 'Close' : 'Rules'}
-                </button>
-              </div>
+              )}
 
-              {expandedId === p.id && <RulesEditor profileId={p.id} />}
-            </div>
+              {editingId !== p.id && expandedId === p.id && (
+                <RulesEditor profileId={p.id} />
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
@@ -118,6 +153,7 @@ function CreateProfileForm({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          aria-label="Profile name"
           className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
         />
       </label>
@@ -127,6 +163,7 @@ function CreateProfileForm({
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          aria-label="Profile description"
           className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
         />
       </label>
@@ -135,9 +172,103 @@ function CreateProfileForm({
         disabled={!name.trim() || createMutation.isPending}
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
       >
-        Create
+        {createMutation.isPending ? 'Creating…' : 'Create'}
       </button>
     </form>
+  );
+}
+
+function EditProfileForm({
+  profile,
+  onSaved,
+  onCancel,
+}: {
+  profile: Profile;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(profile.name);
+  const [description, setDescription] = useState(profile.description ?? '');
+
+  const updateMutation = trpc.routing.updateProfile.useMutation({
+    onSuccess: () => onSaved(),
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        updateMutation.mutate({
+          id: profile.id,
+          name: name.trim(),
+          description: description.trim() || null,
+        });
+      }}
+      className="flex gap-3 items-end"
+    >
+      <label className="flex-1">
+        <span className="text-xs text-slate-400">Name</span>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Profile name"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        />
+      </label>
+      <label className="flex-1">
+        <span className="text-xs text-slate-400">Description</span>
+        <input
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          aria-label="Profile description"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={!name.trim() || updateMutation.isPending}
+        className="px-3 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+      >
+        Save
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="px-3 py-1.5 text-slate-400 text-sm"
+      >
+        Cancel
+      </button>
+    </form>
+  );
+}
+
+function DeleteProfileButton({
+  profileId,
+  onDeleted,
+}: {
+  profileId: string;
+  onDeleted: () => void;
+}) {
+  const deleteMutation = trpc.routing.deleteProfile.useMutation({
+    onSuccess: () => onDeleted(),
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (confirm('Delete this routing profile?')) {
+          deleteMutation.mutate({ id: profileId });
+        }
+      }}
+      disabled={deleteMutation.isPending}
+      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+    >
+      {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+    </button>
   );
 }
 
