@@ -1,5 +1,6 @@
 // src/app/[org]/[user]/[project]/settings/users/descriptor.ts
 import type { RecordDescriptor } from '@/components/record-editor/types';
+import { ROLE_VALUES } from '@/core/features/roles';
 
 export type UserRecord = {
   id: string;
@@ -9,6 +10,7 @@ export type UserRecord = {
   email: string;
   slug: string;
   avatarUrl: string | null;
+  role: string;
 };
 
 export const userDescriptor: RecordDescriptor<UserRecord> = {
@@ -39,6 +41,14 @@ export const userDescriptor: RecordDescriptor<UserRecord> = {
           ? null
           : 'Must be kebab-case (lowercase letters, digits, dashes)';
       },
+    },
+    {
+      key: 'role',
+      label: 'Role',
+      fieldType: 'select',
+      required: true,
+      // FLX-12: 'admin' | 'maintainer' | 'viewer'.
+      options: ROLE_VALUES,
     },
     {
       key: 'avatarUrl',

@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
-import { Feature, hasFeature } from '@/core/features/features';
-import { useCurrentUser } from '@/lib/auth/use-current-user';
+import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
 import { trpc } from '@/lib/trpc/client';
 import { type CronJobRecord, cronJobDescriptor } from './descriptor';
 
@@ -102,7 +101,9 @@ export default function CronSettingsPage() {
     }
   };
 
-  const { userId } = useCurrentUser();
+  // FLX-12: role-based gating; server enforcement via protectedMutation.
+  const canEdit = useCanEdit();
+  const canDelete = useCanDelete();
 
   return (
     <div className="space-y-5">
@@ -213,8 +214,8 @@ export default function CronSettingsPage() {
           if (projectId)
             await utils.cron.listByProject.invalidate({ projectId });
         }}
-        canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
-        canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
+        canEdit={() => canEdit}
+        canDelete={() => canDelete}
       />
     </div>
   );

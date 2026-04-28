@@ -7,6 +7,7 @@ export type FieldType =
   | 'tags'
   | 'boolean'
   | 'jsonb'
+  | 'select'
   | 'readonly';
 
 export type FieldDescriptor<TRecord> = {
@@ -32,6 +33,12 @@ export type FieldDescriptor<TRecord> = {
    * demos/screenshots. (FLX-11)
    */
   sensitive?: boolean;
+  /**
+   * For fieldType: 'select' — list of allowed string values rendered as a
+   * dropdown. Engine treats unknown values as the first option in viewing
+   * mode and resets to the first option when entering edit mode.
+   */
+  options?: readonly string[];
 };
 
 export type RecordDescriptor<TRecord> = {
