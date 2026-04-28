@@ -12,7 +12,7 @@
  *   stage_run failed → check retry budget → retry or fail permanently
  *   all stages done → complete pipeline_run → write issue events
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { GateMode } from '@/core/constants';
 import {
   DEFAULT_GATE_MODE,
@@ -349,7 +349,7 @@ export function createEventOrchestrator(
         }
       }
     } else if (verdict === GATE_VERDICT.rework) {
-      await handleStageFailed(run, stage, sRun);
+      await handleReworkVerdict(run, stage, sRun);
     } else if (verdict === GATE_VERDICT.abort) {
       await finishRun(run, PIPELINE_RUN_STATUS.failed);
       if (run.issueId) {
@@ -365,6 +365,65 @@ export function createEventOrchestrator(
         );
       }
     }
+  }
+
+  async function handleReworkVerdict(
+    run: typeof pipelineRun.$inferSelect,
+    stage: typeof pipelineStage.$inferSelect,
+    sRun: typeof stageRun.$inferSelect
+  ): Promise<void> {
+    if (!run.issueId) {
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    const issueService = createIssueService(db);
+    const [issueRow] = await db
+      .select()
+      .from(issue)
+      .where(eq(issue.id, run.issueId));
+    if (!issueRow) {
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    const targetState = await issueService.getStateByConfigKey(
+      issueRow.projectId,
+      'issues.state.on_rework_key'
+    );
+    await issueService.stateOverride(
+      run.issueId,
+      targetState.id,
+      issueRow.version,
+      'orchestrator'
+    );
+    await runService.appendIssueEvent(
+      run.issueId,
+      ISSUE_EVENT_TYPE.state_changed,
+      {
+        reason: 'gate_rework',
+        targetState: targetState.key,
+        stageRunId: sRun.id,
+      },
+      'orchestrator'
+    );
+
+    const [reworkStage] = await db
+      .select()
+      .from(pipelineStage)
+      .where(
+        and(
+          eq(pipelineStage.pipelineId, run.pipelineId),
+          eq(pipelineStage.name, targetState.key)
+        )
+      );
+
+    if (!reworkStage || reworkStage.id === stage.id) {
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    await launchStage(run, reworkStage);
   }
 
   async function handleStageFailed(
