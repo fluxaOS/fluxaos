@@ -1,7 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CatalogBadge } from '@/components/catalog-badge';
+
+const MAX_LABEL_LENGTH = 64;
+
+function normalizeLabels(existing: string[], raw: string): string[] {
+  const seen = new Set(existing.map((label) => label.toLowerCase()));
+  const next = [...existing];
+  for (const token of raw.split(/[,\s]+/)) {
+    const label = token.trim().slice(0, MAX_LABEL_LENGTH);
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    next.push(label);
+  }
+  return next;
+}
 
 // ─── Editable text field (save on blur / Enter) ─────────────────────────────
 
@@ -141,6 +156,93 @@ export function EditableBody({
         </button>
       </div>
     </div>
+  );
+}
+
+// ─── Editable labels (commit on comma / space / Enter / paste) ──────────────
+
+export function EditableLabels({
+  value,
+  onSave,
+  disabled,
+}: {
+  value: string[];
+  onSave: (labels: string[]) => void;
+  disabled: boolean;
+}) {
+  const [labels, setLabels] = useState(value);
+  const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    setLabels(value);
+  }, [value]);
+
+  function commitRaw(raw: string) {
+    const next = normalizeLabels(labels, raw);
+    setLabels(next);
+    setDraft('');
+    if (JSON.stringify(next) !== JSON.stringify(labels)) onSave(next);
+  }
+
+  function removeLabel(label: string) {
+    const next = labels.filter((item) => item !== label);
+    setLabels(next);
+    onSave(next);
+  }
+
+  return (
+    <fieldset
+      className="flex items-center gap-2 min-w-[220px]"
+      aria-label="Labels"
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 w-16 shrink-0">
+        Labels
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-700/30 px-2 py-1 min-h-8">
+        {labels.map((label) => (
+          <span
+            key={label}
+            className="inline-flex items-center gap-1 rounded-full bg-electric-violet/15 px-2 py-0.5 text-[11px] font-medium text-soft-violet"
+          >
+            {label}
+            <button
+              type="button"
+              aria-label={`Remove ${label}`}
+              onClick={() => removeLabel(label)}
+              disabled={disabled}
+              className="text-soft-violet/70 hover:text-soft-violet disabled:opacity-50"
+            >
+              x
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          aria-label="Labels"
+          value={draft}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (/[,\s]/.test(raw)) {
+              commitRaw(raw);
+              return;
+            }
+            setDraft(raw.slice(0, MAX_LABEL_LENGTH));
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ',' && e.key !== ' ') return;
+            e.preventDefault();
+            commitRaw(draft);
+          }}
+          onPaste={(e) => {
+            e.preventDefault();
+            commitRaw(e.clipboardData.getData('text'));
+          }}
+          disabled={disabled}
+          placeholder={labels.length === 0 ? 'Add labels' : ''}
+          className="min-w-24 flex-1 bg-transparent text-xs text-slate-300 placeholder:text-slate-600 focus:outline-none disabled:opacity-50"
+        />
+      </div>
+    </fieldset>
   );
 }
 
