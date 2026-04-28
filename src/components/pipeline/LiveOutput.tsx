@@ -28,6 +28,16 @@ function getRealtimeStageRunId(row: RealtimeEventPayload): string | undefined {
   return row.stageRunId ?? row.stage_run_id;
 }
 
+// Driver-emitted lifecycle subtypes that swamp the verbose transcript with
+// no signal. Match by exact subtype + the `hook_` prefix so future hook
+// variants stay hidden by default. (FLX-47)
+const HOOK_SUBTYPES = new Set(['init']);
+function isHookEntry(entry: TranscriptEntry): boolean {
+  const sub = entry.systemSubtype;
+  if (!sub) return false;
+  return HOOK_SUBTYPES.has(sub) || sub.startsWith('hook_');
+}
+
 // ── Entry renderers ──────────────────────────────────────────────────────────
 
 function TextEntry({ entry }: { entry: TranscriptEntry }) {
@@ -117,6 +127,10 @@ function ResultEntry({ entry }: { entry: TranscriptEntry }) {
 export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const [rawJson, setRawJson] = useState(false);
   const [verbose, setVerbose] = useState(false);
+  // Hook lifecycle entries (init / hook_started / hook_response) are noisy
+  // and rarely useful even in verbose mode. Hidden by default; only the
+  // explicit toggle (or Raw JSON view) brings them back. (FLX-47)
+  const [showHooks, setShowHooks] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);
   const utils = trpc.useUtils();
@@ -167,8 +181,14 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
         });
       }
     }
-    return verbose ? out : out.filter((x) => x.kind !== 'system');
-  }, [eventsQuery.data, verbose]);
+    if (!verbose) return out.filter((x) => x.kind !== 'system');
+    if (showHooks) return out;
+    // Verbose mode without Show hooks — hide driver-emitted lifecycle
+    // entries (init / hook_started / hook_response). Synthesized
+    // launched/completed/error system entries have no `systemSubtype`,
+    // so they survive this filter.
+    return out.filter((x) => !(x.kind === 'system' && isHookEntry(x)));
+  }, [eventsQuery.data, verbose, showHooks]);
 
   const eventCount = eventsQuery.data?.length ?? 0;
 
@@ -283,6 +303,20 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
             />
             Verbose
           </label>
+          {verbose ? (
+            <label
+              className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none"
+              data-testid="show-hooks-toggle"
+            >
+              <input
+                type="checkbox"
+                checked={showHooks}
+                onChange={(e) => setShowHooks(e.target.checked)}
+                className="h-3 w-3 rounded border-slate-600"
+              />
+              Show hooks
+            </label>
+          ) : null}
           <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
             <input
               type="checkbox"
