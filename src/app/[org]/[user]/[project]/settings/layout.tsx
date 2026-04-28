@@ -22,6 +22,7 @@ const TABS: readonly TabSpec[] = [
   { slug: 'teams', label: 'Teams' },
   { slug: 'users', label: 'Users' },
   { slug: 'system', label: 'System' },
+  { slug: 'cron', label: 'Cron Jobs' },
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

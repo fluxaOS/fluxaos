@@ -3,6 +3,7 @@
  */
 
 import { configRouter } from './routers/config';
+import { cronRouter } from './routers/cron';
 import { driverRouter } from './routers/driver';
 import { gateRouter } from './routers/gate';
 import { issueRouter } from './routers/issue';
@@ -33,6 +34,7 @@ export const appRouter = router({
   routing: routingRouter,
   driver: driverRouter,
   config: configRouter,
+  cron: cronRouter,
   system: systemRouter,
   team: teamRouter,
   user: userRouter,
