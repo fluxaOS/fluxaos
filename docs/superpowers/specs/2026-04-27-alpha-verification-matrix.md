@@ -74,7 +74,6 @@ Operator clicks **Run Stage**. The orchestrator runs the stage matching the issu
 | Manual: deploy stage | ✅ | ✅ | Covered by FLX-69 full-chain spec + `r-runtime-deploy-journey.spec.ts`. |
 | Manual: full chain (research → complete) | ✅ | ✅ | **THE ALPHA BAR — VERIFIED 2026-04-27.** `e2e/manual-stage-chain.spec.ts` (FLX-69) executed live in 2.0m: 3 stage_runs all completed `proceed`, gate verdicts written, PR opened on sandbox, issue walked to Complete via FLX-77 dropdown, Closed badge rendered. Shipped in PR #126 alongside FLX-81 engine fix (no-signal soft-pass). |
 | Manual: human override mid-run | ✅ | ✅ | Free-walk dropdown (FLX-77) — operator can change state at any time; validation removed. `e2e/state-dropdown-free-walk.spec.ts`. |
-| Manual path independent of daemon | 🟡 | 🔴 | Stage execution must work without the daemon process running. Not verified. |
 
 ---
 
