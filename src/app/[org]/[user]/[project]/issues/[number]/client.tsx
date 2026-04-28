@@ -13,6 +13,7 @@ import { ActivityFeed } from './ActivityFeed';
 import {
   CatalogSelect,
   EditableBody,
+  EditableLabels,
   EditableTitle,
 } from './IssueDetailEditors';
 import { RelationshipsCard } from './RelationshipsCard';
@@ -53,6 +54,9 @@ export function IssueDetailClient({
   const types = typesQuery.data ?? [];
   const states = statesQuery.data ?? [];
   const priorities = prioritiesQuery.data ?? [];
+  const labels = Array.isArray(issue?.labels)
+    ? issue.labels.filter((label): label is string => typeof label === 'string')
+    : [];
 
   // ── Mutations ───────────────────────────────────────────────────────────
 
@@ -258,6 +262,11 @@ export function IssueDetailClient({
             <Clock size={12} />
             {new Date(issue.createdAt).toLocaleString()}
           </div>
+          <EditableLabels
+            value={labels}
+            onSave={(nextLabels) => saveField({ labels: nextLabels })}
+            disabled={isMutating}
+          />
         </div>
 
         {/* Body */}
