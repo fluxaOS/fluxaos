@@ -20,6 +20,7 @@ const TABS: readonly TabSpec[] = [
   { slug: 'routing', label: 'Routing' },
   { slug: 'personas', label: 'Personas' },
   { slug: 'teams', label: 'Teams' },
+  { slug: 'users', label: 'Users' },
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
