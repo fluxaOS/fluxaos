@@ -1,11 +1,12 @@
 import { TRPCError } from '@trpc/server';
-import { eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { pipelineRun, stageGateResult, stageRun } from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
 import { publicProcedure, router } from '../trpc';
+import { listIssueRunsWithStages } from './pipeline-run-history';
 
 export const pipelineRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -241,6 +242,13 @@ export const pipelineRouter = router({
         );
       }),
 
+    /** List pipeline runs for an issue, newest first, with stage summaries. */
+    listByIssue: publicProcedure
+      .input(z.object({ issueId: z.string().uuid() }))
+      .query(({ ctx, input }) =>
+        listIssueRunsWithStages(ctx.db, input.issueId)
+      ),
+
     /** Cancel a pipeline run. */
     cancel: publicProcedure
       .input(z.object({ id: z.string().uuid() }))
@@ -341,7 +349,6 @@ export const pipelineRouter = router({
       .input(z.object({ issueId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
         const { pipelineStage } = await import('@/core/db/schema');
-        const { desc, asc } = await import('drizzle-orm');
 
         // Find latest pipeline run for this issue
         const [latestRun] = await ctx.db
