@@ -44,6 +44,7 @@ import {
   stageRun,
 } from '@/core/db/schema';
 import type { GitProvider, PullRequest } from '@/core/ports/git';
+import type { GitProviderFactory } from '@/core/ports/git-factory';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { IssueService } from '@/core/services/issue';
 import type { AdapterRegistryLike } from './registry-types';
@@ -220,8 +221,14 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       );
     }
 
-    // 8. createPullRequest via registered GitProvider
-    const gitProvider = registry.get<GitProvider>('git');
+    // 8. createPullRequest — resolve the right forge adapter from the
+    // project's repoUrl when one is set (FLX-4); fall back to the
+    // legacy single-adapter registration so call sites without a URL
+    // (or with an unrecognized host) keep working.
+    const gitProvider = resolveGitProviderForProject(
+      registry,
+      projectRow.repoUrl
+    );
     const prTitle = buildPrTitle({
       id: issueRow.id,
       number: issueRow.number,
@@ -393,6 +400,25 @@ async function loadMostRecentStageName(
     .orderBy(desc(stageRun.createdAt))
     .limit(1);
   return rows[0]?.name ?? null;
+}
+
+/**
+ * FLX-4 — pick the GitProvider for a project's repoUrl. Prefers the
+ * factory ('gitFactory') when registered; falls back to the legacy
+ * 'git' adapter for backward compat.
+ */
+function resolveGitProviderForProject(
+  registry: AdapterRegistryLike,
+  repoUrl: string | null | undefined
+): GitProvider {
+  try {
+    const factory = registry.get<GitProviderFactory>('gitFactory');
+    return factory.forUrl(repoUrl ?? '');
+  } catch {
+    // Factory not registered (legacy bootstrap, integration tests with
+    // a hand-rolled registry stub, etc.) — use the single 'git' adapter.
+    return registry.get<GitProvider>('git');
+  }
 }
 
 function errorMessage(err: unknown): string {
