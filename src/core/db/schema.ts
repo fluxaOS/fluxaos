@@ -38,6 +38,8 @@ export const user = pgTable(
   'user',
   {
     id,
+    // Optimistic concurrency token — required by RecordEditor (FLX-3).
+    version: integer('version').notNull().default(1),
     orgId: uuid('org_id')
       .notNull()
       .references(() => organization.id),
