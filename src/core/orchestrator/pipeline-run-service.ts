@@ -232,6 +232,14 @@ export function createPipelineRunService(db: Database): PipelineRunService {
     },
 
     async completeStageRun(id, status, results) {
+      const where =
+        status === STAGE_RUN_STATUS.cancelled
+          ? eq(stageRun.id, id)
+          : and(
+              eq(stageRun.id, id),
+              sql`${stageRun.status} <> ${STAGE_RUN_STATUS.cancelled}`
+            );
+
       await db
         .update(stageRun)
         .set({
@@ -249,7 +257,7 @@ export function createPipelineRunService(db: Database): PipelineRunService {
           errorMessage: results.errorMessage,
           updatedAt: new Date(),
         })
-        .where(eq(stageRun.id, id));
+        .where(where);
     },
 
     async appendEvent(stageRunId, type, payload) {

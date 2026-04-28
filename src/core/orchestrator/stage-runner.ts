@@ -279,6 +279,8 @@ export async function executeStageRun(
       : { number: 0, title: 'No issue context' },
   });
 
+  const executionStartedAt = Date.now();
+
   try {
     // Build prompt
     const prompt = renderTemplate(driverRow.issuePromptTemplate, {
@@ -345,6 +347,13 @@ export async function executeStageRun(
       cwd: workspacePath,
       env: cmd.env,
       timeoutMs: (stage.timeoutSec ?? DEFAULT_STAGE_TIMEOUT_SEC) * 1000,
+      onStart: (_processId, pid) => {
+        if (!pid) return;
+        db.update(stageRun)
+          .set({ pid, updatedAt: new Date() })
+          .where(eq(stageRun.id, sRun.id))
+          .catch(logError);
+      },
       onStdout: (data: string) => {
         const lines = data.split('\n');
         for (const line of lines) {
@@ -396,6 +405,26 @@ export async function executeStageRun(
     });
 
     // ── Completion with signal handling ──────────────────────────────
+
+    const [latestStageRun] = await db
+      .select({ status: stageRun.status })
+      .from(stageRun)
+      .where(eq(stageRun.id, sRun.id));
+    if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
+      return {
+        exitCode: result.exitCode,
+        durationMs: result.durationMs,
+        stageName: stage.name,
+        driverName: driverRow.name,
+        providerName: routing?.providerName ?? null,
+        modelIdentifier: routing?.modelIdentifier ?? null,
+        issueId: run.issueId,
+        stageId: stage.id,
+        skillSignal: 'abort',
+        skillSignalReason: 'cancelled',
+        skillMetadata: null,
+      };
+    }
 
     // No signal emitted. Behavior depends on exit_code:
     //   - exit 0:    skill exited cleanly without emitting flux:signal.
@@ -544,6 +573,26 @@ export async function executeStageRun(
     };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
+    const [latestStageRun] = await db
+      .select({ status: stageRun.status })
+      .from(stageRun)
+      .where(eq(stageRun.id, sRun.id));
+    if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
+      return {
+        exitCode: 130,
+        durationMs: Date.now() - executionStartedAt,
+        stageName: stage.name,
+        driverName: driverRow.name,
+        providerName: routing?.providerName ?? null,
+        modelIdentifier: routing?.modelIdentifier ?? null,
+        issueId: run.issueId,
+        stageId: stage.id,
+        skillSignal: 'abort',
+        skillSignalReason: 'cancelled',
+        skillMetadata: null,
+      };
+    }
+
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
       driver: driverRow.name,
       trigger: ctx.trigger,
