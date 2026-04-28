@@ -4,6 +4,7 @@ export interface ExecuteParams {
   cwd: string;
   env?: Record<string, string>;
   timeoutMs?: number;
+  onStart?: (processId: string, pid: number | null) => void;
   onStdout?: (data: string) => void;
   onStderr?: (data: string) => void;
 }

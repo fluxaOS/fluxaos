@@ -228,6 +228,24 @@ export function createEventOrchestrator(
         trigger: TRIGGER_TYPE.automated,
       });
 
+      const latestRun = await runService.getRun(run.id);
+      const [latestStageRun] = await db
+        .select({ status: stageRun.status })
+        .from(stageRun)
+        .where(eq(stageRun.id, sRun.id));
+      if (latestRun?.status === PIPELINE_RUN_STATUS.cancelled) {
+        await terminalHook.onTerminal({
+          runId: latestRun.id,
+          projectId: await resolveProjectIdForRun(db, latestRun),
+          status: PIPELINE_RUN_STATUS.cancelled,
+        });
+        return;
+      }
+      if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
+        await finishRun(run, PIPELINE_RUN_STATUS.cancelled);
+        return;
+      }
+
       // Post-execution gate evaluation — always write a result row
       const gateResult = await gateService.evaluateStageGate(
         stage.id,
@@ -266,8 +284,26 @@ export function createEventOrchestrator(
         );
       }
     } catch {
-      // Stage execution threw (timeout, signal, etc.)
-      // stage-runner already marked stage_run as failed
+      // Stage execution threw (timeout, signal, etc.). User cancellation may
+      // have raced the subprocess error, so re-read terminal state first.
+      const latestRun = await runService.getRun(run.id);
+      const [latestStageRun] = await db
+        .select({ status: stageRun.status })
+        .from(stageRun)
+        .where(eq(stageRun.id, sRun.id));
+      if (latestRun?.status === PIPELINE_RUN_STATUS.cancelled) {
+        await terminalHook.onTerminal({
+          runId: latestRun.id,
+          projectId: await resolveProjectIdForRun(db, latestRun),
+          status: PIPELINE_RUN_STATUS.cancelled,
+        });
+        return;
+      }
+      if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
+        await finishRun(run, PIPELINE_RUN_STATUS.cancelled);
+        return;
+      }
+
       await handleStageFailed(run, stage, sRun);
     }
   }

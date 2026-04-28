@@ -37,6 +37,7 @@ export class SubprocessExecutor implements StageExecutor {
     });
 
     this.processes.set(processId, child);
+    params.onStart?.(processId, child.pid ?? null);
 
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();

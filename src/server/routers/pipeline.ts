@@ -254,7 +254,11 @@ export const pipelineRouter = router({
               s.status
             )
           ) {
+            terminateStageProcess(s.pid);
             await svc.completeStageRun(s.id, 'cancelled', {});
+            await svc.appendEvent(s.id, 'cancelled', {
+              reason: 'cancelled by user',
+            });
           }
         }
         await svc.completeRun(input.id, 'cancelled');
@@ -266,10 +270,26 @@ export const pipelineRouter = router({
       .input(z.object({ stageRunId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
         const svc = createPipelineRunService(ctx.db);
-        await svc.completeStageRun(input.stageRunId, 'cancelled', {});
+        const [row] = await ctx.db
+          .select({
+            id: stageRun.id,
+            pipelineRunId: stageRun.pipelineRunId,
+            pid: stageRun.pid,
+          })
+          .from(stageRun)
+          .where(eq(stageRun.id, input.stageRunId));
+        if (!row) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Stage run not found',
+          });
+        }
+        terminateStageProcess(row.pid);
+        await svc.completeStageRun(row.id, 'cancelled', {});
         await svc.appendEvent(input.stageRunId, 'cancelled', {
           reason: 'cancelled by user',
         });
+        await svc.completeRun(row.pipelineRunId, 'cancelled');
         return { cancelled: true };
       }),
 
@@ -450,3 +470,20 @@ export const pipelineRouter = router({
       }),
   }),
 });
+
+function terminateStageProcess(pid: number | null): void {
+  if (!pid) return;
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch (err) {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: string }).code === 'ESRCH'
+    ) {
+      return;
+    }
+    throw err;
+  }
+}
