@@ -10,6 +10,7 @@
 
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { createWorktreeIsolationProvider } from '@/adapters/git';
+import { createGitProviderFactory } from '@/adapters/git-router/factory';
 import { createGitHubAdapter } from '@/adapters/github';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
 import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
@@ -84,11 +85,19 @@ export function bootstrap(): void {
     return createWorktreeIsolationProvider({ db: dbProvider.getConnection() });
   });
 
-  // Git — GitHub adapter. Requires FLUXAOS_GITHUB_TOKEN at call time
-  // (not at registration time), so operators can boot the app without
-  // the token when they don't need deploy-bridge functionality yet.
-  // GitHubAuthError (missing token) surfaces to the caller.
+  // Git — GitHub adapter (legacy single-forge resolver). Requires
+  // FLUXAOS_GITHUB_TOKEN at call time (not at registration time), so
+  // operators can boot the app without the token when they don't need
+  // deploy-bridge functionality yet. GitHubAuthError (missing token)
+  // surfaces to the caller. Kept for call sites that don't have a
+  // repoUrl handy; new call sites should prefer the gitFactory.
   registry.register('git', () => createGitHubAdapter());
+
+  // FLX-4 — GitProviderFactory. Routes a repo URL to the right forge
+  // adapter (GitHub, GitLab, Gitea, Forgejo). The non-GitHub adapters
+  // are stubs in the FLX-4 slice; they throw NotImplementedError until
+  // a future PR wires their REST APIs.
+  registry.register('gitFactory', () => createGitProviderFactory());
 
   // Validate all required adapters are registered
   registry.validate([...REQUIRED_ADAPTERS]);
