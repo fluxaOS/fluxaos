@@ -69,6 +69,30 @@ export const skillRouter = router({
       return row;
     }),
 
+  listHistory: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(({ ctx, input }) => {
+      return createSkillService(ctx.db).listRevisions(input.id);
+    }),
+
+  revertToRevision: publicProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        version: z.number().int(),
+        revisionNumber: z.number().int().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const row = await createSkillService(ctx.db).revertToRevision(
+        input.id,
+        input.version,
+        input.revisionNumber
+      );
+      if (!row) throw new Error('Optimistic concurrency conflict');
+      return row;
+    }),
+
   countReferences: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => {

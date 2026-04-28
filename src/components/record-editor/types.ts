@@ -88,4 +88,10 @@ export type RecordEditorProps<TRecord extends RecordWithVersion> = {
   canDelete?: (record: TRecord) => boolean;
   /** DEF-003 — fires when user enters edit mode so history can snapshot */
   onEditSnapshot?: (record: TRecord) => void;
+  /**
+   * Fires when the selected record changes (or is cleared). Lets the page
+   * render auxiliary panels (e.g. revision history for FLX-13) keyed off
+   * the same selection without forking RecordEditor's selection state.
+   */
+  onSelectionChange?: (record: TRecord | null) => void;
 };

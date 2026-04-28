@@ -9,6 +9,7 @@ import { Feature, hasFeature } from '@/core/features/features';
 import { useCurrentUser } from '@/lib/auth/use-current-user';
 import { trpc } from '@/lib/trpc/client';
 import { type SkillRecord, skillDescriptor } from './descriptor';
+import { SkillRevisionHistory } from './SkillRevisionHistory';
 
 export default function SkillsSettingsPage() {
   const utils = trpc.useUtils();
@@ -24,6 +25,7 @@ export default function SkillsSettingsPage() {
   const [newScope, setNewScope] = useState<'global' | 'project'>('global');
   const [newDescription, setNewDescription] = useState('');
   const [newPrompt, setNewPrompt] = useState('');
+  const [selected, setSelected] = useState<SkillRecord | null>(null);
 
   const onSave = async (
     id: string,
@@ -36,6 +38,9 @@ export default function SkillsSettingsPage() {
       ...(patch as Record<string, unknown>),
     });
     await utils.skill.list.invalidate();
+    // FLX-13: edits create a new skill_revision row, so the history
+    // panel must refetch.
+    await utils.skill.listHistory.invalidate({ id });
   };
 
   const onDelete = async (id: string, expectedVersion: number) => {
@@ -150,6 +155,7 @@ export default function SkillsSettingsPage() {
         isLoading={listQuery.isLoading}
         onSave={onSave}
         onDelete={onDelete}
+        onSelectionChange={setSelected}
         onRefresh={async () => {
           await utils.skill.list.invalidate();
         }}
@@ -157,6 +163,8 @@ export default function SkillsSettingsPage() {
         canEdit={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
         canDelete={() => hasFeature(userId, Feature.ROLE_BASED_PERMISSIONS)}
       />
+
+      {selected ? <SkillRevisionHistory skill={selected} /> : null}
     </div>
   );
 }

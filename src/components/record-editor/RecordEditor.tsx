@@ -1,7 +1,7 @@
 // src/components/record-editor/RecordEditor.tsx
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { SkeletonTable } from '@/components/skeleton';
@@ -65,6 +65,13 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
     () => records.find((r) => r.id === selectedId) ?? null,
     [records, selectedId]
   );
+
+  // Fire selection change to the parent so it can render auxiliary panels
+  // (history, related records, etc.) without forking selection state.
+  const onSelectionChange = props.onSelectionChange;
+  useEffect(() => {
+    onSelectionChange?.(selected);
+  }, [selected, onSelectionChange]);
 
   // When the list refreshes after Save, stay on the same record and exit editing.
   // When the selected record is deleted, clear selection.
