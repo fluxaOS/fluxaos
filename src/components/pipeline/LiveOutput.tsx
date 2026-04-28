@@ -13,6 +13,21 @@ interface LiveOutputProps {
   isActive: boolean;
 }
 
+interface RealtimeEventPayload {
+  id: string;
+  stageRunId?: string;
+  stage_run_id?: string;
+  type: string;
+  payload: unknown;
+  timestamp: string;
+  createdAt?: string;
+  created_at?: string;
+}
+
+function getRealtimeStageRunId(row: RealtimeEventPayload): string | undefined {
+  return row.stageRunId ?? row.stage_run_id;
+}
+
 // ── Entry renderers ──────────────────────────────────────────────────────────
 
 function TextEntry({ entry }: { entry: TranscriptEntry }) {
@@ -104,6 +119,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
   const [verbose, setVerbose] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);
+  const utils = trpc.useUtils();
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -154,6 +170,8 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
     return verbose ? out : out.filter((x) => x.kind !== 'system');
   }, [eventsQuery.data, verbose]);
 
+  const eventCount = eventsQuery.data?.length ?? 0;
+
   // Subscribe to Realtime for live updates (resolved via adapter registry)
   useEffect(() => {
     if (!isActive || !stageRunId) return;
@@ -163,27 +181,41 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
       `live-output-${stageRunId}`,
       'event',
       'INSERT',
-      () => {
-        // Refetch events when new ones arrive via Realtime
-        eventsQuery.refetch();
+      (payload) => {
+        const row = payload.new as RealtimeEventPayload;
+        if (getRealtimeStageRunId(row) !== stageRunId) return;
+
+        utils.pipeline.runs.events.setData({ stageRunId }, (current) => {
+          const existing = current ?? [];
+          if (existing.some((event) => event.id === row.id)) return existing;
+          return [
+            ...existing,
+            {
+              id: row.id,
+              stageRunId,
+              type: row.type,
+              payload: row.payload,
+              timestamp: row.timestamp,
+              createdAt: row.createdAt ?? row.created_at ?? row.timestamp,
+            },
+          ];
+        });
       }
     );
 
     return () => {
       unsubscribe();
     };
-  }, [
-    stageRunId,
-    isActive, // Refetch events when new ones arrive via Realtime
-    eventsQuery.refetch,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stageRunId, isActive, utils.pipeline.runs.events]);
 
   // Auto-scroll
+  const scrollTrigger = rawJson ? eventCount : entries.length;
   useEffect(() => {
+    if (scrollTrigger < 0) return;
     if (autoScroll && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [autoScroll]);
+  }, [autoScroll, scrollTrigger]);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -287,6 +319,7 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
 
       {/* Output pane */}
       <div
+        data-testid="live-output-pane"
         ref={containerRef}
         onScroll={handleScroll}
         className="font-mono text-xs rounded-lg p-4 h-96 overflow-y-auto bg-slate-950 text-slate-300 border border-slate-700/40"
