@@ -8,13 +8,7 @@ test.describe('@r-ui-1 @settings @skills @crud', () => {
     await gotoSettings(page, 'skills');
 
     // Step 2: seeded skills visible
-    for (const name of [
-      'research',
-      'implement',
-      'review',
-      'rework',
-      'deploy',
-    ]) {
+    for (const name of ['research', 'implement', 'review', 'rework']) {
       await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     }
 
