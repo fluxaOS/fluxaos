@@ -629,6 +629,37 @@ export const skill = pgTable('skill', {
   updatedAt,
 });
 
+// FLX-13: append-only revision log for skill edits. Snapshot is taken
+// after the row is updated, so revision_number 1 captures the state
+// produced by the first user-driven save (not the seed insert).
+export const skillRevision = pgTable(
+  'skill_revision',
+  {
+    id,
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skill.id, { onDelete: 'cascade' }),
+    revisionNumber: integer('revision_number').notNull(),
+    name: text('name').notNull(),
+    scope: text('scope').notNull(),
+    description: text('description'),
+    promptTemplate: text('prompt_template'),
+    inputSchema: jsonb('input_schema'),
+    outputSchema: jsonb('output_schema'),
+    tags: jsonb('tags'),
+    snapshotAt: timestamp('snapshot_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    snapshotBy: text('snapshot_by'),
+  },
+  (t) => [
+    uniqueIndex('skill_revision_skill_id_revision_idx').on(
+      t.skillId,
+      t.revisionNumber
+    ),
+  ]
+);
+
 export const personaSkill = pgTable(
   'persona_skill',
   {
