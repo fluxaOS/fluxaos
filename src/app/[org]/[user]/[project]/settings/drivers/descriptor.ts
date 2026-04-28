@@ -105,10 +105,7 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
       placeholder: '["--print", "--output-format", "json"]',
       validate: (v) => {
         if (v === undefined || v === null) return null;
-        if (
-          !Array.isArray(v) ||
-          !v.every((item) => typeof item === 'string')
-        ) {
+        if (!Array.isArray(v) || !v.every((item) => typeof item === 'string')) {
           return 'Must be a JSON array of strings';
         }
         return null;
