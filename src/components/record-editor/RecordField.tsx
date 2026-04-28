@@ -18,7 +18,36 @@ type Props = {
   onValidityChange?: (key: string, error: string | null) => void;
 };
 
-export function RecordField({
+export function RecordField(props: Props) {
+  const { field, editing } = props;
+  // Sensitive fields blur their viewing-state value behind a Preview
+  // overlay until the operator opts in. Edit mode bypasses the gate.
+  // (FLX-11)
+  const [revealed, setRevealed] = useState(false);
+  // Reset reveal state when editing flips on/off so a stale reveal
+  // doesn't carry between view sessions or different selected records.
+  const [prevEditingForGate, setPrevEditingForGate] = useState(editing);
+  if (prevEditingForGate !== editing) {
+    setPrevEditingForGate(editing);
+    setRevealed(false);
+  }
+  const sensitive = Boolean(field.sensitive);
+  const gateActive = sensitive && !editing && !revealed;
+
+  if (gateActive) {
+    return (
+      <SensitiveGate
+        label={field.label}
+        onReveal={() => setRevealed(true)}
+        sampleValue={props.value}
+      />
+    );
+  }
+
+  return <RecordFieldInner {...props} />;
+}
+
+function RecordFieldInner({
   field,
   value,
   editing,
@@ -187,6 +216,59 @@ export function RecordField({
       {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
     </div>
   );
+}
+
+function SensitiveGate({
+  label,
+  onReveal,
+  sampleValue,
+}: {
+  label: string;
+  onReveal: () => void;
+  sampleValue: unknown;
+}) {
+  // Show a faint blurred preview so the operator can tell *something* is
+  // there (and the field isn't simply empty) without the content being
+  // legible from a screen-share or screenshot.
+  const blurredText = sampleValueToBlurredString(sampleValue);
+
+  return (
+    <div className="mb-3" data-testid={`sensitive-gate-${label}`}>
+      <label className="text-xs font-medium text-slate-400 block mb-1">
+        {label}
+      </label>
+      <div className="relative rounded-lg border border-slate-700/60 bg-slate-900 px-3 py-3 min-h-[64px] overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="text-xs text-slate-500 font-mono whitespace-pre-wrap break-all blur-md select-none pointer-events-none"
+        >
+          {blurredText || '— hidden —'}
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40">
+          <button
+            type="button"
+            onClick={onReveal}
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-electric-violet/90 text-white hover:bg-electric-violet transition-colors"
+          >
+            Preview
+          </button>
+        </div>
+      </div>
+      <p className="mt-1 text-[10px] text-slate-500">
+        Sensitive content. Click Preview to reveal, or Edit to modify.
+      </p>
+    </div>
+  );
+}
+
+function sampleValueToBlurredString(v: unknown): string {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string') return v.slice(0, 200);
+  try {
+    return JSON.stringify(v).slice(0, 200);
+  } catch {
+    return String(v).slice(0, 200);
+  }
 }
 
 type JsonFieldProps = {

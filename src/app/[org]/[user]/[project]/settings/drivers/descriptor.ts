@@ -88,11 +88,14 @@ export const driverDescriptor: RecordDescriptor<DriverRecord> = {
       key: 'issuePromptTemplate',
       label: 'Issue prompt template',
       fieldType: 'textarea-large',
+      // FLX-11: prompt templates may contain proprietary system prompts.
+      sensitive: true,
     },
     {
       key: 'queuePromptTemplate',
       label: 'Queue prompt template',
       fieldType: 'textarea-large',
+      sensitive: true,
     },
     // JSON fields — server-side Zod validates the *shape* (string[],
     // record<string,string>, record<string,unknown>, unknown). The renderer
