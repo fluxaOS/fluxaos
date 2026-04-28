@@ -5,12 +5,21 @@ import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
 
+type Persona = {
+  id: string;
+  name: string;
+  scope: string;
+  soul: string | null;
+};
+
 export default function PersonaSettingsPage() {
+  const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const personasQuery = trpc.persona.list.useQuery();
-  const personas = personasQuery.data ?? [];
+  const personas = (personasQuery.data ?? []) as Persona[];
 
   return (
     <div className="space-y-6">
@@ -29,9 +38,9 @@ export default function PersonaSettingsPage() {
 
       {showCreate && (
         <CreatePersonaForm
-          onCreated={() => {
+          onCreated={async () => {
             setShowCreate(false);
-            personasQuery.refetch();
+            await utils.persona.list.invalidate();
           }}
         />
       )}
@@ -39,37 +48,163 @@ export default function PersonaSettingsPage() {
       {personas.length === 0 ? (
         <EmptyState title="No personas configured" />
       ) : (
-        <div className="space-y-3">
+        <ul className="space-y-3">
           {personas.map((p) => (
-            <div key={p.id} className="card-static p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">{p.name}</span>
-                  <span className="ml-2 text-xs text-slate-400">{p.scope}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedId(expandedId === p.id ? null : p.id)
-                  }
-                  className="text-xs text-slate-400 hover:text-slate-300"
-                >
-                  {expandedId === p.id ? 'Close' : 'Details'}
-                </button>
-              </div>
+            <li key={p.id} className="card-static p-4">
+              {editingId === p.id ? (
+                <EditPersonaForm
+                  persona={p}
+                  onSaved={async () => {
+                    setEditingId(null);
+                    await utils.persona.list.invalidate();
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">{p.name}</span>
+                      <span className="ml-2 text-xs text-slate-400">
+                        {p.scope}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedId(expandedId === p.id ? null : p.id)
+                        }
+                        className="text-xs text-slate-400 hover:text-slate-300"
+                      >
+                        {expandedId === p.id ? 'Close' : 'Details'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(p.id)}
+                        className="text-xs text-slate-400 hover:text-slate-300"
+                      >
+                        Edit
+                      </button>
+                      <DeletePersonaButton
+                        personaId={p.id}
+                        onDeleted={() => utils.persona.list.invalidate()}
+                      />
+                    </div>
+                  </div>
 
-              {p.soul && (
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                  {p.soul}
-                </p>
+                  {p.soul && (
+                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                      {p.soul}
+                    </p>
+                  )}
+                </>
               )}
 
-              {expandedId === p.id && <PersonaDetail personaId={p.id} />}
-            </div>
+              {editingId !== p.id && expandedId === p.id && (
+                <PersonaDetail personaId={p.id} />
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
+  );
+}
+
+function EditPersonaForm({
+  persona,
+  onSaved,
+  onCancel,
+}: {
+  persona: Persona;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(persona.name);
+  const [soul, setSoul] = useState(persona.soul ?? '');
+
+  const updateMutation = trpc.persona.update.useMutation({
+    onSuccess: () => onSaved(),
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        updateMutation.mutate({
+          id: persona.id,
+          name: name.trim(),
+          soul: soul.trim() || undefined,
+        });
+      }}
+      className="space-y-3"
+    >
+      <label className="block">
+        <span className="text-xs text-slate-400">Name</span>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Persona name"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        />
+      </label>
+      <label className="block">
+        <span className="text-xs text-slate-400">Soul</span>
+        <textarea
+          value={soul}
+          onChange={(e) => setSoul(e.target.value)}
+          rows={3}
+          aria-label="Persona soul"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground mt-1 resize-none"
+        />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={!name.trim() || updateMutation.isPending}
+          className="px-3 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-1.5 text-slate-400 text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DeletePersonaButton({
+  personaId,
+  onDeleted,
+}: {
+  personaId: string;
+  onDeleted: () => void;
+}) {
+  const deleteMutation = trpc.persona.delete.useMutation({
+    onSuccess: () => onDeleted(),
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (confirm('Delete this persona?')) {
+          deleteMutation.mutate({ id: personaId });
+        }
+      }}
+      disabled={deleteMutation.isPending}
+      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+    >
+      {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+    </button>
   );
 }
 
@@ -111,6 +246,7 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            aria-label="Persona name"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           />
         </label>
@@ -119,6 +255,7 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
           <select
             value={scope}
             onChange={(e) => setScope(e.target.value as 'global' | 'project')}
+            aria-label="Persona scope"
             className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
           >
             <option value="project">project</option>
@@ -133,6 +270,7 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
           onChange={(e) => setSoul(e.target.value)}
           rows={3}
           placeholder="Describe this persona's character and approach..."
+          aria-label="Persona soul"
           className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground mt-1 resize-none"
         />
       </label>
