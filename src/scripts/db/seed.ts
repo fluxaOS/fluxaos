@@ -584,6 +584,8 @@ Read {{artifacts_path}}/review-findings.md if it exists and address the concerns
     { key: 'issues.status.on_completed_key', value: '"completed"' },
     // FLX-79: deploy bridge advances issue state to this key after PR opens.
     { key: 'issues.state.on_deploy_complete_key', value: '"review"' },
+    // FLX-84: rework verdicts move issues to this DB-configured state.
+    { key: 'issues.state.on_rework_key', value: '"rework"' },
   ];
 
   await db
