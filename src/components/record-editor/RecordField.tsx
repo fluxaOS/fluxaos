@@ -75,6 +75,7 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
               onChange(parsed);
             }}
             placeholder="comma, separated, tags"
+            aria-label={field.label}
             className={`${common} ${borderClass}`}
           />
         ) : (
@@ -111,6 +112,7 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
+          aria-label={field.label}
           rows={14}
           className={`${common} ${borderClass} font-mono text-xs leading-relaxed disabled:opacity-75`}
         />
@@ -129,6 +131,7 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
+          aria-label={field.label}
           rows={4}
           className={`${common} ${borderClass} disabled:opacity-75`}
         />
@@ -147,6 +150,7 @@ export function RecordField({ field, value, editing, onChange, error }: Props) {
         value={String(value ?? '')}
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder}
+        aria-label={field.label}
         className={`${common} ${borderClass} disabled:opacity-75`}
       />
       {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
