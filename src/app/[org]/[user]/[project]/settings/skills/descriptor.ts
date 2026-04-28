@@ -23,6 +23,9 @@ export const skillDescriptor: RecordDescriptor<SkillRecord> = {
       key: 'promptTemplate',
       label: 'Prompt template',
       fieldType: 'textarea-large',
+      // FLX-11: prompt templates often contain proprietary IP or
+      // demo-sensitive language — gate behind Preview by default.
+      sensitive: true,
     },
     { key: 'version', label: 'Version', fieldType: 'readonly' },
   ],

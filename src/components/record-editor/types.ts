@@ -25,6 +25,13 @@ export type FieldDescriptor<TRecord> = {
    * Runs client-side before submit.
    */
   validate?: (value: unknown) => string | null;
+  /**
+   * When true, the value is blurred in the viewing state with a Preview
+   * button overlay. Edit mode bypasses the blur. Used for prompt templates,
+   * system prompts, and similar content that may be sensitive in
+   * demos/screenshots. (FLX-11)
+   */
+  sensitive?: boolean;
 };
 
 export type RecordDescriptor<TRecord> = {
