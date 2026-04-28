@@ -133,6 +133,13 @@ export async function executeStageRun(
     );
   }
 
+  if (!driverRow.issuePromptTemplate) {
+    throw new Error(
+      `Driver '${driverRow.name}' (${driverRow.id}) is missing issuePromptTemplate. ` +
+        'Update the driver row to set issuePromptTemplate; stage-runner does not provide a fallback prompt.'
+    );
+  }
+
   // Skill (optional)
   let skillRow: typeof skill.$inferSelect | null = null;
   if (stage.skillId) {
@@ -191,6 +198,12 @@ export async function executeStageRun(
     throw new Error(
       `Stage-runner cannot run without a projectId (runId=${runId}). ` +
         'Both issueRow.projectId and pipeline.projectId resolved to null.'
+    );
+  }
+  if (!routing?.modelIdentifier) {
+    throw new Error(
+      `No routing model resolved for stage '${stage.name}' (${stage.id}) in project ${projectId}. ` +
+        'Configure a healthy provider/model and matching routing rule before running the stage.'
     );
   }
   const { env } = await acquireIsolationEnv({
@@ -261,9 +274,7 @@ export async function executeStageRun(
 
   try {
     // Build prompt
-    const template =
-      driverRow.issuePromptTemplate ?? '{{skill_name}}: {{issue_title}}';
-    const prompt = renderTemplate(template, {
+    const prompt = renderTemplate(driverRow.issuePromptTemplate, {
       issue_number: issueRow?.number,
       issue_title: issueRow?.title ?? '',
       issue_description: issueRow?.bodyMd ?? '',
@@ -274,7 +285,7 @@ export async function executeStageRun(
 
     // Build command
     const cmd = buildCommand(driverRow, {
-      model: routing?.modelIdentifier ?? '',
+      model: routing.modelIdentifier,
       workspacePath,
       prompt,
       sessionName: `fluxaos-${sRun.id.slice(0, 8)}`,
