@@ -100,10 +100,16 @@ export function IssueDetailClient({
     { enabled: !!issue?.id }
   );
   const pipelineState = pipelineStateQuery.data;
+  const pipelineRunsQuery = trpc.pipeline.runs.listByIssue.useQuery(
+    { issueId: issue?.id ?? '' },
+    { enabled: !!issue?.id }
+  );
+  const pipelineRuns = pipelineRunsQuery.data ?? [];
 
   const triggerRun = trpc.pipeline.runs.trigger.useMutation({
     onSuccess: (data) => {
       pipelineStateQuery.refetch();
+      pipelineRunsQuery.refetch();
       if (data?.id) setActiveRunId(data.id);
     },
     onError: (err) => {
@@ -119,6 +125,7 @@ export function IssueDetailClient({
   const executeStage = trpc.pipeline.runs.executeStage.useMutation({
     onSuccess: () => {
       pipelineStateQuery.refetch();
+      pipelineRunsQuery.refetch();
       // Open modal for existing run if we have one
       if (pipelineState?.run?.id) setActiveRunId(pipelineState.run.id);
     },
@@ -393,11 +400,61 @@ export function IssueDetailClient({
                 </p>
               )}
 
+              {pipelineRuns.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-slate-700/20">
+                  <h3 className="text-sm font-semibold text-slate-400">
+                    Run History
+                  </h3>
+                  <div className="space-y-1.5">
+                    {pipelineRuns.map((run) => {
+                      const primaryStageRun =
+                        run.stageRuns[run.stageRuns.length - 1] ?? null;
+                      const stageName =
+                        primaryStageRun?.pipelineStage?.name ?? 'Pipeline';
+                      const startedAt = run.startedAt ?? run.createdAt;
+
+                      return (
+                        <div
+                          key={run.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700/30 bg-white/[0.02] px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="font-medium text-slate-300 capitalize">
+                                {stageName}
+                              </span>
+                              <span className="text-slate-600">
+                                {run.status}
+                              </span>
+                              <span className="text-slate-600">
+                                {new Date(startedAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 truncate font-mono text-[10px] text-slate-600">
+                              {run.id}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveRunId(run.id)}
+                            aria-label={`View ${stageName} Run Details`}
+                            className="shrink-0 text-xs text-soft-violet hover:underline"
+                          >
+                            View Details
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <RunDetailModal
                 runId={activeRunId}
                 onClose={() => {
                   setActiveRunId(null);
                   pipelineStateQuery.refetch();
+                  pipelineRunsQuery.refetch();
                 }}
               />
             </Card>
