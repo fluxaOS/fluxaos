@@ -182,6 +182,14 @@ export function ActivityFeed({
 
   const events = eventsQuery.data ?? [];
   const comments = commentsQuery.data ?? [];
+  const formattedEvents = events.flatMap((event) => {
+    const description = formatEvent(
+      event.type,
+      event.payload as Record<string, unknown>,
+      catalogs
+    );
+    return description ? [{ event, description }] : [];
+  });
 
   const createComment = trpc.issue.comment.create.useMutation({
     onSuccess: () => {
@@ -253,13 +261,13 @@ export function ActivityFeed({
           </div>
         </div>
 
-        {events.length === 0 ? (
+        {formattedEvents.length === 0 ? (
           <p className="text-sm text-slate-600">No activity yet.</p>
         ) : (
           <div className="relative pl-6">
             <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-700/30" />
             <div className="space-y-0">
-              {events.map((event) => (
+              {formattedEvents.map(({ event, description }) => (
                 <div
                   key={event.id}
                   className="relative flex items-start gap-3 py-2.5"
@@ -268,13 +276,7 @@ export function ActivityFeed({
                   <span className="text-[11px] text-slate-600 font-mono whitespace-nowrap mt-0.5">
                     {new Date(event.timestamp).toLocaleString()}
                   </span>
-                  <span className="text-sm text-slate-300">
-                    {formatEvent(
-                      event.type,
-                      event.payload as Record<string, unknown>,
-                      catalogs
-                    )}
-                  </span>
+                  <span className="text-sm text-slate-300">{description}</span>
                 </div>
               ))}
             </div>
@@ -366,6 +368,8 @@ const FIELD_LABELS: Record<string, string> = {
   assignee: 'Assignee',
 };
 
+const DESCRIPTION_FIELDS = new Set(['bodyMd', 'bodyHtml', 'description']);
+
 function catalogName(id: unknown, items: CatalogItem[]): string {
   if (typeof id !== 'string') return String(id ?? '');
   const match = items.find((i) => i.id === id);
@@ -386,7 +390,7 @@ function formatEvent(
   type: string,
   payload: Record<string, unknown> | null | undefined,
   catalogs: Catalogs
-): string {
+): string | null {
   const p = payload ?? {};
 
   switch (type) {
@@ -404,17 +408,20 @@ function formatEvent(
         | Record<string, { from: unknown; to: unknown }>
         | undefined;
       if (!changes) return 'Fields updated';
-      const parts = Object.entries(changes).map(([field, { from, to }]) => {
-        const label = FIELD_LABELS[field] ?? field;
-        const catalog = catalogForField(field, catalogs);
-        const fromStr = catalog
-          ? catalogName(from, catalog)
-          : String(from ?? '(empty)');
-        const toStr = catalog
-          ? catalogName(to, catalog)
-          : String(to ?? '(empty)');
-        return `${label}: ${fromStr} \u2192 ${toStr}`;
-      });
+      const parts = Object.entries(changes)
+        .filter(([field]) => !DESCRIPTION_FIELDS.has(field))
+        .map(([field, { from, to }]) => {
+          const label = FIELD_LABELS[field] ?? field;
+          const catalog = catalogForField(field, catalogs);
+          const fromStr = catalog
+            ? catalogName(from, catalog)
+            : String(from ?? '(empty)');
+          const toStr = catalog
+            ? catalogName(to, catalog)
+            : String(to ?? '(empty)');
+          return `${label}: ${fromStr} \u2192 ${toStr}`;
+        });
+      if (parts.length === 0) return null;
       return parts.join(', ');
     }
 

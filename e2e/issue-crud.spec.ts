@@ -93,8 +93,6 @@ test.describe('@flx-67 @journey @issue-crud', () => {
       .click();
     await page.locator('textarea').first().fill(newBody);
     await page.getByRole('button', { name: 'Save' }).click();
-    // Body text renders in two places after save: inline body view and the
-    // ActivityFeed change-summary entry. Use .first() (the body render).
     await expect(page.getByText(newBody, { exact: false }).first()).toBeVisible(
       {
         timeout: 10_000,
@@ -137,6 +135,10 @@ test.describe('@flx-67 @journey @issue-crud', () => {
     await expect(
       page.getByText(newBody, { exact: false }).first()
     ).toBeVisible();
+    const activityFeed = page.getByTestId('activity-feed');
+    await expect(activityFeed).not.toContainText('Description:');
+    await expect(activityFeed).not.toContainText(newBody);
+
     const prioritySelect2 = page
       .locator('div.flex.items-center.gap-2', {
         has: page.locator('span', { hasText: /^Priority$/ }),
