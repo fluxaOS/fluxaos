@@ -113,6 +113,7 @@ export function EditableBody({
       >
         {bodyHtml ? (
           <div
+            className="markdown-body"
             // biome-ignore lint/security/noDangerouslySetInnerHtml: bodyHtml is server-sanitized per invariant #14
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
