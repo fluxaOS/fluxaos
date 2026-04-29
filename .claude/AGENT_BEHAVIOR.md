@@ -18,4 +18,13 @@ AI does every step from brainstorm to shipped. **Once a spec or plan is approved
 
 **No cost or time estimates** — once a direction is approved, just do the work and report progress.
 
-**Definition of done:** PRs merged to main, working tree clean, on main in sync with origin, merged branches deleted (locally + origin), worktrees pruned. Open PRs don't count as done.
+**Linear hygiene.** When working an FLX-tagged issue, update Linear at every state transition. Don't batch, don't defer:
+
+- **Status:** Backlog → In Progress when work starts. → In Review when PR opens. → Done when PR merges.
+- **PR links:** attach every material PR (implementation, verification, docs) via `save_issue` `links:` (append-only).
+- **Description:** when the original framing is stale (question got answered, slice got picked, blocker got unblocked), edit the description to reflect current truth. Preserve the original framing as a `## History` section at the bottom.
+- **Sibling tickets:** when a finding spins off a new issue (mid-verification bugs, follow-on work), file the new Linear issue immediately and link it from the originating issue.
+
+Linear is the source of truth (per CLAUDE.md). Stale Linear is a bug.
+
+**Definition of done:** PRs merged to main, working tree clean, on main in sync with origin, merged branches deleted (locally + origin), worktrees pruned, Linear issue marked Done with PR links attached. Open PRs don't count as done; merged PRs without a Linear status update don't count either.
