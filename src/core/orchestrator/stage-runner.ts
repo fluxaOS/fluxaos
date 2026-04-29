@@ -576,6 +576,7 @@ export async function executeStageRun(
           stageName: stage.name,
           exitCode: result.exitCode,
           skillSignal: lastSignal.verdict,
+          summary: lastSignal.summary,
         },
         'stage-runner'
       );

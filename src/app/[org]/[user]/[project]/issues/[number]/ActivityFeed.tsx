@@ -430,6 +430,31 @@ function formatEvent(
     case 'issue_created':
       return `Issue created by ${p.user ?? p.author ?? 'unknown'}`;
 
+    case 'stage_started': {
+      const stage = typeof p.stageName === 'string' ? p.stageName : 'stage';
+      return `Started ${stage}`;
+    }
+
+    case 'stage_completed': {
+      const stage = typeof p.stageName === 'string' ? p.stageName : 'stage';
+      const summary = typeof p.summary === 'string' ? p.summary.trim() : '';
+      return summary ? `${stage} completed: ${summary}` : `${stage} completed`;
+    }
+
+    case 'stage_failed': {
+      const stage = typeof p.stageName === 'string' ? p.stageName : 'stage';
+      const summary =
+        typeof p.summary === 'string'
+          ? p.summary.trim()
+          : typeof p.reason === 'string'
+            ? p.reason.trim()
+            : '';
+      return summary ? `${stage} failed: ${summary}` : `${stage} failed`;
+    }
+
+    case 'pipeline_completed':
+      return 'Pipeline completed';
+
     default:
       return type.replace(/_/g, ' ');
   }
