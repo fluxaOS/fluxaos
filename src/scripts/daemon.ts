@@ -9,7 +9,9 @@
  * See docs/superpowers/specs/2026-04-24-r-daemon-design.md and
  * docs/superpowers/plans/2026-04-24-r-daemon-implementation.md.
  */
-import 'dotenv/config';
+
+import { join } from 'node:path';
+import { config as loadDotenv } from 'dotenv';
 import { eq, sql } from 'drizzle-orm';
 import {
   getArtifactsDirAge,
@@ -52,6 +54,11 @@ import { createIssueService } from '@/core/services/issue';
 
 const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
 const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
+
+export function loadDaemonEnvFiles(cwd = process.cwd()): void {
+  loadDotenv({ path: join(cwd, '.env'), override: false, quiet: true });
+  loadDotenv({ path: join(cwd, '.env.local'), override: false, quiet: true });
+}
 
 export interface DaemonEnv {
   shutdownGraceSeconds: number;
@@ -125,6 +132,7 @@ async function drainRunningStageRuns(
  * the process-level signal handlers or top-level await.
  */
 export async function createDaemon(): Promise<Daemon> {
+  loadDaemonEnvFiles();
   const env = parseEnv();
   bootstrap();
 
