@@ -11,6 +11,9 @@
  * W4 will add a recovery-sweep test. W5 will add the trigger-path test.
  */
 import 'dotenv/config';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
@@ -24,7 +27,7 @@ import {
   stageRun,
   user,
 } from '@/core/db/schema';
-import { createDaemon, parseEnv } from '@/scripts/daemon';
+import { createDaemon, loadDaemonEnvFiles, parseEnv } from '@/scripts/daemon';
 
 describe('R-DAEMON factory', () => {
   beforeAll(() => {
@@ -64,6 +67,38 @@ describe('R-DAEMON factory', () => {
       expect(env.recoverySweepIntervalMin).toBe(15);
     } finally {
       delete process.env.FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN;
+    }
+  });
+
+  it('loads .env.local after .env without overriding existing process env', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fluxaos-daemon-env-'));
+    const savedLocalOnly = process.env.FLUXAOS_TEST_LOCAL_ONLY;
+    const savedShared = process.env.FLUXAOS_TEST_SHARED;
+    try {
+      delete process.env.FLUXAOS_TEST_LOCAL_ONLY;
+      process.env.FLUXAOS_TEST_SHARED = 'from-process';
+      await writeFile(
+        join(dir, '.env'),
+        'FLUXAOS_TEST_SHARED=from-env\n',
+        'utf-8'
+      );
+      await writeFile(
+        join(dir, '.env.local'),
+        'FLUXAOS_TEST_LOCAL_ONLY=from-local\nFLUXAOS_TEST_SHARED=from-local\n',
+        'utf-8'
+      );
+
+      loadDaemonEnvFiles(dir);
+
+      expect(process.env.FLUXAOS_TEST_LOCAL_ONLY).toBe('from-local');
+      expect(process.env.FLUXAOS_TEST_SHARED).toBe('from-process');
+    } finally {
+      if (savedLocalOnly === undefined)
+        delete process.env.FLUXAOS_TEST_LOCAL_ONLY;
+      else process.env.FLUXAOS_TEST_LOCAL_ONLY = savedLocalOnly;
+      if (savedShared === undefined) delete process.env.FLUXAOS_TEST_SHARED;
+      else process.env.FLUXAOS_TEST_SHARED = savedShared;
+      await rm(dir, { recursive: true, force: true });
     }
   });
 
