@@ -145,7 +145,7 @@ function CommentCard({
       {/* bodyHtml is server-rendered from markdown at write time (invariant #14) */}
       {comment.bodyHtml ? (
         <div
-          className="text-sm text-slate-400 prose prose-invert prose-sm max-w-none"
+          className="markdown-body text-sm"
           // biome-ignore lint/security/noDangerouslySetInnerHtml: bodyHtml is server-sanitized per invariant #14
           dangerouslySetInnerHTML={{ __html: comment.bodyHtml }}
         />

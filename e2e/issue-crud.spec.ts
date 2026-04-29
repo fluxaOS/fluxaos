@@ -48,8 +48,13 @@ test.describe('@flx-67 @journey @issue-crud', () => {
       page.getByRole('heading', { name: new RegExp(uniqueTitle) })
     ).toBeVisible({ timeout: 15_000 });
 
-    // Body markdown rendered to HTML at write time (server invariant).
-    await expect(page.getByText(/Body/).first()).toBeVisible();
+    // Body markdown renders as HTML in the default issue description view.
+    await expect(
+      page.getByRole('heading', { name: 'Body', level: 2 })
+    ).toBeVisible();
+    await expect(
+      page.locator('strong').filter({ hasText: 'markdown' })
+    ).toBeVisible();
 
     // Cleanup: delete via UI Delete Issue button. Auto-accept the confirm.
     page.once('dialog', (d) => d.accept());
