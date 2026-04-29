@@ -165,6 +165,8 @@ describe('stage-runner config validation', () => {
   });
 
   it('materializes driver instructions outside the target worktree', async () => {
+    let materializedInstructions = '';
+    let materializedContext = '';
     const harness = await createStageRunnerHarness({
       issuePromptTemplate: 'work in {{workspace_path}}',
       withRouting: true,
@@ -173,6 +175,16 @@ describe('stage-runner config validation', () => {
       // auto-commit step can run. (In production this is always a real
       // worktree.)
       gitInitWorkingPath: true,
+      onExecute: async ({ materializedPath }) => {
+        materializedInstructions = await readFile(
+          join(materializedPath, 'CLAUDE.md'),
+          'utf-8'
+        );
+        materializedContext = await readFile(
+          join(materializedPath, 'context.md'),
+          'utf-8'
+        );
+      },
     });
     await writeFile(join(harness.workingPath, 'CLAUDE.md'), 'project memory');
 
@@ -190,12 +202,28 @@ describe('stage-runner config validation', () => {
         harness.workingPath,
       ])
     );
-    expect(
-      await readFile(join(harness.materializedPath, 'CLAUDE.md'), 'utf-8')
-    ).toContain('## Skill:');
-    expect(
-      await readFile(join(harness.materializedPath, 'context.md'), 'utf-8')
-    ).toContain('Issue Context');
+    expect(materializedInstructions).toContain('## Skill:');
+    expect(materializedContext).toContain('Issue Context');
+  });
+
+  it('keeps the driver cwd outside the primary checkout git tree', async () => {
+    const primaryCheckoutPath = await makeRepo('fluxaos-primary-');
+    tempDirs.push(primaryCheckoutPath);
+    const harness = await createStageRunnerHarness({
+      issuePromptTemplate: 'work in {{workspace_path}}',
+      withRouting: true,
+      gitInitWorkingPath: true,
+      artifactsPath: join(primaryCheckoutPath, '.fluxaos-artifacts', 'run'),
+    });
+
+    await harness.run();
+
+    const cwd = harness.lastExecuteParams()?.cwd;
+    expect(cwd).toBeTruthy();
+    expect(cwd?.startsWith(`${primaryCheckoutPath}/`)).toBe(false);
+    await expect(
+      execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd })
+    ).rejects.toThrow();
   });
 
   // FLX-92: auto-commit on `proceed`. Both the no-signal-clean-exit
@@ -243,6 +271,7 @@ async function createStageRunnerHarness(input: {
   issuePromptTemplate: string | null;
   withRouting: boolean;
   withArtifactsPath?: boolean;
+  artifactsPath?: string;
   /**
    * FLX-92: when true, init a real git repo at workingPath so commitAll
    * can run. When false (default) workingPath is a plain tmpdir; tests
@@ -354,13 +383,13 @@ async function createStageRunnerHarness(input: {
     },
     async cancel() {},
   };
-  const artifactsPath = input.withArtifactsPath
-    ? await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-'))
-    : null;
+  const artifactsPath =
+    input.artifactsPath ??
+    (input.withArtifactsPath
+      ? await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-'))
+      : null);
   if (artifactsPath) tempDirs.push(artifactsPath);
-  const materializedPath = artifactsPath
-    ? join(artifactsPath, 'stage-runs', stageRun.id, 'workspace')
-    : workingPath;
+  const materializedPath = join(tmpdir(), 'fluxaos-runs', stageRun.id);
 
   return {
     executeCalls: () => executeCallCount,
