@@ -119,7 +119,18 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
       );
     }
 
-    // Reset DB and sandbox repo so the run starts clean.
+    // manual-stage-chain is destructive — `git reset --hard origin/main && git clean -fdx`s
+    // the target. Refuse to run when the target IS this fluxaOS source root,
+    // which would wipe uncommitted work + branches in the project itself.
+    if (path.resolve(TARGET_REPO_PATH!) === REPO_ROOT) {
+      throw new Error(
+        `FLUXAOS_TARGET_REPO_PATH='${TARGET_REPO_PATH}' resolves to the fluxaOS source root. ` +
+          `manual-stage-chain is destructive and would wipe uncommitted work. ` +
+          `Point at a separate disposable repo, or run a non-destructive journey.`
+      );
+    }
+
+    // Reset DB and target repo so the run starts clean.
     execSync('npx tsx src/scripts/db/nuke.ts', {
       cwd: REPO_ROOT,
       stdio: 'inherit',

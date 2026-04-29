@@ -135,6 +135,17 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       );
     }
 
+    // R-SMOKE is destructive — it `git reset --hard origin/main && git clean -fdx`s
+    // the target repo. Refuse to run if the target IS this fluxaOS source root,
+    // which would nuke uncommitted work + branches in the project itself.
+    if (path.resolve(TARGET_REPO_PATH!) === REPO_ROOT) {
+      throw new Error(
+        `FLUXAOS_TARGET_REPO_PATH='${TARGET_REPO_PATH}' resolves to the fluxaOS source root. ` +
+          `R-SMOKE is destructive and would wipe uncommitted work. ` +
+          `Point at a separate disposable repo, or run a non-destructive journey (r-runtime-deploy-journey works against fluxaOS).`
+      );
+    }
+
     // ── 1. Nuke + reseed ──────────────────────────────────────────────────
     execSync('tsx src/scripts/db/nuke.ts', {
       cwd: REPO_ROOT,
@@ -147,8 +158,8 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       env: process.env,
     });
 
-    // ── 1b. Reset sandbox repo to a clean main ───────────────────────────
-    // Each test run injects a unique-named file into the sandbox so the
+    // ── 1b. Reset target repo to a clean main ────────────────────────────
+    // Each test run injects a unique-named file into the target so the
     // implement skill can't short-circuit with "already_complete" on
     // residue from prior test runs. The journey body fills the issue with
     // a request that references this filename.
@@ -207,7 +218,7 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     // Substantive body — deploy-stage skill rejects content-free issues with
     // a `hold` signal ("no actionable content"), which never reaches the
     // terminal-with-PR gate. Reference the unique artifact name from the
-    // sandbox-reset step so the implement skill can't short-circuit with
+    // target-reset step so the implement skill can't short-circuit with
     // "already_complete" on a residue file from a prior test run.
     await page
       .locator('textarea')
