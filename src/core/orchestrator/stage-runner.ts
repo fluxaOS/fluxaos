@@ -1,7 +1,5 @@
 // src/core/orchestrator/stage-runner.ts
 
-import { join } from 'node:path';
-
 /**
  * Stage Runner — shared execution logic for a single stage run.
  *
@@ -35,7 +33,10 @@ import {
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
-import { materialize } from '@/core/skills/materializer';
+import {
+  cleanup as cleanupMaterializedWorkspace,
+  materialize,
+} from '@/core/skills/materializer';
 import { buildCommand, renderTemplate } from './command-builder';
 import type { PipelineRunService } from './pipeline-run-service';
 import { createRoutingResolver } from './routing-resolver';
@@ -244,14 +245,10 @@ export async function executeStageRun(
   };
 
   const targetWorkspacePath = env.workingPath;
-  const materializedWorkspacePath = env.artifactsPath
-    ? join(env.artifactsPath, 'stage-runs', sRun.id, 'workspace')
-    : env.workingPath;
 
   const workspacePath = await materialize({
     stageRunId: sRun.id,
     contextLayout,
-    into: materializedWorkspacePath,
     persona: personaRow
       ? {
           soul: personaRow.soul,
@@ -631,6 +628,8 @@ export async function executeStageRun(
     // Do NOT release the env here — T16 decides based on pipeline outcome.
 
     throw err; // Re-throw so caller can handle pipeline-level failure
+  } finally {
+    await cleanupMaterializedWorkspace(workspacePath).catch(logError);
   }
 }
 
