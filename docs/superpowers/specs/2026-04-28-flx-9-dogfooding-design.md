@@ -52,10 +52,25 @@ The original FLX-9 ticket framed dogfooding as "philosophically attractive, boot
 `.env.local`:
 
 ```
-FLUXAOS_TARGET_REPO_PATH=/mnt/dev/fluxaos       # the fluxaOS source root
-FLUXAOS_TEST_TARGET_REPO=fluxaOS/fluxaos        # the GitHub repo for PRs
+# Engine target — the local checkout the engine builds worktrees from
+# and the GitHub repo it opens PRs against.
+FLUXAOS_TARGET_REPO_PATH=/mnt/dev/fluxaos       # self-target = dogfood
+FLUXAOS_TEST_TARGET_REPO=fluxaOS/fluxaos        # GitHub repo for PRs
+
+# Forge token — required for whichever forge owns the target.
+# Today only GitHub is fully wired (FLX-4 stubbed GitLab/Gitea/Forgejo).
+# Forge resolution is URL-based via GitProviderFactory.
 FLUXAOS_GITHUB_TOKEN=<PAT with repo scope>
+
+# Provider keys — required by whichever providers Settings → Providers
+# has configured AND whichever Settings → Routing routes stages to.
+# The homelab default is Anthropic (driver: claude-code), so:
 ANTHROPIC_API_KEY=<sk-ant-...>
+# If the operator routes any stage to driver: openai-codex (FLX-6),
+# OPENAI_API_KEY=<sk-...> is required instead/additionally. The engine
+# never assumes a specific provider — it reads driver + routing from DB.
+
+# Daemon + cleanup
 FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS=30
 FLUXAOS_CLEANUP_*=...                            # cleanup-scheduler thresholds
 ```
@@ -100,7 +115,7 @@ The PR opens against `fluxaOS/fluxaos`. Standard review applies:
 
 - **Schema/migration work.** Hand-written SQL is the documented path until FLX-16 (drizzle-kit TTY) is fixed. Letting the agent generate migrations risks drift in `_journal.json`.
 - **Anything touching the daemon, orchestrator, or stage-runner itself.** A bad change there could break the loop mid-run. Use a worktree + manual implementation; let dogfooding resume after the change ships.
-- **Anything touching `CLAUDE.md`.** The commit-msg hook requires a manual `claude-md-score` trailer; the agent doesn't run the improver skill, so its commit gets rejected. Hand-edit + score, then commit.
+- **Anything touching `CLAUDE.md`** (or whichever instructions file the configured driver uses — see Tool/Vendor agnosticism). The commit-msg hook requires a manual `claude-md-score` trailer; the agent's commit gets rejected. Hand-edit + score, then commit.
 - **Branch-protected files: `ops/git-hooks/*`, `.claude/AGENT_BEHAVIOR.md`, `.env*`.** Same reasoning — guard rails on these are operator-only.
 - **Long-cycle research / design tickets.** Brainstorming + spec writing are operator-driven (per AGENT_BEHAVIOR carve-out). Don't queue an "investigate X and propose a design" issue and expect a useful PR.
 
@@ -140,13 +155,54 @@ This boundary is an operator habit, not a code-enforced rule. The PR review is t
 
 ---
 
-## Vendor-agnostic / DB-driven invariants (preserved)
+## Tool / Vendor agnosticism
 
-This spec adds zero literals to `src/core/`. The pipeline shape, stage names, skill names, driver bindings, and provider config all remain DB-driven (seeded in `src/scripts/db/seed.ts`, mutable from Settings). Specifically:
+fluxaOS's core engine never names a stage, skill, driver, provider, or forge in code. Configuration lives in the database (seeded, mutable via Settings UI). This section names the configurable surfaces so operators reading the spec don't mistake the homelab's *current* configuration for the *required* configuration.
 
-- The seeded pipeline today is `research → implement → review` (3 stages), bound to the `claude-code` driver. Operators flip stage count, names, drivers, or skills entirely from Settings UI without code change.
-- FLX-6 already shipped the `openai-codex` driver (disabled by default). When the operator enables it and reroutes a stage to it, the same dogfood loop runs — engine doesn't care which driver edited the worktree.
-- The `triage` / `summarize` / etc. skills hypothesized in earlier brainstorm drafts are NOT being added by this spec. Operators can add any skill they want from Settings → Skills; the engine will execute it.
+### Engine-code invariants (preserved by this spec)
+
+This spec adds zero literals to `src/core/`. Pipeline shape, stage names, skill names, driver bindings, provider config, and forge selection all remain DB-driven and adapter-mediated.
+
+### Configurable surfaces
+
+Each layer is swappable independently. The dogfood loop runs against whatever combination Settings has configured.
+
+| Layer | What changes | Where to change | Today's homelab default |
+|-------|--------------|-----------------|-------------------------|
+| Pipeline shape | Stage count, names, order, gate modes, retries | Settings → Pipelines (or `seed.ts`) | `research → implement → review` (3 stages) |
+| Stage → skill | Which skill prompt runs at each stage | Settings → Pipelines (per-stage `skillId`) | Stage names match skill names by convention |
+| Stage → driver | Which CLI executes the skill | Settings → Routing (per-stage routing rule) | All stages → `claude-code` |
+| Driver | Binary name, flags, transport, output format, instructions-file convention | Settings → Drivers | `claude-code` (binary `claude`, instructionsFile `CLAUDE.md`); `openai-codex` (binary `codex`, instructionsFile `AGENTS.md`) — disabled by default per FLX-6 |
+| Provider | API endpoint + auth model (which env var holds the key) | Settings → Providers | Anthropic (`env:ANTHROPIC_API_KEY`); OpenAI seeded but `isHealthy: false` |
+| Forge | GitHub / GitLab / Gitea / Forgejo (which REST API the deploy bridge calls) | `project.repo_url` host (URL-driven via GitProviderFactory, FLX-4) | GitHub (only fully-implemented adapter; others stubbed) |
+
+### Driver-coupled details to know about
+
+When an operator swaps the driver bound to a stage, the *worktree contents* change shape because driver config carries `instructionsFile` + `contextFile` paths:
+
+- `claude-code` writes its skill prompt to `CLAUDE.md` in the materialized workspace; reads context from `context.md`.
+- `openai-codex` writes to `AGENTS.md`; reads `context.md`. (Same shape, different filename — the `codex` CLI's convention.)
+
+The materializer (per FLX-82) writes these into `<artifactsPath>/stage-runs/<id>/workspace/`, NOT the target worktree, so the target's actual `CLAUDE.md` / `AGENTS.md` are preserved regardless of which driver runs.
+
+The "When NOT to dogfood" guidance about CLAUDE.md (above) is specifically about fluxaOS-the-target's own CLAUDE.md and the commit-msg hook's `claude-md-score` trailer requirement. If an operator dogfooded a different project that uses `AGENTS.md` as its instructions file, the equivalent guidance would attach to AGENTS.md and any score-equivalent gate that project enforces.
+
+### Forge selection (today's GitHub-only reality)
+
+`GitProviderFactory.forUrl(repoUrl)` (FLX-4) routes to the right adapter based on `project.repoUrl`'s host:
+
+- `github.com` / GitHub Enterprise → `createGitHubAdapter()` (full implementation)
+- `gitlab.com` / self-hosted GitLab → `createGitLabAdapter()` (stub; throws `GitLabNotImplementedError`)
+- `gitea.*` / `codeberg.org` → `createForgejoAdapter()` / `createGiteaAdapter()` (stubs)
+- Empty / unrecognized → falls back to GitHub adapter
+
+The dogfood loop today is GitHub-coupled because that's the only adapter that can open a PR. When FLX-4's stubs get fleshed out, an operator can flip `project.repoUrl` to a GitLab/Gitea/Forgejo project and the same loop runs — no code change needed in this dogfooding spec.
+
+### What this means in practice
+
+- The Operating Procedure above describes the homelab's *current* configuration. An operator running a different driver, provider, or forge follows the same flow with their own setup-section env vars.
+- Every reference to "Claude" / "claude-code" / "Anthropic" / "GitHub" in this spec is a stand-in for "whatever you have configured." If the spec ever needs updating because the homelab default flipped, the change is mechanical.
+- New stages, skills, drivers, providers, or forges land via DB (seed + Settings), not via code edits to the engine. If a feature genuinely requires changing `src/core/`, it's a separate ticket gated by a vendor-agnostic-audit (FLX-78 / FLX-79 retired the prior allowlist; the audit script is `src/scripts/verify-agnostic-core.ts`).
 
 ---
 
