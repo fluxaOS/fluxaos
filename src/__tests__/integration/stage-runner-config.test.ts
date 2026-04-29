@@ -2,9 +2,11 @@
  * FLX-83: stage-runner must fail fast on missing DB-owned config.
  */
 import 'dotenv/config';
+import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { AnyColumn } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
@@ -26,6 +28,22 @@ import {
   createProjectService,
   createUserService,
 } from '@/core/services';
+
+const execFileAsync = promisify(execFile);
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, { cwd });
+  return stdout;
+}
+
+async function makeRepo(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  await git(dir, ['init', '-b', 'main']);
+  await git(dir, ['config', 'user.email', 'test@fluxaos.local']);
+  await git(dir, ['config', 'user.name', 'Test']);
+  await git(dir, ['commit', '--allow-empty', '-m', 'initial']);
+  return dir;
+}
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -151,6 +169,10 @@ describe('stage-runner config validation', () => {
       issuePromptTemplate: 'work in {{workspace_path}}',
       withRouting: true,
       withArtifactsPath: true,
+      // FLX-92: workingPath now needs a git repo so the post-stage
+      // auto-commit step can run. (In production this is always a real
+      // worktree.)
+      gitInitWorkingPath: true,
     });
     await writeFile(join(harness.workingPath, 'CLAUDE.md'), 'project memory');
 
@@ -175,12 +197,73 @@ describe('stage-runner config validation', () => {
       await readFile(join(harness.materializedPath, 'context.md'), 'utf-8')
     ).toContain('Issue Context');
   });
+
+  // FLX-92: auto-commit on `proceed`. Both the no-signal-clean-exit
+  // synth path and the emitted-proceed-signal path commit; hold/rework
+  // /abort paths leave the tree dirty so a human can inspect.
+  it('FLX-92: auto-commits on proceed; leaves dirty on hold', async () => {
+    const proceed = await createStageRunnerHarness({
+      issuePromptTemplate: 'work in {{workspace_path}}',
+      withRouting: true,
+      withArtifactsPath: true,
+      gitInitWorkingPath: true,
+      onExecute: async ({ workingPath }) => {
+        await writeFile(join(workingPath, 'CONTRIBUTING.md'), '# C\n');
+      },
+    });
+    await proceed.run();
+    expect(
+      (await git(proceed.workingPath, ['log', '--oneline']))
+        .split('\n')
+        .filter(Boolean).length
+    ).toBe(2);
+    expect(
+      (await git(proceed.workingPath, ['status', '--porcelain'])).trim()
+    ).toBe('');
+
+    const held = await createStageRunnerHarness({
+      issuePromptTemplate: 'work in {{workspace_path}}',
+      withRouting: true,
+      withArtifactsPath: true,
+      gitInitWorkingPath: true,
+      onExecute: async ({ workingPath }) => {
+        await writeFile(join(workingPath, 'HALF.md'), '# Half\n');
+      },
+      emitStdout: () =>
+        `${JSON.stringify({ 'flux:signal': { verdict: 'hold' } })}\n`,
+    });
+    await held.run();
+    expect(
+      (await git(held.workingPath, ['status', '--porcelain'])).trim()
+    ).toBe('?? HALF.md');
+  });
 });
 
 async function createStageRunnerHarness(input: {
   issuePromptTemplate: string | null;
   withRouting: boolean;
   withArtifactsPath?: boolean;
+  /**
+   * FLX-92: when true, init a real git repo at workingPath so commitAll
+   * can run. When false (default) workingPath is a plain tmpdir; tests
+   * that exercise auto-commit MUST set this true.
+   */
+  gitInitWorkingPath?: boolean;
+  /**
+   * FLX-92: side-effect callback the mock executor invokes inside
+   * `execute()`. Lets a test simulate a worker that writes files in the
+   * worktree without committing.
+   */
+  onExecute?: (params: {
+    workingPath: string;
+    materializedPath: string;
+  }) => Promise<void> | void;
+  /**
+   * FLX-92: stdout the executor emits during `execute()`. Lets tests
+   * inject a flux:signal proceed line to exercise the
+   * signal-emitted code path.
+   */
+  emitStdout?: (workingPath: string) => string;
 }) {
   const svc = createPipelineRunService(db);
   const [driverRow] = await db
@@ -241,15 +324,29 @@ async function createStageRunnerHarness(input: {
   const stageRun = await svc.createStageRun(run.id, stage.id);
   cleanupList.push({ table: 'stageRun', id: stageRun.id });
 
+  const workingPath = input.gitInitWorkingPath
+    ? await makeRepo('fluxaos-worktree-')
+    : await mkdtemp(join(tmpdir(), 'fluxaos-worktree-'));
+  tempDirs.push(workingPath);
+
   let executeCallCount = 0;
   let lastExecuteParams: Parameters<StageExecutor['execute']>[0] | null = null;
   const executor: StageExecutor = {
     async execute(params) {
       executeCallCount += 1;
       lastExecuteParams = params;
+      const materializedPathFromArgs = params.cwd;
+      await input.onExecute?.({
+        workingPath,
+        materializedPath: materializedPathFromArgs,
+      });
+      const stdout = input.emitStdout?.(workingPath) ?? '';
+      if (stdout && params.onStdout) {
+        params.onStdout(stdout);
+      }
       return {
         exitCode: 0,
-        stdout: '',
+        stdout,
         stderr: '',
         durationMs: 1,
         processId: 'flx-83-test',
@@ -257,9 +354,6 @@ async function createStageRunnerHarness(input: {
     },
     async cancel() {},
   };
-
-  const workingPath = await mkdtemp(join(tmpdir(), 'fluxaos-worktree-'));
-  tempDirs.push(workingPath);
   const artifactsPath = input.withArtifactsPath
     ? await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-'))
     : null;

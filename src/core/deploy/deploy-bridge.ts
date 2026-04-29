@@ -28,7 +28,9 @@
 
 import { and, desc, eq } from 'drizzle-orm';
 import {
+  branchAheadCount,
   commitAll,
+  getHeadSha,
   push,
   resolveRepoIdentity,
   UncommittedChangesError,
@@ -200,15 +202,43 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       );
     }
 
+    // FLX-92: stage-runner now auto-commits worker output mid-pipeline,
+    // so commitResult.noChanges here only means "deploy bridge added no
+    // NEW commits" — not "branch has nothing to push". Fall through to
+    // push + PR creation as long as the branch is ahead of the base.
+    let commitSha = commitResult.commitSha;
     if (commitResult.noChanges) {
-      logger.info(
-        { runId, envId: env.id, event: 'deploy.skipped' },
-        'deploy.skipped: worktree is clean, nothing to commit'
+      const ahead = await branchAheadCount(
+        env.workingPath,
+        projectRow.defaultBranch
       );
-      return { skipped: 'no-changes' };
+      if (ahead === 0) {
+        logger.info(
+          { runId, envId: env.id, event: 'deploy.skipped' },
+          'deploy.skipped: worktree clean and branch has no commits ahead of base'
+        );
+        return { skipped: 'no-changes' };
+      }
+      // Branch has commits (from stage-runner auto-commits) — capture
+      // current HEAD so the PR body links to a real SHA.
+      commitSha = await getHeadSha(env.workingPath);
+      logger.info(
+        {
+          runId,
+          envId: env.id,
+          event: 'deploy.using_existing_commits',
+          ahead,
+          commitSha,
+        },
+        'deploy: branch ahead of base via stage-runner commits — pushing existing'
+      );
     }
-
-    const commitSha = commitResult.commitSha;
+    if (!commitSha) {
+      throw new DeployBridgeError(
+        'commit',
+        'deploy bridge could not resolve a commit SHA — neither commitAll nor getHeadSha produced one'
+      );
+    }
 
     // 7. push()
     try {
