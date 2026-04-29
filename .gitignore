@@ -49,6 +49,8 @@ next-env.d.ts
 *.log
 .claude/*
 !.claude/AGENT_BEHAVIOR.md
+!.claude/hooks/
+!.claude/hooks/permission-request-allowlist.py
 .paul
 .trash
 worktrees/

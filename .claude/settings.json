@@ -32,6 +32,17 @@
           }
         ]
       }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/permission-request-allowlist.py"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
