@@ -283,7 +283,7 @@ export function createEventOrchestrator(
           result.skillMetadata
         );
       }
-    } catch {
+    } catch (err) {
       // Stage execution threw (timeout, signal, etc.). User cancellation may
       // have raced the subprocess error, so re-read terminal state first.
       const latestRun = await runService.getRun(run.id);
@@ -304,6 +304,11 @@ export function createEventOrchestrator(
         return;
       }
 
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        driver: stage.driver ?? undefined,
+        trigger: TRIGGER_TYPE.automated,
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       await handleStageFailed(run, stage, sRun);
     }
   }

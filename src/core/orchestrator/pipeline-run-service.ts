@@ -185,12 +185,24 @@ export function createPipelineRunService(db: Database): PipelineRunService {
     },
 
     async createStageRun(pipelineRunId, pipelineStageId) {
+      const [latest] = await db
+        .select({
+          attempt: sql<number>`coalesce(max(${stageRun.attempt}), 0)::int`,
+        })
+        .from(stageRun)
+        .where(
+          and(
+            eq(stageRun.pipelineRunId, pipelineRunId),
+            eq(stageRun.pipelineStageId, pipelineStageId)
+          )
+        );
       const [row] = await db
         .insert(stageRun)
         .values({
           pipelineRunId,
           pipelineStageId,
           status: STAGE_RUN_STATUS.pending,
+          attempt: (latest?.attempt ?? 0) + 1,
         })
         .returning();
       return row;
