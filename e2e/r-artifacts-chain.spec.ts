@@ -1,6 +1,6 @@
 // R-ARTIFACTS chain journey: research → implement end-to-end.
 // Stage 1 writes research-findings.md; stage 2 reads it, writes plan.md,
-// edits the worktree; deploy bridge opens a PR on the sandbox.
+// edits the worktree; deploy bridge opens a PR on the target repo.
 // Env required: ANTHROPIC_API_KEY, FLUXAOS_GITHUB_TOKEN,
 // FLUXAOS_TEST_TARGET_REPO, FLUXAOS_TARGET_REPO_PATH, DATABASE_URL.
 // Skips cleanly when any are missing.

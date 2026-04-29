@@ -166,7 +166,7 @@ All operational config lives in `.env.local` (gitignored). See `.env.example` fo
 | `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` | optional | Periodic recovery sweep cadence |
 | `FLUXAOS_WORKSPACE_ROOT` | optional | Override `<repo>/.fluxaos-worktrees/` |
 | `FLUXAOS_ARTIFACTS_ROOT` | optional | Override `<repo>/.fluxaos-artifacts/` |
-| `FLUXAOS_TEST_TARGET_REPO` | optional (e2e only) | `owner/repo` for journey tests |
+| `FLUXAOS_TEST_TARGET_REPO` | optional (e2e only) | `owner/repo` deploy-touching journeys open PRs against; set to `fluxaOS/fluxaos` to dogfood, or any disposable repo |
 | `FLUXAOS_LAN_AUTH_BYPASS` | optional (homelab only) | Skip auth middleware (`=1`) |
 
 ## Development
