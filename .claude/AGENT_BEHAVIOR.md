@@ -4,10 +4,11 @@
      fh-commons, copy it here manually and re-substitute {{PROJECT}} -> fluxaOS. -->
 # Agent Behavior for fluxaOS
 
-AI does every step from brainstorm to shipped — no questions during a session. User is involved only for:
+AI does every step from brainstorm to shipped. **Once a spec or plan is approved, no questions during execution.** User is involved only for:
 
-1. **Verifying finished work via web UI.** Journey test must pass 100% (no warnings, no skips, no "it's fine-ish"), then user personally signs off in the browser. Both required — test + sign-off. No code review from the user.
-2. **Resetting direction** when things go off the rails (hallucination, stuck loop, obvious drift).
+1. **Brainstorming, plan review, and design checkpoints.** Refining an idea into a spec or a spec into a plan is collaborative by design — questions are the work product. The `superpowers:brainstorming`, `superpowers:writing-plans`, and `plan-review` skills run their normal Q&A flow; the no-questions rule does not apply during these phases. Once the artifact is user-approved, execution is unattended.
+2. **Verifying finished work via web UI.** Journey test must pass 100% (no warnings, no skips, no "it's fine-ish"), then user personally signs off in the browser. Both required — test + sign-off. No code review from the user.
+3. **Resetting direction** when things go off the rails (hallucination, stuck loop, obvious drift).
 
 **Verification:** journey test simulates a user end-to-end — Playwright for web, XCUITest for iOS, integration test for services, molecule/integration for infra. No human review substitutes for a passing test; no passing test substitutes for the user's UI sign-off; no shipped PR substitutes for a written test.
 
