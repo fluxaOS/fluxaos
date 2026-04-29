@@ -157,6 +157,37 @@ export async function getLastCommitDate(
   }
 }
 
+/**
+ * Current HEAD SHA in the given worktree.
+ */
+export async function getHeadSha(worktreePath: string): Promise<string> {
+  const { stdout } = await runGit(worktreePath, ['rev-parse', 'HEAD']);
+  return stdout.trim();
+}
+
+/**
+ * Count of commits the worktree's branch is ahead of `baseRef` by.
+ *
+ * Used by deploy bridge (FLX-92): after stage-runner auto-commits, the
+ * deploy bridge's `commitAll` is a no-op, but the branch still has commits
+ * to push. The deploy bridge should fall through to push + PR creation as
+ * long as `branchAheadCount > 0`, regardless of whether its own commitAll
+ * added anything new.
+ *
+ * `baseRef` is typically `main` or `origin/main`.
+ */
+export async function branchAheadCount(
+  worktreePath: string,
+  baseRef: string
+): Promise<number> {
+  const { stdout } = await runGit(worktreePath, [
+    'rev-list',
+    '--count',
+    `${baseRef}..HEAD`,
+  ]);
+  return Number.parseInt(stdout.trim(), 10) || 0;
+}
+
 export async function commitAll(
   worktreePath: string,
   message: string

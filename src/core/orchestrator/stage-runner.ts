@@ -12,6 +12,7 @@ import { join } from 'node:path';
  * event-orchestrator (Realtime-driven state machine).
  */
 import { eq } from 'drizzle-orm';
+import { commitAll } from '@/adapters/git';
 import { registry } from '@/config/registry';
 import type { TriggerType } from '@/core/constants';
 import {
@@ -446,6 +447,18 @@ export async function executeStageRun(
         ? 'no_signal_clean_exit'
         : 'no skill signal emitted';
 
+      // FLX-92: clean-exit-no-signal counts as `proceed` per FLX-81.
+      // Auto-commit any uncommitted worktree changes so the next stage
+      // and the deploy bridge see a clean tree.
+      if (cleanExit) {
+        await autoCommitProceedingStage({
+          workingPath: env.workingPath,
+          stageName: stage.name,
+          stageRunId: sRun.id,
+          runService,
+        });
+      }
+
       await runService.completeStageRun(sRun.id, status, {
         provider: routing?.providerName,
         model: routing?.modelIdentifier,
@@ -510,6 +523,19 @@ export async function executeStageRun(
     const skillMetadata: Record<string, unknown> = {};
     if (lastSignal.summary) skillMetadata.summary = lastSignal.summary;
     if (lastSignal.meta) Object.assign(skillMetadata, lastSignal.meta);
+
+    // FLX-92: auto-commit any worktree changes the worker left
+    // uncommitted, but only when verdict is `proceed` and exit was
+    // clean. `hold` / `rework` / `abort` deliberately leave the tree
+    // dirty so a human (or a follow-up stage) can inspect or retry.
+    if (lastSignal.verdict === 'proceed' && result.exitCode === 0) {
+      await autoCommitProceedingStage({
+        workingPath: env.workingPath,
+        stageName: stage.name,
+        stageRunId: sRun.id,
+        runService,
+      });
+    }
 
     await runService.completeStageRun(sRun.id, finalStatus, {
       provider: routing?.providerName,
@@ -609,4 +635,40 @@ export async function executeStageRun(
 
 function logError(err: unknown): void {
   console.error('[stage-runner]', err);
+}
+
+/**
+ * FLX-92: auto-commit any uncommitted changes left in the worktree by the
+ * stage worker. The implement skill (and any future driver-bound skill)
+ * may write files without running `git add` + `git commit` itself; review
+ * and deploy stages need a clean tree to operate against.
+ *
+ * Only fires when the verdict is `proceed` — `hold`, `rework`, `abort`,
+ * and `failed` runs leave the worktree dirty for human inspection or
+ * stage retry.
+ *
+ * Safe to call when nothing changed: `commitAll` short-circuits via
+ * `git status --porcelain` and returns `{ noChanges: true }`.
+ *
+ * Commit message is engine-generated and vendor-agnostic — `<stage_name>:
+ * stage_run <id_short>` so the forensic trail leads back to the
+ * specific run that produced the work.
+ */
+async function autoCommitProceedingStage(args: {
+  workingPath: string;
+  stageName: string;
+  stageRunId: string;
+  runService: PipelineRunService;
+}): Promise<{ committed: boolean; sha: string | null }> {
+  const message = `${args.stageName}: stage_run ${args.stageRunId.slice(0, 8)}`;
+  const result = await commitAll(args.workingPath, message);
+  if (result.noChanges || !result.commitSha) {
+    return { committed: false, sha: null };
+  }
+  const sha = result.commitSha;
+  await args.runService.appendEvent(args.stageRunId, EVENT_TYPE.completed, {
+    message: `auto-committed worktree changes (FLX-92): ${sha.slice(0, 8)}`,
+    commitSha: sha,
+  });
+  return { committed: true, sha };
 }
