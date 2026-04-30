@@ -70,10 +70,9 @@ require_runtime_preflight() {
   docker container inspect central_redis >/dev/null 2>&1 || fail "central_redis container does not exist"
   docker inspect -f '{{if index .NetworkSettings.Networks "homelab"}}attached{{end}}' central_redis | grep -qx attached \
     || fail "central_redis is not attached to the homelab network"
-  [[ "$(docker exec central_redis redis-cli ping)" == PONG ]] || fail "central_redis redis-cli ping did not return PONG"
-
   redis_url=$(env_value REDIS_URL)
-  [[ "${redis_url}" == redis://central_redis:6379 ]] || fail "REDIS_URL must be redis://central_redis:6379"
+  [[ "${redis_url}" == redis://*central_redis:6379* ]] || fail "REDIS_URL must point at central_redis"
+  [[ "$(docker exec central_redis redis-cli -u "${redis_url}" ping)" == PONG ]] || fail "central_redis redis-cli ping did not return PONG"
 
   target_path=$(env_value FLUXAOS_TARGET_REPO_PATH)
   [[ -n "${target_path}" ]] || fail "FLUXAOS_TARGET_REPO_PATH is required"

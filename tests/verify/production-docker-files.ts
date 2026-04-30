@@ -153,7 +153,7 @@ assertExcludes('ops/docker/homelab/docker-compose.yml', compose, '  redis:');
 
 const env = read('ops/docker/homelab/fluxaos.env.example');
 for (const expected of [
-  'REDIS_URL=redis://central_redis:6379',
+  'REDIS_URL=redis://:password@central_redis:6379',
   'FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos',
   'FLUXAOS_WORKSPACE_ROOT=/runtime/worktrees',
   'FLUXAOS_ARTIFACTS_ROOT=/runtime/artifacts',
@@ -182,8 +182,8 @@ for (const expected of [
   'ROLLBACK_DIR must resolve to /mnt/stacks/docker/fluxaos/rollback',
   'docker network inspect homelab',
   'central_redis is not attached to the homelab network',
-  'docker exec central_redis redis-cli ping',
-  'REDIS_URL must be redis://central_redis:6379',
+  `docker exec central_redis redis-cli -u "${shellExpansion('redis_url')}" ping`,
+  'REDIS_URL must point at central_redis',
   'FLUXAOS_TARGET_REPO_PATH must not contain',
   'target repo escaped stack repos dir',
   `git -C "${shellExpansion('host_target')}" rev-parse --is-inside-work-tree`,

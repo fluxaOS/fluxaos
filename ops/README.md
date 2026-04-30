@@ -55,6 +55,7 @@ chmod +x /mnt/stacks/docker/fluxaos/build.sh
 ```
 
 Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, daemon, and cleanup values.
+Use the Compose-visible Redis hostname in production, for example `redis://:password@central_redis:6379` when the shared Redis requires auth.
 
 Deploy or update:
 
