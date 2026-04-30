@@ -2,6 +2,75 @@
 
 Operational configuration lives here. Alpha scope only — the daemon is the one durable process an operator needs to stand up.
 
+## Production Docker rehearsal
+
+The production Docker rehearsal runs from `/mnt/stacks/docker/fluxaos/`, not from the development checkout.
+
+The fluxaOS web and daemon containers intentionally run as root. This is an explicit exception to the usual homelab `user: "1026:100"` convention because the daemon writes git worktrees, artifacts, and stack-owned target clones on NFS-backed storage. Keep writable mounts scoped to `/mnt/stacks/docker/fluxaos/`.
+
+Expected stack layout:
+
+```text
+/mnt/stacks/docker/fluxaos/
+  docker-compose.yml
+  fluxaos.env
+  build.sh
+  deployed-sha
+  source/
+  repos/
+  worktrees/
+  artifacts/
+```
+
+Bootstrap the stack files from the checked-in templates:
+
+```bash
+mkdir -p /mnt/stacks/docker/fluxaos/{source,repos,worktrees,artifacts}
+cp ops/docker/homelab/docker-compose.yml /mnt/stacks/docker/fluxaos/docker-compose.yml
+cp ops/docker/homelab/fluxaos.env.example /mnt/stacks/docker/fluxaos/fluxaos.env
+cp ops/docker/homelab/build.sh /mnt/stacks/docker/fluxaos/build.sh
+chmod +x /mnt/stacks/docker/fluxaos/build.sh
+```
+
+Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, daemon, and cleanup values.
+
+Clone production source and target repos:
+
+```bash
+git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/source
+mkdir -p /mnt/stacks/docker/fluxaos/repos/fluxaOS
+git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos
+```
+
+Deploy or update:
+
+```bash
+/mnt/stacks/docker/fluxaos/build.sh
+```
+
+Routine restarts do not run migrations:
+
+```bash
+cd /mnt/stacks/docker/fluxaos
+docker compose up -d fluxaos-web fluxaos-daemon
+```
+
+Backup expectations for this profile:
+
+- Supabase Cloud owns database/auth/realtime backups.
+- Back up `/mnt/stacks/docker/fluxaos/fluxaos.env`.
+- Back up `/mnt/stacks/docker/fluxaos/repos`.
+- Back up `/mnt/stacks/docker/fluxaos/artifacts`.
+- Back up `/mnt/stacks/docker/fluxaos/deployed-sha` and `/mnt/stacks/docker/fluxaos/rollback`.
+- `/mnt/stacks/docker/fluxaos/worktrees` is runtime working state and may be cleaned by policy.
+
+Restore expectations:
+
+- The rollback marker only restores the image/version by pointing `FLUXAOS_IMAGE` back at the previous SHA and restarting `fluxaos-web` and `fluxaos-daemon`.
+- The rollback marker does not undo database migrations.
+- Before running an update that includes migrations, confirm Supabase Cloud backup/PITR is available for the project.
+- If a migration must be rolled back, restore through Supabase Cloud first, then restart the previous image from the rollback marker.
+
 ## Orchestrator daemon
 
 The daemon (`npm run daemon`, source: `src/scripts/daemon.ts`) is a long-running Node process that subscribes to Supabase Realtime on the `pipeline_run` table, dispatches stage runs via the event-orchestrator, runs the cleanup scheduler, and performs periodic crash recovery. It is the sole path from `pipeline_run:pending` to `pipeline_run:running` — tRPC triggers are publish-only (see `docs/invariants.md`).
