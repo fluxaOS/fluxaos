@@ -94,6 +94,11 @@ assertIncludes(
   dockerfile,
   'RUN npm install -g @anthropic-ai/claude-code@'
 );
+assertIncludes(
+  'Dockerfile',
+  dockerfile,
+  'RUN git config --system --add safe.directory "/repos/*/*"'
+);
 assertExcludes('Dockerfile', dockerfile, 'drizzle.config.ts');
 
 const dockerignore = read('.dockerignore');

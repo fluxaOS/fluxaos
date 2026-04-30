@@ -8,6 +8,8 @@ The production Docker rehearsal runs from `/mnt/stacks/docker/fluxaos/`, not fro
 
 The fluxaOS web and daemon containers intentionally run as root. This is an explicit exception to the usual homelab `user: "1026:100"` convention because the daemon writes git worktrees, artifacts, and stack-owned target clones on NFS-backed storage. Keep writable mounts scoped to `/mnt/stacks/docker/fluxaos/`.
 
+The production image trusts `/repos/*/*` as a Git `safe.directory` pattern so root containers can operate on stack-owned target clones created by the host operator account.
+
 Expected stack layout:
 
 ```text
