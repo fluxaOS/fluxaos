@@ -175,15 +175,15 @@ git clone git@github.com:fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repos/fl
 
 In `ops/README.md`, find the paragraph that starts with "Configure the target clone for production Git writes before running `build.sh`:" and its associated code block:
 
-```bash
+~~~
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.name "fluxaOS"
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.email "fluxaos@users.noreply.github.com"
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check
-```
+~~~
 
-Replace the introductory sentence and code block with:
+Replace the introductory sentence and code block with the following (the replacement itself contains fenced code blocks, so it is shown here with `~~~` outer delimiters):
 
-```
+~~~
 Configure the target clone for production Git writes before running `build.sh`. Both source and target clones must use SSH remotes. Both the `fluxaos-web` and `fluxaos-daemon` containers mount `/home/jpierce/.ssh:/root/.ssh:ro` so the operator's SSH key is available inside containers. `FLUXAOS_GITHUB_TOKEN` remains required for GitHub API operations (PR creation via the deploy bridge); SSH covers Git CLI push only.
 
 If the target clone was previously set to an HTTPS remote, correct it to SSH:
@@ -199,7 +199,7 @@ git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.name "fluxaO
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.email "fluxaos@users.noreply.github.com"
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check
 ```
-```
+~~~
 
 - [ ] **Step 4: Fix the actual target repo remote on disk**
 
@@ -213,7 +213,23 @@ git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos push --dry-run origin HE
 
 Expected: first line shows the old HTTPS URL. Third command exits 0, confirming SSH write access from the host.
 
-- [ ] **Step 5: Run drift verifier**
+- [ ] **Step 5: Update the drift verifier for the REDIS_URL example change**
+
+Task 2 Step 1 changed `fluxaos.env.example` from `redis://:password@central_redis:6379` to `redis://:replace-me@central_redis:6379`. The drift verifier at `tests/verify/production-docker-files.ts` asserts the old literal. Update it to match:
+
+In `tests/verify/production-docker-files.ts`, find:
+
+```ts
+  'REDIS_URL=redis://:password@central_redis:6379',
+```
+
+Replace with:
+
+```ts
+  'REDIS_URL=redis://:replace-me@central_redis:6379',
+```
+
+- [ ] **Step 6: Run drift verifier**
 
 Run:
 
@@ -223,12 +239,12 @@ npm run verify:prod-docker
 
 Expected: prints `production Docker files verified`.
 
-- [ ] **Step 6: Commit Task 2**
+- [ ] **Step 7: Commit Task 2**
 
 Run:
 
 ```bash
-git add ops/docker/homelab/fluxaos.env.example ops/README.md
+git add ops/docker/homelab/fluxaos.env.example ops/README.md tests/verify/production-docker-files.ts
 git commit -m "ops: fix Redis auth comment and SSH git clone instructions in runbook
 
 Refs FLX-100"
@@ -426,8 +442,10 @@ Expected: no `MISSING:` or `FAIL:` lines.
 Run:
 
 ```bash
-cd /mnt/stacks/docker/fluxaos
-FLUXAOS_IMAGE=fluxaos:internal-dev docker compose run --rm --no-deps fluxaos-daemon \
+FLUXAOS_IMAGE=fluxaos:internal-dev docker compose \
+  -f /mnt/stacks/docker/fluxaos/docker-compose.yml \
+  --env-file /mnt/stacks/docker/fluxaos/fluxaos.env \
+  run --rm --no-deps fluxaos-daemon \
   ssh -o StrictHostKeyChecking=yes -T git@github.com 2>&1 | grep -i 'successfully authenticated'
 ```
 
@@ -503,28 +521,18 @@ FLUXAOS_IMAGE=fluxaos:${PREV_SHA} docker compose up -d --force-recreate fluxaos-
 
 - [ ] **Step 1: Update PR #194 description**
 
-Add a section to the PR body noting the real `build.sh` rehearsal completed and the instance is live:
-
-```
-## Rehearsal complete
-
-Production instance deployed at http://192.168.54.101:3003. `build.sh` ran to completion against the real homelab stack. Web UI loads and redirects to project dashboard. Daemon container running.
-```
-
-Use:
+Append a rehearsal-complete section to the existing PR body:
 
 ```bash
-gh pr view 194 --json body --jq '.body'
-# Then edit and update:
-gh pr edit 194 --body "$(cat <<'EOF'
-<existing body>
+EXISTING_BODY=$(gh pr view 194 --json body --jq '.body')
+gh pr edit 194 --body "${EXISTING_BODY}
 
 ## Rehearsal complete
 
-Production instance deployed at http://192.168.54.101:3003. `build.sh` ran to completion against the real homelab stack. Web UI loads and redirects to project dashboard. Daemon container running.
-EOF
-)"
+Production instance deployed at http://192.168.54.101:3003. \`build.sh\` ran to completion against the real homelab stack. Web UI loads and redirects to project dashboard. Daemon container running."
 ```
+
+Expected: `gh pr edit` exits 0. Run `gh pr view 194 --json body --jq '.body' | tail -6` to confirm the section was appended.
 
 - [ ] **Step 2: Update Linear FLX-100 to In Review**
 
