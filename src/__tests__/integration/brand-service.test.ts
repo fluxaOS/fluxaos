@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
 import { brand, organization, project, user } from '@/core/db/schema';
+import { resolveStageBrand } from '@/core/orchestrator/brand-resolver';
 import { createBrandService } from '@/core/services';
 import { appRouter } from '@/server/root';
 
@@ -157,5 +158,61 @@ describe('brand router', () => {
     const deleted = await caller.brand.delete({ id: created.id });
     expect(deleted).toBe(true);
     removeCleanup('brand', created.id);
+  });
+});
+
+describe('stage brand resolver', () => {
+  it('prefers persona brand over project brand', async () => {
+    const { org, proj } = await seedOrgUserProject();
+    const svc = createBrandService(db);
+    const projectBrand = await svc.create({
+      orgId: org.id,
+      projectId: proj.id,
+      name: `Project Runtime Brand ${RUN}`,
+      toneOfVoice: 'Project tone',
+    });
+    cleanup.push({ table: 'brand', id: projectBrand.id });
+    const personaBrand = await svc.create({
+      orgId: org.id,
+      name: `Persona Runtime Brand ${RUN}`,
+      toneOfVoice: 'Persona tone',
+    });
+    cleanup.push({ table: 'brand', id: personaBrand.id });
+
+    const resolved = await resolveStageBrand(db, {
+      personaBrandId: personaBrand.id,
+      projectBrandId: projectBrand.id,
+    });
+
+    expect(resolved?.id).toBe(personaBrand.id);
+    expect(resolved?.toneOfVoice).toBe('Persona tone');
+  });
+
+  it('uses project brand when persona brand is not set', async () => {
+    const { org, proj } = await seedOrgUserProject();
+    const svc = createBrandService(db);
+    const projectBrand = await svc.create({
+      orgId: org.id,
+      projectId: proj.id,
+      name: `Fallback Runtime Brand ${RUN}`,
+      toneOfVoice: 'Project fallback tone',
+    });
+    cleanup.push({ table: 'brand', id: projectBrand.id });
+
+    const resolved = await resolveStageBrand(db, {
+      personaBrandId: null,
+      projectBrandId: projectBrand.id,
+    });
+
+    expect(resolved?.id).toBe(projectBrand.id);
+  });
+
+  it('returns null when no brand is configured', async () => {
+    const resolved = await resolveStageBrand(db, {
+      personaBrandId: null,
+      projectBrandId: null,
+    });
+
+    expect(resolved).toBeNull();
   });
 });

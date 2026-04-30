@@ -21,7 +21,6 @@ import {
 } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
-  brand,
   driver,
   issue,
   persona,
@@ -37,6 +36,7 @@ import {
   cleanup as cleanupMaterializedWorkspace,
   materialize,
 } from '@/core/skills/materializer';
+import { resolveStageBrand } from './brand-resolver';
 import { buildCommand, renderTemplate } from './command-builder';
 import type { PipelineRunService } from './pipeline-run-service';
 import { createRoutingResolver } from './routing-resolver';
@@ -173,27 +173,13 @@ export async function executeStageRun(
     : null;
 
   // Persona (optional)
-  let personaRow:
-    | (typeof persona.$inferSelect & {
-        brandEntry?: typeof brand.$inferSelect | null;
-      })
-    | null = null;
+  let personaRow: typeof persona.$inferSelect | null = null;
   if (stage.personaId) {
     const [p] = await db
       .select()
       .from(persona)
       .where(eq(persona.id, stage.personaId));
-    if (p) {
-      let brandRow: typeof brand.$inferSelect | null = null;
-      if (p.brandId) {
-        const [b] = await db
-          .select()
-          .from(brand)
-          .where(eq(brand.id, p.brandId));
-        brandRow = b ?? null;
-      }
-      personaRow = { ...p, brandEntry: brandRow };
-    }
+    personaRow = p ?? null;
   }
 
   // ── Isolation Env + Materialize + Build + Spawn ─────────────────
@@ -210,7 +196,7 @@ export async function executeStageRun(
         'Configure a healthy provider/model and matching routing rule before running the stage.'
     );
   }
-  const { env } = await acquireIsolationEnv({
+  const { env, projectRow } = await acquireIsolationEnv({
     db,
     isolation,
     projectId,
@@ -218,6 +204,11 @@ export async function executeStageRun(
     pipelineId: run.pipelineId,
     issueId: run.issueId ?? null,
     issueNumber: issueRow?.number ?? null,
+  });
+
+  const resolvedBrand = await resolveStageBrand(db, {
+    personaBrandId: personaRow?.brandId ?? null,
+    projectBrandId: projectRow.brandId,
   });
 
   // Mirror env.artifactsPath onto pipeline_run for observability. Write-once:
@@ -253,10 +244,17 @@ export async function executeStageRun(
       ? {
           soul: personaRow.soul,
           identity: personaRow.identity,
-          brandToneOfVoice: personaRow.brandEntry?.toneOfVoice,
-          brandStyleGuide: personaRow.brandEntry?.styleGuide,
+          brandToneOfVoice: resolvedBrand?.toneOfVoice,
+          brandStyleGuide: resolvedBrand?.styleGuide,
         }
-      : null,
+      : resolvedBrand
+        ? {
+            soul: null,
+            identity: null,
+            brandToneOfVoice: resolvedBrand.toneOfVoice,
+            brandStyleGuide: resolvedBrand.styleGuide,
+          }
+        : null,
     skill: {
       name: skillRow?.name ?? stage.name,
       // DEF-024: render {{artifacts_path}} etc. before materialize() writes the instructions file.
