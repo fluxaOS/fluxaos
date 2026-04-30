@@ -484,13 +484,15 @@ Expected: script runs to completion, exits 0. You will see:
 - `daemon.started orchestrator=running` found in daemon logs
 - `Deployed <sha>`
 
-**If build.sh fails at `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS must be 120`:** Task 4a Step 5 should have caught this — recheck `fluxaos.env`.
+Failure messages from `build.sh` are prefixed with `error: ` on stderr.
 
-**If build.sh fails at `central_redis redis-cli ping did not return PONG`:** The Redis URL in `fluxaos.env` is wrong — recheck Task 4a Step 5 Redis assertion.
+**If build.sh fails with `error: FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS must be 120`:** Task 4a Step 5 should have caught this — recheck `fluxaos.env`.
 
-**If build.sh fails at the in-container `git push --dry-run`:** The SSH mount is not working inside the `fluxaos-web` container. Confirm Task 1 added the mount to both services and the templates were copied in Task 4a Step 3.
+**If build.sh fails with `error: central_redis redis-cli ping did not return PONG`:** The Redis URL in `fluxaos.env` is wrong — recheck Task 4a Step 5 Redis assertion.
 
-**If build.sh fails at `FLUXAOS_WORKSPACE_ROOT must be /runtime/worktrees`:** The `tac/awk` dedup in Task 4a Step 4 did not override the dev value — inspect `fluxaos.env` and verify the appended override block is last.
+**If build.sh fails during the in-container `git push --dry-run`:** The SSH mount is not working inside the `fluxaos-web` container. Confirm Task 1 added the mount to both services and the templates were copied in Task 4a Step 3.
+
+**If build.sh fails with `error: FLUXAOS_WORKSPACE_ROOT must be /runtime/worktrees`:** The `tac/awk` dedup in Task 4a Step 4 did not override the dev value — inspect `fluxaos.env` and verify the appended override block is last.
 
 - [ ] **Step 2: Confirm the UI loads**
 
@@ -521,15 +523,15 @@ FLUXAOS_IMAGE=fluxaos:${PREV_SHA} docker compose up -d --force-recreate fluxaos-
 
 - [ ] **Step 1: Update PR #194 description**
 
-Append a rehearsal-complete section to the existing PR body:
+Append a rehearsal-complete section to the existing PR body using a temp file to avoid backtick expansion:
 
 ```bash
 EXISTING_BODY=$(gh pr view 194 --json body --jq '.body')
-gh pr edit 194 --body "${EXISTING_BODY}
-
-## Rehearsal complete
-
-Production instance deployed at http://192.168.54.101:3003. \`build.sh\` ran to completion against the real homelab stack. Web UI loads and redirects to project dashboard. Daemon container running."
+TMPFILE=$(mktemp)
+printf '%s\n\n## Rehearsal complete\n\nProduction instance deployed at http://192.168.54.101:3003. `build.sh` ran to completion against the real homelab stack. Web UI loads and redirects to project dashboard. Daemon container running.' \
+  "${EXISTING_BODY}" > "${TMPFILE}"
+gh pr edit 194 --body-file "${TMPFILE}"
+rm "${TMPFILE}"
 ```
 
 Expected: `gh pr edit` exits 0. Run `gh pr view 194 --json body --jq '.body' | tail -6` to confirm the section was appended.
