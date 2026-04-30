@@ -27,7 +27,7 @@ services:
     image: ${FLUXAOS_IMAGE:-fluxaos:internal-dev}
     container_name: fluxaos-daemon
     restart: unless-stopped
-    command: ["npm", "run", "daemon:prod"]
+    command: ["node", ".next/daemon/daemon.mjs"]
     env_file:
       - ./fluxaos.env
     environment:
