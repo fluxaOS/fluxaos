@@ -60,11 +60,29 @@ describe('R-DAEMON factory', () => {
     }
   });
 
+  it('parseEnv rejects suffixed positive integer values', () => {
+    process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS = '120abc';
+    try {
+      expect(() => parseEnv()).toThrow(/positive integer/);
+    } finally {
+      process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS = '3';
+    }
+  });
+
   it('parseEnv accepts optional recovery sweep interval', () => {
     process.env.FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN = '15';
     try {
       const env = parseEnv();
       expect(env.recoverySweepIntervalMin).toBe(15);
+    } finally {
+      delete process.env.FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN;
+    }
+  });
+
+  it('parseEnv rejects suffixed recovery sweep interval values', () => {
+    process.env.FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN = '15min';
+    try {
+      expect(() => parseEnv()).toThrow(/positive integer/);
     } finally {
       delete process.env.FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN;
     }

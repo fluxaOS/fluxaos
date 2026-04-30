@@ -62,6 +62,8 @@ require_runtime_preflight() {
   local workspace_root
   local artifacts_root
   local daemon_grace
+  local git_user_email
+  local git_user_name
 
   docker network inspect homelab >/dev/null || fail "docker network homelab does not exist"
 
@@ -82,6 +84,13 @@ require_runtime_preflight() {
   canonical_target=$(realpath -m "${host_target}")
   [[ "${canonical_target}" == "${STACK_DIR}/repos/"* ]] || fail "target repo escaped stack repos dir"
   git -C "${host_target}" rev-parse --is-inside-work-tree >/dev/null || fail "target repo host path is not a git repo: ${host_target}"
+  git_user_email=$(git -C "${host_target}" config --get user.email || true)
+  git_user_name=$(git -C "${host_target}" config --get user.name || true)
+  [[ -n "${git_user_email}" ]] || fail "target repo git user.email is required for production commits"
+  [[ -n "${git_user_name}" ]] || fail "target repo git user.name is required for production commits"
+  git -C "${host_target}" remote get-url origin >/dev/null || fail "target repo origin remote is required"
+  git -C "${host_target}" push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check >/dev/null \
+    || fail "target repo origin is not writable from the host production checkout"
 
   workspace_root=$(env_value FLUXAOS_WORKSPACE_ROOT)
   [[ "${workspace_root}" == /runtime/worktrees ]] || fail "FLUXAOS_WORKSPACE_ROOT must be /runtime/worktrees"
@@ -147,6 +156,13 @@ docker build --target runner -t "fluxaos:${TARGET_SHA}" -t "fluxaos:${IMAGE_CHAN
 cd "${STACK_DIR}"
 
 FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc 'test -d -w /repos && test -d -w /runtime/worktrees && test -d -w /runtime/artifacts'
+FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc '
+  git -C "${FLUXAOS_TARGET_REPO_PATH}" rev-parse --is-inside-work-tree >/dev/null &&
+  test -n "$(git -C "${FLUXAOS_TARGET_REPO_PATH}" config --get user.email)" &&
+  test -n "$(git -C "${FLUXAOS_TARGET_REPO_PATH}" config --get user.name)" &&
+  git -C "${FLUXAOS_TARGET_REPO_PATH}" remote get-url origin >/dev/null &&
+  git -C "${FLUXAOS_TARGET_REPO_PATH}" push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check >/dev/null
+'
 FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm fluxaos-web npm run db:migrate:prod
 FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose up -d --force-recreate fluxaos-web fluxaos-daemon
 docker compose ps
@@ -163,7 +179,15 @@ DAEMON_CONTAINER_ID=$(docker compose ps -q fluxaos-daemon)
 [[ "$(docker inspect -f '{{.Image}}' "${WEB_CONTAINER_ID}")" == "${EXPECTED_IMAGE_ID}" ]] || fail "fluxaos-web is not using fluxaos:${IMAGE_CHANNEL}"
 [[ "$(docker inspect -f '{{.Image}}' "${DAEMON_CONTAINER_ID}")" == "${EXPECTED_IMAGE_ID}" ]] || fail "fluxaos-daemon is not using fluxaos:${IMAGE_CHANNEL}"
 
-docker compose exec -T fluxaos-web curl -fsS http://127.0.0.1:3000/api/health >/dev/null
+for _ in $(seq 1 30); do
+  if docker compose exec -T fluxaos-web curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+    [[ "$(docker inspect -f '{{.State.Running}}' "${WEB_CONTAINER_ID}")" == true ]] || fail "fluxaos-web exited after health check"
+    WEB_READY=1
+    break
+  fi
+  sleep 2
+done
+[[ "${WEB_READY:-0}" == 1 ]] || fail "fluxaos-web health check did not pass"
 
 for _ in $(seq 1 30); do
   DAEMON_LOGS="$(docker logs --since "${DEPLOY_STARTED_AT}" "${DAEMON_CONTAINER_ID}" 2>&1)"

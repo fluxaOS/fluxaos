@@ -156,6 +156,16 @@ for (const expected of [
 ]) {
   assertIncludes('ops/docker/homelab/fluxaos.env.example', env, expected);
 }
+assertIncludes(
+  'ops/docker/homelab/fluxaos.env.example',
+  env,
+  'Compose interpolation values such as FLUXAOS_IMAGE and FLUXAOS_WEB_PORT'
+);
+assertExcludes(
+  'ops/docker/homelab/fluxaos.env.example',
+  env,
+  'FLUXAOS_WEB_PORT=3003'
+);
 
 const buildScript = read('ops/docker/homelab/build.sh');
 for (const expected of [
@@ -172,6 +182,11 @@ for (const expected of [
   'FLUXAOS_TARGET_REPO_PATH must not contain',
   'target repo escaped stack repos dir',
   `git -C "${shellExpansion('host_target')}" rev-parse --is-inside-work-tree`,
+  'target repo git user.email is required for production commits',
+  'target repo git user.name is required for production commits',
+  'target repo origin remote is required',
+  'push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check',
+  'target repo origin is not writable from the host production checkout',
   'FLUXAOS_WORKSPACE_ROOT must be /runtime/worktrees',
   'FLUXAOS_ARTIFACTS_ROOT must be /runtime/artifacts',
   'runtime directory is not writable',
@@ -179,6 +194,8 @@ for (const expected of [
   'Rollback marker:',
   '--force-recreate',
   'docker compose run --rm --no-deps fluxaos-web sh -lc',
+  `git -C "${shellExpansion('FLUXAOS_TARGET_REPO_PATH')}" push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check`,
+  'fluxaos-web health check did not pass',
   `docker logs --since "${shellExpansion('DEPLOY_STARTED_AT')}" "${shellExpansion(
     'DAEMON_CONTAINER_ID'
   )}"`,

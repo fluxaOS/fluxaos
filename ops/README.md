@@ -33,6 +33,16 @@ git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repo
 
 The target clone should be the intended repository and clean on the expected base branch before rehearsal. In the template env, `FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos` maps inside the containers to the host path `/mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos`; the daemon writes deploy branches and worktrees against that target repo.
 
+Configure the target clone for production Git writes before running `build.sh`:
+
+```bash
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.name "fluxaOS"
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.email "fluxaos@users.noreply.github.com"
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check
+```
+
+The dry-run push must succeed from the host and from the production container preflight. Use an authenticated remote that works non-interactively for Git CLI push; `FLUXAOS_GITHUB_TOKEN` is still required for GitHub API operations, but Git itself also needs writable credentials through the target repo remote/config.
+
 Bootstrap the stack files from the checked-in templates:
 
 ```bash
@@ -71,7 +81,7 @@ Backup expectations for this profile:
 Restore expectations:
 
 - The rollback marker only restores the image/version by retagging the previous image to the channel and recreating `fluxaos-web` and `fluxaos-daemon`, for example: `docker tag fluxaos:<previous-sha> fluxaos:internal-dev && docker compose up -d --force-recreate fluxaos-web fluxaos-daemon`.
-- Compose `env_file` values become container environment, not Compose interpolation for the `image:` expression. The `FLUXAOS_IMAGE` used by `image: ${FLUXAOS_IMAGE:-fluxaos:internal-dev}` must come from the shell environment, a Compose `.env`, `docker compose --env-file`, or the default.
+- Compose `env_file` values become container environment, not Compose interpolation for the `image:` or `ports:` expressions. `FLUXAOS_IMAGE` and `FLUXAOS_WEB_PORT` must come from the shell environment, a Compose `.env`, `docker compose --env-file`, or the defaults.
 - The rollback marker does not undo database migrations.
 - Before running an update that includes migrations, confirm Supabase Cloud backup/PITR is available for the project.
 - If a migration must be rolled back, restore through Supabase Cloud first, then restart the previous image from the rollback marker.

@@ -75,22 +75,22 @@ export function parseEnv(): DaemonEnv {
         'Set to a positive integer — operator owns the drain window (no default).'
     );
   }
-  const grace = Number.parseInt(graceRaw, 10);
-  if (!Number.isFinite(grace) || grace <= 0) {
+  if (!/^[1-9]\d*$/.test(graceRaw)) {
     throw new Error(
       `${SHUTDOWN_GRACE_ENV} must be a positive integer; got "${graceRaw}".`
     );
   }
+  const grace = Number(graceRaw);
 
   let sweep: number | null = null;
   const sweepRaw = process.env[RECOVERY_SWEEP_ENV];
   if (sweepRaw !== undefined && sweepRaw !== '') {
-    const n = Number.parseInt(sweepRaw, 10);
-    if (!Number.isFinite(n) || n <= 0) {
+    if (!/^[1-9]\d*$/.test(sweepRaw)) {
       throw new Error(
         `${RECOVERY_SWEEP_ENV} must be a positive integer when set; got "${sweepRaw}".`
       );
     }
+    const n = Number(sweepRaw);
     sweep = n;
   }
 
