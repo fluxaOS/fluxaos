@@ -28,9 +28,16 @@ Create the stack directories, then clone the production source and target repos:
 
 ```bash
 mkdir -p /mnt/stacks/docker/fluxaos/{source,repos,worktrees,artifacts}
-git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/source
+git clone git@github.com:fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/source
 mkdir -p /mnt/stacks/docker/fluxaos/repos/fluxaOS
-git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos
+git clone git@github.com:fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos
+```
+
+If the clones already exist with HTTPS remotes, correct them:
+
+```bash
+git -C /mnt/stacks/docker/fluxaos/source remote set-url origin git@github.com:fluxaOS/fluxaos.git
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos remote set-url origin git@github.com:fluxaOS/fluxaos.git
 ```
 
 The target clone should be the intended repository and clean on the expected base branch before rehearsal. In the template env, `FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos` maps inside the containers to the host path `/mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos`; the daemon writes deploy branches and worktrees against that target repo.
@@ -43,7 +50,7 @@ git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.email "fluxa
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check
 ```
 
-The dry-run push must succeed from the host and from the production container preflight. Use an authenticated remote that works non-interactively for Git CLI push; `FLUXAOS_GITHUB_TOKEN` is still required for GitHub API operations, but Git itself also needs writable credentials through the target repo remote/config.
+The dry-run push must succeed from the host and from the production container preflight. The production containers mount `/home/jpierce/.ssh:/root/.ssh:ro` so git inside the container uses the same SSH key as the host operator account. Both source and target repos must use SSH remotes (`git@github.com:...`), not HTTPS. `FLUXAOS_GITHUB_TOKEN` is still required for GitHub API operations (opening PRs); it is separate from the SSH key used for git pushes.
 
 Bootstrap the stack files from the checked-in templates:
 

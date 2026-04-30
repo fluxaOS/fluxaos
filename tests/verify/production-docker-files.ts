@@ -154,7 +154,7 @@ assertExcludes('ops/docker/homelab/docker-compose.yml', compose, '  redis:');
 
 const env = read('ops/docker/homelab/fluxaos.env.example');
 for (const expected of [
-  'REDIS_URL=redis://:password@central_redis:6379',
+  'REDIS_URL=redis://:replace-me@central_redis:6379',
   'FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos',
   'FLUXAOS_WORKSPACE_ROOT=/runtime/worktrees',
   'FLUXAOS_ARTIFACTS_ROOT=/runtime/artifacts',
