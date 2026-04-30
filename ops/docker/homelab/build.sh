@@ -154,7 +154,7 @@ docker build --target runner -t "fluxaos:${TARGET_SHA}" -t "fluxaos:${IMAGE_CHAN
 
 cd "${STACK_DIR}"
 
-FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc 'test -d -w /repos && test -d -w /runtime/worktrees && test -d -w /runtime/artifacts'
+FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc 'test -d /repos && test -w /repos && test -d /runtime/worktrees && test -w /runtime/worktrees && test -d /runtime/artifacts && test -w /runtime/artifacts'
 FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc '
   git -C "${FLUXAOS_TARGET_REPO_PATH}" rev-parse --is-inside-work-tree >/dev/null &&
   test -n "$(git -C "${FLUXAOS_TARGET_REPO_PATH}" config --get user.email)" &&
