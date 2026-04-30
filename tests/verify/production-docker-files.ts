@@ -62,6 +62,8 @@ function serviceBlock(normalizedCompose: string, serviceName: string): string {
   return nextService === -1 ? rest : rest.slice(0, nextService);
 }
 
+const shellExpansion = (name: string): string => `$\{${name}}`;
+
 const dockerfile = read('Dockerfile');
 assertIncludes('Dockerfile', dockerfile, 'RUN npm run build:prod');
 assertIncludes(
@@ -101,6 +103,18 @@ assertIncludes(
   rootPage,
   "export const dynamic = 'force-dynamic';"
 );
+assertIncludes(
+  'src/app/page.tsx',
+  rootPage,
+  "import { redirect } from 'next/navigation';"
+);
+assertIncludes(
+  'src/app/page.tsx',
+  rootPage,
+  `redirect(\`/${shellExpansion('org.slug')}/${shellExpansion(
+    'usr.slug'
+  )}/${shellExpansion('proj.slug')}\`);`
+);
 
 const compose = read('ops/docker/homelab/docker-compose.yml');
 for (const expected of [
@@ -117,6 +131,7 @@ for (const expected of [
 }
 assertExcludes('ops/docker/homelab/docker-compose.yml', compose, 'depends_on:');
 assertExcludes('ops/docker/homelab/docker-compose.yml', compose, 'redis:7');
+assertExcludes('ops/docker/homelab/docker-compose.yml', compose, '  redis:');
 
 const env = read('ops/docker/homelab/fluxaos.env.example');
 for (const expected of [
@@ -129,7 +144,6 @@ for (const expected of [
   assertIncludes('ops/docker/homelab/fluxaos.env.example', env, expected);
 }
 
-const shellExpansion = (name: string): string => `$\{${name}}`;
 const buildScript = read('ops/docker/homelab/build.sh');
 for (const expected of [
   `STACK_DIR="${shellExpansion('STACK_DIR:-/mnt/stacks/docker/fluxaos')}"`,
@@ -165,7 +179,12 @@ for (const expected of [
 }
 
 const preCommit = read('ops/git-hooks/pre-commit');
-for (const expected of ['secrets/', '\\.token$', '\\.env\\.example$']) {
+for (const expected of [
+  'secrets/',
+  '\\.token$',
+  '\\.env\\.example$',
+  '\\.env$|\\.env\\.',
+]) {
   assertIncludes('ops/git-hooks/pre-commit', preCommit, expected);
 }
 assertOrder(
@@ -179,6 +198,12 @@ assertOrder(
   preCommit,
   '\\.token$',
   '\\.env\\.example$'
+);
+assertOrder(
+  'ops/git-hooks/pre-commit',
+  preCommit,
+  '\\.env\\.example$',
+  '\\.env$|\\.env\\.'
 );
 
 const tempEnvPath = path.join(root, 'ops/docker/homelab/fluxaos.env');
@@ -222,6 +247,7 @@ try {
 
   const webBlock = serviceBlock(normalizedCompose, 'fluxaos-web');
   const daemonBlock = serviceBlock(normalizedCompose, 'fluxaos-daemon');
+  assertExcludes('docker compose config', normalizedCompose, '  redis:');
 
   for (const [service, block] of [
     ['fluxaos-web', webBlock],
