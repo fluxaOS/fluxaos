@@ -156,6 +156,7 @@ cd "${STACK_DIR}"
 
 FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc 'test -d /repos && test -w /repos && test -d /runtime/worktrees && test -w /runtime/worktrees && test -d /runtime/artifacts && test -w /runtime/artifacts'
 FLUXAOS_IMAGE="fluxaos:${IMAGE_CHANNEL}" docker compose run --rm --no-deps fluxaos-web sh -lc '
+  export GIT_SSH_COMMAND="ssh -i /root/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -F /dev/null"
   git -C "${FLUXAOS_TARGET_REPO_PATH}" rev-parse --is-inside-work-tree >/dev/null &&
   test -n "$(git -C "${FLUXAOS_TARGET_REPO_PATH}" config --get user.email)" &&
   test -n "$(git -C "${FLUXAOS_TARGET_REPO_PATH}" config --get user.name)" &&

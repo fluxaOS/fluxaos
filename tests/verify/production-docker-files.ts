@@ -145,6 +145,7 @@ for (const expected of [
   'stop_grace_period: 120s',
   'command: ["node", ".next/daemon/daemon.mjs"]',
   '/home/jpierce/.ssh:/root/.ssh:ro',
+  'HOSTNAME: "0.0.0.0"',
 ]) {
   assertIncludes('ops/docker/homelab/docker-compose.yml', compose, expected);
 }
@@ -200,6 +201,7 @@ for (const expected of [
   'Rollback marker:',
   '--force-recreate',
   'docker compose run --rm --no-deps fluxaos-web sh -lc',
+  'GIT_SSH_COMMAND="ssh -i /root/.ssh/id_ed25519',
   `git -C "${shellExpansion('FLUXAOS_TARGET_REPO_PATH')}" push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check`,
   'fluxaos-web health check did not pass',
   `docker logs --since "${shellExpansion('DEPLOY_STARTED_AT')}" "${shellExpansion(
