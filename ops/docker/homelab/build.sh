@@ -109,8 +109,9 @@ require_runtime_preflight
 
 cd "${SOURCE_DIR}"
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  git status --short
+SOURCE_STATUS=$(git status --short)
+if [[ -n "${SOURCE_STATUS}" ]]; then
+  printf '%s\n' "${SOURCE_STATUS}" >&2
   fail "source checkout is dirty"
 fi
 
