@@ -1,6 +1,6 @@
 # fluxaOS — Operator runbook
 
-Operational configuration lives here. Alpha scope only — the daemon is the one durable process an operator needs to stand up.
+Operational configuration lives here. Alpha scope supports local/dev daemon operation and a production Docker rehearsal that runs durable web and daemon services.
 
 ## Production Docker rehearsal
 
@@ -22,31 +22,35 @@ Expected stack layout:
   artifacts/
 ```
 
-Bootstrap the stack files from the checked-in templates:
+Create the stack directories, then clone the production source and target repos:
 
 ```bash
 mkdir -p /mnt/stacks/docker/fluxaos/{source,repos,worktrees,artifacts}
-cp ops/docker/homelab/docker-compose.yml /mnt/stacks/docker/fluxaos/docker-compose.yml
-cp ops/docker/homelab/fluxaos.env.example /mnt/stacks/docker/fluxaos/fluxaos.env
-cp ops/docker/homelab/build.sh /mnt/stacks/docker/fluxaos/build.sh
-chmod +x /mnt/stacks/docker/fluxaos/build.sh
-```
-
-Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, daemon, and cleanup values.
-
-Clone production source and target repos:
-
-```bash
 git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/source
 mkdir -p /mnt/stacks/docker/fluxaos/repos/fluxaOS
 git clone https://github.com/fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos
 ```
+
+The target clone should be the intended repository and clean on the expected base branch before rehearsal. In the template env, `FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos` maps inside the containers to the host path `/mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos`; the daemon writes deploy branches and worktrees against that target repo.
+
+Bootstrap the stack files from the checked-in templates:
+
+```bash
+cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/docker-compose.yml /mnt/stacks/docker/fluxaos/docker-compose.yml
+cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/fluxaos.env.example /mnt/stacks/docker/fluxaos/fluxaos.env
+cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/build.sh /mnt/stacks/docker/fluxaos/build.sh
+chmod +x /mnt/stacks/docker/fluxaos/build.sh
+```
+
+Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, daemon, and cleanup values.
 
 Deploy or update:
 
 ```bash
 /mnt/stacks/docker/fluxaos/build.sh
 ```
+
+The Compose daemon service runs `node .next/daemon/daemon.mjs` directly so SIGTERM reaches the production daemon entrypoint and the configured drain window can run.
 
 Routine restarts do not run migrations:
 
@@ -66,14 +70,15 @@ Backup expectations for this profile:
 
 Restore expectations:
 
-- The rollback marker only restores the image/version by pointing `FLUXAOS_IMAGE` back at the previous SHA and restarting `fluxaos-web` and `fluxaos-daemon`.
+- The rollback marker only restores the image/version by retagging the previous image to the channel and recreating `fluxaos-web` and `fluxaos-daemon`, for example: `docker tag fluxaos:<previous-sha> fluxaos:internal-dev && docker compose up -d --force-recreate fluxaos-web fluxaos-daemon`.
+- Compose `env_file` values become container environment, not Compose interpolation for the `image:` expression. The `FLUXAOS_IMAGE` used by `image: ${FLUXAOS_IMAGE:-fluxaos:internal-dev}` must come from the shell environment, a Compose `.env`, `docker compose --env-file`, or the default.
 - The rollback marker does not undo database migrations.
 - Before running an update that includes migrations, confirm Supabase Cloud backup/PITR is available for the project.
 - If a migration must be rolled back, restore through Supabase Cloud first, then restart the previous image from the rollback marker.
 
 ## Orchestrator daemon
 
-The daemon (`npm run daemon`, source: `src/scripts/daemon.ts`) is a long-running Node process that subscribes to Supabase Realtime on the `pipeline_run` table, dispatches stage runs via the event-orchestrator, runs the cleanup scheduler, and performs periodic crash recovery. It is the sole path from `pipeline_run:pending` to `pipeline_run:running` — tRPC triggers are publish-only (see `docs/invariants.md`).
+For local/dev operation, the daemon (`npm run daemon`, source: `src/scripts/daemon.ts`) is a long-running Node process that subscribes to Supabase Realtime on the `pipeline_run` table, dispatches stage runs via the event-orchestrator, runs the cleanup scheduler, and performs periodic crash recovery. It is the sole path from `pipeline_run:pending` to `pipeline_run:running` — tRPC triggers are publish-only (see `docs/invariants.md`).
 
 ### Required environment
 
