@@ -166,9 +166,10 @@ DAEMON_CONTAINER_ID=$(docker compose ps -q fluxaos-daemon)
 docker compose exec -T fluxaos-web curl -fsS http://127.0.0.1:3000/api/health >/dev/null
 
 for _ in $(seq 1 30); do
-  if docker logs --since "${DEPLOY_STARTED_AT}" "${DAEMON_CONTAINER_ID}" | grep -q 'daemon.started orchestrator=running'; then
+  DAEMON_LOGS="$(docker logs --since "${DEPLOY_STARTED_AT}" "${DAEMON_CONTAINER_ID}" 2>&1)"
+  if grep -q 'daemon.started orchestrator=running' <<<"${DAEMON_LOGS}"; then
     [[ "$(docker inspect -f '{{.State.Running}}' "${DAEMON_CONTAINER_ID}")" == true ]] || fail "fluxaos-daemon exited after readiness"
-    docker logs --since "${DEPLOY_STARTED_AT}" "${DAEMON_CONTAINER_ID}" | grep 'daemon.started orchestrator=running'
+    grep 'daemon.started orchestrator=running' <<<"${DAEMON_LOGS}"
     echo "${TARGET_SHA}" >"${DEPLOYED_SHA_FILE}"
     echo "Deployed ${TARGET_SHA}"
     exit 0
