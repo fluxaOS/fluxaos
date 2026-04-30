@@ -50,14 +50,27 @@ function assertOrder(
   }
 }
 
-function serviceBlock(normalizedCompose: string, serviceName: string): string {
-  const marker = `  ${serviceName}:\n`;
+function servicesSection(normalizedCompose: string): string {
+  const marker = 'services:\n';
   const start = normalizedCompose.indexOf(marker);
+  if (start === -1) {
+    throw new Error('docker compose config missing services section');
+  }
+
+  const rest = normalizedCompose.slice(start + marker.length);
+  const nextTopLevelSection = rest.search(/\n[a-zA-Z0-9_-]+:\n/);
+  return nextTopLevelSection === -1 ? rest : rest.slice(0, nextTopLevelSection);
+}
+
+function serviceBlock(normalizedCompose: string, serviceName: string): string {
+  const services = servicesSection(normalizedCompose);
+  const marker = `  ${serviceName}:\n`;
+  const start = services.indexOf(marker);
   if (start === -1) {
     throw new Error(`docker compose config missing service ${serviceName}`);
   }
 
-  const rest = normalizedCompose.slice(start + marker.length);
+  const rest = services.slice(start + marker.length);
   const nextService = rest.search(/\n {2}[a-zA-Z0-9_-]+:\n/);
   return nextService === -1 ? rest : rest.slice(0, nextService);
 }
@@ -207,10 +220,18 @@ assertOrder(
 );
 
 const tempEnvPath = path.join(root, 'ops/docker/homelab/fluxaos.env');
+if (fs.existsSync(tempEnvPath)) {
+  throw new Error(
+    'ops/docker/homelab/fluxaos.env already exists; refusing to overwrite operator env file'
+  );
+}
+
+let createdTempEnv = false;
 fs.copyFileSync(
   path.join(root, 'ops/docker/homelab/fluxaos.env.example'),
   tempEnvPath
 );
+createdTempEnv = true;
 
 try {
   const normalizedCompose = execFileSync(
@@ -247,7 +268,11 @@ try {
 
   const webBlock = serviceBlock(normalizedCompose, 'fluxaos-web');
   const daemonBlock = serviceBlock(normalizedCompose, 'fluxaos-daemon');
-  assertExcludes('docker compose config', normalizedCompose, '  redis:');
+  assertExcludes(
+    'docker compose config services',
+    servicesSection(normalizedCompose),
+    '  redis:'
+  );
 
   for (const [service, block] of [
     ['fluxaos-web', webBlock],
@@ -265,7 +290,9 @@ try {
     '- .next/daemon/daemon.mjs'
   );
 } finally {
-  fs.rmSync(tempEnvPath, { force: true });
+  if (createdTempEnv) {
+    fs.rmSync(tempEnvPath, { force: true });
+  }
 }
 
 console.log('production Docker files verified');
