@@ -5,6 +5,8 @@ import { registry } from '@/config/registry';
 import { organization, project, user } from '@/core/db/schema';
 import type { DatabaseProvider } from '@/core/ports/database';
 
+export const dynamic = 'force-dynamic';
+
 export default async function RootPage() {
   bootstrap();
   const db = registry.get<DatabaseProvider>('database').getConnection();
