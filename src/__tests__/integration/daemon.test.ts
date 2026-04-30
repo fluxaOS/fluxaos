@@ -104,10 +104,11 @@ describe('R-DAEMON factory', () => {
 
   it('does not load daemon env values from dotenv in production mode', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'fluxaos-daemon-prod-env-'));
+    const mutableEnv = process.env as Record<string, string | undefined>;
     const savedNodeEnv = process.env.NODE_ENV;
     const savedGrace = process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS;
     try {
-      process.env.NODE_ENV = 'production';
+      mutableEnv.NODE_ENV = 'production';
       delete process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS;
       await writeFile(
         join(dir, '.env'),
@@ -119,8 +120,8 @@ describe('R-DAEMON factory', () => {
 
       expect(process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS).toBeUndefined();
     } finally {
-      if (savedNodeEnv === undefined) delete process.env.NODE_ENV;
-      else process.env.NODE_ENV = savedNodeEnv;
+      if (savedNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+      else mutableEnv.NODE_ENV = savedNodeEnv;
       if (savedGrace === undefined)
         delete process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS;
       else process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS = savedGrace;
