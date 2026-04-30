@@ -1,0 +1,47 @@
+services:
+  fluxaos-web:
+    image: ${FLUXAOS_IMAGE:-fluxaos:internal-dev}
+    container_name: fluxaos-web
+    restart: unless-stopped
+    env_file:
+      - ./fluxaos.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "${FLUXAOS_WEB_PORT:-3003}:3000"
+    volumes:
+      - /mnt/stacks/docker/fluxaos/repos:/repos
+      - /mnt/stacks/docker/fluxaos/worktrees:/runtime/worktrees
+      - /mnt/stacks/docker/fluxaos/artifacts:/runtime/artifacts
+      - /home/jpierce/.ssh:/root/.ssh:ro
+    networks:
+      - homelab
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  fluxaos-daemon:
+    image: ${FLUXAOS_IMAGE:-fluxaos:internal-dev}
+    container_name: fluxaos-daemon
+    restart: unless-stopped
+    command: ["node", ".next/daemon/daemon.mjs"]
+    env_file:
+      - ./fluxaos.env
+    environment:
+      NODE_ENV: production
+    stop_grace_period: 120s
+    volumes:
+      - /mnt/stacks/docker/fluxaos/repos:/repos
+      - /mnt/stacks/docker/fluxaos/worktrees:/runtime/worktrees
+      - /mnt/stacks/docker/fluxaos/artifacts:/runtime/artifacts
+      - /home/jpierce/.ssh:/root/.ssh:ro
+    networks:
+      - homelab
+
+networks:
+  homelab:
+    external: true

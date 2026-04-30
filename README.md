@@ -61,6 +61,20 @@ open http://localhost:3000
 
 For an end-to-end smoke test, see `e2e/r-smoke.spec.ts` — the alpha-acceptance journey that drives the full flow against a disposable sandbox repo.
 
+## Production Docker
+
+The checked-in `docker-compose.yml` is a development convenience. Production Docker uses the homelab template in `ops/docker/homelab/`.
+
+The first production profile is a homelab rehearsal for the future public install path:
+
+- web and daemon run as separate services from the same image
+- Supabase Cloud remains the database/auth/realtime provider
+- Redis is the shared `central_redis` service on the external `homelab` Docker network
+- runtime data lives under `/mnt/stacks/docker/fluxaos/`
+- deploys run through `/mnt/stacks/docker/fluxaos/build.sh`
+
+See `ops/README.md` for the operator runbook.
+
 ## Architecture
 
 ```

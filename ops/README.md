@@ -1,10 +1,104 @@
 # fluxaOS — Operator runbook
 
-Operational configuration lives here. Alpha scope only — the daemon is the one durable process an operator needs to stand up.
+Operational configuration lives here. Alpha scope supports local/dev daemon operation and a production Docker rehearsal that runs durable web and daemon services.
+
+## Production Docker rehearsal
+
+The production Docker rehearsal runs from `/mnt/stacks/docker/fluxaos/`, not from the development checkout.
+
+The fluxaOS web and daemon containers intentionally run as root. This is an explicit exception to the usual homelab `user: "1026:100"` convention because the daemon writes git worktrees, artifacts, and stack-owned target clones on NFS-backed storage. Keep writable mounts scoped to `/mnt/stacks/docker/fluxaos/`.
+
+The production image trusts `/repos/*` as a Git `safe.directory` pattern so root containers can operate on stack-owned target clones created by the host operator account.
+
+Expected stack layout:
+
+```text
+/mnt/stacks/docker/fluxaos/
+  docker-compose.yml
+  fluxaos.env
+  build.sh
+  deployed-sha
+  source/
+  repos/
+  worktrees/
+  artifacts/
+```
+
+Create the stack directories, then clone the production source and target repos:
+
+```bash
+mkdir -p /mnt/stacks/docker/fluxaos/{source,repos,worktrees,artifacts}
+git clone git@github.com:fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/source
+mkdir -p /mnt/stacks/docker/fluxaos/repos/fluxaOS
+git clone git@github.com:fluxaOS/fluxaos.git /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos
+```
+
+If the clones already exist with HTTPS remotes, correct them:
+
+```bash
+git -C /mnt/stacks/docker/fluxaos/source remote set-url origin git@github.com:fluxaOS/fluxaos.git
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos remote set-url origin git@github.com:fluxaOS/fluxaos.git
+```
+
+The target clone should be the intended repository and clean on the expected base branch before rehearsal. In the template env, `FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos` maps inside the containers to the host path `/mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos`; the daemon writes deploy branches and worktrees against that target repo.
+
+Configure the target clone for production Git writes before running `build.sh`:
+
+```bash
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.name "fluxaOS"
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos config user.email "fluxaos@users.noreply.github.com"
+git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check
+```
+
+The dry-run push must succeed from the host and from the production container preflight. The production containers mount `/home/jpierce/.ssh:/root/.ssh:ro` so git inside the container uses the same SSH key as the host operator account. Both source and target repos must use SSH remotes (`git@github.com:...`), not HTTPS. `FLUXAOS_GITHUB_TOKEN` is still required for GitHub API operations (opening PRs); it is separate from the SSH key used for git pushes.
+
+Bootstrap the stack files from the checked-in templates:
+
+```bash
+cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/docker-compose.yml /mnt/stacks/docker/fluxaos/docker-compose.yml
+cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/fluxaos.env.example /mnt/stacks/docker/fluxaos/fluxaos.env
+cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/build.sh /mnt/stacks/docker/fluxaos/build.sh
+chmod +x /mnt/stacks/docker/fluxaos/build.sh
+```
+
+Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, daemon, and cleanup values.
+Use the Compose-visible Redis hostname in production, for example `redis://:password@central_redis:6379` when the shared Redis requires auth.
+
+Deploy or update:
+
+```bash
+/mnt/stacks/docker/fluxaos/build.sh
+```
+
+The Compose daemon service runs `node .next/daemon/daemon.mjs` directly so SIGTERM reaches the production daemon entrypoint and the configured drain window can run.
+
+Routine restarts do not run migrations:
+
+```bash
+cd /mnt/stacks/docker/fluxaos
+docker compose up -d fluxaos-web fluxaos-daemon
+```
+
+Backup expectations for this profile:
+
+- Supabase Cloud owns database/auth/realtime backups.
+- Back up `/mnt/stacks/docker/fluxaos/fluxaos.env`.
+- Back up `/mnt/stacks/docker/fluxaos/repos`.
+- Back up `/mnt/stacks/docker/fluxaos/artifacts`.
+- Back up `/mnt/stacks/docker/fluxaos/deployed-sha` and `/mnt/stacks/docker/fluxaos/rollback`.
+- `/mnt/stacks/docker/fluxaos/worktrees` is runtime working state and may be cleaned by policy.
+
+Restore expectations:
+
+- The rollback marker only restores the image/version by retagging the previous image to the channel and recreating `fluxaos-web` and `fluxaos-daemon`, for example: `docker tag fluxaos:<previous-sha> fluxaos:internal-dev && docker compose up -d --force-recreate fluxaos-web fluxaos-daemon`.
+- Compose `env_file` values become container environment, not Compose interpolation for the `image:` or `ports:` expressions. `FLUXAOS_IMAGE` and `FLUXAOS_WEB_PORT` must come from the shell environment, a Compose `.env`, `docker compose --env-file`, or the defaults.
+- The rollback marker does not undo database migrations.
+- Before running an update that includes migrations, confirm Supabase Cloud backup/PITR is available for the project.
+- If a migration must be rolled back, restore through Supabase Cloud first, then restart the previous image from the rollback marker.
 
 ## Orchestrator daemon
 
-The daemon (`npm run daemon`, source: `src/scripts/daemon.ts`) is a long-running Node process that subscribes to Supabase Realtime on the `pipeline_run` table, dispatches stage runs via the event-orchestrator, runs the cleanup scheduler, and performs periodic crash recovery. It is the sole path from `pipeline_run:pending` to `pipeline_run:running` — tRPC triggers are publish-only (see `docs/invariants.md`).
+For local/dev operation, the daemon (`npm run daemon`, source: `src/scripts/daemon.ts`) is a long-running Node process that subscribes to Supabase Realtime on the `pipeline_run` table, dispatches stage runs via the event-orchestrator, runs the cleanup scheduler, and performs periodic crash recovery. It is the sole path from `pipeline_run:pending` to `pipeline_run:running` — tRPC triggers are publish-only (see `docs/invariants.md`).
 
 ### Required environment
 

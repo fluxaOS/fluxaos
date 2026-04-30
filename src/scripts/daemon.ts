@@ -56,6 +56,8 @@ const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
 const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
 
 export function loadDaemonEnvFiles(cwd = process.cwd()): void {
+  if (process.env.NODE_ENV === 'production') return;
+
   loadDotenv({ path: join(cwd, '.env'), override: false, quiet: true });
   loadDotenv({ path: join(cwd, '.env.local'), override: false, quiet: true });
 }
@@ -73,22 +75,22 @@ export function parseEnv(): DaemonEnv {
         'Set to a positive integer — operator owns the drain window (no default).'
     );
   }
-  const grace = Number.parseInt(graceRaw, 10);
-  if (!Number.isFinite(grace) || grace <= 0) {
+  if (!/^[1-9]\d*$/.test(graceRaw)) {
     throw new Error(
       `${SHUTDOWN_GRACE_ENV} must be a positive integer; got "${graceRaw}".`
     );
   }
+  const grace = Number(graceRaw);
 
   let sweep: number | null = null;
   const sweepRaw = process.env[RECOVERY_SWEEP_ENV];
   if (sweepRaw !== undefined && sweepRaw !== '') {
-    const n = Number.parseInt(sweepRaw, 10);
-    if (!Number.isFinite(n) || n <= 0) {
+    if (!/^[1-9]\d*$/.test(sweepRaw)) {
       throw new Error(
         `${RECOVERY_SWEEP_ENV} must be a positive integer when set; got "${sweepRaw}".`
       );
     }
+    const n = Number(sweepRaw);
     sweep = n;
   }
 
@@ -312,8 +314,12 @@ const isMainModule = (() => {
   try {
     const argv1 = process.argv[1];
     if (!argv1) return false;
-    // tsx/ts-node invoke with the .ts path; Node with .js. Match both.
-    return argv1.endsWith('daemon.ts') || argv1.endsWith('daemon.js');
+    // tsx/ts-node invoke with the .ts path; Node with .js/.mjs. Match both.
+    return (
+      argv1.endsWith('daemon.ts') ||
+      argv1.endsWith('daemon.js') ||
+      argv1.endsWith('daemon.mjs')
+    );
   } catch {
     return false;
   }

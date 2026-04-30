@@ -90,7 +90,17 @@ done
 # ── Secret detection ──
 STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACM || true)
 for file in $STAGED_ALL; do
-  if echo "$file" | grep -qE '\.env$|\.env\.|\.token$|secrets/'; then
+  if echo "$file" | grep -qE '(^|/)secrets/|\.token$'; then
+    echo "✗ Potential secret file staged: $file"
+    ERRORS=$((ERRORS + 1))
+    continue
+  fi
+
+  if echo "$file" | grep -qE '\.env\.example$'; then
+    continue
+  fi
+
+  if echo "$file" | grep -qE '\.env$|\.env\.'; then
     echo "✗ Potential secret file staged: $file"
     ERRORS=$((ERRORS + 1))
   fi
