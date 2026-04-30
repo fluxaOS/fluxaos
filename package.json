@@ -5,12 +5,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:daemon": "node scripts/build-daemon.mjs",
+    "build:prod": "npm run build && npm run build:daemon",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "node .next/daemon/migrate-prod.mjs",
     "db:seed": "tsx src/scripts/db/seed.ts",
     "db:studio": "drizzle-kit studio",
     "db:issues": "tsx src/scripts/db/issues.ts",
@@ -20,7 +23,8 @@
     "verify": "tsx tests/verify/run-all.ts",
     "verify:seed": "tsx tests/verify/seed-check.ts",
     "verify:agnostic-core": "tsx src/scripts/verify-agnostic-core.ts",
-    "daemon": "tsx src/scripts/daemon.ts"
+    "daemon": "tsx src/scripts/daemon.ts",
+    "daemon:prod": "node .next/daemon/daemon.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.0",
@@ -53,6 +57,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.28.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "jsdom": "^29.0.2",

@@ -312,8 +312,12 @@ const isMainModule = (() => {
   try {
     const argv1 = process.argv[1];
     if (!argv1) return false;
-    // tsx/ts-node invoke with the .ts path; Node with .js. Match both.
-    return argv1.endsWith('daemon.ts') || argv1.endsWith('daemon.js');
+    // tsx/ts-node invoke with the .ts path; Node with .js/.mjs. Match both.
+    return (
+      argv1.endsWith('daemon.ts') ||
+      argv1.endsWith('daemon.js') ||
+      argv1.endsWith('daemon.mjs')
+    );
   } catch {
     return false;
   }
