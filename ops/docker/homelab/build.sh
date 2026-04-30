@@ -18,22 +18,32 @@ require_stack_paths() {
   local canonical_stack
   local canonical_source
   local canonical_env
+  local canonical_deployed_sha_file
+  local canonical_rollback_dir
 
   canonical_stack=$(realpath -m "${STACK_DIR}")
   canonical_source=$(realpath -m "${SOURCE_DIR}")
   canonical_env=$(realpath -m "${ENV_FILE}")
+  canonical_deployed_sha_file=$(realpath -m "${DEPLOYED_SHA_FILE}")
+  canonical_rollback_dir=$(realpath -m "${ROLLBACK_DIR}")
 
   [[ "${canonical_stack}" != /mnt/dev/* ]] || fail "STACK_DIR must not be under /mnt/dev"
   [[ "${canonical_source}" != /mnt/dev/* ]] || fail "SOURCE_DIR must not resolve into a development checkout"
   [[ "${canonical_env}" != /mnt/dev/* ]] || fail "ENV_FILE must not be under /mnt/dev"
+  [[ "${canonical_deployed_sha_file}" != /mnt/dev/* ]] || fail "DEPLOYED_SHA_FILE must not be under /mnt/dev"
+  [[ "${canonical_rollback_dir}" != /mnt/dev/* ]] || fail "ROLLBACK_DIR must not be under /mnt/dev"
 
   [[ "${canonical_stack}" == /mnt/stacks/docker/fluxaos ]] || fail "STACK_DIR must be /mnt/stacks/docker/fluxaos"
   [[ "${canonical_source}" == /mnt/stacks/docker/fluxaos/source ]] || fail "SOURCE_DIR must be /mnt/stacks/docker/fluxaos/source"
   [[ "${canonical_env}" == /mnt/stacks/docker/fluxaos/fluxaos.env ]] || fail "ENV_FILE must resolve to /mnt/stacks/docker/fluxaos/fluxaos.env"
+  [[ "${canonical_deployed_sha_file}" == /mnt/stacks/docker/fluxaos/deployed-sha ]] || fail "DEPLOYED_SHA_FILE must resolve to /mnt/stacks/docker/fluxaos/deployed-sha"
+  [[ "${canonical_rollback_dir}" == /mnt/stacks/docker/fluxaos/rollback ]] || fail "ROLLBACK_DIR must resolve to /mnt/stacks/docker/fluxaos/rollback"
 
   STACK_DIR=${canonical_stack}
   SOURCE_DIR=${canonical_source}
   ENV_FILE=${canonical_env}
+  DEPLOYED_SHA_FILE=${canonical_deployed_sha_file}
+  ROLLBACK_DIR=${canonical_rollback_dir}
 
   [[ -d "${SOURCE_DIR}/.git" ]] || fail "SOURCE_DIR must be a git checkout"
   [[ -f "${ENV_FILE}" ]] || fail "ENV_FILE does not exist: ${ENV_FILE}"
@@ -156,8 +166,9 @@ DAEMON_CONTAINER_ID=$(docker compose ps -q fluxaos-daemon)
 docker compose exec -T fluxaos-web curl -fsS http://127.0.0.1:3000/api/health >/dev/null
 
 for _ in $(seq 1 30); do
-  if docker logs "${DAEMON_CONTAINER_ID}" | grep -q 'daemon.started orchestrator=running'; then
-    docker logs "${DAEMON_CONTAINER_ID}" | grep 'daemon.started orchestrator=running'
+  if docker logs --since "${DEPLOY_STARTED_AT}" "${DAEMON_CONTAINER_ID}" | grep -q 'daemon.started orchestrator=running'; then
+    [[ "$(docker inspect -f '{{.State.Running}}' "${DAEMON_CONTAINER_ID}")" == true ]] || fail "fluxaos-daemon exited after readiness"
+    docker logs --since "${DEPLOY_STARTED_AT}" "${DAEMON_CONTAINER_ID}" | grep 'daemon.started orchestrator=running'
     echo "${TARGET_SHA}" >"${DEPLOYED_SHA_FILE}"
     echo "Deployed ${TARGET_SHA}"
     exit 0
