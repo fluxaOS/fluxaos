@@ -14,6 +14,7 @@ services:
       - /mnt/stacks/docker/fluxaos/repos:/repos
       - /mnt/stacks/docker/fluxaos/worktrees:/runtime/worktrees
       - /mnt/stacks/docker/fluxaos/artifacts:/runtime/artifacts
+      - /home/jpierce/.ssh:/root/.ssh:ro
     networks:
       - homelab
     healthcheck:
@@ -37,6 +38,7 @@ services:
       - /mnt/stacks/docker/fluxaos/repos:/repos
       - /mnt/stacks/docker/fluxaos/worktrees:/runtime/worktrees
       - /mnt/stacks/docker/fluxaos/artifacts:/runtime/artifacts
+      - /home/jpierce/.ssh:/root/.ssh:ro
     networks:
       - homelab
 

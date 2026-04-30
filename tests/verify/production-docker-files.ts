@@ -144,6 +144,7 @@ for (const expected of [
   '/mnt/stacks/docker/fluxaos/artifacts:/runtime/artifacts',
   'stop_grace_period: 120s',
   'command: ["node", ".next/daemon/daemon.mjs"]',
+  '/home/jpierce/.ssh:/root/.ssh:ro',
 ]) {
   assertIncludes('ops/docker/homelab/docker-compose.yml', compose, expected);
 }
