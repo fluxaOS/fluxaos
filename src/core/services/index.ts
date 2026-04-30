@@ -6,6 +6,7 @@
  */
 
 export { createGateService, type GateService } from '@/core/gates/service';
+export { type BrandService, createBrandService } from './brand';
 export { createIssueService, type IssueService } from './issue';
 export {
   createIssueCatalogService,

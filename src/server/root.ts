@@ -2,6 +2,7 @@
  * Root tRPC router — merges all domain routers.
  */
 
+import { brandRouter } from './routers/brand';
 import { configRouter } from './routers/config';
 import { cronRouter } from './routers/cron';
 import { driverRouter } from './routers/driver';
@@ -22,6 +23,7 @@ import { userRouter } from './routers/user';
 import { router } from './trpc';
 
 export const appRouter = router({
+  brand: brandRouter,
   organization: organizationRouter,
   project: projectRouter,
   issue: issueRouter,
