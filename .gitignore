@@ -62,3 +62,9 @@ worktrees/
 
 # Per-feature isolated worktrees (using-git-worktrees skill)
 .worktrees/
+
+# fluxaOS per-run worktrees (managed by R-RUNTIME)
+.fluxaos-worktrees/
+
+# fluxaOS per-run artifacts (managed by R-ARTIFACTS)
+.fluxaos-artifacts/
