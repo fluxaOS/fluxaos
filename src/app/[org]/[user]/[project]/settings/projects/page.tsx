@@ -27,6 +27,12 @@ export default function ProjectsSettingsPage() {
   // so the first project's identifiers are the canonical handle for now.
   const seedOrgId = projects[0]?.orgId ?? null;
   const seedUserId = projects[0]?.userId ?? null;
+  const seedProjectId = projects[0]?.id ?? null;
+  const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
+    { orgId: seedOrgId!, projectId: seedProjectId! },
+    { enabled: !!seedOrgId && !!seedProjectId }
+  );
+  const brands = brandsQuery.data ?? [];
 
   const records: ProjectRecord[] = projects.map((p) => {
     const pipe = p.defaultPipelineId
@@ -108,6 +114,43 @@ export default function ProjectsSettingsPage() {
           await utils.project.list.invalidate();
         }}
       />
+
+      {brands.length > 0 && (
+        <section className="card-static p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-white">
+            Project default brands
+          </h2>
+          <div className="space-y-3">
+            {projects.map((project) => (
+              <label
+                key={project.id}
+                className="grid gap-2 md:grid-cols-[180px_minmax(0,1fr)] md:items-center"
+              >
+                <span className="text-xs text-slate-400">{project.name}</span>
+                <select
+                  value={project.brandId ?? ''}
+                  onChange={async (e) => {
+                    await updateMutation.mutateAsync({
+                      id: project.id,
+                      brandId: e.target.value || null,
+                    });
+                    await utils.project.list.invalidate();
+                  }}
+                  aria-label={`Default brand for ${project.name}`}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground"
+                >
+                  <option value="">No brand</option>
+                  {brands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

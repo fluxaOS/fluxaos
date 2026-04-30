@@ -41,6 +41,38 @@ test.describe('@flx-8 @journey @brand-service', () => {
     await expect(reloadedRow).toBeVisible({ timeout: 10_000 });
     await expect(reloadedRow.getByText(updatedTone)).toBeVisible();
 
+    await page.goto(projectPath('/settings/personas'));
+    await expect(page.getByRole('heading', { name: 'Personas' })).toBeVisible({
+      timeout: 15_000,
+    });
+    const personaName = `FLX-8 Persona ${ts}`;
+    await page.getByRole('button', { name: 'New Persona' }).click();
+    await page.getByLabel('Persona name').fill(personaName);
+    await page.getByLabel('Persona soul').fill('Uses brand context.');
+    await page.getByRole('button', { name: /^Create/ }).click();
+    const personaRow = page.locator('li', { hasText: personaName });
+    await expect(personaRow).toBeVisible({ timeout: 10_000 });
+    await personaRow.getByRole('button', { name: 'Edit' }).click();
+    await page.getByLabel('Persona brand').selectOption({ label: brandName });
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(
+      page.locator('li', { hasText: brandName }).first()
+    ).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.goto(projectPath('/settings/projects'));
+    await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page
+      .getByLabel(/Default brand for fluxaOS/i)
+      .selectOption({ label: brandName });
+    await page.reload();
+    await expect(page.getByLabel(/Default brand for fluxaOS/i)).toHaveValue(
+      /.+/
+    );
+
     expect(errors).toEqual([]);
   });
 });

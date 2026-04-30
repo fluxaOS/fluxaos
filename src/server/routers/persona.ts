@@ -33,7 +33,7 @@ export const personaRouter = router({
         name: z.string().min(1),
         soul: z.string().optional(),
         identity: z.unknown().optional(),
-        brandId: z.string().uuid().optional(),
+        brandId: z.string().uuid().nullable().optional(),
         routingProfileId: z.string().uuid().optional(),
         parentPersonaId: z.string().uuid().optional(),
       })

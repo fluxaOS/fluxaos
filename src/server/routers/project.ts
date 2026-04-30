@@ -49,6 +49,7 @@ export const projectRouter = router({
         repoUrl: z.string().optional(),
         defaultBranch: z.string().min(1).optional(),
         defaultPipelineId: z.string().uuid().nullable().optional(),
+        brandId: z.string().uuid().nullable().optional(),
       })
     )
     .mutation(({ ctx, input }) => {

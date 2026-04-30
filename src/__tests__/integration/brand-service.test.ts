@@ -155,6 +155,12 @@ describe('brand router', () => {
     });
     expect(visible.map((row) => row.id)).toContain(created.id);
 
+    const updatedProject = await caller.project.update({
+      id: proj.id,
+      brandId: created.id,
+    });
+    expect(updatedProject?.brandId).toBe(created.id);
+
     const deleted = await caller.brand.delete({ id: created.id });
     expect(deleted).toBe(true);
     removeCleanup('brand', created.id);
