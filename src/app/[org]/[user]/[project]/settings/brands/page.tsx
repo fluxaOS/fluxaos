@@ -1,5 +1,6 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -65,17 +66,18 @@ function valuesFromBrand(brand: Brand): BrandFormValues {
 }
 
 export default function BrandSettingsPage() {
+  const params = useParams<{ project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id ?? null;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
-  );
-  const projectId = projectsQuery.data?.[0]?.id ?? null;
+  const projectSlug = params.project ?? 'fluxaos';
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: projectSlug,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  const projectId = currentProject?.id ?? null;
+  const orgId = currentProject?.orgId ?? null;
   const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
     { orgId: orgId!, projectId: projectId! },
     { enabled: !!orgId && !!projectId }
