@@ -1,6 +1,7 @@
 // src/app/[org]/[user]/[project]/settings/projects/page.tsx
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
@@ -8,6 +9,7 @@ import { trpc } from '@/lib/trpc/client';
 import { type ProjectRecord, projectDescriptor } from './descriptor';
 
 export default function ProjectsSettingsPage() {
+  const params = useParams<{ project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -19,14 +21,24 @@ export default function ProjectsSettingsPage() {
   const deleteMutation = trpc.project.delete.useMutation();
 
   const projects = projectsQuery.data ?? [];
+  const currentProject =
+    projects.find((project) => project.slug === params.project) ??
+    projects.find((project) => project.slug === 'fluxaos') ??
+    null;
   const pipelines = pipelinesQuery.data ?? [];
   const envValue = envQuery.data?.FLUXAOS_TARGET_REPO_PATH ?? null;
 
   // FLX-60: Create form needs an orgId + userId. The seeded project provides
   // both. Multi-org/user is out of scope for alpha (matrix § Out of Scope),
   // so the first project's identifiers are the canonical handle for now.
-  const seedOrgId = projects[0]?.orgId ?? null;
-  const seedUserId = projects[0]?.userId ?? null;
+  const seedOrgId = currentProject?.orgId ?? projects[0]?.orgId ?? null;
+  const seedUserId = currentProject?.userId ?? projects[0]?.userId ?? null;
+  const seedProjectId = currentProject?.id ?? projects[0]?.id ?? null;
+  const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
+    { orgId: seedOrgId!, projectId: seedProjectId! },
+    { enabled: !!seedOrgId && !!seedProjectId }
+  );
+  const brands = brandsQuery.data ?? [];
 
   const records: ProjectRecord[] = projects.map((p) => {
     const pipe = p.defaultPipelineId
@@ -108,6 +120,43 @@ export default function ProjectsSettingsPage() {
           await utils.project.list.invalidate();
         }}
       />
+
+      {brands.length > 0 && (
+        <section className="card-static p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-white">
+            Project default brands
+          </h2>
+          <div className="space-y-3">
+            {projects.map((project) => (
+              <label
+                key={project.id}
+                className="grid gap-2 md:grid-cols-[180px_minmax(0,1fr)] md:items-center"
+              >
+                <span className="text-xs text-slate-400">{project.name}</span>
+                <select
+                  value={project.brandId ?? ''}
+                  onChange={async (e) => {
+                    await updateMutation.mutateAsync({
+                      id: project.id,
+                      brandId: e.target.value || null,
+                    });
+                    await utils.project.list.invalidate();
+                  }}
+                  aria-label={`Default brand for ${project.name}`}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground"
+                >
+                  <option value="">No brand</option>
+                  {brands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

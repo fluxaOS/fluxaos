@@ -31,6 +31,15 @@ export function createProjectService(db: Database) {
       return row ?? null;
     },
 
+    async getFirstBySlug(slug: string): Promise<ProjectSelect | null> {
+      const [row] = await db
+        .select()
+        .from(project)
+        .where(eq(project.slug, slug))
+        .limit(1);
+      return row ?? null;
+    },
+
     async getByUserSlug(
       userId: string,
       slug: string

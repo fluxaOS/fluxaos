@@ -19,6 +19,7 @@ const TABS: readonly TabSpec[] = [
   { slug: 'providers', label: 'Providers' },
   { slug: 'routing', label: 'Routing' },
   { slug: 'personas', label: 'Personas' },
+  { slug: 'brands', label: 'Brands' },
   { slug: 'teams', label: 'Teams' },
   { slug: 'users', label: 'Users' },
   { slug: 'system', label: 'System' },

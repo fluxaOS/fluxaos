@@ -26,6 +26,12 @@ export const projectRouter = router({
       return createProjectService(ctx.db).getById(input.id);
     }),
 
+  getBySlug: publicProcedure
+    .input(z.object({ slug: z.string().min(1) }))
+    .query(({ ctx, input }) => {
+      return createProjectService(ctx.db).getFirstBySlug(input.slug);
+    }),
+
   create: publicProcedure
     .input(
       z.object({
@@ -49,6 +55,7 @@ export const projectRouter = router({
         repoUrl: z.string().optional(),
         defaultBranch: z.string().min(1).optional(),
         defaultPipelineId: z.string().uuid().nullable().optional(),
+        brandId: z.string().uuid().nullable().optional(),
       })
     )
     .mutation(({ ctx, input }) => {

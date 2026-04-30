@@ -1,5 +1,6 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -10,13 +11,33 @@ type Persona = {
   name: string;
   scope: string;
   soul: string | null;
+  brandId: string | null;
+};
+
+type BrandOption = {
+  id: string;
+  name: string;
 };
 
 export default function PersonaSettingsPage() {
+  const params = useParams<{ project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const projectSlug = params.project ?? 'fluxaos';
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: projectSlug,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  const projectId = currentProject?.id;
+  const orgId = currentProject?.orgId;
+  const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
+    { orgId: orgId!, projectId: projectId! },
+    { enabled: !!orgId && !!projectId }
+  );
+  const brands = (brandsQuery.data ?? []) as BrandOption[];
 
   const personasQuery = trpc.persona.list.useQuery();
   const personas = (personasQuery.data ?? []) as Persona[];
@@ -38,6 +59,8 @@ export default function PersonaSettingsPage() {
 
       {showCreate && (
         <CreatePersonaForm
+          brands={brands}
+          projectId={projectId ?? null}
           onCreated={async () => {
             setShowCreate(false);
             await utils.persona.list.invalidate();
@@ -54,6 +77,7 @@ export default function PersonaSettingsPage() {
               {editingId === p.id ? (
                 <EditPersonaForm
                   persona={p}
+                  brands={brands}
                   onSaved={async () => {
                     setEditingId(null);
                     await utils.persona.list.invalidate();
@@ -68,6 +92,12 @@ export default function PersonaSettingsPage() {
                       <span className="ml-2 text-xs text-slate-400">
                         {p.scope}
                       </span>
+                      {p.brandId && (
+                        <span className="ml-2 text-xs text-soft-violet">
+                          {brands.find((b) => b.id === p.brandId)?.name ??
+                            'branded'}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <button
@@ -114,15 +144,18 @@ export default function PersonaSettingsPage() {
 
 function EditPersonaForm({
   persona,
+  brands,
   onSaved,
   onCancel,
 }: {
   persona: Persona;
+  brands: BrandOption[];
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(persona.name);
   const [soul, setSoul] = useState(persona.soul ?? '');
+  const [brandId, setBrandId] = useState(persona.brandId ?? '');
 
   const updateMutation = trpc.persona.update.useMutation({
     onSuccess: () => onSaved(),
@@ -137,6 +170,7 @@ function EditPersonaForm({
           id: persona.id,
           name: name.trim(),
           soul: soul.trim() || undefined,
+          brandId: brandId || null,
         });
       }}
       className="space-y-3"
@@ -160,6 +194,22 @@ function EditPersonaForm({
           aria-label="Persona soul"
           className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground mt-1 resize-none"
         />
+      </label>
+      <label className="block">
+        <span className="text-xs text-slate-400">Brand</span>
+        <select
+          value={brandId}
+          onChange={(e) => setBrandId(e.target.value)}
+          aria-label="Persona brand"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        >
+          <option value="">No brand</option>
+          {brands.map((brand) => (
+            <option key={brand.id} value={brand.id}>
+              {brand.name}
+            </option>
+          ))}
+        </select>
       </label>
       <div className="flex gap-2">
         <button
@@ -208,18 +258,19 @@ function DeletePersonaButton({
   );
 }
 
-function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
+function CreatePersonaForm({
+  brands,
+  projectId,
+  onCreated,
+}: {
+  brands: BrandOption[];
+  projectId: string | null;
+  onCreated: () => void;
+}) {
   const [name, setName] = useState('');
   const [soul, setSoul] = useState('');
   const [scope, setScope] = useState<'global' | 'project'>('project');
-
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
-  );
-  const projectId = projectsQuery.data?.[0]?.id;
+  const [brandId, setBrandId] = useState('');
 
   const createMutation = trpc.persona.create.useMutation({
     onSuccess: () => onCreated(),
@@ -234,7 +285,8 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
           name: name.trim(),
           soul: soul.trim() || undefined,
           scope,
-          projectId: scope === 'project' ? projectId : undefined,
+          projectId: scope === 'project' && projectId ? projectId : undefined,
+          brandId: brandId || undefined,
         });
       }}
       className="card-static p-4 space-y-3"
@@ -274,9 +326,29 @@ function CreatePersonaForm({ onCreated }: { onCreated: () => void }) {
           className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-foreground mt-1 resize-none"
         />
       </label>
+      <label className="block">
+        <span className="text-xs text-slate-400">Brand</span>
+        <select
+          value={brandId}
+          onChange={(e) => setBrandId(e.target.value)}
+          aria-label="Persona brand"
+          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
+        >
+          <option value="">No brand</option>
+          {brands.map((brand) => (
+            <option key={brand.id} value={brand.id}>
+              {brand.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <button
         type="submit"
-        disabled={!name.trim() || createMutation.isPending}
+        disabled={
+          !name.trim() ||
+          (scope === 'project' && !projectId) ||
+          createMutation.isPending
+        }
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
       >
         {createMutation.isPending ? 'Creating…' : 'Create'}
