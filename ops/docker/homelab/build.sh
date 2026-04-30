@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STACK_DIR=${STACK_DIR:-/mnt/stacks/docker/fluxaos}
-SOURCE_DIR=${SOURCE_DIR:-${STACK_DIR}/source}
-DEPLOYED_SHA_FILE=${DEPLOYED_SHA_FILE:-${STACK_DIR}/deployed-sha}
-ROLLBACK_DIR=${ROLLBACK_DIR:-${STACK_DIR}/rollback}
-TARGET_REF=${1:-origin/main}
-IMAGE_CHANNEL=${IMAGE_CHANNEL:-internal-dev}
-ENV_FILE=${ENV_FILE:-${STACK_DIR}/fluxaos.env}
+STACK_DIR="${STACK_DIR:-/mnt/stacks/docker/fluxaos}"
+SOURCE_DIR="${SOURCE_DIR:-${STACK_DIR}/source}"
+DEPLOYED_SHA_FILE="${DEPLOYED_SHA_FILE:-${STACK_DIR}/deployed-sha}"
+ROLLBACK_DIR="${ROLLBACK_DIR:-${STACK_DIR}/rollback}"
+TARGET_REF="${1:-origin/main}"
+IMAGE_CHANNEL="${IMAGE_CHANNEL:-internal-dev}"
+ENV_FILE="${ENV_FILE:-${STACK_DIR}/fluxaos.env}"
 
 fail() {
   echo "error: $*" >&2
@@ -24,12 +24,12 @@ require_stack_paths() {
   canonical_env=$(realpath -m "${ENV_FILE}")
 
   [[ "${canonical_stack}" != /mnt/dev/* ]] || fail "STACK_DIR must not be under /mnt/dev"
-  [[ "${canonical_source}" != /mnt/dev/* ]] || fail "SOURCE_DIR must not be under /mnt/dev"
+  [[ "${canonical_source}" != /mnt/dev/* ]] || fail "SOURCE_DIR must not resolve into a development checkout"
   [[ "${canonical_env}" != /mnt/dev/* ]] || fail "ENV_FILE must not be under /mnt/dev"
 
   [[ "${canonical_stack}" == /mnt/stacks/docker/fluxaos ]] || fail "STACK_DIR must be /mnt/stacks/docker/fluxaos"
   [[ "${canonical_source}" == /mnt/stacks/docker/fluxaos/source ]] || fail "SOURCE_DIR must be /mnt/stacks/docker/fluxaos/source"
-  [[ "${canonical_env}" == /mnt/stacks/docker/fluxaos/fluxaos.env ]] || fail "ENV_FILE must be /mnt/stacks/docker/fluxaos/fluxaos.env"
+  [[ "${canonical_env}" == /mnt/stacks/docker/fluxaos/fluxaos.env ]] || fail "ENV_FILE must resolve to /mnt/stacks/docker/fluxaos/fluxaos.env"
 
   STACK_DIR=${canonical_stack}
   SOURCE_DIR=${canonical_source}
@@ -57,7 +57,7 @@ require_runtime_preflight() {
 
   docker container inspect central_redis >/dev/null 2>&1 || fail "central_redis container does not exist"
   docker inspect -f '{{if index .NetworkSettings.Networks "homelab"}}attached{{end}}' central_redis | grep -qx attached \
-    || fail "central_redis is not attached to homelab"
+    || fail "central_redis is not attached to the homelab network"
   [[ "$(docker exec central_redis redis-cli ping)" == PONG ]] || fail "central_redis redis-cli ping did not return PONG"
 
   redis_url=$(env_value REDIS_URL)
@@ -70,8 +70,8 @@ require_runtime_preflight() {
 
   host_target="${STACK_DIR}/repos/${target_path#/repos/}"
   canonical_target=$(realpath -m "${host_target}")
-  [[ "${canonical_target}" == "${STACK_DIR}/repos/"* ]] || fail "host target repo must stay under ${STACK_DIR}/repos"
-  [[ -d "${canonical_target}/.git" ]] || fail "host target repo must be a git checkout: ${canonical_target}"
+  [[ "${canonical_target}" == "${STACK_DIR}/repos/"* ]] || fail "target repo escaped stack repos dir"
+  git -C "${host_target}" rev-parse --is-inside-work-tree >/dev/null || fail "target repo host path is not a git repo: ${host_target}"
 
   workspace_root=$(env_value FLUXAOS_WORKSPACE_ROOT)
   [[ "${workspace_root}" == /runtime/worktrees ]] || fail "FLUXAOS_WORKSPACE_ROOT must be /runtime/worktrees"
@@ -79,9 +79,9 @@ require_runtime_preflight() {
   artifacts_root=$(env_value FLUXAOS_ARTIFACTS_ROOT)
   [[ "${artifacts_root}" == /runtime/artifacts ]] || fail "FLUXAOS_ARTIFACTS_ROOT must be /runtime/artifacts"
 
-  [[ -d "${STACK_DIR}/repos" && -w "${STACK_DIR}/repos" ]] || fail "${STACK_DIR}/repos must exist and be writable"
-  [[ -d "${STACK_DIR}/worktrees" && -w "${STACK_DIR}/worktrees" ]] || fail "${STACK_DIR}/worktrees must exist and be writable"
-  [[ -d "${STACK_DIR}/artifacts" && -w "${STACK_DIR}/artifacts" ]] || fail "${STACK_DIR}/artifacts must exist and be writable"
+  [[ -d "${STACK_DIR}/repos" && -w "${STACK_DIR}/repos" ]] || fail "runtime directory is not writable: ${STACK_DIR}/repos"
+  [[ -d "${STACK_DIR}/worktrees" && -w "${STACK_DIR}/worktrees" ]] || fail "runtime directory is not writable: ${STACK_DIR}/worktrees"
+  [[ -d "${STACK_DIR}/artifacts" && -w "${STACK_DIR}/artifacts" ]] || fail "runtime directory is not writable: ${STACK_DIR}/artifacts"
 
   daemon_grace=$(env_value FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS)
   [[ "${daemon_grace}" == 120 ]] || fail "FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS must be 120"
@@ -97,7 +97,7 @@ write_rollback_marker() {
     stamp=$(date -u +%Y%m%dT%H%M%SZ)
     marker="${ROLLBACK_DIR}/pre-update-${stamp}.sha"
     cp "${DEPLOYED_SHA_FILE}" "${marker}"
-    echo "Rollback marker written: ${marker}"
+    echo "Rollback marker: ${marker}"
     echo "Rollback image command: docker tag fluxaos:$(cat "${DEPLOYED_SHA_FILE}") fluxaos:${IMAGE_CHANNEL} && docker compose up -d --force-recreate fluxaos-web fluxaos-daemon"
   else
     echo "No deployed SHA found; first deployment has no rollback marker."
