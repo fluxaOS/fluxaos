@@ -59,10 +59,10 @@ Compose runs two fluxaOS services from the same image:
 Both services join the external `homelab` Docker network. They use:
 
 ```env
-REDIS_URL=redis://central_redis:6379
+REDIS_URL=redis://:password@central_redis:6379
 ```
 
-The stack does not declare `depends_on` for `central_redis`; the central database stack is operator-owned shared infrastructure. The future portable install profile may bundle Redis, but the homelab production profile should not.
+The password is the same one in `/mnt/dev/fluxaos/.env` — copy `REDIS_URL` from that file and replace `localhost` with `central_redis`. The stack does not declare `depends_on` for `central_redis`; the central database stack is operator-owned shared infrastructure. The future portable install profile may bundle Redis, but the homelab production profile should not.
 
 ## Container User
 
@@ -87,6 +87,14 @@ Compose should mount runtime directories into stable container paths:
 /mnt/stacks/docker/fluxaos/worktrees:/runtime/worktrees
 /mnt/stacks/docker/fluxaos/artifacts:/runtime/artifacts
 ```
+
+The daemon container also mounts the host SSH credentials read-only so it can push to GitHub without storing credentials in the image or env:
+
+```text
+/home/jpierce/.ssh:/root/.ssh:ro
+```
+
+This uses the same SSH key that works for the development checkout. The web container does not need this mount.
 
 The production env then points at container paths:
 
@@ -118,7 +126,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ANTHROPIC_API_KEY=...
 FLUXAOS_GITHUB_TOKEN=...
-REDIS_URL=redis://central_redis:6379
+REDIS_URL=redis://:password@central_redis:6379
 FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos
 FLUXAOS_WORKSPACE_ROOT=/runtime/worktrees
 FLUXAOS_ARTIFACTS_ROOT=/runtime/artifacts
@@ -220,6 +228,32 @@ Backups for this slice:
 
 `worktrees` are runtime working state. They are useful for debugging and interrupted-run recovery, but cleanup policy may remove them. They are not the canonical source of completed changes; completed deploy work is committed and pushed to the target repo.
 
+## Git Auth
+
+The daemon creates git worktrees and pushes deploy branches to GitHub. The homelab production auth mechanism is SSH via the host operator key — the same key used for the development checkout.
+
+The `fluxaos-daemon` Compose service mounts `/home/jpierce/.ssh:/root/.ssh:ro`. Both the source and target repo clones under `/mnt/stacks/docker/fluxaos/` must use `git@github.com:...` SSH remotes (not HTTPS). The bootstrap runbook instructs the operator to clone via SSH and to correct any existing clone that has an HTTPS remote.
+
+The `build.sh` dry-run push preflight (`git push --dry-run origin HEAD:refs/heads/fluxaos-preflight-check`) verifies write access before any build or migration runs. It executes on the host, so host SSH auth applies. The daemon's pushes inside the container use the mounted SSH credentials.
+
+For GTM, the portable install profile will replace this with a deploy key or GitHub App credential. The homelab SSH mount is explicitly a single-operator shortcut that does not belong in the future public installer.
+
+## Playwright Coverage for Root Redirect
+
+`src/app/page.tsx` exports `dynamic = 'force-dynamic'` so the DB-backed root redirect runs at request time rather than being statically rendered during the Docker build. This is required for the production image to work correctly.
+
+A dedicated `e2e/root-redirect.spec.ts` covers this change: navigate to `/`, assert the URL resolves to `/{org}/{user}/{project}`. No daemon or Anthropic credentials required — only a running dev server and seeded database. This spec satisfies the pre-push Gate 3 requirement for any future `page.tsx` changes.
+
+## Completion Bar
+
+The instance is complete when:
+
+1. `build.sh` exits 0 — image built from current branch SHA, migrations applied, both containers running.
+2. `http://192.168.54.101:3003` loads the fluxaOS UI in a browser and functions normally.
+3. The daemon container processes pipeline runs.
+
+The dev server (`npm run dev`) is not used for this instance. The production image is the artifact.
+
 ## Rejected Alternatives
 
 ### Host daemon + Docker web
@@ -236,12 +270,12 @@ Host-native npm installs are more sensitive to Node version, npm version, global
 
 ## First Implementation Slice
 
-The first implementation should create the homelab production rehearsal path:
+The first implementation creates the homelab production instance — a running `http://192.168.54.101:3003` deployment that matches what would ship today, updated going forward via `build.sh`:
 
-- Add a production compose file or stack template for `fluxaos-web` and `fluxaos-daemon`.
-- Add `build.sh` for the source-build update flow.
-- Add docs that distinguish dev compose from production compose.
-- Ensure the production image can run both the web server and daemon without depending on bind-mounted source, local `node_modules`, or `tsx`.
-- Add focused verification for image build, config loading, migration command shape, `/api/health`, and daemon startup/shutdown behavior.
+- Production compose with `fluxaos-web` and `fluxaos-daemon` services, SSH mount on the daemon, no dev-server dependency.
+- `build.sh` for the source-build update flow with Redis auth preflight and dry-run push preflight.
+- Bootstrap runbook using SSH clones and `REDIS_URL` sourced from the dev `.env`.
+- `e2e/root-redirect.spec.ts` covering the `force-dynamic` root redirect so Gate 3 passes without bypass.
+- Verified by running `build.sh` to completion and confirming the UI loads at port 3003.
 
 The public install script and GHCR publishing are follow-up work, but this design intentionally leaves compatible seams for both.
