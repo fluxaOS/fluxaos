@@ -23,6 +23,7 @@ No implementation PR was merged in this session. Durable planning artifacts were
 
 - `113e885` — `docs(spec): FLX-100 production Docker design`
 - `52c62f0` — `docs(plan): FLX-100 production Docker implementation`
+- Draft PR #194 — [docs(plan): FLX-100 production Docker setup](https://github.com/fluxaOS/fluxaos/pull/194)
 
 The plan selects a Docker-first production/GTM path: web + daemon in Compose, Supabase Cloud only, external `central_redis` on the `homelab` network, stack-owned source/target repos under `/mnt/stacks/docker/fluxaos/`, root containers as an explicit fluxaOS exception, and a source-build `build.sh` update flow that can later switch to GHCR-published image channels.
 
@@ -70,11 +71,11 @@ Those were incorporated into the plan before commit. The final unresolved implem
 
 ## Current State
 
-- **HEAD before handoff commit:** `flx-100-production-docker-design` at `52c62f0`.
+- **HEAD before session-end cleanup:** `flx-100-production-docker-design` at `3ed1293`.
 - **Base main:** `origin/main` at `27ce157` after PR #193 merged.
 - **Working tree before this handoff:** clean.
 - **Stashes:** none observed at session-start.
-- **Open PRs before session-end publish:** none.
+- **Open PRs before cleanup:** #194 for FLX-100 planning.
 - **Daemon/dev server:** inherited from prior handoff as likely still running; not changed by this planning session.
 
 ---
