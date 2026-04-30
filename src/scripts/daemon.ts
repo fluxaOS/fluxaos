@@ -56,6 +56,8 @@ const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
 const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
 
 export function loadDaemonEnvFiles(cwd = process.cwd()): void {
+  if (process.env.NODE_ENV === 'production') return;
+
   loadDotenv({ path: join(cwd, '.env'), override: false, quiet: true });
   loadDotenv({ path: join(cwd, '.env.local'), override: false, quiet: true });
 }
