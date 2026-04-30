@@ -20,7 +20,7 @@ ENV NODE_ENV=production
 
 RUN apk add --no-cache bash curl git openssh-client
 RUN npm install -g @anthropic-ai/claude-code@2.1.123
-RUN git config --system --add safe.directory "/repos/*/*"
+RUN git config --system --add safe.directory "/repos/*"
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next/standalone ./
