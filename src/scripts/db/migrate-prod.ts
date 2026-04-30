@@ -4,12 +4,18 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 
-loadDotenv({ path: join(process.cwd(), '.env'), override: false, quiet: true });
-loadDotenv({
-  path: join(process.cwd(), '.env.local'),
-  override: false,
-  quiet: true,
-});
+if (process.env.NODE_ENV !== 'production') {
+  loadDotenv({
+    path: join(process.cwd(), '.env'),
+    override: false,
+    quiet: true,
+  });
+  loadDotenv({
+    path: join(process.cwd(), '.env.local'),
+    override: false,
+    quiet: true,
+  });
+}
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
