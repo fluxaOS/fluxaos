@@ -283,7 +283,7 @@ function CreatePersonaForm({
           name: name.trim(),
           soul: soul.trim() || undefined,
           scope,
-          projectId: scope === 'project' ? projectId : undefined,
+          projectId: scope === 'project' && projectId ? projectId : undefined,
           brandId: brandId || undefined,
         });
       }}
@@ -342,7 +342,11 @@ function CreatePersonaForm({
       </label>
       <button
         type="submit"
-        disabled={!name.trim() || createMutation.isPending}
+        disabled={
+          !name.trim() ||
+          (scope === 'project' && !projectId) ||
+          createMutation.isPending
+        }
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
       >
         {createMutation.isPending ? 'Creating…' : 'Create'}
