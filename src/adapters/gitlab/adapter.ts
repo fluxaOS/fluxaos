@@ -6,11 +6,7 @@
  * adapter (see src/adapters/github/adapter.ts).
  */
 
-import type {
-  CreatePRParams,
-  GitProvider,
-  PullRequest,
-} from '@/core/ports/git';
+import type { CreatePRParams, GitProvider } from '@/core/ports/git';
 
 export class GitLabNotImplementedError extends Error {
   constructor(methodName: string) {
