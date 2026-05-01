@@ -64,6 +64,8 @@ require_runtime_preflight() {
   local daemon_grace
   local git_user_email
   local git_user_name
+  local supabase_public_url
+  local supabase_public_key
 
   docker network inspect homelab >/dev/null || fail "docker network homelab does not exist"
 
@@ -103,6 +105,12 @@ require_runtime_preflight() {
 
   daemon_grace=$(env_value FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS)
   [[ "${daemon_grace}" == 120 ]] || fail "FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS must be 120"
+
+  supabase_public_url=$(env_value NEXT_PUBLIC_SUPABASE_URL)
+  [[ -n "${supabase_public_url}" ]] || fail "NEXT_PUBLIC_SUPABASE_URL is required for the browser bundle"
+
+  supabase_public_key=$(env_value NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
+  [[ -n "${supabase_public_key}" ]] || fail "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required for the browser bundle"
 }
 
 write_rollback_marker() {
@@ -150,7 +158,16 @@ TARGET_SHA=$(git rev-parse HEAD)
 DEPLOY_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "Deployment started at ${DEPLOY_STARTED_AT}"
 
-docker build --target runner -t "fluxaos:${TARGET_SHA}" -t "fluxaos:${IMAGE_CHANNEL}" "${SOURCE_DIR}"
+NEXT_PUBLIC_SUPABASE_URL=$(env_value NEXT_PUBLIC_SUPABASE_URL)
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(env_value NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
+
+docker build \
+  --target runner \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL}" \
+  --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" \
+  -t "fluxaos:${TARGET_SHA}" \
+  -t "fluxaos:${IMAGE_CHANNEL}" \
+  "${SOURCE_DIR}"
 
 cd "${STACK_DIR}"
 
