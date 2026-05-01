@@ -125,64 +125,81 @@ async function seed() {
   }
   console.log(`  pipeline: ${pipe.name} (${pipe.id})`);
 
-  // ── 5. Pipeline stages (no unique constraint — check first) ────────
-  const existingStages = await db
-    .select()
-    .from(pipelineStage)
-    .where(eq(pipelineStage.pipelineId, pipe.id));
+  // ── 5. Pipeline stages (no unique constraint — converge by name) ────────
+  // Real dogfooding uses the full workflow: research -> implement -> review,
+  // with review able to route to rework, then deploy after approval.
+  const implementGateRules = {
+    logic: 'AND',
+    rules: [
+      {
+        field: 'exit_code',
+        operator: 'equals',
+        value: 0,
+        severity: 'required',
+        onFail: 'rework',
+        label: 'Clean exit required',
+      },
+      {
+        field: 'cost_usd',
+        operator: 'less_than',
+        value: 10,
+        severity: 'required',
+        onFail: 'hold',
+        label: 'Cost cap',
+      },
+    ],
+  };
 
-  if (existingStages.length === 0) {
-    // Example gate rules for the 'implement' stage:
-    // - exit code must be 0 (rework if not)
-    // - cost must be under $10 (hold if not)
-    const implementGateRules = {
-      logic: 'AND',
-      rules: [
-        {
-          field: 'exit_code',
-          operator: 'equals',
-          value: 0,
-          severity: 'required',
-          onFail: 'rework',
-          label: 'Clean exit required',
-        },
-        {
-          field: 'cost_usd',
-          operator: 'less_than',
-          value: 10,
-          severity: 'required',
-          onFail: 'hold',
-          label: 'Cost cap',
-        },
-      ],
+  const stagesDef = [
+    { name: 'research', sortOrder: 1, gateMode: 'auto', gateRules: {} },
+    {
+      name: 'implement',
+      sortOrder: 2,
+      gateMode: 'rules',
+      gateRules: implementGateRules,
+    },
+    { name: 'review', sortOrder: 3, gateMode: 'auto', gateRules: {} },
+    {
+      name: 'rework',
+      sortOrder: 4,
+      gateMode: 'rules',
+      gateRules: implementGateRules,
+    },
+    { name: 'deploy', sortOrder: 5, gateMode: 'manual', gateRules: {} },
+  ];
+
+  for (const stage of stagesDef) {
+    const [existingStage] = await db
+      .select()
+      .from(pipelineStage)
+      .where(
+        and(
+          eq(pipelineStage.pipelineId, pipe.id),
+          eq(pipelineStage.name, stage.name)
+        )
+      );
+
+    const values = {
+      sortOrder: stage.sortOrder,
+      gateMode: stage.gateMode,
+      driver: 'claude-code',
+      timeoutSec: 300,
+      maxRetries: 1,
+      gateRules: stage.gateRules,
     };
 
-    const stagesDef = [
-      { name: 'research', sortOrder: 1, gateMode: 'auto', gateRules: {} },
-      {
-        name: 'implement',
-        sortOrder: 2,
-        gateMode: 'rules',
-        gateRules: implementGateRules,
-      },
-      { name: 'review', sortOrder: 3, gateMode: 'auto', gateRules: {} },
-    ];
-
-    for (const stage of stagesDef) {
+    if (existingStage) {
       await db
-        .insert(pipelineStage)
-        .values({
-          pipelineId: pipe.id,
-          name: stage.name,
-          sortOrder: stage.sortOrder,
-          gateMode: stage.gateMode,
-          driver: 'claude-code',
-          timeoutSec: 300,
-          maxRetries: 1,
-          gateRules: stage.gateRules,
-          // FKs set in 5d after driver + skill are seeded
-        })
-        .returning();
+        .update(pipelineStage)
+        .set(values)
+        .where(eq(pipelineStage.id, existingStage.id));
+    } else {
+      await db.insert(pipelineStage).values({
+        pipelineId: pipe.id,
+        name: stage.name,
+        ...values,
+        // FKs set in 5d after driver + skill are seeded.
+      });
     }
   }
   // Re-query stages so the FK update below always runs
@@ -268,90 +285,206 @@ async function seed() {
   console.log(`  driver: ${codexDriver.name} (${codexDriver.id})`);
 
   // ── 5c. Skills ─────────────────────────────────────────────────────────
-  // Lean pipeline prompts — designed for headless --print mode in isolated workspaces.
-  // The workspace contains only CLAUDE.md (persona + skill definition) and context.md
-  // (issue details). Do NOT load the full interactive SKILL.md files — those are for
-  // Claude Code slash-command use and will cause token waste and misbehavior in --print mode.
-  const PIPELINE_PROMPT = `You are running as a pipeline agent in headless mode. You have two files available:
-- CLAUDE.md — your instructions and skill definition for this task
-- context.md — the issue you are working on
+  // DB-backed fluxaOS runtime skills. These are adapted from the fh-commons
+  // research/implement/review/rework/deploy roles, but remove fhc/pat/Python
+  // assumptions and speak the flux:signal contract consumed by the engine.
+  const PIPELINE_PROMPT = `You are running as a fluxaOS pipeline agent in headless mode. You have two files available:
+- AGENTS.md or CLAUDE.md - project instructions and repo rules
+- context.md - the issue, stage, and runtime context
 
-Read both files. Assess the issue. Do the work described in CLAUDE.md for this issue.
+Read the available instruction file and context.md first. Work only on the issue in context. Prefer existing repo patterns, keep changes scoped, and preserve unrelated user work.
 
-When complete, emit your result as a flux:signal on a single stdout line:
-echo '{"flux:signal": {"verdict": "proceed", "summary": "brief description of what was done"}}'
+Artifacts directory: {{artifacts_path}}
+Use artifacts for durable handoff between stages. Write the stage artifact named in your role instructions before emitting a signal.
 
-If the issue is already complete or further ahead than its current state, emit:
+When complete, emit exactly one flux:signal on a single stdout line:
+echo '{"flux:signal": {"verdict": "proceed", "summary": "brief description of the completed stage"}}'
+
+If review finds blocking issues, emit:
+echo '{"flux:signal": {"verdict": "rework", "summary": "brief description of required changes"}}'
+
+If the issue is already complete or belongs in a later state, emit:
 echo '{"flux:signal": {"verdict": "hold", "reason": "already_complete", "summary": "explanation", "meta": {"targetState": "<state key>"}}}'
 
 Valid state keys: new, research, implement, review, rework, deploy, complete
 
-If you cannot proceed without human input, emit:
-echo '{"flux:signal": {"verdict": "hold", "reason": "needs_human", "summary": "explanation", "meta": {"question": "specific question for the human"}}}'
+If you cannot proceed without operator input, emit:
+echo '{"flux:signal": {"verdict": "hold", "reason": "needs_human", "summary": "explanation", "meta": {"question": "specific question for the operator"}}}'
 
-Do not ask questions. Do not use slash commands. Do not run CLI tools beyond what the task genuinely requires.`;
+If the stage attempted work but failed because checks are broken, emit:
+echo '{"flux:signal": {"verdict": "abort", "summary": "what failed and what was tried"}}'
 
-  // R-ARTIFACTS: per-skill suffixes that use the {{artifacts_path}} template
-  // variable. Later stages read what earlier stages wrote at known paths.
-  const ARTIFACTS_SUFFIX: Record<string, string> = {
+Do not ask questions interactively. Do not use slash commands. Do not invent missing requirements. Run only commands that are relevant to the current stage.`;
+
+  const ROLE_PROMPTS: Record<string, string> = {
     research: `
 
-Artifacts directory: {{artifacts_path}}
-Write your findings to {{artifacts_path}}/research-findings.md before emitting flux:signal. Later stages will read it.`,
+Role: Research
+Goal: turn the issue into an implementation-ready plan.
+
+Do:
+- Inspect the issue, relevant docs, and existing code.
+- Identify constraints, risks, acceptance criteria, affected files, and verification commands.
+- Prefer the simplest reversible path that fits fluxaOS architecture.
+- Write {{artifacts_path}}/research-findings.md with the plan, affected areas, risks, and verification approach.
+
+Do not:
+- Modify source code unless the issue is already complete and only documentation/artifacts are needed.
+- Open or merge PRs.
+- Deploy.
+
+Exit:
+- proceed when the issue is ready for implement.
+- hold/already_complete with targetState if the repo is already further ahead.
+- hold/needs_human only when a concrete operator decision is required.`,
     implement: `
 
-Artifacts directory: {{artifacts_path}}
-Before editing, read {{artifacts_path}}/research-findings.md if it exists — earlier stages may have captured constraints. Write an implementation plan to {{artifacts_path}}/plan.md before you edit the worktree.`,
+Role: Implement
+Goal: make the scoped code/docs/config changes and leave the branch ready for review.
+
+Before editing:
+- Read {{artifacts_path}}/research-findings.md if it exists.
+- Write {{artifacts_path}}/plan.md with the intended edits and checks.
+
+Do:
+- Edit the repo directly in the provided isolated worktree.
+- Follow TypeScript, Next.js, Drizzle, and fluxaOS project conventions.
+- Add or update focused integration/e2e verification when behavior changes.
+- Run the relevant checks for the files touched, normally npm run lint, npm run build, npm run verify, npx vitest, or targeted Playwright specs as appropriate.
+- Leave a concise implementation summary in {{artifacts_path}}/implementation-summary.md.
+
+Do not:
+- Merge PRs, deploy production, or close issues.
+- Rework unrelated code.
+- Hide failing checks.
+
+Exit:
+- proceed only when implementation and relevant checks are done or clearly documented.
+- hold/needs_human for missing requirements or blocked external dependencies.
+- abort when implementation was attempted but cannot be made passing.`,
     review: `
 
-Artifacts directory: {{artifacts_path}}
-Read {{artifacts_path}}/plan.md if it exists to see what was intended, then diff it against the actual worktree changes. Write your review to {{artifacts_path}}/review-findings.md before emitting flux:signal.`,
+Role: Review
+Goal: review implementation quality and route to deploy or rework.
+
+Do:
+- Read {{artifacts_path}}/plan.md and {{artifacts_path}}/implementation-summary.md if present.
+- Inspect the diff against the base branch and relevant runtime behavior.
+- Look for correctness bugs, regressions, missing tests, architecture violations, data loss, security risks, and deploy risks.
+- Run focused verification when practical.
+- Write {{artifacts_path}}/review-findings.md.
+
+Do not:
+- Implement fixes.
+- Merge PRs, deploy production, or close issues.
+- Approve work that has unverified high-risk behavior.
+
+Exit:
+- proceed when the work is ready for deploy.
+- rework when fixes are required; include concrete findings in the summary and artifact.
+- hold/needs_human only for decisions the reviewer cannot make from repo context.`,
     rework: `
 
-Artifacts directory: {{artifacts_path}}
-Read {{artifacts_path}}/review-findings.md if it exists and address the concerns it raises before editing.`,
+Role: Rework
+Goal: address review findings and resubmit for review.
+
+Before editing:
+- Read {{artifacts_path}}/review-findings.md.
+- Identify each blocking finding and the intended fix.
+
+Do:
+- Apply only the changes needed to address review feedback.
+- Re-run the checks relevant to changed behavior.
+- Update {{artifacts_path}}/implementation-summary.md with what changed during rework.
+
+Do not:
+- Create a new unrelated implementation path.
+- Merge PRs, deploy production, or close issues.
+- Ignore unresolved review findings.
+
+Exit:
+- proceed when rework is complete and ready for review again.
+- hold/needs_human for ambiguous or conflicting review requirements.
+- abort when rework was attempted but cannot be made passing.`,
+    deploy: `
+
+Role: Deploy
+Goal: merge approved work, update the internal fluxaOS deployment, verify it, and close the issue.
+
+Preflight:
+- Confirm review approved the work and no unresolved blocking findings remain.
+- Confirm the PR or branch tied to the issue is the one being shipped.
+- Confirm the local checkout is clean except for expected deploy operations.
+
+Do:
+- Merge the approved PR using the repo's normal GitHub flow.
+- Pull the merged main branch locally.
+- Run /mnt/stacks/docker/fluxaos/build.sh after changes merge to main.
+- Verify the internal development build at flux.jdp21.com and/or the configured health endpoint.
+- Write {{artifacts_path}}/deploy-summary.md with PR, commit, deploy command result, verification result, and any cleanup.
+
+Do not:
+- Review or rewrite the approved implementation.
+- Deploy unapproved work.
+- Skip verification after build.sh.
+
+Exit:
+- proceed when merge, deploy, and verification are complete.
+- hold/needs_human when approval, credentials, or deploy access is missing.
+- abort when merge or deployment fails after attempted recovery.`,
   };
 
   const skillsDef = [
     {
       name: 'research',
-      description: 'Unified research and planning — assess, decide, execute',
+      description:
+        'Research and planning - produce an implementation-ready plan',
     },
     {
       name: 'implement',
-      description: 'Implementation orchestrator — build features from plans',
+      description: 'Implementation - build scoped changes from the plan',
     },
     {
       name: 'review',
-      description: 'Code review — review only, no implementation',
+      description:
+        'Review - inspect implementation and route to deploy or rework',
     },
     {
       name: 'rework',
-      description: 'Rework — address review feedback and resubmit',
+      description: 'Rework - address review feedback and resubmit',
+    },
+    {
+      name: 'deploy',
+      description:
+        'Deploy - merge approved work, run build.sh, verify, and close',
     },
   ];
 
   const skillMap = new Map<string, string>();
   for (const def of skillsDef) {
-    const promptTemplate = PIPELINE_PROMPT + (ARTIFACTS_SUFFIX[def.name] ?? '');
+    const promptTemplate = PIPELINE_PROMPT + ROLE_PROMPTS[def.name];
 
     let [row] = await db
-      .insert(skill)
-      .values({
-        name: def.name,
-        description: def.description,
-        promptTemplate,
-        scope: 'project',
-        projectId: proj.id,
-      })
-      .onConflictDoNothing()
-      .returning();
+      .select()
+      .from(skill)
+      .where(and(eq(skill.projectId, proj.id), eq(skill.name, def.name)));
 
-    if (!row) {
+    const values = {
+      name: def.name,
+      description: def.description,
+      promptTemplate,
+      scope: 'project',
+      projectId: proj.id,
+    };
+
+    if (row) {
       [row] = await db
-        .select()
-        .from(skill)
-        .where(and(eq(skill.projectId, proj.id), eq(skill.name, def.name)));
+        .update(skill)
+        .set(values)
+        .where(eq(skill.id, row.id))
+        .returning();
+    } else {
+      [row] = await db.insert(skill).values(values).returning();
     }
     skillMap.set(def.name, row.id);
     console.log(`  skill: ${row.name} (${row.id})`);
