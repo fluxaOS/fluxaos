@@ -80,11 +80,23 @@ async function main() {
 
   // --- Pipeline stages ---
   const stages = await db.select().from(pipelineStage);
-  assert(stages.length === 3, `3 pipeline stages (got ${stages.length})`);
+  assert(stages.length === 5, `5 pipeline stages (got ${stages.length})`);
+  const stageNames = stages
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((s) => s.name);
+  assert(
+    stageNames.join(',') === 'research,implement,review,rework,deploy',
+    `seeded stage order (got ${stageNames.join(',')})`
+  );
 
   // --- Skills ---
   const skills = await db.select().from(skill);
-  assert(skills.length === 4, `4 skills (got ${skills.length})`);
+  assert(skills.length === 5, `5 skills (got ${skills.length})`);
+  const skillNames = skills.map((s) => s.name).sort();
+  assert(
+    skillNames.join(',') === 'deploy,implement,research,review,rework',
+    `seeded skills (got ${skillNames.join(',')})`
+  );
 
   // --- Drivers ---
   // FLX-6: seed adds the OpenAI Codex CLI driver alongside Claude Code.

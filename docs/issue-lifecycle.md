@@ -139,7 +139,7 @@ stdout. The orchestrator reads this and acts accordingly.
 
 Pipeline stages and issue states are related but distinct:
 
-- **Pipeline stages** (`research`, `implement`, `review`, `deploy`) are steps in a
+- **Pipeline stages** (`research`, `implement`, `review`, `rework`, `deploy`) are steps in a
   `pipeline_stage` configuration — they define what skill runs and in what order.
 - **Issue states** (`new`, `research`, `implement`, ...) are the issue's position in
   the workflow — driven by transitions, not directly by stage execution.
