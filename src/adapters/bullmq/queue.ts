@@ -117,7 +117,9 @@ export class BullMQAdapter implements QueueProvider {
   async healthCheck(): Promise<boolean> {
     try {
       const conn = this.getConnection();
-      await conn.connect();
+      if (['wait', 'close', 'end'].includes(conn.status)) {
+        await conn.connect();
+      }
       const result = await conn.ping();
       return result === 'PONG';
     } catch {
