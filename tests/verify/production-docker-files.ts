@@ -79,6 +79,22 @@ const shellExpansion = (name: string): string => `$\{${name}}`;
 
 const dockerfile = read('Dockerfile');
 assertIncludes('Dockerfile', dockerfile, 'RUN npm run build:prod');
+assertIncludes('Dockerfile', dockerfile, 'ARG NEXT_PUBLIC_SUPABASE_URL');
+assertIncludes(
+  'Dockerfile',
+  dockerfile,
+  'ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
+);
+assertIncludes(
+  'Dockerfile',
+  dockerfile,
+  'ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}'
+);
+assertIncludes(
+  'Dockerfile',
+  dockerfile,
+  'ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}'
+);
 assertIncludes(
   'Dockerfile',
   dockerfile,
@@ -209,6 +225,12 @@ for (const expected of [
   )}"`,
   'DAEMON_LOGS=',
   'git status --short',
+  `--build-arg NEXT_PUBLIC_SUPABASE_URL="${shellExpansion(
+    'NEXT_PUBLIC_SUPABASE_URL'
+  )}"`,
+  `--build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="${shellExpansion(
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
+  )}"`,
   `-t "fluxaos:${shellExpansion('TARGET_SHA')}"`,
   `-t "fluxaos:${shellExpansion('IMAGE_CHANNEL')}"`,
   'docker compose run --rm fluxaos-web npm run db:migrate:prod',
