@@ -88,12 +88,13 @@ assertIncludes(
 assertIncludes(
   'Dockerfile',
   dockerfile,
-  'ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}'
+  'ENV NEXT_PUBLIC_SUPABASE_URL=$' + '{NEXT_PUBLIC_SUPABASE_URL}'
 );
 assertIncludes(
   'Dockerfile',
   dockerfile,
-  'ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}'
+  'ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$' +
+    '{NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}'
 );
 assertIncludes(
   'Dockerfile',

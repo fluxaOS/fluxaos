@@ -7,11 +7,7 @@
  * Gitea adapter once that's implemented).
  */
 
-import type {
-  CreatePRParams,
-  GitProvider,
-  PullRequest,
-} from '@/core/ports/git';
+import type { CreatePRParams, GitProvider } from '@/core/ports/git';
 
 export class ForgejoNotImplementedError extends Error {
   constructor(methodName: string) {
