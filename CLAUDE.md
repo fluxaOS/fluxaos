@@ -24,6 +24,8 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 | `npm run daemon` | Start the orchestrator daemon (foreground; systemd unit: `ops/systemd/fluxaos-daemon.service`) |
 | `npx vitest` | Integration tests (real Supabase) |
 | `tsx src/scripts/db/nuke.ts` | Drop all user data, keep schema |
+| `npm run pipeline:init-result-doc` | Initialize a result doc for a stage run (debug/test) |
+| `npm run pipeline:ingest-result-doc` | Ingest a result doc into the DB (debug/test) |
 
 ## Architecture
 
@@ -79,6 +81,7 @@ Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
 - `FLUXAOS_TEST_TARGET_REPO` (e2e only) — `owner/repo` the deploy-touching journeys (r-runtime-deploy, r-smoke, manual-stage-chain, r-artifacts-chain) open + auto-close PRs against. Set to `fluxaOS/fluxaos` when dogfooding, or any disposable repo you control. Specs skip cleanly when unset.
 - `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` — required when running the daemon. Positive integer, seconds to wait for in-flight stage runs to drain after SIGTERM. Daemon refuses to start without it (operator owns the drain window — no default).
 - `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` (optional) — positive integer. If set, daemon runs `orchestrator.recoverOnStartup()` on that cadence to reap stale stage runs whose PIDs are dead. If unset, only the startup sweep runs.
+- `FLUXAOS_BUNDLED_PIPELINES_DIR` (optional) — absolute or relative path to the bundled pipeline YAML files. Default: `src/core/pipeline/bundled`. Override when running outside the repo root.
 
 ## Issue Tracking
 

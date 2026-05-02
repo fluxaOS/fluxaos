@@ -26,6 +26,7 @@ import {
 } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
+  driver,
   issue,
   pipeline,
   type pipelineRun,
@@ -215,6 +216,142 @@ export function createEventOrchestrator(
       }
       return;
     }
+
+    // ── Playbook execution path ──────────────────────────────────────
+    // Branch on playbookPath on the pipeline row. Old pipelines (null) fall through.
+    {
+      const [pipelineRow] = await db
+        .select({ playbookPath: pipeline.playbookPath, projectId: pipeline.projectId })
+        .from(pipeline)
+        .where(eq(pipeline.id, run.pipelineId));
+
+      if (pipelineRow?.playbookPath) {
+        const { isParallelGroup } = await import('@/core/pipeline/playbook');
+        const { resolvePlaybook } = await import('@/core/pipeline/playbook-discovery');
+        const { auditResultDoc } = await import('@/core/pipeline/playbook-auditor');
+        const { executePaperwork } = await import('@/core/pipeline/paperwork-executor');
+        const { runStageGraph } = await import('@/core/pipeline/langgraph-stage-runner');
+        const { getCheckpointer } = await import('@/core/pipeline/checkpoint-store');
+        const { composePrompt } = await import('@/core/pipeline/prompt-composer');
+        const { readFileSync, existsSync } = await import('fs');
+        const { join } = await import('path');
+
+        const bundledDir = process.env.FLUXAOS_BUNDLED_PIPELINES_DIR ?? 'src/core/pipeline/bundled';
+        const discovered = await resolvePlaybook(pipelineRow.playbookPath, { bundledDir });
+
+        if (discovered) {
+          const playbookStage = discovered.playbook.stages.find(s => s.id === stage.name);
+
+          if (playbookStage && isParallelGroup(playbookStage)) {
+            throw new Error(
+              `NotImplementedError: parallel group execution is not yet supported (stage: ${stage.name})`
+            );
+          }
+
+          const [driverRow] = stage.driverId
+            ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
+            : [null];
+
+          const artifactsBase =
+            run.artifactsPath ??
+            `${process.env.FLUXAOS_ARTIFACTS_ROOT ?? '.fluxaos-artifacts'}/${run.id}`;
+          const resultDocPath = `${artifactsBase}/result.json`;
+
+          // Read skill prompt from bundled skills directory
+          const skillName = playbookStage?.type === 'sequential' ? playbookStage.skill : stage.name;
+          const skillFilePath = join(bundledDir, 'skills', `${skillName}.md`);
+          const skillPrompt = existsSync(skillFilePath)
+            ? readFileSync(skillFilePath, 'utf-8')
+            : '';
+
+          const composedPrompt = composePrompt(
+            discovered.playbook.prompt,
+            skillPrompt,
+            {
+              RESULT_DOC_PATH: resultDocPath,
+              ARTIFACTS_DIR: artifactsBase,
+            }
+          );
+
+          const transport = driverRow?.promptTransport ?? 'argv';
+          const driverBinary = driverRow?.binary ?? 'claude';
+          const driverArgs: string[] = [
+            ...((driverRow?.defaultArgs as string[] | null) ?? []),
+          ];
+
+          if (transport === 'argv') {
+            driverArgs.push(composedPrompt);
+          }
+          // stdin and file transports deferred — only argv is wired now
+
+          const checkpointer = await getCheckpointer();
+          const { ingestOutput } = await runStageGraph(
+            {
+              stageRunId: sRun.id,
+              resultDocPath,
+              artifactsDir: artifactsBase,
+              prompt: composedPrompt,
+              driverCommand: driverBinary,
+              driverArgs,
+              env: {
+                RESULT_DOC_PATH: resultDocPath,
+                ARTIFACTS_DIR: artifactsBase,
+              },
+            },
+            checkpointer
+          );
+
+          let ingestResult: { valid: boolean; doc?: Record<string, unknown> };
+          try {
+            ingestResult = JSON.parse(ingestOutput);
+          } catch {
+            ingestResult = { valid: false };
+          }
+
+          const { isValidResultDoc } = await import('@/core/pipeline/result-doc');
+          const resultDoc =
+            ingestResult.valid && ingestResult.doc && isValidResultDoc(ingestResult.doc)
+              ? ingestResult.doc
+              : null;
+
+          const audit = auditResultDoc(discovered.playbook, stage.name, resultDoc);
+          const isTerminal = !discovered.playbook.stages.some(s => s.id === audit.targetState);
+
+          if (run.issueId) {
+            await executePaperwork({
+              issueId: run.issueId,
+              projectId: pipelineRow.projectId,
+              db,
+              audit,
+            });
+          }
+
+          if (isTerminal) {
+            await completePipelineRun(run);
+          } else {
+            const nextStage = await db
+              .select()
+              .from(pipelineStage)
+              .where(
+                and(
+                  eq(pipelineStage.pipelineId, run.pipelineId),
+                  eq(pipelineStage.name, audit.targetState)
+                )
+              )
+              .then(rows => rows[0] ?? null);
+
+            if (nextStage) {
+              await launchStage(run, nextStage);
+            } else {
+              await finishRun(run, PIPELINE_RUN_STATUS.failed);
+            }
+          }
+
+          return; // skip legacy signal routing
+        }
+      }
+    }
+    // ── End playbook path — fall through to legacy executeStageRun ────────────
 
     // Execute the stage via shared stage-runner
     try {

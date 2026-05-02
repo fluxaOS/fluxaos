@@ -83,7 +83,7 @@ async function ingestNode(state: typeof StageState.State): Promise<Partial<typeo
   }
 }
 
-export function buildStageGraph(input: StageGraphInput) {
+export function buildStageGraph(_input: StageGraphInput) {
   const graph = new StateGraph(StageState)
     .addNode('prepare', prepareNode)
     .addNode('execute', executeNode)
@@ -98,7 +98,7 @@ export function buildStageGraph(input: StageGraphInput) {
 
 export async function runStageGraph(
   input: StageGraphInput,
-  checkpointer?: unknown
+  _checkpointer?: unknown
 ): Promise<{ ingestOutput: string; error?: string }> {
   const graph = buildStageGraph(input);
 
