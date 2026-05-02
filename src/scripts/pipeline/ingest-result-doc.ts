@@ -1,9 +1,9 @@
 import 'dotenv/config';
-import { readFileSync, writeFileSync } from 'fs';
 import { eq } from 'drizzle-orm';
-import { db, close } from '@/scripts/db/connection';
+import { readFileSync, writeFileSync } from 'fs';
 import { stageRun } from '@/core/db/schema';
-import { validateResultDoc, type ResultDoc } from '@/core/pipeline/result-doc';
+import { type ResultDoc, validateResultDoc } from '@/core/pipeline/result-doc';
+import { close, db } from '@/scripts/db/connection';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -11,7 +11,9 @@ async function main() {
   const resultDocIdx = args.indexOf('--result-doc');
 
   if (stageRunIdIdx === -1 || resultDocIdx === -1) {
-    console.error('Usage: ingest-result-doc.ts --stage-run-id <uuid> --result-doc <path>');
+    console.error(
+      'Usage: ingest-result-doc.ts --stage-run-id <uuid> --result-doc <path>'
+    );
     await close();
     process.exit(1);
   }
@@ -23,7 +25,9 @@ async function main() {
   try {
     raw = JSON.parse(readFileSync(resultDocPath, 'utf-8'));
   } catch {
-    console.error(`result doc not readable at ${resultDocPath} — treating as invalid`);
+    console.error(
+      `result doc not readable at ${resultDocPath} — treating as invalid`
+    );
     console.log(JSON.stringify({ valid: false, reason: 'unreadable' }));
     await close();
     process.exit(0);
@@ -52,7 +56,13 @@ async function main() {
       .update(stageRun)
       .set({ resultDoc: raw as Record<string, unknown>, updatedAt: new Date() })
       .where(eq(stageRun.id, stageRunId));
-    console.log(JSON.stringify({ valid: false, reason: 'schema_invalid', errors: validation.error.issues }));
+    console.log(
+      JSON.stringify({
+        valid: false,
+        reason: 'schema_invalid',
+        errors: validation.error.issues,
+      })
+    );
     await close();
     process.exit(0);
   }

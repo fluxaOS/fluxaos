@@ -1,6 +1,6 @@
+import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { issue } from '@/core/db/schema';
-import { eq } from 'drizzle-orm';
 import { createIssueService } from '@/core/services/issue';
 import { createIssueCommentService } from '@/core/services/issue-comment';
 import type { AuditResult } from './playbook-auditor';
@@ -33,7 +33,9 @@ export async function executePaperwork(input: PaperworkInput): Promise<void> {
     const lines = [
       `Stage flagged ${audit.blockers.length} blocker(s):`,
       '',
-      ...audit.blockers.map((b, i) => `**${i + 1}. ${b.title}**\n${b.description}`),
+      ...audit.blockers.map(
+        (b, i) => `**${i + 1}. ${b.title}**\n${b.description}`
+      ),
     ];
     await commentService.create(issueId, {
       bodyMd: lines.join('\n'),
@@ -51,10 +53,26 @@ export async function executePaperwork(input: PaperworkInput): Promise<void> {
     await issueService.close(issueId, issueRow.version, 'orchestrator');
   } else if (audit.targetState === 'blocked') {
     // 'blocked' is a status sentinel — update status without changing state
-    const blockedStatusId = await issueService.getStatusIdByConfigKey(projectId, 'issues.status.on_blocked_key');
-    await issueService.updateStatus(issueId, blockedStatusId, 'orchestrator', 'stage blocked');
+    const blockedStatusId = await issueService.getStatusIdByConfigKey(
+      projectId,
+      'issues.status.on_blocked_key'
+    );
+    await issueService.updateStatus(
+      issueId,
+      blockedStatusId,
+      'orchestrator',
+      'stage blocked'
+    );
   } else {
-    const targetState = await issueService.getStateByKey(projectId, audit.targetState);
-    await issueService.transition(issueId, targetState.id, issueRow.version, 'orchestrator');
+    const targetState = await issueService.getStateByKey(
+      projectId,
+      audit.targetState
+    );
+    await issueService.transition(
+      issueId,
+      targetState.id,
+      issueRow.version,
+      'orchestrator'
+    );
   }
 }

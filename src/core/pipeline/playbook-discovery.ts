@@ -1,6 +1,6 @@
-import { readdir, readFile, access } from 'fs/promises';
-import { join, extname } from 'path';
-import { parsePlaybook, type Playbook } from './playbook';
+import { access, readdir, readFile } from 'fs/promises';
+import { extname, join } from 'path';
+import { type Playbook, parsePlaybook } from './playbook';
 
 export type PlaybookScope = 'bundled' | 'org' | 'project';
 
@@ -17,7 +17,10 @@ export interface DiscoveryOptions {
   projectDir?: string;
 }
 
-async function loadFromDir(dir: string, scope: PlaybookScope): Promise<Map<string, DiscoveredPlaybook>> {
+async function loadFromDir(
+  dir: string,
+  scope: PlaybookScope
+): Promise<Map<string, DiscoveredPlaybook>> {
   const map = new Map<string, DiscoveredPlaybook>();
   try {
     await access(dir);
@@ -40,7 +43,12 @@ async function loadFromDir(dir: string, scope: PlaybookScope): Promise<Map<strin
       const content = await readFile(filePath, 'utf-8');
       const result = parsePlaybook(content, entry);
       if (result.success) {
-        map.set(entry, { filename: entry, scope, playbook: result.playbook, filePath });
+        map.set(entry, {
+          filename: entry,
+          scope,
+          playbook: result.playbook,
+          filePath,
+        });
       }
     } catch {
       // silently skip unreadable files
@@ -49,20 +57,25 @@ async function loadFromDir(dir: string, scope: PlaybookScope): Promise<Map<strin
   return map;
 }
 
-export async function discoverPlaybooks(opts: DiscoveryOptions): Promise<DiscoveredPlaybook[]> {
+export async function discoverPlaybooks(
+  opts: DiscoveryOptions
+): Promise<DiscoveredPlaybook[]> {
   const merged = new Map<string, DiscoveredPlaybook>();
 
   // 1. bundled (lowest precedence)
   if (opts.bundledDir) {
-    for (const [k, v] of await loadFromDir(opts.bundledDir, 'bundled')) merged.set(k, v);
+    for (const [k, v] of await loadFromDir(opts.bundledDir, 'bundled'))
+      merged.set(k, v);
   }
   // 2. org (overrides bundled)
   if (opts.orgDir) {
-    for (const [k, v] of await loadFromDir(opts.orgDir, 'org')) merged.set(k, v);
+    for (const [k, v] of await loadFromDir(opts.orgDir, 'org'))
+      merged.set(k, v);
   }
   // 3. project (overrides all)
   if (opts.projectDir) {
-    for (const [k, v] of await loadFromDir(opts.projectDir, 'project')) merged.set(k, v);
+    for (const [k, v] of await loadFromDir(opts.projectDir, 'project'))
+      merged.set(k, v);
   }
 
   return Array.from(merged.values());
@@ -73,5 +86,5 @@ export async function resolvePlaybook(
   opts: DiscoveryOptions
 ): Promise<DiscoveredPlaybook | null> {
   const all = await discoverPlaybooks(opts);
-  return all.find(p => p.playbook.name === name) ?? null;
+  return all.find((p) => p.playbook.name === name) ?? null;
 }

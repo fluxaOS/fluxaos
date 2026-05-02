@@ -18,7 +18,7 @@ export function auditResultDoc(
   stageId: string,
   doc: ResultDoc | null
 ): AuditResult {
-  const stage = playbook.stages.find(s => s.id === stageId);
+  const stage = playbook.stages.find((s) => s.id === stageId);
 
   if (!stage) {
     return {
@@ -37,7 +37,8 @@ export function auditResultDoc(
 
   // verdict: blocked OR non-empty blockers[] → always fallback
   const isBlocked =
-    doc.verdict === 'blocked' || (doc.blockers !== undefined && doc.blockers.length > 0);
+    doc.verdict === 'blocked' ||
+    (doc.blockers !== undefined && doc.blockers.length > 0);
   if (isBlocked) {
     return {
       action: 'fallback',
@@ -57,14 +58,20 @@ export function auditResultDoc(
       logic: 'AND',
       rules: rawRules as Array<Rule | RuleGroup>,
     };
-    const evaluation = evaluateGate('rules', ruleGroup, doc as unknown as Record<string, unknown>);
+    const evaluation = evaluateGate(
+      'rules',
+      ruleGroup,
+      doc as unknown as Record<string, unknown>
+    );
 
     if (!evaluation.passed) {
       const worstAction = evaluation.worstAction;
       const targetState =
-        worstAction === 'rework' ? stage.onFail
-          : worstAction === 'hold' ? 'hold'
-          : stage.fallback; // abort, escalate, notify → fallback
+        worstAction === 'rework'
+          ? stage.onFail
+          : worstAction === 'hold'
+            ? 'hold'
+            : stage.fallback; // abort, escalate, notify → fallback
 
       return {
         action: 'fallback',

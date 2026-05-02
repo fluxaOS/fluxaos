@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { load as yamlLoad } from 'js-yaml';
+import { z } from 'zod';
 
 const ParallelChildSchema = z.object({
   id: z.string().min(1),
@@ -62,22 +62,34 @@ export type ParsePlaybookResult =
   | { success: true; playbook: Playbook }
   | { success: false; error: string };
 
-export function parsePlaybook(yamlContent: string, filename: string): ParsePlaybookResult {
+export function parsePlaybook(
+  yamlContent: string,
+  filename: string
+): ParsePlaybookResult {
   let raw: unknown;
   try {
     raw = yamlLoad(yamlContent);
   } catch (err) {
-    return { success: false, error: `YAML parse error in ${filename}: ${String(err)}` };
+    return {
+      success: false,
+      error: `YAML parse error in ${filename}: ${String(err)}`,
+    };
   }
 
   const result = PlaybookSchema.safeParse(raw);
   if (!result.success) {
-    return { success: false, error: `Schema validation failed in ${filename}: ${result.error.message}` };
+    return {
+      success: false,
+      error: `Schema validation failed in ${filename}: ${result.error.message}`,
+    };
   }
 
   return { success: true, playbook: result.data };
 }
 
-export function getStageById(playbook: Playbook, stageId: string): PlaybookStage | undefined {
-  return playbook.stages.find(s => s.id === stageId);
+export function getStageById(
+  playbook: Playbook,
+  stageId: string
+): PlaybookStage | undefined {
+  return playbook.stages.find((s) => s.id === stageId);
 }
