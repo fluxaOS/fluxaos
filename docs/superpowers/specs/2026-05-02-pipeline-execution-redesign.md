@@ -1,3 +1,4 @@
+Warning: Identity file /home/jpierce/.ssh/id_rsa not accessible: No such file or directory.
 # Pipeline Execution Redesign
 
 Date: 2026-05-02
@@ -399,41 +400,85 @@ infrastructure). A crash at any node resumes from the last checkpoint:
 
 ### Parallel Stage Execution
 
-Stages with `parallel: [stageId, stageId]` in the playbook compile to a
-LangGraph superstep — all listed stages run concurrently. LangGraph
-coordinates the fan-out and fan-in. The orchestrator waits for all results
-before running the gate engine on the combined output.
-
-Example — parallel review. All three stages are declared at the top level.
-The `parallel` field on `review` references the IDs of stages that run
-concurrently with it. The orchestrator fans out, waits for all to complete,
-then audits all three result documents before routing:
+A **parallel group** is a first-class stage type. It declares its child stages
+inline, runs them concurrently as a LangGraph superstep, and aggregates their
+result documents into a single routing decision. Children are not top-level
+stages and have no individual `onPass / onFail / fallback` — they cannot route
+the pipeline. Only the group routes.
 
 ```yaml
-stages:
-  - id: review
-    skill: review
-    parallel: [test-coverage, security-scan]
-    onPass: deploy
-    onFail: rework
-    fallback: blocked
-
-  - id: test-coverage
-    skill: test-coverage
-    onPass: _parallel_complete   # special: signals fan-in, not a pipeline route
-    onFail: _parallel_complete
-    fallback: _parallel_complete
-
-  - id: security-scan
-    skill: security-scan
-    onPass: _parallel_complete
-    onFail: _parallel_complete
-    fallback: _parallel_complete
+- id: review-bundle
+  type: parallel
+  aggregation: all-pass        # see modes below
+  children:
+    - id: review
+      skill: review
+    - id: test-coverage
+      skill: test-coverage
+    - id: security-scan
+      skill: security-scan
+  onPass: deploy
+  onFail: rework
+  fallback: blocked
+  rules: []                    # rules see aggregated context (see below)
 ```
 
-All three run simultaneously. LangGraph checkpoints each independently.
-If security-scan fails and the others pass, only security-scan reruns on
-resume — test-coverage and review results are preserved in the checkpoint.
+#### Aggregation Modes
+
+The aggregation field collapses N child verdicts into one group verdict before
+the gate engine runs. The mode applies before rules, so rules see a single
+`verdict` field plus per-child results under `children.<id>`.
+
+| Mode | Group verdict is `pass` when |
+|---|---|
+| `all-pass` | every child verdict is `pass` and no child has blockers |
+| `any-pass` | at least one child verdict is `pass` |
+| `majority-pass` | more than half of child verdicts are `pass` |
+| `none` | no aggregation — rules must reference `children.<id>.verdict` directly; group verdict is unset |
+
+`all-pass` is the right default for review fan-outs. `none` is the escape hatch
+for groups whose routing depends on a specific child (e.g. "deploy if
+security-scan passes, regardless of what the others say").
+
+#### Aggregated Context for Gate Rules
+
+The orchestrator builds a synthetic result document for the group:
+
+```json
+{
+  "verdict": "pass",
+  "summary": "3/3 children passed",
+  "children": {
+    "review":         { "verdict": "pass", "summary": "...", "meta": {...} },
+    "test-coverage":  { "verdict": "pass", "summary": "...", "meta": {...} },
+    "security-scan":  { "verdict": "pass", "summary": "...", "meta": {...} }
+  },
+  "blockers": [/* union of all child blockers */],
+  "artifacts": [/* union of all child artifacts, prefixed with child id */],
+  "timing": { "startedAt": "...", "endedAt": "...", "duration_sec": 142 }
+}
+```
+
+Rules can target the aggregate (`field: verdict`) or a specific child
+(`field: children.security-scan.verdict`). Blockers from any child propagate
+to the group and trigger the standard blocker-fallback path.
+
+#### Checkpointing and Resume
+
+LangGraph checkpoints each child independently within the superstep. If
+`security-scan` crashes and the others pass, only `security-scan` reruns on
+resume — `review` and `test-coverage` results are preserved in the
+checkpoint. The group does not finalize until every child has a valid
+result document or has exhausted its retry budget.
+
+#### Constraints
+
+- Parallel groups cannot nest inside parallel groups (single-level fan-out only)
+- A child stage's `id` must be unique across the entire playbook (children
+  share the global stage namespace so artifacts can be referenced by id)
+- Children inherit `trustMode` from the group unless they set their own
+- The group's `rules` run on the aggregated context; child stages cannot
+  declare rules
 
 ### PostgresSaver Configuration
 
