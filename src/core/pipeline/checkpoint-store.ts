@@ -5,7 +5,8 @@ let checkpointer: PostgresSaver | null = null;
 export async function getCheckpointer(): Promise<PostgresSaver> {
   if (checkpointer) return checkpointer;
 
-  const connectionString = process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL;
+  const connectionString =
+    process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL;
   if (!connectionString) {
     throw new Error(
       'DATABASE_URL or SUPABASE_DB_URL required for LangGraph PostgresSaver checkpointer'

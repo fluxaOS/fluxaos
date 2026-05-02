@@ -1,4 +1,4 @@
-import { Annotation, StateGraph, END, START } from '@langchain/langgraph';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { execFile } from 'child_process';
 import { mkdirSync } from 'fs';
 import { promisify } from 'util';
@@ -29,16 +29,24 @@ const StageState = Annotation.Root({
   error: Annotation<string | undefined>(),
 });
 
-async function prepareNode(state: typeof StageState.State): Promise<Partial<typeof StageState.State>> {
+async function prepareNode(
+  state: typeof StageState.State
+): Promise<Partial<typeof StageState.State>> {
   try {
     mkdirSync(state.artifactsDir, { recursive: true });
 
-    await execFileAsync('npx', [
-      'tsx',
-      'src/scripts/pipeline/init-result-doc.ts',
-      '--stage-run-id', state.stageRunId,
-      '--output', state.resultDocPath,
-    ], { env: { ...process.env, ...state.env } as NodeJS.ProcessEnv });
+    await execFileAsync(
+      'npx',
+      [
+        'tsx',
+        'src/scripts/pipeline/init-result-doc.ts',
+        '--stage-run-id',
+        state.stageRunId,
+        '--output',
+        state.resultDocPath,
+      ],
+      { env: { ...process.env, ...state.env } as NodeJS.ProcessEnv }
+    );
 
     return { prepared: true };
   } catch (err) {
@@ -46,7 +54,9 @@ async function prepareNode(state: typeof StageState.State): Promise<Partial<type
   }
 }
 
-async function executeNode(state: typeof StageState.State): Promise<Partial<typeof StageState.State>> {
+async function executeNode(
+  state: typeof StageState.State
+): Promise<Partial<typeof StageState.State>> {
   if (state.error) return {};
   try {
     const agentEnv: NodeJS.ProcessEnv = {
@@ -68,18 +78,28 @@ async function executeNode(state: typeof StageState.State): Promise<Partial<type
   }
 }
 
-async function ingestNode(state: typeof StageState.State): Promise<Partial<typeof StageState.State>> {
+async function ingestNode(
+  state: typeof StageState.State
+): Promise<Partial<typeof StageState.State>> {
   try {
-    const { stdout } = await execFileAsync('npx', [
-      'tsx',
-      'src/scripts/pipeline/ingest-result-doc.ts',
-      '--stage-run-id', state.stageRunId,
-      '--result-doc', state.resultDocPath,
-    ], { env: { ...process.env, ...state.env } as NodeJS.ProcessEnv });
+    const { stdout } = await execFileAsync(
+      'npx',
+      [
+        'tsx',
+        'src/scripts/pipeline/ingest-result-doc.ts',
+        '--stage-run-id',
+        state.stageRunId,
+        '--result-doc',
+        state.resultDocPath,
+      ],
+      { env: { ...process.env, ...state.env } as NodeJS.ProcessEnv }
+    );
 
     return { ingestOutput: stdout.trim() };
   } catch (err) {
-    return { ingestOutput: JSON.stringify({ valid: false, reason: String(err) }) };
+    return {
+      ingestOutput: JSON.stringify({ valid: false, reason: String(err) }),
+    };
   }
 }
 
@@ -106,7 +126,9 @@ export async function runStageGraph(
   const result = await graph.invoke(input, config as never);
 
   return {
-    ingestOutput: result.ingestOutput ?? JSON.stringify({ valid: false, reason: 'no ingest output' }),
+    ingestOutput:
+      result.ingestOutput ??
+      JSON.stringify({ valid: false, reason: 'no ingest output' }),
     error: result.error,
   };
 }
