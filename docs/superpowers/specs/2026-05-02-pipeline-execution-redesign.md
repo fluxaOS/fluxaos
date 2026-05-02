@@ -263,7 +263,7 @@ The engine pre-populates context fields. The agent writes work fields.
 `issue`, `run`, `org`, `project`, `timing.startedAt`
 
 **Written by agent (required):**
-`verdict` — `"pass"` or `"fail"` only
+`verdict` — `"pass"`, `"fail"`, or `"blocked"` (see Verdict Precedence below)
 `summary` — one sentence, required
 
 **Written by agent (optional):**
@@ -276,6 +276,26 @@ The engine pre-populates context fields. The agent writes work fields.
 **Invalid result document** (missing, malformed, missing required fields) is
 treated as `fail` verdict. Fallback state applies. The raw file is preserved
 for debugging.
+
+### Verdict Precedence
+
+Three effective outcomes, resolved in this order before the gate engine runs:
+
+1. **Invalid result doc** (missing or schema-invalid) → fallback state, no gate
+   engine run.
+2. **`blockers[]` is non-empty** → fallback state, regardless of `verdict`
+   value. The agent can write `verdict: "pass"` and still trigger fallback if it
+   also reports blockers. This is intentional: a blocker means "I cannot
+   continue unattended" even if the work product itself is complete.
+3. **`verdict: "blocked"`** → treated identically to `blockers[]` non-empty;
+   routes to fallback. Use this when the agent cannot produce a specific blocker
+   issue but knows it is stuck.
+4. **`verdict: "pass"` or `"fail"` with no blockers** → gate engine runs (if
+   rules configured), then `onPass` or `onFail` applied.
+
+The three-value enum (`pass`, `fail`, `blocked`) makes the truth table explicit
+in the result document itself. `blocked` is shorthand for "I am stuck and the
+orchestrator should treat this as a fallback regardless of what else I wrote."
 
 ### Pre-Population Script
 
@@ -350,6 +370,19 @@ rules:
   - field: blockers          # array length check via exists/not_equals
   - field: meta.output_tokens # token usage gate
 ```
+
+### Rule Severity Levels
+
+`severity` controls what the engine does when a rule's condition is not met:
+
+| Severity | Effect when rule fails |
+|---|---|
+| `warn` | Log the violation; continue on the `onPass` route as if the rule did not exist. Gate does **not** block. Use for observability (e.g. "log when implementation takes over an hour"). |
+| `block` | Use the rule's `onFail` target state instead of `onPass`. This is the routing override. All other non-warn rules in the group are still evaluated; worst action wins. |
+
+If multiple `block` rules fail, the engine takes the worst action among them
+(e.g. `abort` beats `hold` beats stage `onFail`). `warn`-only failures never
+affect routing.
 
 ### Trust Mode
 
@@ -545,6 +578,42 @@ The agent never calls any of these APIs directly.
 | Record run metadata | Always | Write full result doc to `stage_run` DB record |
 | Release worktree | Terminal stage or abort | `isolationProvider.release()` |
 | Close issue | `onPass` maps to terminal state | `issueService.close()` |
+
+## Idempotency Contract for Agent Retries
+
+When LangGraph resumes a crashed `execute` node, the agent subprocess reruns
+from the beginning. The base prompt must enforce check-before-create patterns
+so a retry does not double-post or double-commit.
+
+### Required rules in the base prompt (non-negotiable)
+
+The base `prompt` field in every playbook must include:
+
+> **Your operations must be idempotent on retry.** Assume this session may be
+> a continuation of a crashed prior run. Before creating anything external
+> (branch, commit, PR, comment, API call), check whether it already exists and
+> skip or reuse it.
+>
+> Examples:
+> - Branch creation: `git checkout <branch> 2>/dev/null || git checkout -b <branch>`
+> - PR creation: check `gh pr list --head <branch>` before `gh pr create`
+> - File writes: overwriting the same file with the same content is safe; check first if appending
+> - External API calls: use idempotency keys where the API supports them
+
+### Engine-side idempotency
+
+The `prepare` node checks whether a result doc already exists and has a valid
+`verdict`. If it does, `prepare` skips reinitializing it (preserving any agent
+work from the crashed session). The `execute` node checks whether `prepared` is
+already `true` in the LangGraph checkpoint state before running init again.
+
+### Driver-level resume (optional, future)
+
+Drivers that support session resume (e.g. Claude Code with conversation ID,
+Codex with thread ID) may pass a resume token to the `execute` node via
+`env.DRIVER_RESUME_TOKEN`. The base prompt signals the agent to check for this
+env var and resume rather than restart. Drivers that do not support resume
+simply ignore the token — the idempotency rules above ensure correctness.
 
 ## DB Schema Changes
 

@@ -72,6 +72,10 @@ describe('ResultDocSchema', () => {
     expect(() => ResultDocSchema.parse(rest)).toThrow();
   });
 
+  it('accepts verdict: blocked', () => {
+    expect(() => ResultDocSchema.parse({ ...minimalValid, verdict: 'blocked' })).not.toThrow();
+  });
+
   it('rejects invalid verdict value', () => {
     expect(() => ResultDocSchema.parse({ ...minimalValid, verdict: 'proceed' })).toThrow();
   });
@@ -149,7 +153,7 @@ export const ResultDocSchema = z.object({
   org: z.object({ id: z.string(), slug: z.string() }),
   project: z.object({ id: z.string(), slug: z.string() }),
   timing: TimingSchema,
-  verdict: z.enum(['pass', 'fail']),
+  verdict: z.enum(['pass', 'fail', 'blocked']),
   summary: z.string().min(1),
   comment: z.string().optional(),
   blockers: z.array(BlockerSchema).optional(),
@@ -614,8 +618,70 @@ stages:
   it('stage defaults trustMode to prescriptive', () => {
     const result = parsePlaybook(minimalYaml, 'q.yaml');
     if (result.success) {
-      expect(result.playbook.stages[0].trustMode).toBe('prescriptive');
+      const stage = result.playbook.stages[0];
+      expect(stage.type).toBe('sequential');
+      if (stage.type === 'sequential') expect(stage.trustMode).toBe('prescriptive');
     }
+  });
+
+  it('parses parallel group stage', () => {
+    const yaml = `
+name: parallel-test
+description: Pipeline with parallel review.
+prompt: Base prompt.
+stages:
+  - id: implement
+    skill: implement
+    onPass: review-bundle
+    onFail: rework
+    fallback: blocked
+  - id: review-bundle
+    type: parallel
+    aggregation: all-pass
+    children:
+      - id: code-review
+        skill: review
+      - id: security-scan
+        skill: security-scan
+    onPass: deploy
+    onFail: rework
+    fallback: blocked
+  - id: deploy
+    skill: deploy
+    onPass: complete
+    onFail: blocked
+    fallback: complete
+`;
+    const result = parsePlaybook(yaml, 'parallel-test.yaml');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const bundle = result.playbook.stages.find(s => s.id === 'review-bundle');
+      expect(bundle?.type).toBe('parallel');
+      if (bundle?.type === 'parallel') {
+        expect(bundle.children).toHaveLength(2);
+        expect(bundle.aggregation).toBe('all-pass');
+      }
+    }
+  });
+
+  it('rejects parallel group with fewer than 2 children', () => {
+    const yaml = `
+name: bad
+description: Bad parallel.
+prompt: p
+stages:
+  - id: solo
+    type: parallel
+    aggregation: all-pass
+    children:
+      - id: only-one
+        skill: review
+    onPass: complete
+    onFail: complete
+    fallback: complete
+`;
+    const result = parsePlaybook(yaml, 'bad.yaml');
+    expect(result.success).toBe(false);
   });
 });
 ```
@@ -635,16 +701,37 @@ import { z } from 'zod';
 import { load as yamlLoad } from 'js-yaml';
 import type { RuleGroup } from '@/core/gates/types';
 
-const PlaybookStageSchema = z.object({
+// Child stage inside a parallel group — no routing fields (group owns routing)
+const ParallelChildSchema = z.object({
   id: z.string().min(1),
   skill: z.string().min(1),
-  onPass: z.string().min(1),
-  onFail: z.string().min(1),
-  fallback: z.string().min(1),
-  trustMode: z.enum(['prescriptive', 'declarative']).default('prescriptive'),
-  rules: z.array(z.any()).optional().default([]),
-  parallel: z.array(z.string()).optional(),
+  trustMode: z.enum(['prescriptive', 'declarative']).optional(),
 });
+
+const PlaybookStageSchema = z.discriminatedUnion('type', [
+  // Normal sequential stage
+  z.object({
+    type: z.literal('sequential').default('sequential'),
+    id: z.string().min(1),
+    skill: z.string().min(1),
+    onPass: z.string().min(1),
+    onFail: z.string().min(1),
+    fallback: z.string().min(1),
+    trustMode: z.enum(['prescriptive', 'declarative']).default('prescriptive'),
+    rules: z.array(z.any()).optional().default([]),
+  }),
+  // Parallel group — children run concurrently, group owns routing
+  z.object({
+    type: z.literal('parallel'),
+    id: z.string().min(1),
+    children: z.array(ParallelChildSchema).min(2),
+    aggregation: z.enum(['all-pass', 'any-pass', 'majority-pass', 'none']),
+    onPass: z.string().min(1),
+    onFail: z.string().min(1),
+    fallback: z.string().min(1),
+    rules: z.array(z.any()).optional().default([]),
+  }),
+]);
 
 export const PlaybookSchema = z.object({
   name: z.string().min(1),
@@ -655,6 +742,12 @@ export const PlaybookSchema = z.object({
 
 export type Playbook = z.infer<typeof PlaybookSchema>;
 export type PlaybookStage = z.infer<typeof PlaybookStageSchema>;
+export type SequentialStage = Extract<PlaybookStage, { type: 'sequential' }>;
+export type ParallelGroup = Extract<PlaybookStage, { type: 'parallel' }>;
+
+export function isParallelGroup(stage: PlaybookStage): stage is ParallelGroup {
+  return stage.type === 'parallel';
+}
 
 export type ParsePlaybookResult =
   | { success: true; playbook: Playbook }
@@ -950,7 +1043,10 @@ prompt: |
   - The orchestrator reads your result document and handles all of that.
 
   Result document fields you MUST write before exiting:
-    verdict: "pass" or "fail"
+    verdict: "pass", "fail", or "blocked"
+      - pass: work complete, proceed
+      - fail: work attempted but did not meet the bar; engine routes to onFail
+      - blocked: you are stuck and cannot continue; engine routes to fallback
     summary: one sentence describing what happened and why
 
   Result document fields you MAY write:
@@ -963,6 +1059,13 @@ prompt: |
 
   The context fields (issue, run, org, project, timing.startedAt) are already
   in the file. Do not overwrite them.
+
+  Idempotency: this session may be a retry of a crashed prior run.
+  Before creating anything external (branch, commit, PR, comment, API call),
+  check whether it already exists and skip or reuse it.
+  - Branch: git checkout <branch> 2>/dev/null || git checkout -b <branch>
+  - PR: check gh pr list --head <branch> before gh pr create
+  - Appending to files: read before write; overwriting the same content is safe
 
   To write the result document:
     node -e "
@@ -1259,7 +1362,7 @@ const baseDoc: ResultDoc = {
   org: { id: 'u4', slug: 'o' },
   project: { id: 'u5', slug: 'p' },
   timing: { startedAt: '2026-05-02T00:00:00Z' },
-  verdict: 'pass',
+  verdict: 'pass' as const,
   summary: 'Done.',
 };
 
@@ -1299,6 +1402,19 @@ describe('auditResultDoc', () => {
     const result = auditResultDoc(playbook, 'implement', doc);
     expect(result.blockers).toHaveLength(1);
     expect(result.action).toBe('fallback'); // blockers → fallback
+  });
+
+  it('verdict: blocked routes to fallback even with no blockers array', () => {
+    const doc = { ...baseDoc, verdict: 'blocked' as const };
+    const result = auditResultDoc(playbook, 'implement', doc);
+    expect(result.targetState).toBe('blocked'); // stage fallback
+    expect(result.action).toBe('fallback');
+  });
+
+  it('verdict: pass with blockers still routes to fallback', () => {
+    const doc = { ...baseDoc, verdict: 'pass' as const, blockers: [{ title: 'Missing dep', description: 'Not found.' }] };
+    const result = auditResultDoc(playbook, 'implement', doc);
+    expect(result.action).toBe('fallback'); // blockers override pass verdict
   });
 
   it('uses gate rules when configured — rule override on duration', () => {
@@ -1375,8 +1491,10 @@ export function auditResultDoc(
     };
   }
 
-  // Blockers present — always fallback regardless of verdict
-  if (doc.blockers && doc.blockers.length > 0) {
+  // verdict: blocked OR non-empty blockers[] → always fallback, regardless of verdict value
+  // These two are equivalent signals: "I am stuck, orchestrator must intervene"
+  const isBlocked = doc.verdict === 'blocked' || (doc.blockers && doc.blockers.length > 0);
+  if (isBlocked) {
     return {
       action: 'fallback',
       targetState: stage.fallback,
