@@ -273,10 +273,16 @@ export function createEventOrchestrator(
             }
           );
 
-          const transport = driverRow?.promptTransport ?? 'argv';
-          const driverBinary = driverRow?.binary ?? 'claude';
+          if (!driverRow?.binary) {
+            log.error({ stageRunId: sRun.id }, 'playbook stage has no driver binary configured');
+            await finishRun(run, PIPELINE_RUN_STATUS.failed);
+            return;
+          }
+
+          const transport = driverRow.promptTransport ?? 'argv';
+          const driverBinary = driverRow.binary;
           const driverArgs: string[] = [
-            ...((driverRow?.defaultArgs as string[] | null) ?? []),
+            ...((driverRow.defaultArgs as string[] | null) ?? []),
           ];
 
           if (transport === 'argv') {
