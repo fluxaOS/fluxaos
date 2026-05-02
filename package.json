@@ -25,7 +25,9 @@
     "verify:agnostic-core": "tsx src/scripts/verify-agnostic-core.ts",
     "verify:prod-docker": "tsx tests/verify/production-docker-files.ts",
     "daemon": "tsx src/scripts/daemon.ts",
-    "daemon:prod": "node .next/daemon/daemon.mjs"
+    "daemon:prod": "node .next/daemon/daemon.mjs",
+    "pipeline:init-result-doc": "tsx src/scripts/pipeline/init-result-doc.ts",
+    "pipeline:ingest-result-doc": "tsx src/scripts/pipeline/ingest-result-doc.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.0",
