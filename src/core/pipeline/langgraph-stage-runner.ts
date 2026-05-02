@@ -23,8 +23,8 @@ const StageState = Annotation.Root({
   driverCommand: Annotation<string>(),
   driverArgs: Annotation<string[]>(),
   env: Annotation<Record<string, string> | undefined>(),
-  prepared: Annotation<boolean>({ default: () => false }),
-  executed: Annotation<boolean>({ default: () => false }),
+  prepared: Annotation<boolean>(),
+  executed: Annotation<boolean>(),
   ingestOutput: Annotation<string | undefined>(),
   error: Annotation<string | undefined>(),
 });
