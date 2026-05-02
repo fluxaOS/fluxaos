@@ -2,13 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace signal-based pipeline routing with a playbook-driven execution model where skills do only work, the result document carries facts, and the orchestrator audits and routes — with LangGraph handling stage execution, checkpointing, and parallel coordination.
+**Goal:** Replace signal-based pipeline routing with a playbook-driven execution model where skills do only work, the result document carries facts, and the orchestrator audits and routes — with LangGraph handling stage execution and checkpointing.
 
-**Architecture:** Four sequential phases — (1) Result Document schema + scripts, (2) Playbook YAML parser + discovery, (3) Orchestrator audit flow replacing signal routing, (4) LangGraph three-node stage runner with PostgresSaver. Each phase is independently shippable. The existing orchestrator code path stays active throughout; new pipelines opt into the playbook model via `playbookPath` on the `pipeline` DB record.
+**Architecture:** Four sequential phases — (1) Result Document schema + scripts, (2) Playbook YAML parser + discovery, (3) Orchestrator audit flow, (4) LangGraph three-node stage runner. Each phase is independently shippable. The existing orchestrator code path stays active throughout; new pipelines opt into the playbook model via `playbookPath` on the `pipeline` DB record (requires Task 2 migration). Parallel group parsing is supported (parser accepts the discriminated union) but execution throws `NotImplementedError` — tracked as a follow-up.
 
-**Tech Stack:** TypeScript 5, Drizzle ORM, Supabase Postgres, `js-yaml` (already in repo or add), `@langchain/langgraph` + `@langchain/langgraph-checkpoint-postgres`, Zod for schema validation, tsx for scripts.
+**Tech Stack:** TypeScript 5, Drizzle ORM, Supabase Postgres, `js-yaml` (add if absent), `@langchain/langgraph` + `@langchain/langgraph-checkpoint-postgres`, Zod for schema validation, tsx for scripts.
 
 **Branch:** `flx-106-pipeline-execution-redesign`
+
+**Discovery notes:** `docs/superpowers/plans/2026-05-02-flx-106-discovery-notes.md`
 
 ---
 
@@ -18,12 +20,12 @@
 
 **Files:**
 - Create: `src/core/pipeline/result-doc.ts`
-- Test: `src/__tests__/pipeline/result-doc.test.ts`
+- Test: `src/__tests__/integration/playbook-result-doc.test.ts`
 
 - [ ] **Step 1: Create the test file**
 
 ```typescript
-// src/__tests__/pipeline/result-doc.test.ts
+// src/__tests__/integration/playbook-result-doc.test.ts
 import { describe, it, expect } from 'vitest';
 import {
   ResultDocSchema,
@@ -77,10 +79,11 @@ describe('ResultDocSchema', () => {
   });
 
   it('rejects invalid verdict value', () => {
+    // 'proceed' is the old signal format — not a valid ResultDoc verdict
     expect(() => ResultDocSchema.parse({ ...minimalValid, verdict: 'proceed' })).toThrow();
   });
 
-  it('isValidResultDoc returns false for invalid doc', () => {
+  it('isValidResultDoc returns false for incomplete doc', () => {
     expect(isValidResultDoc({ verdict: 'pass' })).toBe(false);
   });
 
@@ -115,7 +118,7 @@ describe('validateResultDoc', () => {
 - [ ] **Step 2: Run to verify it fails**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/result-doc.test.ts 2>&1 | tail -20
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-result-doc.test.ts 2>&1 | tail -20
 ```
 Expected: error — module not found.
 
@@ -181,20 +184,20 @@ export function isValidResultDoc(raw: unknown): raw is ResultDoc {
 - [ ] **Step 4: Run tests — expect pass**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/result-doc.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-result-doc.test.ts 2>&1 | tail -10
 ```
 Expected: all tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/pipeline/result-doc.ts src/__tests__/pipeline/result-doc.test.ts
+git add src/core/pipeline/result-doc.ts src/__tests__/integration/playbook-result-doc.test.ts
 git commit -m "feat: result document Zod schema (FLX-106)"
 ```
 
 ---
 
-### Task 2: DB migration — add resultDoc column to stage_run, playbookPath/playbookScope to pipeline
+### Task 2: DB migration — add resultDoc to stage_run and playbookPath to pipeline
 
 **Files:**
 - Modify: `src/core/db/schema.ts`
@@ -202,15 +205,15 @@ git commit -m "feat: result document Zod schema (FLX-106)"
 
 - [ ] **Step 1: Add columns to schema**
 
-In `src/core/db/schema.ts`, locate the `pipeline` table (line ~90) and add two columns after `isDefault`:
+In `src/core/db/schema.ts`, locate the `pipeline` table (line 90) and add two columns after `isDefault`:
 
 ```typescript
-// inside pipeline pgTable definition, after isDefault:
+// inside pipeline pgTable definition, after isDefault line:
 playbookPath: text('playbook_path'),
 playbookScope: text('playbook_scope'), // 'bundled' | 'org' | 'project'
 ```
 
-In the `stageRun` table (line ~138), add one column after `skillMetadata`:
+In the `stageRun` table (line 138), add one column after `skillMetadata`:
 
 ```typescript
 // inside stageRun pgTable definition, after skillMetadata:
@@ -231,21 +234,58 @@ cd /mnt/dev/fluxaos && npm run db:migrate 2>&1 | tail -10
 ```
 Expected: migration applied successfully.
 
-- [ ] **Step 4: Verify columns exist**
+- [ ] **Step 4: Confirm columns visible in db:runs output**
 
 ```bash
-cd /mnt/dev/fluxaos && npm run db:studio &
-# In Studio, check pipeline table has playbook_path and playbook_scope columns
-# Check stage_run table has result_doc column
-# Then kill the studio process
-kill %1
+cd /mnt/dev/fluxaos && npm run db:runs 2>&1 | head -5
+```
+No error = migration applied. Columns are non-nullable optional; existing rows are unaffected.
+
+- [ ] **Step 5: Seed Standard Dev pipeline with playbookPath**
+
+In `src/scripts/db/seed.ts`, locate the `Standard Dev` pipeline insert at line 115.
+Add `playbookPath: 'standard-dev'` to the values object:
+
+```typescript
+// src/scripts/db/seed.ts  ~line 115:
+[pipe] = await db
+  .insert(pipeline)
+  .values({
+    projectId: proj.id,
+    name: 'Standard Dev',
+    description: 'Research → Implement → Review → Deploy',
+    isDefault: true,
+    playbookPath: 'standard-dev',   // ← add this
+    playbookScope: 'bundled',        // ← add this
+  })
+  .returning();
 ```
 
-- [ ] **Step 5: Commit**
+Also add an `UPDATE` for the case where the pipeline already exists (line ~110 `if (!pipe)` branch does the select — add an update after):
+
+```typescript
+// After the if(!pipe) select block:
+if (pipe && !pipe.playbookPath) {
+  [pipe] = await db
+    .update(pipeline)
+    .set({ playbookPath: 'standard-dev', playbookScope: 'bundled' })
+    .where(eq(pipeline.id, pipe.id))
+    .returning();
+}
+```
+
+- [ ] **Step 6: Run seed to apply**
 
 ```bash
-git add src/core/db/schema.ts drizzle/
-git commit -m "feat: add playbookPath/playbookScope to pipeline, resultDoc to stage_run (FLX-106)"
+cd /mnt/dev/fluxaos && tsx src/scripts/db/nuke.ts && npm run db:seed 2>&1 | tail -20
+```
+Expected: seed completes, `pipeline: Standard Dev` logged.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/core/db/schema.ts drizzle/ src/scripts/db/seed.ts
+git commit -m "feat: add playbookPath/playbookScope to pipeline, resultDoc to stage_run; wire Standard Dev (FLX-106)"
 ```
 
 ---
@@ -254,19 +294,28 @@ git commit -m "feat: add playbookPath/playbookScope to pipeline, resultDoc to st
 
 **Files:**
 - Create: `src/scripts/pipeline/init-result-doc.ts`
-- Test: verify with a real stage_run row using `npm run db:runs`
+- Modify: `package.json`
+
+The orchestrator calls this before starting the agent. It reads DB context and writes
+a partial result doc to disk so the agent has the context fields pre-populated.
 
 - [ ] **Step 1: Create the script**
 
 ```typescript
 // src/scripts/pipeline/init-result-doc.ts
+import 'dotenv/config';
 import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { eq } from 'drizzle-orm';
-import { createDb } from '@/core/db/connection';
+import { db, close } from '@/scripts/db/connection';
 import {
-  stageRun, pipelineRun, pipelineStage, pipeline,
-  issue, project, org,
+  stageRun,
+  pipelineRun,
+  pipelineStage,
+  pipeline,
+  issue,
+  project,
+  organization,
 } from '@/core/db/schema';
 
 async function main() {
@@ -276,36 +325,70 @@ async function main() {
 
   if (stageRunIdIdx === -1 || outputIdx === -1) {
     console.error('Usage: init-result-doc.ts --stage-run-id <uuid> --output <path>');
+    await close();
     process.exit(1);
   }
 
   const stageRunId = args[stageRunIdIdx + 1];
   const outputPath = args[outputIdx + 1];
 
-  const db = createDb();
-
   const [sRun] = await db.select().from(stageRun).where(eq(stageRun.id, stageRunId));
-  if (!sRun) { console.error(`stage_run not found: ${stageRunId}`); process.exit(1); }
+  if (!sRun) {
+    console.error(`stage_run not found: ${stageRunId}`);
+    await close();
+    process.exit(1);
+  }
 
   const [run] = await db.select().from(pipelineRun).where(eq(pipelineRun.id, sRun.pipelineRunId));
-  if (!run) { console.error(`pipeline_run not found: ${sRun.pipelineRunId}`); process.exit(1); }
+  if (!run) {
+    console.error(`pipeline_run not found: ${sRun.pipelineRunId}`);
+    await close();
+    process.exit(1);
+  }
 
   const [stage] = await db.select().from(pipelineStage).where(eq(pipelineStage.id, sRun.pipelineStageId));
-  if (!stage) { console.error(`pipeline_stage not found: ${sRun.pipelineStageId}`); process.exit(1); }
+  if (!stage) {
+    console.error(`pipeline_stage not found: ${sRun.pipelineStageId}`);
+    await close();
+    process.exit(1);
+  }
 
   const [pl] = await db.select().from(pipeline).where(eq(pipeline.id, run.pipelineId));
-  if (!pl) { console.error(`pipeline not found: ${run.pipelineId}`); process.exit(1); }
+  if (!pl) {
+    console.error(`pipeline not found: ${run.pipelineId}`);
+    await close();
+    process.exit(1);
+  }
 
   const [proj] = await db.select().from(project).where(eq(project.id, pl.projectId));
-  if (!proj) { console.error(`project not found: ${pl.projectId}`); process.exit(1); }
+  if (!proj) {
+    console.error(`project not found: ${pl.projectId}`);
+    await close();
+    process.exit(1);
+  }
 
-  const [orgRow] = await db.select().from(org).where(eq(org.id, proj.orgId));
-  if (!orgRow) { console.error(`org not found: ${proj.orgId}`); process.exit(1); }
+  const [orgRow] = await db.select().from(organization).where(eq(organization.id, proj.orgId));
+  if (!orgRow) {
+    console.error(`organization not found: ${proj.orgId}`);
+    await close();
+    process.exit(1);
+  }
 
   let issueContext = { id: '', number: 0, title: '' };
   if (run.issueId) {
     const [iss] = await db.select().from(issue).where(eq(issue.id, run.issueId));
-    if (iss) issueContext = { id: iss.id, number: iss.number ?? 0, title: iss.title };
+    if (iss) issueContext = { id: iss.id, number: iss.number, title: iss.title };
+  }
+
+  // Check idempotency: if result doc already exists with a valid verdict, skip init
+  if (sRun.resultDoc && typeof sRun.resultDoc === 'object') {
+    const existing = sRun.resultDoc as Record<string, unknown>;
+    if (existing.verdict && ['pass', 'fail', 'blocked'].includes(existing.verdict as string)) {
+      console.log(`result doc already has verdict '${existing.verdict}' — skipping init`);
+      writeFileSync(outputPath, JSON.stringify(existing, null, 2));
+      await close();
+      return;
+    }
   }
 
   const partial = {
@@ -325,10 +408,14 @@ async function main() {
   writeFileSync(outputPath, JSON.stringify(partial, null, 2));
   console.log(`result doc initialized: ${outputPath}`);
 
-  await (db as any).$client?.end?.();
+  await close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch(async (err) => {
+  console.error(err);
+  await close();
+  process.exit(1);
+});
 ```
 
 - [ ] **Step 2: Add npm script to package.json**
@@ -342,11 +429,12 @@ In `package.json` under `"scripts"`, add:
 
 ```bash
 cd /mnt/dev/fluxaos && npm run db:runs 2>&1 | head -20
-# Copy a real stage_run ID from the output
+# Copy a real stage_run ID from the output, e.g. abc123
 npm run pipeline:init-result-doc -- --stage-run-id <real-id> --output /tmp/test-result-doc.json
 cat /tmp/test-result-doc.json
 ```
 Expected: JSON with `issue`, `run`, `org`, `project`, `timing.startedAt` fields populated from DB.
+No `verdict` field yet — that is the agent's job.
 
 - [ ] **Step 4: Commit**
 
@@ -361,15 +449,20 @@ git commit -m "feat: init-result-doc script pre-populates context fields (FLX-10
 
 **Files:**
 - Create: `src/scripts/pipeline/ingest-result-doc.ts`
+- Modify: `package.json`
+
+The orchestrator calls this after the agent exits. It validates the result doc,
+fills `endedAt` and `duration_sec`, then writes it to `stage_run.result_doc`.
 
 - [ ] **Step 1: Create the script**
 
 ```typescript
 // src/scripts/pipeline/ingest-result-doc.ts
+import 'dotenv/config';
 import { readFileSync, writeFileSync } from 'fs';
 import { eq } from 'drizzle-orm';
-import { createDb } from '@/core/db/connection';
-import { stageRun, driver } from '@/core/db/schema';
+import { db, close } from '@/scripts/db/connection';
+import { stageRun } from '@/core/db/schema';
 import { validateResultDoc, type ResultDoc } from '@/core/pipeline/result-doc';
 
 async function main() {
@@ -379,6 +472,7 @@ async function main() {
 
   if (stageRunIdIdx === -1 || resultDocIdx === -1) {
     console.error('Usage: ingest-result-doc.ts --stage-run-id <uuid> --result-doc <path>');
+    await close();
     process.exit(1);
   }
 
@@ -390,12 +484,10 @@ async function main() {
     raw = JSON.parse(readFileSync(resultDocPath, 'utf-8'));
   } catch {
     console.error(`result doc not readable at ${resultDocPath} — treating as invalid`);
-    // Write sentinel to stdout for orchestrator to detect
     console.log(JSON.stringify({ valid: false, reason: 'unreadable' }));
+    await close();
     process.exit(0);
   }
-
-  const db = createDb();
 
   // Fill endedAt and duration_sec
   const endedAt = new Date().toISOString();
@@ -415,32 +507,23 @@ async function main() {
   const validation = validateResultDoc(raw);
 
   if (!validation.success) {
-    // Preserve the raw file with an error marker, write result to DB as-is
-    await db.update(stageRun)
-      .set({ resultDoc: raw as ResultDoc, updatedAt: new Date() })
+    // Write raw doc to DB for audit trail even if invalid
+    await db
+      .update(stageRun)
+      .set({ resultDoc: raw as Record<string, unknown>, updatedAt: new Date() })
       .where(eq(stageRun.id, stageRunId));
     console.log(JSON.stringify({ valid: false, reason: 'schema_invalid', errors: validation.error.issues }));
-    await (db as any).$client?.end?.();
+    await close();
     process.exit(0);
   }
 
   const doc = validation.data;
 
-  // Fill missing meta.model from driver row if available
-  if (!doc.meta?.model) {
-    const [sRun] = await db.select().from(stageRun).where(eq(stageRun.id, stageRunId));
-    if (sRun?.driverId) {
-      const [driverRow] = await db.select().from(driver).where(eq(driver.id, sRun.driverId));
-      if (driverRow) {
-        doc.meta = { ...doc.meta, model: driverRow.model ?? undefined };
-      }
-    }
-  }
-
   // Write to DB
-  await db.update(stageRun)
+  await db
+    .update(stageRun)
     .set({
-      resultDoc: doc,
+      resultDoc: doc as unknown as Record<string, unknown>,
       tokensIn: doc.meta?.input_tokens ?? 0,
       tokensOut: doc.meta?.output_tokens ?? 0,
       model: doc.meta?.model ?? null,
@@ -449,15 +532,19 @@ async function main() {
     })
     .where(eq(stageRun.id, stageRunId));
 
-  // Update the file with the completed doc
+  // Update the file with timing-filled doc
   writeFileSync(resultDocPath, JSON.stringify(doc, null, 2));
 
-  // Output validated doc for orchestrator to consume
+  // Emit validated doc for orchestrator to parse from stdout
   console.log(JSON.stringify({ valid: true, doc }));
-  await (db as any).$client?.end?.();
+  await close();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch(async (err) => {
+  console.error(err);
+  await close();
+  process.exit(1);
+});
 ```
 
 - [ ] **Step 2: Add npm script**
@@ -476,7 +563,7 @@ cd /mnt/dev/fluxaos && npm run db:runs 2>&1 | head -20
 # Init
 npm run pipeline:init-result-doc -- --stage-run-id <real-id> --output /tmp/test-result-doc.json
 
-# Manually add agent work fields
+# Manually add the agent's work fields
 node -e "
 const doc = JSON.parse(require('fs').readFileSync('/tmp/test-result-doc.json', 'utf-8'));
 doc.verdict = 'pass';
@@ -488,13 +575,13 @@ require('fs').writeFileSync('/tmp/test-result-doc.json', JSON.stringify(doc, nul
 # Ingest
 npm run pipeline:ingest-result-doc -- --stage-run-id <real-id> --result-doc /tmp/test-result-doc.json
 ```
-Expected: `{"valid":true,"doc":{...}}` printed to stdout with `timing.endedAt` and `duration_sec` filled.
+Expected: `{"valid":true,"doc":{...}}` with `timing.endedAt` and `duration_sec` filled.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add src/scripts/pipeline/ingest-result-doc.ts package.json
-git commit -m "feat: ingest-result-doc script validates and writes to DB (FLX-106)"
+git commit -m "feat: ingest-result-doc validates, fills timing, writes to DB (FLX-106)"
 ```
 
 ---
@@ -505,20 +592,23 @@ git commit -m "feat: ingest-result-doc script validates and writes to DB (FLX-10
 
 **Files:**
 - Create: `src/core/pipeline/playbook.ts`
-- Test: `src/__tests__/pipeline/playbook.test.ts`
+- Test: `src/__tests__/integration/playbook-parser.test.ts`
+
+Parser supports both sequential stages (execute immediately) and parallel groups
+(parse + type-check only; execution throws `NotImplementedError`).
 
 - [ ] **Step 1: Install js-yaml if not present**
 
 ```bash
-cd /mnt/dev/fluxaos && npm ls js-yaml 2>/dev/null || npm install js-yaml @types/js-yaml
+cd /mnt/dev/fluxaos && npm ls js-yaml 2>/dev/null | grep js-yaml || npm install js-yaml @types/js-yaml
 ```
 
 - [ ] **Step 2: Create the test file**
 
 ```typescript
-// src/__tests__/pipeline/playbook.test.ts
+// src/__tests__/integration/playbook-parser.test.ts
 import { describe, it, expect } from 'vitest';
-import { parsePlaybook, PlaybookSchema } from '@/core/pipeline/playbook';
+import { parsePlaybook } from '@/core/pipeline/playbook';
 
 const minimalYaml = `
 name: quick-task
@@ -580,14 +670,17 @@ describe('parsePlaybook', () => {
     }
   });
 
-  it('parses standard-dev five-stage playbook', () => {
+  it('parses standard-dev four-stage playbook', () => {
     const result = parsePlaybook(standardDevYaml, 'standard-dev.yaml');
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.playbook.stages).toHaveLength(4);
       const impl = result.playbook.stages.find(s => s.id === 'implement');
-      expect(impl?.rules).toHaveLength(1);
-      expect(impl?.trustMode).toBe('prescriptive'); // default
+      expect(impl?.type).toBe('sequential');
+      if (impl?.type === 'sequential') {
+        expect(impl.rules).toHaveLength(1);
+        expect(impl.trustMode).toBe('prescriptive');
+      }
     }
   });
 
@@ -601,7 +694,7 @@ describe('parsePlaybook', () => {
     expect(result.success).toBe(false);
   });
 
-  it('fails on stage missing required fields', () => {
+  it('fails on stage missing onFail', () => {
     const yaml = `
 name: x
 description: y
@@ -610,6 +703,7 @@ stages:
   - id: run
     skill: s
     onPass: complete
+    fallback: complete
 `;
     const result = parsePlaybook(yaml, 'bad.yaml');
     expect(result.success).toBe(false);
@@ -689,7 +783,7 @@ stages:
 - [ ] **Step 3: Run to verify fail**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-parser.test.ts 2>&1 | tail -10
 ```
 Expected: module not found.
 
@@ -699,7 +793,6 @@ Expected: module not found.
 // src/core/pipeline/playbook.ts
 import { z } from 'zod';
 import { load as yamlLoad } from 'js-yaml';
-import type { RuleGroup } from '@/core/gates/types';
 
 // Child stage inside a parallel group — no routing fields (group owns routing)
 const ParallelChildSchema = z.object({
@@ -708,29 +801,31 @@ const ParallelChildSchema = z.object({
   trustMode: z.enum(['prescriptive', 'declarative']).optional(),
 });
 
+const SequentialStageSchema = z.object({
+  type: z.literal('sequential').default('sequential'),
+  id: z.string().min(1),
+  skill: z.string().min(1),
+  onPass: z.string().min(1),
+  onFail: z.string().min(1),
+  fallback: z.string().min(1),
+  trustMode: z.enum(['prescriptive', 'declarative']).default('prescriptive'),
+  rules: z.array(z.any()).optional().default([]),
+});
+
+const ParallelGroupSchema = z.object({
+  type: z.literal('parallel'),
+  id: z.string().min(1),
+  children: z.array(ParallelChildSchema).min(2),
+  aggregation: z.enum(['all-pass', 'any-pass', 'majority-pass', 'none']),
+  onPass: z.string().min(1),
+  onFail: z.string().min(1),
+  fallback: z.string().min(1),
+  rules: z.array(z.any()).optional().default([]),
+});
+
 const PlaybookStageSchema = z.discriminatedUnion('type', [
-  // Normal sequential stage
-  z.object({
-    type: z.literal('sequential').default('sequential'),
-    id: z.string().min(1),
-    skill: z.string().min(1),
-    onPass: z.string().min(1),
-    onFail: z.string().min(1),
-    fallback: z.string().min(1),
-    trustMode: z.enum(['prescriptive', 'declarative']).default('prescriptive'),
-    rules: z.array(z.any()).optional().default([]),
-  }),
-  // Parallel group — children run concurrently, group owns routing
-  z.object({
-    type: z.literal('parallel'),
-    id: z.string().min(1),
-    children: z.array(ParallelChildSchema).min(2),
-    aggregation: z.enum(['all-pass', 'any-pass', 'majority-pass', 'none']),
-    onPass: z.string().min(1),
-    onFail: z.string().min(1),
-    fallback: z.string().min(1),
-    rules: z.array(z.any()).optional().default([]),
-  }),
+  SequentialStageSchema,
+  ParallelGroupSchema,
 ]);
 
 export const PlaybookSchema = z.object({
@@ -742,8 +837,8 @@ export const PlaybookSchema = z.object({
 
 export type Playbook = z.infer<typeof PlaybookSchema>;
 export type PlaybookStage = z.infer<typeof PlaybookStageSchema>;
-export type SequentialStage = Extract<PlaybookStage, { type: 'sequential' }>;
-export type ParallelGroup = Extract<PlaybookStage, { type: 'parallel' }>;
+export type SequentialStage = z.infer<typeof SequentialStageSchema>;
+export type ParallelGroup = z.infer<typeof ParallelGroupSchema>;
 
 export function isParallelGroup(stage: PlaybookStage): stage is ParallelGroup {
   return stage.type === 'parallel';
@@ -772,33 +867,19 @@ export function parsePlaybook(yamlContent: string, filename: string): ParsePlayb
 export function getStageById(playbook: Playbook, stageId: string): PlaybookStage | undefined {
   return playbook.stages.find(s => s.id === stageId);
 }
-
-export function getStageBySkill(playbook: Playbook, skillName: string): PlaybookStage | undefined {
-  return playbook.stages.find(s => s.skill === skillName);
-}
-
-export function isTerminalState(playbook: Playbook, state: string): boolean {
-  // A state is terminal if no stage has onPass or onFail pointing to a stage with that state id
-  // and no stage id matches the state name
-  return !playbook.stages.some(s => s.id === state);
-}
-
-export function getStageForIssueState(playbook: Playbook, issueStateKey: string): PlaybookStage | undefined {
-  return playbook.stages.find(s => s.id === issueStateKey);
-}
 ```
 
 - [ ] **Step 5: Run tests — expect pass**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-parser.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/core/pipeline/playbook.ts src/__tests__/pipeline/playbook.test.ts
-git commit -m "feat: playbook Zod schema and YAML parser (FLX-106)"
+git add src/core/pipeline/playbook.ts src/__tests__/integration/playbook-parser.test.ts
+git commit -m "feat: playbook Zod schema and YAML parser with parallel group support (FLX-106)"
 ```
 
 ---
@@ -807,15 +888,14 @@ git commit -m "feat: playbook Zod schema and YAML parser (FLX-106)"
 
 **Files:**
 - Create: `src/core/pipeline/playbook-discovery.ts`
-- Test: `src/__tests__/pipeline/playbook-discovery.test.ts`
+- Test: `src/__tests__/integration/playbook-discovery.test.ts`
 
 - [ ] **Step 1: Create the test file**
 
 ```typescript
-// src/__tests__/pipeline/playbook-discovery.test.ts
+// src/__tests__/integration/playbook-discovery.test.ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
-import { join } from 'path';
 import { discoverPlaybooks, resolvePlaybook } from '@/core/pipeline/playbook-discovery';
 
 const TMP = '/tmp/fluxaos-test-discovery';
@@ -883,7 +963,7 @@ describe('discoverPlaybooks', () => {
 
   it('skips invalid YAML files and continues', async () => {
     writeFileSync(`${TMP}/bundled/good.yaml`, validYaml);
-    writeFileSync(`${TMP}/bundled/bad.yaml`, 'not: valid: yaml: :::');
+    writeFileSync(`${TMP}/bundled/bad.yaml`, 'name: x\ndescription: y\n# missing stages and prompt');
     const results = await discoverPlaybooks({ bundledDir: `${TMP}/bundled` });
     expect(results).toHaveLength(1);
     expect(results[0].playbook.name).toBe('test-pipeline');
@@ -893,14 +973,14 @@ describe('discoverPlaybooks', () => {
 describe('resolvePlaybook', () => {
   it('resolves playbook by name', async () => {
     writeFileSync(`${TMP}/bundled/my-pipeline.yaml`, validYaml);
-    const playbook = await resolvePlaybook('test-pipeline', { bundledDir: `${TMP}/bundled` });
-    expect(playbook).not.toBeNull();
-    expect(playbook?.playbook.name).toBe('test-pipeline');
+    const found = await resolvePlaybook('test-pipeline', { bundledDir: `${TMP}/bundled` });
+    expect(found).not.toBeNull();
+    expect(found?.playbook.name).toBe('test-pipeline');
   });
 
   it('returns null for unknown name', async () => {
-    const playbook = await resolvePlaybook('nonexistent', { bundledDir: `${TMP}/bundled` });
-    expect(playbook).toBeNull();
+    const found = await resolvePlaybook('nonexistent', { bundledDir: `${TMP}/bundled` });
+    expect(found).toBeNull();
   });
 });
 ```
@@ -908,7 +988,7 @@ describe('resolvePlaybook', () => {
 - [ ] **Step 2: Run to verify fail**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook-discovery.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-discovery.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 3: Create discovery module**
@@ -916,7 +996,7 @@ cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook-discovery.
 ```typescript
 // src/core/pipeline/playbook-discovery.ts
 import { readdir, readFile, access } from 'fs/promises';
-import { join, extname, basename } from 'path';
+import { join, extname } from 'path';
 import { parsePlaybook, type Playbook } from './playbook';
 
 export type PlaybookScope = 'bundled' | 'org' | 'project';
@@ -950,7 +1030,8 @@ async function loadFromDir(dir: string, scope: PlaybookScope): Promise<Map<strin
   }
 
   for (const entry of entries) {
-    if (extname(entry) !== '.yaml' && extname(entry) !== '.yml') continue;
+    const ext = extname(entry);
+    if (ext !== '.yaml' && ext !== '.yml') continue;
     const filePath = join(dir, entry);
     try {
       const content = await readFile(filePath, 'utf-8');
@@ -958,7 +1039,6 @@ async function loadFromDir(dir: string, scope: PlaybookScope): Promise<Map<strin
       if (result.success) {
         map.set(entry, { filename: entry, scope, playbook: result.playbook, filePath });
       }
-      // silently skip invalid files
     } catch {
       // silently skip unreadable files
     }
@@ -973,12 +1053,10 @@ export async function discoverPlaybooks(opts: DiscoveryOptions): Promise<Discove
   if (opts.bundledDir) {
     for (const [k, v] of await loadFromDir(opts.bundledDir, 'bundled')) merged.set(k, v);
   }
-
   // 2. org (overrides bundled)
   if (opts.orgDir) {
     for (const [k, v] of await loadFromDir(opts.orgDir, 'org')) merged.set(k, v);
   }
-
   // 3. project (overrides all)
   if (opts.projectDir) {
     for (const [k, v] of await loadFromDir(opts.projectDir, 'project')) merged.set(k, v);
@@ -999,13 +1077,13 @@ export async function resolvePlaybook(
 - [ ] **Step 4: Run tests — expect pass**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook-discovery.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-discovery.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/pipeline/playbook-discovery.ts src/__tests__/pipeline/playbook-discovery.test.ts
+git add src/core/pipeline/playbook-discovery.ts src/__tests__/integration/playbook-discovery.test.ts
 git commit -m "feat: playbook three-scope file discovery (FLX-106)"
 ```
 
@@ -1051,9 +1129,9 @@ prompt: |
 
   Result document fields you MAY write:
     comment: text to post as an issue comment (optional)
-    blockers: array of {title, description} objects for issues to file (optional)
+    blockers: array of {title, description} objects describing blockers (optional)
     artifacts: array of filenames you produced in $ARTIFACTS_DIR (optional)
-    meta.model: the model identifier you used (optional — filled by engine if omitted)
+    meta.model: the model identifier you used (optional)
     meta.input_tokens: integer token count (optional)
     meta.output_tokens: integer token count (optional)
 
@@ -1063,9 +1141,6 @@ prompt: |
   Idempotency: this session may be a retry of a crashed prior run.
   Before creating anything external (branch, commit, PR, comment, API call),
   check whether it already exists and skip or reuse it.
-  - Branch: git checkout <branch> 2>/dev/null || git checkout -b <branch>
-  - PR: check gh pr list --head <branch> before gh pr create
-  - Appending to files: read before write; overwriting the same content is safe
 
   To write the result document:
     node -e "
@@ -1091,7 +1166,7 @@ stages:
     onFail: rework
     fallback: blocked
     rules:
-      - field: meta.duration_sec
+      - field: timing.duration_sec
         operator: less_than
         value: 7200
         severity: warn
@@ -1115,7 +1190,7 @@ stages:
         operator: less_than
         value: 4
         severity: block
-        onFail: blocked
+        onFail: abort
         label: Rework attempt cap (3 max)
 
   - id: deploy
@@ -1139,7 +1214,7 @@ description: Research the issue and produce an implementation-ready plan.
 
 You are the research agent. The issue is in `research` state.
 
-1. Read the issue title and description from `$RESULT_DOC_PATH` (`issue.title`).
+1. Read the issue title and description from `$RESULT_DOC_PATH` (`.issue.title`).
 2. Explore the codebase to understand the affected areas.
 3. Identify the root cause or implementation approach.
 4. Write `$ARTIFACTS_DIR/research-findings.md` with:
@@ -1152,7 +1227,10 @@ You are the research agent. The issue is in `research` state.
 ## You Are Done When
 
 - `$ARTIFACTS_DIR/research-findings.md` exists and is complete.
-- You have set `verdict` to `pass` (ready for implement) or `fail` (blocked).
+- You have written `verdict` to the result document:
+  - `pass` when the issue is ready for implement
+  - `fail` when the issue cannot be researched (missing context, ambiguous)
+  - `blocked` when you need operator input before continuing
 
 ## You Do Not Do
 
@@ -1175,11 +1253,11 @@ description: Make the scoped code changes and leave the branch ready for review.
 You are the implement agent. The issue is in `implement` state.
 
 1. Read `$ARTIFACTS_DIR/research-findings.md` if it exists.
-2. Create a feature branch: `git checkout -b flx-<issue.number>-<slug>`.
-3. Make the implementation changes described in the research findings.
+2. Create a feature branch: `git checkout <branch> 2>/dev/null || git checkout -b <branch>`.
+3. Make the implementation changes.
 4. Run tests and lint. Fix failures.
 5. Commit all changes.
-6. Write `$ARTIFACTS_DIR/implementation-summary.md` with:
+6. Write `$ARTIFACTS_DIR/implementation-summary.md`:
    - What was changed and why
    - Files modified
    - Test results
@@ -1187,11 +1265,10 @@ You are the implement agent. The issue is in `implement` state.
 
 ## You Are Done When
 
-- All relevant tests pass.
-- Lint is clean.
+- All relevant tests pass and lint is clean.
 - Changes are committed to the branch.
 - `$ARTIFACTS_DIR/implementation-summary.md` is written.
-- `verdict` is set to `pass` (ready for review) or `fail` (could not implement).
+- `verdict` is `pass` (ready for review) or `fail` (could not implement).
 
 ## You Do Not Do
 
@@ -1227,13 +1304,12 @@ You are the review agent. The issue is in `review` state.
 
 - `$ARTIFACTS_DIR/review-findings.md` is written.
 - `verdict` is `pass` (approved for deploy) or `fail` (needs rework).
-- `comment` contains a concise review summary for the issue.
-- If `fail`, `comment` includes specific required changes.
+- `comment` contains a concise review summary.
+- If `fail`, `comment` lists specific required changes.
 
 ## You Do Not Do
 
-- Merge PRs.
-- Deploy to production.
+- Merge PRs or deploy to production.
 - Transition issue states or write issue comments directly.
 ```
 
@@ -1255,7 +1331,7 @@ You are the rework agent. The issue is in `rework` state.
 3. Apply only changes needed to address review feedback.
 4. Run tests and lint. Fix failures.
 5. Commit changes.
-6. Update `$ARTIFACTS_DIR/implementation-summary.md` with what changed.
+6. Update `$ARTIFACTS_DIR/implementation-summary.md` with what changed during rework.
 
 ## You Are Done When
 
@@ -1284,17 +1360,16 @@ description: Merge approved work, deploy, verify, and close the issue.
 
 You are the deploy agent. The issue is in `deploy` state.
 
-1. Confirm review approved the work (`$ARTIFACTS_DIR/review-findings.md` shows pass).
-2. Open a PR if one does not exist: `gh pr create --title "..." --body "..."`.
-3. Merge the PR: `gh pr merge <number> --squash --auto`.
+1. Confirm review approved (`$ARTIFACTS_DIR/review-findings.md` shows pass).
+2. Open a PR if one does not exist: `gh pr list --head <branch>` first.
+3. Merge: `gh pr merge <number> --squash --auto`.
 4. Run the deploy command for this project.
 5. Verify the deploy succeeded.
 6. Write `$ARTIFACTS_DIR/deploy-summary.md` with PR URL, merge SHA, deploy result.
 
 ## You Are Done When
 
-- PR is merged.
-- Deploy is verified.
+- PR is merged and deploy is verified.
 - `$ARTIFACTS_DIR/deploy-summary.md` is written.
 - `verdict` is `pass` (deployed and verified) or `fail` (deploy failed after attempted recovery).
 
@@ -1305,26 +1380,29 @@ You are the deploy agent. The issue is in `deploy` state.
   (The orchestrator closes the issue when `onPass: complete` is reached.)
 ```
 
-- [ ] **Step 7: Verify playbook parses**
+- [ ] **Step 7: Verify bundled playbook parses**
 
 ```bash
-cd /mnt/dev/fluxaos && node -e "
-const { parsePlaybook } = require('./src/core/pipeline/playbook.ts');
-" 2>/dev/null || npx tsx -e "
+cd /mnt/dev/fluxaos && npx tsx -e "
 import { parsePlaybook } from './src/core/pipeline/playbook.js';
 import { readFileSync } from 'fs';
 const yaml = readFileSync('./src/core/pipeline/bundled/standard-dev.yaml', 'utf-8');
 const result = parsePlaybook(yaml, 'standard-dev.yaml');
-console.log(result.success ? 'VALID: ' + result.playbook.stages.length + ' stages' : 'INVALID: ' + result.error);
+if (result.success) {
+  console.log('VALID: ' + result.playbook.stages.length + ' stages:', result.playbook.stages.map(s => s.id).join(', '));
+} else {
+  console.error('INVALID:', result.error);
+  process.exit(1);
+}
 "
 ```
-Expected: `VALID: 5 stages`
+Expected: `VALID: 5 stages: research, implement, review, rework, deploy`
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add src/core/pipeline/bundled/
-git commit -m "feat: bundled Standard Dev playbook and work-only skills (FLX-106)"
+git commit -m "feat: bundled Standard Dev playbook and work-only skill prompts (FLX-106)"
 ```
 
 ---
@@ -1335,12 +1413,19 @@ git commit -m "feat: bundled Standard Dev playbook and work-only skills (FLX-106
 
 **Files:**
 - Create: `src/core/pipeline/playbook-auditor.ts`
-- Test: `src/__tests__/pipeline/playbook-auditor.test.ts`
+- Test: `src/__tests__/integration/playbook-auditor.test.ts`
+
+The auditor reads a result doc and a playbook stage definition, runs gate rules (if any),
+and returns an `AuditResult` describing what the orchestrator should do next.
+
+Gate rules reference nested fields on the result doc — e.g., `timing.duration_sec` walks
+`doc.timing.duration_sec`. The result doc is passed as-is (already nested); the gate engine's
+`resolveField` walks the nested tree correctly.
 
 - [ ] **Step 1: Create the test file**
 
 ```typescript
-// src/__tests__/pipeline/playbook-auditor.test.ts
+// src/__tests__/integration/playbook-auditor.test.ts
 import { describe, it, expect } from 'vitest';
 import { auditResultDoc } from '@/core/pipeline/playbook-auditor';
 import type { Playbook } from '@/core/pipeline/playbook';
@@ -1351,8 +1436,26 @@ const playbook: Playbook = {
   description: 'Test playbook',
   prompt: 'Test prompt',
   stages: [
-    { id: 'implement', skill: 'implement', onPass: 'review', onFail: 'rework', fallback: 'blocked', trustMode: 'prescriptive', rules: [] },
-    { id: 'review', skill: 'review', onPass: 'deploy', onFail: 'rework', fallback: 'blocked', trustMode: 'prescriptive', rules: [] },
+    {
+      type: 'sequential',
+      id: 'implement',
+      skill: 'implement',
+      onPass: 'review',
+      onFail: 'rework',
+      fallback: 'blocked',
+      trustMode: 'prescriptive',
+      rules: [],
+    },
+    {
+      type: 'sequential',
+      id: 'review',
+      skill: 'review',
+      onPass: 'deploy',
+      onFail: 'rework',
+      fallback: 'blocked',
+      trustMode: 'prescriptive',
+      rules: [],
+    },
   ],
 };
 
@@ -1362,7 +1465,7 @@ const baseDoc: ResultDoc = {
   org: { id: 'u4', slug: 'o' },
   project: { id: 'u5', slug: 'p' },
   timing: { startedAt: '2026-05-02T00:00:00Z' },
-  verdict: 'pass' as const,
+  verdict: 'pass',
   summary: 'Done.',
 };
 
@@ -1379,7 +1482,7 @@ describe('auditResultDoc', () => {
     expect(result.action).toBe('transition');
   });
 
-  it('uses fallback when result doc is invalid', () => {
+  it('uses fallback when result doc is null (invalid)', () => {
     const result = auditResultDoc(playbook, 'implement', null);
     expect(result.targetState).toBe('blocked');
     expect(result.action).toBe('fallback');
@@ -1387,7 +1490,6 @@ describe('auditResultDoc', () => {
 
   it('uses fallback when stage not found in playbook', () => {
     const result = auditResultDoc(playbook, 'nonexistent', baseDoc);
-    // No stage found — use first stage fallback as default or global fallback
     expect(result.action).toBe('fallback');
   });
 
@@ -1397,30 +1499,29 @@ describe('auditResultDoc', () => {
     expect(result.comment).toBe('Review passed cleanly.');
   });
 
-  it('includes blockers from result doc', () => {
-    const doc = { ...baseDoc, verdict: 'fail' as const, blockers: [{ title: 'CI broken', description: 'Red on main.' }] };
+  it('verdict: blocked routes to fallback', () => {
+    const doc: ResultDoc = { ...baseDoc, verdict: 'blocked' };
     const result = auditResultDoc(playbook, 'implement', doc);
-    expect(result.blockers).toHaveLength(1);
-    expect(result.action).toBe('fallback'); // blockers → fallback
-  });
-
-  it('verdict: blocked routes to fallback even with no blockers array', () => {
-    const doc = { ...baseDoc, verdict: 'blocked' as const };
-    const result = auditResultDoc(playbook, 'implement', doc);
-    expect(result.targetState).toBe('blocked'); // stage fallback
+    expect(result.targetState).toBe('blocked');
     expect(result.action).toBe('fallback');
   });
 
-  it('verdict: pass with blockers still routes to fallback', () => {
-    const doc = { ...baseDoc, verdict: 'pass' as const, blockers: [{ title: 'Missing dep', description: 'Not found.' }] };
+  it('verdict: pass with non-empty blockers routes to fallback', () => {
+    const doc: ResultDoc = {
+      ...baseDoc,
+      verdict: 'pass',
+      blockers: [{ title: 'CI broken', description: 'Red on main.' }],
+    };
     const result = auditResultDoc(playbook, 'implement', doc);
-    expect(result.action).toBe('fallback'); // blockers override pass verdict
+    expect(result.action).toBe('fallback');
+    expect(result.blockers).toHaveLength(1);
   });
 
-  it('uses gate rules when configured — rule override on duration', () => {
-    const playbookWithRules: Playbook = {
+  it('warn-only rule failure does not override pass routing', () => {
+    const playbookWithWarnRule: Playbook = {
       ...playbook,
       stages: [{
+        type: 'sequential',
         id: 'implement',
         skill: 'implement',
         onPass: 'review',
@@ -1428,19 +1529,48 @@ describe('auditResultDoc', () => {
         fallback: 'blocked',
         trustMode: 'prescriptive',
         rules: [{
-          field: 'meta.duration_sec',
+          field: 'timing.duration_sec',
           operator: 'less_than',
           value: 60,
-          severity: 'block',
+          severity: 'warn',
           onFail: 'hold',
           label: 'Time cap',
         }],
       }],
     };
-    const doc = { ...baseDoc, meta: { duration_sec: 3600 } };
-    const result = auditResultDoc(playbookWithRules, 'implement', doc);
-    // Rule says duration must be < 60, actual is 3600 → rule fails → onFail action is 'hold'
-    expect(result.targetState).toBe('hold');
+    // duration_sec = 3600, cap = 60, severity = warn → warn-only → does NOT block
+    const doc: ResultDoc = { ...baseDoc, timing: { startedAt: '2026-05-02T00:00:00Z', duration_sec: 3600 } };
+    const result = auditResultDoc(playbookWithWarnRule, 'implement', doc);
+    expect(result.targetState).toBe('review'); // pass verdict respected; warn did not block
+    expect(result.action).toBe('transition');
+  });
+
+  it('block-severity rule failure routes to fallback', () => {
+    const playbookWithBlockRule: Playbook = {
+      ...playbook,
+      stages: [{
+        type: 'sequential',
+        id: 'implement',
+        skill: 'implement',
+        onPass: 'review',
+        onFail: 'rework',
+        fallback: 'blocked',
+        trustMode: 'prescriptive',
+        rules: [{
+          field: 'run.attempt',
+          operator: 'less_than',
+          value: 2,
+          severity: 'block',
+          onFail: 'abort',
+          label: 'Attempt cap',
+        }],
+      }],
+    };
+    // attempt = 1, cap = 2 → passes; test the inverse
+    const doc: ResultDoc = { ...baseDoc, run: { ...baseDoc.run, attempt: 5 } };
+    const result = auditResultDoc(playbookWithBlockRule, 'implement', doc);
+    // attempt 5 < 2 is false → rule fails with severity:block, onFail:abort → fallback
+    expect(result.action).toBe('fallback');
   });
 });
 ```
@@ -1448,7 +1578,7 @@ describe('auditResultDoc', () => {
 - [ ] **Step 2: Run to verify fail**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook-auditor.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-auditor.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 3: Create the auditor module**
@@ -1457,7 +1587,7 @@ cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook-auditor.te
 // src/core/pipeline/playbook-auditor.ts
 import { evaluateGate } from '@/core/gates/engine';
 import type { RuleGroup } from '@/core/gates/types';
-import type { Playbook, PlaybookStage } from './playbook';
+import type { Playbook } from './playbook';
 import type { ResultDoc } from './result-doc';
 
 export type AuditAction = 'transition' | 'fallback';
@@ -1477,9 +1607,12 @@ export function auditResultDoc(
 ): AuditResult {
   const stage = playbook.stages.find(s => s.id === stageId);
 
-  // No stage found — use safe fallback
+  // No stage found in playbook — safe fallback to first stage's fallback
   if (!stage) {
-    return { action: 'fallback', targetState: playbook.stages[0]?.fallback ?? 'blocked' };
+    return {
+      action: 'fallback',
+      targetState: playbook.stages[0]?.fallback ?? 'blocked',
+    };
   }
 
   // Invalid result doc — apply fallback
@@ -1491,9 +1624,9 @@ export function auditResultDoc(
     };
   }
 
-  // verdict: blocked OR non-empty blockers[] → always fallback, regardless of verdict value
-  // These two are equivalent signals: "I am stuck, orchestrator must intervene"
-  const isBlocked = doc.verdict === 'blocked' || (doc.blockers && doc.blockers.length > 0);
+  // verdict: blocked OR non-empty blockers[] → always fallback regardless of verdict
+  const isBlocked =
+    doc.verdict === 'blocked' || (doc.blockers !== undefined && doc.blockers.length > 0);
   if (isBlocked) {
     return {
       action: 'fallback',
@@ -1504,20 +1637,21 @@ export function auditResultDoc(
     };
   }
 
-  // Evaluate gate rules if configured
+  // Evaluate gate rules if configured.
+  // Pass the result doc as-is (nested object) — resolveField() walks the tree via dot-path.
+  // e.g. rule field "timing.duration_sec" resolves doc.timing.duration_sec correctly.
   const rules = (stage.rules ?? []) as RuleGroup['rules'];
   if (rules.length > 0) {
     const ruleGroup: RuleGroup = { logic: 'AND', rules };
-    const context = flattenForGate(doc);
-    const evaluation = evaluateGate('rules', ruleGroup, context);
+    const evaluation = evaluateGate('rules', ruleGroup, doc as unknown as Record<string, unknown>);
 
     if (!evaluation.passed) {
-      // Determine target state from worst failing rule's onFail action
       const worstAction = evaluation.worstAction;
-      const targetState = worstAction === 'hold' ? 'hold'
-        : worstAction === 'abort' ? 'blocked'
-        : worstAction === 'rework' ? stage.onFail
-        : stage.fallback;
+      // Map FailureAction to a target state string
+      const targetState =
+        worstAction === 'rework' ? stage.onFail
+          : worstAction === 'hold' ? 'hold'
+          : stage.fallback; // abort, escalate, notify, proceed-but-failed → fallback
 
       return {
         action: 'fallback',
@@ -1529,7 +1663,6 @@ export function auditResultDoc(
   }
 
   // Trust mode: prescriptive (default) — use agent verdict directly
-  // Trust mode: declarative — verdict is evidence only, rules already ran above
   const targetState = doc.verdict === 'pass' ? stage.onPass : stage.onFail;
 
   return {
@@ -1539,34 +1672,18 @@ export function auditResultDoc(
     artifacts: doc.artifacts,
   };
 }
-
-function flattenForGate(doc: ResultDoc): Record<string, unknown> {
-  return {
-    verdict: doc.verdict,
-    summary: doc.summary,
-    'run.attempt': doc.run.attempt,
-    'run.stage': doc.run.stage,
-    'meta.duration_sec': doc.timing.duration_sec,
-    'meta.input_tokens': doc.meta?.input_tokens,
-    'meta.output_tokens': doc.meta?.output_tokens,
-    'meta.model': doc.meta?.model,
-    blockers: doc.blockers ?? [],
-    'blockers.length': doc.blockers?.length ?? 0,
-    artifacts: doc.artifacts ?? [],
-  };
-}
 ```
 
 - [ ] **Step 4: Run tests — expect pass**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/playbook-auditor.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-auditor.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/pipeline/playbook-auditor.ts src/__tests__/pipeline/playbook-auditor.test.ts
+git add src/core/pipeline/playbook-auditor.ts src/__tests__/integration/playbook-auditor.test.ts
 git commit -m "feat: playbook auditor routes result docs via gate engine (FLX-106)"
 ```
 
@@ -1576,65 +1693,103 @@ git commit -m "feat: playbook auditor routes result docs via gate engine (FLX-10
 
 **Files:**
 - Create: `src/core/pipeline/paperwork-executor.ts`
-- Test: `src/__tests__/pipeline/paperwork-executor.test.ts`
+- Test: `src/__tests__/integration/playbook-paperwork.test.ts`
+
+The paperwork executor is called by the orchestrator after the auditor produces an `AuditResult`.
+It posts a comment, posts a single formatted blocker summary if blockers exist, and transitions
+the issue state — using the real service APIs verified against the codebase.
+
+Note: there is no blocker relation table in the schema. Blockers are reported as a single
+formatted comment on the parent issue. A follow-up Linear ticket will add proper
+blocker-issue creation once the relation table exists.
 
 - [ ] **Step 1: Create the test file**
 
+Integration test against real Supabase — no vi.fn() mocks of service interfaces.
+This test uses the real DB and tests the wiring without executing the full pipeline.
+
 ```typescript
-// src/__tests__/pipeline/paperwork-executor.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// src/__tests__/integration/playbook-paperwork.test.ts
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { createIssueService } from '@/core/services/issue';
+import { createIssueCommentService } from '@/core/services/issue-comment';
 import { executePaperwork } from '@/core/pipeline/paperwork-executor';
 import type { AuditResult } from '@/core/pipeline/playbook-auditor';
+import { eq } from 'drizzle-orm';
+import { issue, issueComment } from '@/core/db/schema';
 
-describe('executePaperwork', () => {
-  const mockIssueService = {
-    comment: { create: vi.fn().mockResolvedValue({}) },
-    create: vi.fn().mockResolvedValue({ id: 'new-issue-id' }),
-    transition: vi.fn().mockResolvedValue({}),
-    close: vi.fn().mockResolvedValue({}),
-    getStateByKey: vi.fn().mockResolvedValue({ id: 'state-id', key: 'review' }),
-  };
+// Real DB integration — requires DIRECT_URL or DATABASE_URL in env
+const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+const skip = !url;
 
-  beforeEach(() => vi.clearAllMocks());
+const dbProvider = skip ? null : new SupabaseDatabaseProvider(url!);
+const db = dbProvider?.getConnection();
 
-  it('posts comment when present', async () => {
-    const audit: AuditResult = { action: 'transition', targetState: 'review', comment: 'Looks good.' };
-    await executePaperwork({ issueId: 'i1', projectId: 'p1', audit, issueService: mockIssueService as any, isTerminal: false });
-    expect(mockIssueService.comment.create).toHaveBeenCalledWith(
-      expect.objectContaining({ issueId: 'i1', body: 'Looks good.' })
-    );
+describe.skipIf(skip)('executePaperwork (real DB)', () => {
+  let testIssueId: string;
+  let testProjectId: string;
+
+  beforeAll(async () => {
+    // Find the first seeded issue to use as test target
+    if (!db) return;
+    const [row] = await db.select({ id: issue.id, projectId: issue.projectId }).from(issue).limit(1);
+    if (!row) throw new Error('No issues in DB — run db:seed first');
+    testIssueId = row.id;
+    testProjectId = row.projectId;
   });
 
-  it('skips comment when absent', async () => {
-    const audit: AuditResult = { action: 'transition', targetState: 'review' };
-    await executePaperwork({ issueId: 'i1', projectId: 'p1', audit, issueService: mockIssueService as any, isTerminal: false });
-    expect(mockIssueService.comment.create).not.toHaveBeenCalled();
+  afterAll(async () => {
+    await dbProvider?.close?.();
   });
 
-  it('files blocker issues when present', async () => {
+  it('posts comment when audit has comment', async () => {
+    if (!db) return;
+    const issueService = createIssueService(db);
+    const commentService = createIssueCommentService(db);
+
+    const audit: AuditResult = {
+      action: 'transition',
+      targetState: 'research', // use a known valid state key from seed
+      comment: 'Paperwork executor integration test comment.',
+    };
+
+    await executePaperwork({
+      issueId: testIssueId,
+      projectId: testProjectId,
+      db,
+      audit,
+    });
+
+    // Verify comment was created
+    const comments = await commentService.list(testIssueId);
+    const testComment = comments.find(c => c.bodyMd?.includes('Paperwork executor integration test comment.'));
+    expect(testComment).toBeDefined();
+  });
+
+  it('posts blocker summary comment when blockers present', async () => {
+    if (!db) return;
+    const commentService = createIssueCommentService(db);
+
     const audit: AuditResult = {
       action: 'fallback',
       targetState: 'blocked',
       blockers: [
-        { title: 'CI broken', description: 'Red on main.' },
+        { title: 'CI broken', description: 'Tests are red on main.' },
         { title: 'Missing dep', description: 'Package not found.' },
       ],
     };
-    await executePaperwork({ issueId: 'i1', projectId: 'p1', audit, issueService: mockIssueService as any, isTerminal: false });
-    expect(mockIssueService.create).toHaveBeenCalledTimes(2);
-  });
 
-  it('transitions issue state', async () => {
-    const audit: AuditResult = { action: 'transition', targetState: 'review' };
-    await executePaperwork({ issueId: 'i1', projectId: 'p1', audit, issueService: mockIssueService as any, isTerminal: false });
-    expect(mockIssueService.getStateByKey).toHaveBeenCalledWith('p1', 'review');
-    expect(mockIssueService.transition).toHaveBeenCalled();
-  });
+    await executePaperwork({
+      issueId: testIssueId,
+      projectId: testProjectId,
+      db,
+      audit,
+    });
 
-  it('calls close when terminal', async () => {
-    const audit: AuditResult = { action: 'transition', targetState: 'complete' };
-    await executePaperwork({ issueId: 'i1', projectId: 'p1', audit, issueService: mockIssueService as any, isTerminal: true });
-    expect(mockIssueService.close).toHaveBeenCalledWith('i1');
+    const comments = await commentService.list(testIssueId);
+    const blockerComment = comments.find(c => c.bodyMd?.includes('Stage flagged 2 blocker(s)'));
+    expect(blockerComment).toBeDefined();
   });
 });
 ```
@@ -1642,50 +1797,68 @@ describe('executePaperwork', () => {
 - [ ] **Step 2: Run to verify fail**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/paperwork-executor.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-paperwork.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 3: Create the paperwork executor**
 
 ```typescript
 // src/core/pipeline/paperwork-executor.ts
-import type { IssueService } from '@/core/services/issue';
+import type { Database } from '@/core/db/connection';
+import { issue } from '@/core/db/schema';
+import { eq } from 'drizzle-orm';
+import { createIssueService } from '@/core/services/issue';
+import { createIssueCommentService } from '@/core/services/issue-comment';
 import type { AuditResult } from './playbook-auditor';
 
 export interface PaperworkInput {
   issueId: string;
   projectId: string;
+  db: Database;
   audit: AuditResult;
-  issueService: IssueService;
-  isTerminal: boolean;
 }
 
 export async function executePaperwork(input: PaperworkInput): Promise<void> {
-  const { issueId, projectId, audit, issueService, isTerminal } = input;
+  const { issueId, projectId, db, audit } = input;
 
-  // 1. Post comment
+  const issueService = createIssueService(db);
+  const commentService = createIssueCommentService(db);
+
+  // 1. Post comment if present
   if (audit.comment) {
-    await issueService.comment.create({ issueId, body: audit.comment, authorType: 'orchestrator' });
+    await commentService.create(issueId, {
+      bodyMd: audit.comment,
+      author: 'orchestrator',
+    });
   }
 
-  // 2. File blocker issues
+  // 2. Post blocker summary as a single formatted comment (no issue creation —
+  //    no blocker relation table exists yet; follow-up ticket will add that).
   if (audit.blockers && audit.blockers.length > 0) {
-    for (const blocker of audit.blockers) {
-      await issueService.create({
-        projectId,
-        title: blocker.title,
-        description: blocker.description,
-        blockerOfIssueId: issueId,
-      });
-    }
+    const lines = [
+      `Stage flagged ${audit.blockers.length} blocker(s):`,
+      '',
+      ...audit.blockers.map((b, i) => `**${i + 1}. ${b.title}**\n${b.description}`),
+    ];
+    await commentService.create(issueId, {
+      bodyMd: lines.join('\n'),
+      author: 'orchestrator',
+    });
   }
 
-  // 3. Transition issue state (or close if terminal)
-  if (isTerminal) {
-    await issueService.close(issueId);
+  // 3. Transition issue state using real IssueService API:
+  //    - getStateByKey(projectId, key) → returns IssueStateSelect with .id
+  //    - transition(id, toStateId, version, userId?) — version is arg 3
+  //    Must read current version from DB before calling.
+  const [issueRow] = await db.select().from(issue).where(eq(issue.id, issueId));
+  if (!issueRow) return; // issue deleted concurrently — skip
+
+  if (audit.targetState === 'complete') {
+    // close() finds the terminal state and delegates to stateOverride
+    await issueService.close(issueId, issueRow.version, 'orchestrator');
   } else {
     const targetState = await issueService.getStateByKey(projectId, audit.targetState);
-    await issueService.transition(issueId, targetState.id, 'orchestrator');
+    await issueService.transition(issueId, targetState.id, issueRow.version, 'orchestrator');
   }
 }
 ```
@@ -1693,122 +1866,320 @@ export async function executePaperwork(input: PaperworkInput): Promise<void> {
 - [ ] **Step 4: Run tests — expect pass**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/paperwork-executor.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-paperwork.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/pipeline/paperwork-executor.ts src/__tests__/pipeline/paperwork-executor.test.ts
-git commit -m "feat: paperwork executor posts comments, files blockers, transitions state (FLX-106)"
+git add src/core/pipeline/paperwork-executor.ts src/__tests__/integration/playbook-paperwork.test.ts
+git commit -m "feat: paperwork executor posts comments and transitions issue state (FLX-106)"
 ```
 
 ---
 
-### Task 10: Wire playbook auditor into event-orchestrator (migration shim)
+### Task 10: Prompt composer
+
+**Files:**
+- Create: `src/core/pipeline/prompt-composer.ts`
+- Test: `src/__tests__/integration/playbook-prompt-composer.test.ts`
+
+Substitutes `${KEY}` brace-syntax vars (not bare `$KEY`) to match the standard-dev
+playbook's `${RESULT_DOC_PATH}` and `${ARTIFACTS_DIR}` references.
+
+- [ ] **Step 1: Create the test file**
+
+```typescript
+// src/__tests__/integration/playbook-prompt-composer.test.ts
+import { describe, it, expect } from 'vitest';
+import { composePrompt } from '@/core/pipeline/prompt-composer';
+
+describe('composePrompt', () => {
+  it('concatenates base prompt and skill prompt', () => {
+    const result = composePrompt('Base prompt.', 'Skill work here.');
+    expect(result).toContain('Base prompt.');
+    expect(result).toContain('Skill work here.');
+  });
+
+  it('substitutes ${RESULT_DOC_PATH} in base prompt', () => {
+    const result = composePrompt('Write to ${RESULT_DOC_PATH} when done.', 'Work.', {
+      RESULT_DOC_PATH: '/tmp/result.json',
+    });
+    expect(result).toContain('/tmp/result.json');
+    expect(result).not.toContain('${RESULT_DOC_PATH}');
+  });
+
+  it('substitutes ${ARTIFACTS_DIR} in skill prompt', () => {
+    const result = composePrompt('Base.', 'Read ${ARTIFACTS_DIR}/plan.md.', {
+      ARTIFACTS_DIR: '/tmp/artifacts',
+    });
+    expect(result).toContain('/tmp/artifacts/plan.md');
+    expect(result).not.toContain('${ARTIFACTS_DIR}');
+  });
+
+  it('leaves unmatched vars untouched', () => {
+    const result = composePrompt('Hello ${UNKNOWN}.', 'Work.', {});
+    expect(result).toContain('${UNKNOWN}');
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify fail**
+
+```bash
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-prompt-composer.test.ts 2>&1 | tail -10
+```
+
+- [ ] **Step 3: Create prompt composer**
+
+```typescript
+// src/core/pipeline/prompt-composer.ts
+
+export function composePrompt(
+  basePrompt: string,
+  skillPrompt: string,
+  vars: Record<string, string> = {}
+): string {
+  const substitute = (text: string) =>
+    Object.entries(vars).reduce(
+      (acc, [key, value]) => acc.replaceAll(`\${${key}}`, value),
+      text
+    );
+
+  return [substitute(basePrompt), substitute(skillPrompt)].join('\n\n---\n\n');
+}
+```
+
+- [ ] **Step 4: Run tests — expect pass**
+
+```bash
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-prompt-composer.test.ts 2>&1 | tail -10
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/core/pipeline/prompt-composer.ts src/__tests__/integration/playbook-prompt-composer.test.ts
+git commit -m "feat: prompt composer with brace-syntax variable substitution (FLX-106)"
+```
+
+---
+
+### Task 11: Wire playbook auditor into event-orchestrator (migration shim)
 
 **Files:**
 - Modify: `src/core/orchestrator/event-orchestrator.ts`
 
-The existing orchestrator uses `flux:signal` routing. This task adds a parallel
-code path: if the `pipeline` row has a `playbookPath`, use the new auditor.
-If not, fall through to the existing signal-based routing. This is the
-migration shim — old pipelines continue to work.
+Hook the playbook code path into `launchStage` before `executeStageRun` fires (line 221).
+The shim branches on `pipeline.playbookPath != null`. Old pipelines (null) fall through
+to the existing signal-based routing unchanged.
 
-- [ ] **Step 1: Add playbook-path detection to `handleNewRun`**
+Parallel groups: if `launchStage` encounters a parallel group stage, throw
+`NotImplementedError` so it surfaces cleanly. A follow-up ticket will implement execution.
 
-In `src/core/orchestrator/event-orchestrator.ts`, locate `handleNewRun` and after
-fetching the pipeline row, add:
+- [ ] **Step 1: Add project and pipeline imports if missing**
+
+In `src/core/orchestrator/event-orchestrator.ts`, locate the imports at lines 15–43.
+If `project` is not already imported from `@/core/db/schema`, add it:
 
 ```typescript
-// After fetching the pipeline row (has .playbookPath)
-const usePlaybook = !!pipelineRow.playbookPath;
+// add to the schema imports block:
+import {
+  issue,
+  pipeline,   // ← confirm this exists
+  pipelineStage,
+  project,    // ← add if missing
+  stageRun,
+} from '@/core/db/schema';
 ```
 
-Pass `usePlaybook` down to `launchStage` via the run context.
+- [ ] **Step 2: Add playbook branch to `launchStage`**
 
-- [ ] **Step 2: Add playbook audit branch to `applyVerdict`**
-
-In `applyVerdict`, at the top before the existing `if (verdict === GATE_VERDICT.proceed)` block, add:
+In `src/core/orchestrator/event-orchestrator.ts`, inside `launchStage` (line 184),
+after the pre-gate check block (after line 217) and immediately before
+`const result = await executeStageRun(...)` at line 221, insert:
 
 ```typescript
-// Playbook path — if stage run has a result doc, use playbook auditor
-if (ctx.usePlaybook && sRun.resultDoc) {
+// ── Playbook execution path ──────────────────────────────────────────
+// Branch on playbookPath on the pipeline row. Old pipelines (null) fall through.
+const [pipelineRow] = await db
+  .select({ playbookPath: pipeline.playbookPath, projectId: pipeline.projectId })
+  .from(pipeline)
+  .where(eq(pipeline.id, run.pipelineId));
+
+if (pipelineRow?.playbookPath) {
+  const { isParallelGroup } = await import('@/core/pipeline/playbook');
+  const { resolvePlaybook } = await import('@/core/pipeline/playbook-discovery');
   const { auditResultDoc } = await import('@/core/pipeline/playbook-auditor');
   const { executePaperwork } = await import('@/core/pipeline/paperwork-executor');
-  const { resolvePlaybook } = await import('@/core/pipeline/playbook-discovery');
-  const { isValidResultDoc } = await import('@/core/pipeline/result-doc');
+  const { runStageGraph } = await import('@/core/pipeline/langgraph-stage-runner');
+  const { getCheckpointer } = await import('@/core/pipeline/checkpoint-store');
+  const { composePrompt } = await import('@/core/pipeline/prompt-composer');
 
-  const doc = isValidResultDoc(sRun.resultDoc) ? sRun.resultDoc : null;
-  const discoveredPlaybook = await resolvePlaybook(pipelineRow.playbookPath!, {
-    bundledDir: process.env.FLUXAOS_BUNDLED_PIPELINES_DIR ?? 'src/core/pipeline/bundled',
-  });
+  const bundledDir = process.env.FLUXAOS_BUNDLED_PIPELINES_DIR
+    ?? 'src/core/pipeline/bundled';
+  const discovered = await resolvePlaybook(pipelineRow.playbookPath, { bundledDir });
 
-  if (discoveredPlaybook) {
-    const audit = auditResultDoc(discoveredPlaybook.playbook, stage.name, doc);
-    const isTerminal = !discoveredPlaybook.playbook.stages.some(s => s.id === audit.targetState);
-    const issueService = createIssueService(db);
+  if (discovered) {
+    const playbookStage = discovered.playbook.stages.find(s => s.id === stage.name);
+
+    // Parallel groups: parser accepts them; execution not yet implemented
+    if (playbookStage && isParallelGroup(playbookStage)) {
+      throw new Error(
+        `NotImplementedError: parallel group execution is not yet supported (stage: ${stage.name})`
+      );
+    }
+
+    // Resolve driver row to get promptTransport
+    const [driverRow] = stage.driverId
+      ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
+      : [null];
+
+    const artifactsBase = run.artifactsPath
+      ?? `${process.env.FLUXAOS_ARTIFACTS_ROOT ?? '.fluxaos-artifacts'}/${run.id}`;
+    const resultDocPath = `${artifactsBase}/result.json`;
+
+    // Skill prompt from DB or bundled file
+    const skillPromptTemplate = (stage as any).skillPromptTemplate
+      ?? discovered.playbook.stages.find(s => s.id === stage.name)?.skill
+      ?? '';
+
+    const composedPrompt = composePrompt(
+      discovered.playbook.prompt,
+      skillPromptTemplate,
+      {
+        RESULT_DOC_PATH: resultDocPath,
+        ARTIFACTS_DIR: artifactsBase,
+      }
+    );
+
+    // Build driver args — respect promptTransport from driver row
+    const transport = driverRow?.promptTransport ?? 'argv';
+    const driverBinary = driverRow?.binary ?? 'claude';
+    const driverArgs = [
+      ...((driverRow?.defaultArgs as string[]) ?? []),
+    ];
+
+    if (transport === 'argv') {
+      driverArgs.push(composedPrompt);
+    }
+    // stdin and file transports deferred — only argv is wired now
+
+    const checkpointer = await getCheckpointer();
+    const { ingestOutput } = await runStageGraph(
+      {
+        stageRunId: sRun.id,
+        resultDocPath,
+        artifactsDir: artifactsBase,
+        prompt: composedPrompt,
+        driverCommand: driverBinary,
+        driverArgs,
+        env: {
+          RESULT_DOC_PATH: resultDocPath,
+          ARTIFACTS_DIR: artifactsBase,
+        },
+      },
+      checkpointer
+    );
+
+    // Parse ingest output
+    let ingestResult: { valid: boolean; doc?: Record<string, unknown> };
+    try {
+      ingestResult = JSON.parse(ingestOutput);
+    } catch {
+      ingestResult = { valid: false };
+    }
+
+    const { isValidResultDoc } = await import('@/core/pipeline/result-doc');
+    const resultDoc = ingestResult.valid && ingestResult.doc && isValidResultDoc(ingestResult.doc)
+      ? ingestResult.doc
+      : null;
+
+    const audit = auditResultDoc(discovered.playbook, stage.name, resultDoc);
+    const isTerminal = !discovered.playbook.stages.some(s => s.id === audit.targetState);
 
     if (run.issueId) {
-      const [issueRow] = await db.select().from(issue).where(eq(issue.id, run.issueId));
-      if (issueRow) {
-        const [projRow] = await db.select().from(project).where(eq(project.id, issueRow.projectId));
-        if (projRow) {
-          await executePaperwork({
-            issueId: run.issueId,
-            projectId: projRow.id,
-            audit,
-            issueService,
-            isTerminal,
-          });
-        }
-      }
+      await executePaperwork({
+        issueId: run.issueId,
+        projectId: pipelineRow.projectId,
+        db,
+        audit,
+      });
     }
 
     if (isTerminal) {
       await completePipelineRun(run);
     } else {
-      const nextStage = discoveredPlaybook.playbook.stages.find(s => s.id === audit.targetState);
+      const nextStage = await db
+        .select()
+        .from(pipelineStage)
+        .where(
+          and(
+            eq(pipelineStage.pipelineId, run.pipelineId),
+            eq(pipelineStage.name, audit.targetState)
+          )
+        )
+        .then(rows => rows[0] ?? null);
+
       if (nextStage) {
-        const [dbStage] = await db.select().from(pipelineStage)
-          .where(and(eq(pipelineStage.pipelineId, run.pipelineId), eq(pipelineStage.name, nextStage.id)));
-        if (dbStage) await launchStage(run, dbStage);
+        await launchStage(run, nextStage);
+      } else {
+        await finishRun(run, PIPELINE_RUN_STATUS.failed);
       }
     }
+
     return; // skip legacy signal routing
   }
 }
+// ── End playbook path — fall through to legacy executeStageRun ───────────
 ```
 
-- [ ] **Step 3: Add env var to CLAUDE.md R-RUNTIME env vars section**
+- [ ] **Step 3: Add driver import if missing**
+
+The block above references `driver` from schema. Confirm it is in the imports block:
+
+```typescript
+import {
+  driver,   // ← add if missing
+  issue,
+  pipeline,
+  pipelineStage,
+  project,
+  stageRun,
+} from '@/core/db/schema';
+```
+
+- [ ] **Step 4: Add env var to CLAUDE.md**
 
 In `/mnt/dev/fluxaos/CLAUDE.md`, under "R-RUNTIME env vars", add:
-
 ```
 - `FLUXAOS_BUNDLED_PIPELINES_DIR` (optional) — path to bundled pipeline YAML files. Default: `src/core/pipeline/bundled`.
 ```
 
-- [ ] **Step 4: Run lint to catch any type errors**
+Run `claude-md-management:claude-md-improver` skill and ensure score ≥ 90.
+Append `claude-md-score: NN` to the commit message.
+
+- [ ] **Step 5: Run lint**
 
 ```bash
-cd /mnt/dev/fluxaos && npm run lint 2>&1 | grep -E "error|Error" | head -20
+cd /mnt/dev/fluxaos && npm run lint 2>&1 | grep -E "^src.*error" | head -20
 ```
-Fix any type errors before continuing.
+Fix all type errors before committing.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/core/orchestrator/event-orchestrator.ts CLAUDE.md
-git commit -m "feat: wire playbook auditor into orchestrator with migration shim (FLX-106)
+git commit -m "feat: wire playbook auditor into launchStage with migration shim (FLX-106)
 
-claude-md-score: 92"
+claude-md-score: NN"
 ```
 
 ---
 
 ## Phase 4 — LangGraph Runner
 
-### Task 11: Install LangGraph dependencies
+### Task 12: Install LangGraph dependencies
 
 **Files:**
 - Modify: `package.json`
@@ -1835,21 +2206,21 @@ git commit -m "feat: install LangGraph and postgres checkpoint saver (FLX-106)"
 
 ---
 
-### Task 12: LangGraph three-node stage execution graph
+### Task 13: LangGraph three-node stage execution graph
 
 **Files:**
 - Create: `src/core/pipeline/langgraph-stage-runner.ts`
-- Test: `src/__tests__/pipeline/langgraph-stage-runner.test.ts`
+- Test: `src/__tests__/integration/playbook-langgraph.test.ts`
 
 - [ ] **Step 1: Create the test file**
 
 ```typescript
-// src/__tests__/pipeline/langgraph-stage-runner.test.ts
-import { describe, it, expect, vi } from 'vitest';
-import { buildStageGraph, type StageGraphInput } from '@/core/pipeline/langgraph-stage-runner';
+// src/__tests__/integration/playbook-langgraph.test.ts
+import { describe, it, expect } from 'vitest';
+import { buildStageGraph } from '@/core/pipeline/langgraph-stage-runner';
 
 describe('buildStageGraph', () => {
-  it('returns a compiled graph with prepare, execute, ingest nodes', () => {
+  it('returns a compiled graph with invoke method', () => {
     const graph = buildStageGraph({
       stageRunId: 'test-id',
       resultDocPath: '/tmp/test.json',
@@ -1859,7 +2230,6 @@ describe('buildStageGraph', () => {
       driverArgs: ['hello'],
     });
     expect(graph).toBeDefined();
-    // Graph has nodes — check the compiled graph has the right shape
     expect(typeof graph.invoke).toBe('function');
   });
 });
@@ -1868,7 +2238,7 @@ describe('buildStageGraph', () => {
 - [ ] **Step 2: Run to verify fail**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/langgraph-stage-runner.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-langgraph.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 3: Create the LangGraph stage runner**
@@ -1910,8 +2280,7 @@ async function prepareNode(state: typeof StageState.State): Promise<Partial<type
   try {
     mkdirSync(state.artifactsDir, { recursive: true });
 
-    // Run init-result-doc script
-    const { stdout } = await execFileAsync('npx', [
+    await execFileAsync('npx', [
       'tsx',
       'src/scripts/pipeline/init-result-doc.ts',
       '--stage-run-id', state.stageRunId,
@@ -1927,21 +2296,21 @@ async function prepareNode(state: typeof StageState.State): Promise<Partial<type
 async function executeNode(state: typeof StageState.State): Promise<Partial<typeof StageState.State>> {
   if (state.error) return {};
   try {
-    const agentEnv = {
-      ...process.env,
-      ...state.env,
+    const agentEnv: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      ...(state.env ?? {}),
       RESULT_DOC_PATH: state.resultDocPath,
       ARTIFACTS_DIR: state.artifactsDir,
     };
 
-    await execFileAsync(state.driverCommand, [...state.driverArgs, state.prompt], {
+    await execFileAsync(state.driverCommand, state.driverArgs, {
       env: agentEnv,
       timeout: 2 * 60 * 60 * 1000, // 2 hours max
     });
 
     return { executed: true };
-  } catch (err) {
-    // Agent exited non-zero — not an engine error, ingest will handle partial result doc
+  } catch {
+    // Agent exited non-zero — not an engine error; ingest handles partial result doc
     return { executed: true };
   }
 }
@@ -1976,15 +2345,13 @@ export function buildStageGraph(input: StageGraphInput) {
 
 export async function runStageGraph(
   input: StageGraphInput,
-  checkpointer?: Parameters<ReturnType<typeof buildStageGraph>['invoke']>[2] extends { configurable?: { thread_id?: string } } ? any : never
+  checkpointer?: unknown
 ): Promise<{ ingestOutput: string; error?: string }> {
   const graph = buildStageGraph(input);
 
-  const config = checkpointer
-    ? { configurable: { thread_id: input.stageRunId }, checkpointer }
-    : { configurable: { thread_id: input.stageRunId } };
+  const config = { configurable: { thread_id: input.stageRunId } };
 
-  const result = await graph.invoke(input, config as any);
+  const result = await graph.invoke(input, config as never);
   return {
     ingestOutput: result.ingestOutput ?? JSON.stringify({ valid: false, reason: 'no ingest output' }),
     error: result.error,
@@ -1995,23 +2362,29 @@ export async function runStageGraph(
 - [ ] **Step 4: Run tests — expect pass**
 
 ```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/langgraph-stage-runner.test.ts 2>&1 | tail -10
+cd /mnt/dev/fluxaos && npx vitest run src/__tests__/integration/playbook-langgraph.test.ts 2>&1 | tail -10
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/pipeline/langgraph-stage-runner.ts src/__tests__/pipeline/langgraph-stage-runner.test.ts
+git add src/core/pipeline/langgraph-stage-runner.ts src/__tests__/integration/playbook-langgraph.test.ts
 git commit -m "feat: LangGraph three-node stage execution graph (FLX-106)"
 ```
 
 ---
 
-### Task 13: PostgresSaver wiring and daemon integration
+### Task 14: PostgresSaver checkpoint store
 
 **Files:**
 - Create: `src/core/pipeline/checkpoint-store.ts`
-- Modify: `src/config/index.ts` (or wherever the daemon is bootstrapped)
+
+The checkpointer persists LangGraph node state between crashes. `setup()` creates
+the checkpoint tables in Supabase Postgres if they don't exist.
+
+Note: `tsx src/scripts/db/nuke.ts` drops user data tables only — it does NOT drop
+LangGraph checkpoint tables (they live in the `langgraph_*` schema namespace).
+If a clean state is needed during development, truncate via `db:studio`.
 
 - [ ] **Step 1: Create the checkpoint store factory**
 
@@ -2026,152 +2399,42 @@ export async function getCheckpointer(): Promise<PostgresSaver> {
 
   const connectionString = process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL or SUPABASE_DB_URL required for LangGraph checkpointer');
+    throw new Error(
+      'DATABASE_URL or SUPABASE_DB_URL required for LangGraph PostgresSaver checkpointer'
+    );
   }
 
   checkpointer = PostgresSaver.fromConnString(connectionString);
-  await checkpointer.setup(); // creates LangGraph checkpoint tables if not exist
+  await checkpointer.setup();
   return checkpointer;
 }
 
 export async function closeCheckpointer(): Promise<void> {
   if (checkpointer) {
-    await checkpointer.end();
+    await checkpointer.end?.();
     checkpointer = null;
   }
 }
 ```
 
-- [ ] **Step 2: Add env var documentation**
-
-In `CLAUDE.md` under "R-RUNTIME env vars", add:
-```
-- `DATABASE_URL` — Postgres connection string for LangGraph PostgresSaver checkpoint store. Falls back to `SUPABASE_DB_URL`. Required when using playbook-mode pipelines with LangGraph execution.
-```
-
-- [ ] **Step 3: Wire checkpointer into `runStageGraph` call in event-orchestrator**
-
-In `src/core/orchestrator/event-orchestrator.ts`, in the playbook branch added in Task 10,
-before calling the agent, replace direct `executeStageRun` with `runStageGraph`:
-
-```typescript
-// In the playbook branch, instead of executeStageRun:
-const { runStageGraph } = await import('@/core/pipeline/langgraph-stage-runner');
-const { getCheckpointer } = await import('@/core/pipeline/checkpoint-store');
-const checkpointer = await getCheckpointer();
-
-const { ingestOutput } = await runStageGraph({
-  stageRunId: sRun.id,
-  resultDocPath: `${artifactsPath}/result.json`,
-  artifactsDir: artifactsPath,
-  prompt: composedPrompt, // base prompt + skill prompt (see Task 14)
-  driverCommand: driverRow.command,
-  driverArgs: driverRow.args ?? [],
-  env: stageEnv,
-}, checkpointer);
-
-// Parse ingest output and store on sRun for auditor
-const ingestResult = JSON.parse(ingestOutput);
-```
-
-- [ ] **Step 4: Verify lint passes**
+- [ ] **Step 2: Verify lint passes**
 
 ```bash
-cd /mnt/dev/fluxaos && npm run lint 2>&1 | grep -E "error|Error" | head -20
+cd /mnt/dev/fluxaos && npm run lint 2>&1 | grep -E "^src/core/pipeline/checkpoint" | head -10
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add src/core/pipeline/checkpoint-store.ts src/core/orchestrator/event-orchestrator.ts CLAUDE.md
-git commit -m "feat: PostgresSaver checkpointer for LangGraph stage execution (FLX-106)
-
-claude-md-score: 92"
-```
-
----
-
-### Task 14: Prompt composition (base prompt + skill prompt)
-
-**Files:**
-- Create: `src/core/pipeline/prompt-composer.ts`
-- Test: `src/__tests__/pipeline/prompt-composer.test.ts`
-
-- [ ] **Step 1: Create the test file**
-
-```typescript
-// src/__tests__/pipeline/prompt-composer.test.ts
-import { describe, it, expect } from 'vitest';
-import { composePrompt } from '@/core/pipeline/prompt-composer';
-
-describe('composePrompt', () => {
-  it('concatenates base prompt and skill prompt', () => {
-    const result = composePrompt('Base prompt.', 'Skill work here.');
-    expect(result).toContain('Base prompt.');
-    expect(result).toContain('Skill work here.');
-  });
-
-  it('substitutes $RESULT_DOC_PATH in base prompt', () => {
-    const result = composePrompt('Write to $RESULT_DOC_PATH when done.', 'Work.', {
-      RESULT_DOC_PATH: '/tmp/result.json',
-    });
-    expect(result).toContain('/tmp/result.json');
-    expect(result).not.toContain('$RESULT_DOC_PATH');
-  });
-
-  it('substitutes $ARTIFACTS_DIR in skill prompt', () => {
-    const result = composePrompt('Base.', 'Read $ARTIFACTS_DIR/plan.md.', {
-      ARTIFACTS_DIR: '/tmp/artifacts',
-    });
-    expect(result).toContain('/tmp/artifacts/plan.md');
-  });
-});
-```
-
-- [ ] **Step 2: Run to verify fail**
-
-```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/prompt-composer.test.ts 2>&1 | tail -10
-```
-
-- [ ] **Step 3: Create prompt composer**
-
-```typescript
-// src/core/pipeline/prompt-composer.ts
-
-export function composePrompt(
-  basePrompt: string,
-  skillPrompt: string,
-  vars: Record<string, string> = {}
-): string {
-  const substitute = (text: string) =>
-    Object.entries(vars).reduce(
-      (acc, [key, value]) => acc.replaceAll(`$${key}`, value),
-      text
-    );
-
-  return [substitute(basePrompt), substitute(skillPrompt)].join('\n\n---\n\n');
-}
-```
-
-- [ ] **Step 4: Run tests — expect pass**
-
-```bash
-cd /mnt/dev/fluxaos && npx vitest run src/__tests__/pipeline/prompt-composer.test.ts 2>&1 | tail -10
-```
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/core/pipeline/prompt-composer.ts src/__tests__/pipeline/prompt-composer.test.ts
-git commit -m "feat: prompt composer concatenates base and skill prompts (FLX-106)"
+git add src/core/pipeline/checkpoint-store.ts
+git commit -m "feat: PostgresSaver checkpoint store for LangGraph (FLX-106)"
 ```
 
 ---
 
 ## Phase 5 — Verification and PR
 
-### Task 15: Integration verification with a real playbook pipeline run
+### Task 15: Integration smoke
 
 **Files:**
 - Create: `e2e/playbook-pipeline-smoke.spec.ts`
@@ -2188,48 +2451,14 @@ Expected: `{"status":"ok"}`. If not running: `npm run dev -- -p 3003`.
 ```typescript
 // e2e/playbook-pipeline-smoke.spec.ts
 import { test, expect } from '@playwright/test';
+import { execSync } from 'child_process';
 
-test('playbook pipeline: standard-dev parses and resolves stages', async ({ page }) => {
-  // Navigate to pipeline settings
-  await page.goto('/');
-  await page.waitForSelector('[data-testid="nav-settings"]', { timeout: 10000 });
-  await page.click('[data-testid="nav-settings"]');
-
-  // Verify pipelines section loads
-  await expect(page.locator('[data-testid="pipelines-section"]')).toBeVisible({ timeout: 10000 });
-});
-
-test('playbook result-doc: init and ingest scripts run without error', async () => {
-  // This is a Node-level integration test run via Playwright's test runner
-  // to get the same reporting infrastructure
-  const { execSync } = await import('child_process');
-
-  // Get a real stage run ID
-  const runs = execSync('npm run --silent db:runs 2>/dev/null || echo ""', {
-    cwd: '/mnt/dev/fluxaos',
-    encoding: 'utf-8',
-  });
-
-  // Just verify the scripts exist and parse correctly
-  const initResult = execSync(
-    'npx tsx src/scripts/pipeline/init-result-doc.ts --help 2>&1 || true',
-    { cwd: '/mnt/dev/fluxaos', encoding: 'utf-8' }
-  );
-  expect(initResult).toBeTruthy();
-
-  const ingestResult = execSync(
-    'npx tsx src/scripts/pipeline/ingest-result-doc.ts --help 2>&1 || true',
-    { cwd: '/mnt/dev/fluxaos', encoding: 'utf-8' }
-  );
-  expect(ingestResult).toBeTruthy();
-});
-
-test('playbook auditor: routes pass/fail correctly for standard-dev', async () => {
-  const { parsePlaybook } = await import('/mnt/dev/fluxaos/src/core/pipeline/playbook.js');
-  const { auditResultDoc } = await import('/mnt/dev/fluxaos/src/core/pipeline/playbook-auditor.js');
+test('playbook auditor: routes standard-dev pass/fail correctly', async () => {
+  const { parsePlaybook } = await import('../src/core/pipeline/playbook.js');
+  const { auditResultDoc } = await import('../src/core/pipeline/playbook-auditor.js');
   const { readFileSync } = await import('fs');
 
-  const yaml = readFileSync('/mnt/dev/fluxaos/src/core/pipeline/bundled/standard-dev.yaml', 'utf-8');
+  const yaml = readFileSync('src/core/pipeline/bundled/standard-dev.yaml', 'utf-8');
   const parsed = parsePlaybook(yaml, 'standard-dev.yaml');
   expect(parsed.success).toBe(true);
   if (!parsed.success) return;
@@ -2244,14 +2473,35 @@ test('playbook auditor: routes pass/fail correctly for standard-dev', async () =
     summary: 'Done.',
   };
 
-  const result = auditResultDoc(parsed.playbook, 'research', baseDoc);
-  expect(result.targetState).toBe('implement'); // research onPass
+  const researchPass = auditResultDoc(parsed.playbook, 'research', baseDoc);
+  expect(researchPass.targetState).toBe('implement');
+  expect(researchPass.action).toBe('transition');
 
-  const failResult = auditResultDoc(parsed.playbook, 'review', { ...baseDoc, verdict: 'fail' });
-  expect(failResult.targetState).toBe('rework'); // review onFail
+  const reviewFail = auditResultDoc(parsed.playbook, 'review', { ...baseDoc, verdict: 'fail' });
+  expect(reviewFail.targetState).toBe('rework');
 
   const deployPass = auditResultDoc(parsed.playbook, 'deploy', baseDoc);
-  expect(deployPass.targetState).toBe('complete'); // deploy onPass
+  expect(deployPass.targetState).toBe('complete');
+
+  const blocked = auditResultDoc(parsed.playbook, 'implement', { ...baseDoc, verdict: 'blocked' });
+  expect(blocked.action).toBe('fallback');
+  expect(blocked.targetState).toBe('blocked');
+});
+
+test('init-result-doc script: exits cleanly when help requested', async () => {
+  const result = execSync(
+    'npx tsx src/scripts/pipeline/init-result-doc.ts 2>&1 || true',
+    { cwd: process.cwd(), encoding: 'utf-8' }
+  );
+  expect(result).toContain('Usage:');
+});
+
+test('ingest-result-doc script: exits cleanly when help requested', async () => {
+  const result = execSync(
+    'npx tsx src/scripts/pipeline/ingest-result-doc.ts 2>&1 || true',
+    { cwd: process.cwd(), encoding: 'utf-8' }
+  );
+  expect(result).toContain('Usage:');
 });
 ```
 
@@ -2262,14 +2512,14 @@ cd /mnt/dev/fluxaos && PLAYWRIGHT_BASE_URL=http://192.168.54.101:3003 FLUXAOS_LA
 ```
 Expected: all tests pass.
 
-- [ ] **Step 4: Run full integration test suite to check for regressions**
+- [ ] **Step 4: Run full integration test suite — confirm no regressions**
 
 ```bash
 cd /mnt/dev/fluxaos && npx vitest run 2>&1 | tail -20
 ```
-Expected: all existing tests still pass.
+Expected: all pre-existing tests still pass.
 
-- [ ] **Step 5: Run biome before pushing**
+- [ ] **Step 5: Run biome**
 
 ```bash
 cd /mnt/dev/fluxaos && npx biome check --write src/core/pipeline/ src/scripts/pipeline/ 2>&1 | tail -10
@@ -2284,7 +2534,7 @@ git commit -m "test: playbook pipeline smoke spec (FLX-106)"
 
 ---
 
-### Task 16: Open PR
+### Task 16: Open PR and update Linear
 
 - [ ] **Step 1: Push branch**
 
@@ -2300,49 +2550,54 @@ gh pr create \
   --body "$(cat <<'EOF'
 ## Summary
 
-- Introduces YAML playbook files as the pipeline configuration format (three-scope discovery: bundled → org → project)
-- Result document schema: agent writes facts (verdict, summary, comment, blockers, artifacts), engine reads and acts
-- Playbook auditor: routes result docs through gate engine to onPass/onFail/fallback issue states
-- Paperwork executor: posts comments, files blocker issues, transitions state — orchestrator owns all lifecycle operations
+- Adds YAML playbook files as the pipeline configuration format (three-scope discovery: bundled → org → project)
+- Result document schema: agent writes facts (verdict/summary/comment/blockers/artifacts), orchestrator acts
+- Playbook auditor routes result docs through gate engine to onPass/onFail/fallback issue states
+- Paperwork executor: posts comment, posts blocker summary, transitions issue state via real IssueService API
 - LangGraph three-node stage execution graph (prepare → execute → ingest) with PostgresSaver checkpointing
-- Migration shim: old DB-configured pipelines continue to work; new pipelines opt in via playbookPath on pipeline record
+- Migration shim: old DB-configured pipelines fall through to legacy routing; new pipelines opt in via playbookPath
 - Bundled Standard Dev playbook with work-only skill prompts for all five stages
+- Parallel group parsing accepted by schema; execution throws NotImplementedError (follow-up ticket filed)
 
 Fixes FLX-106
 
 ## Test plan
 
-- [ ] `npx vitest run` — all integration tests pass
+- [ ] `npx vitest run` — all integration tests pass, no regressions
 - [ ] `npx playwright test e2e/playbook-pipeline-smoke.spec.ts` — smoke passes
-- [ ] Manually verify `npm run pipeline:init-result-doc` and `npm run pipeline:ingest-result-doc` scripts
-- [ ] Verify Standard Dev playbook parses via auditor smoke test
+- [ ] `npm run pipeline:init-result-doc -- --help` exits with Usage message
+- [ ] `npm run pipeline:ingest-result-doc -- --help` exits with Usage message
+- [ ] Standard Dev pipeline has `playbookPath: 'standard-dev'` after `db:seed`
 EOF
 )"
 ```
 
-- [ ] **Step 3: Update Linear FLX-106 to In Review**
+- [ ] **Step 3: Update Linear FLX-106**
 
-Use `mcp__plugin_linear_linear__save_issue` to set FLX-106 status to "In Review" and attach the PR URL.
+Use `mcp__plugin_linear_linear__save_issue` to:
+- Set FLX-106 status to "In Review"
+- Attach the PR URL
 
 ---
 
-## File Map Summary
+## File Map
 
 | File | Status | Purpose |
 |---|---|---|
 | `src/core/pipeline/result-doc.ts` | Create | ResultDoc Zod schema, validate/parse helpers |
-| `src/core/pipeline/playbook.ts` | Create | Playbook Zod schema, YAML parser, stage helpers |
+| `src/core/pipeline/playbook.ts` | Create | Playbook Zod schema, YAML parser, discriminated union stages |
 | `src/core/pipeline/playbook-discovery.ts` | Create | Three-scope file discovery (bundled/org/project) |
 | `src/core/pipeline/playbook-auditor.ts` | Create | Audit result doc via gate engine, return route |
-| `src/core/pipeline/paperwork-executor.ts` | Create | Post comments, file blockers, transition state |
+| `src/core/pipeline/paperwork-executor.ts` | Create | Post comments, blocker summary, transition issue state |
 | `src/core/pipeline/langgraph-stage-runner.ts` | Create | Three-node LangGraph graph (prepare/execute/ingest) |
-| `src/core/pipeline/checkpoint-store.ts` | Create | PostgresSaver factory for LangGraph checkpointing |
-| `src/core/pipeline/prompt-composer.ts` | Create | Concatenate base + skill prompts with var substitution |
+| `src/core/pipeline/checkpoint-store.ts` | Create | PostgresSaver factory |
+| `src/core/pipeline/prompt-composer.ts` | Create | Concatenate base + skill prompts with `${VAR}` substitution |
 | `src/core/pipeline/bundled/standard-dev.yaml` | Create | Bundled Standard Dev playbook |
 | `src/core/pipeline/bundled/skills/*.md` | Create | Work-only skill prompts (research/implement/review/rework/deploy) |
-| `src/scripts/pipeline/init-result-doc.ts` | Create | Pre-populate result doc from DB before agent starts |
-| `src/scripts/pipeline/ingest-result-doc.ts` | Create | Validate and write result doc to DB after agent ends |
+| `src/scripts/pipeline/init-result-doc.ts` | Create | Pre-populate result doc from DB using `db, close` from scripts/db/connection |
+| `src/scripts/pipeline/ingest-result-doc.ts` | Create | Validate and write result doc to DB |
 | `src/core/db/schema.ts` | Modify | Add playbookPath/playbookScope to pipeline, resultDoc to stage_run |
-| `src/core/orchestrator/event-orchestrator.ts` | Modify | Add playbook migration shim branch in applyVerdict |
+| `src/scripts/db/seed.ts` | Modify | Wire Standard Dev pipeline with playbookPath: 'standard-dev' |
+| `src/core/orchestrator/event-orchestrator.ts` | Modify | Playbook shim in launchStage before executeStageRun |
 | `e2e/playbook-pipeline-smoke.spec.ts` | Create | Playwright smoke for playbook parsing and routing |
-| `src/__tests__/pipeline/*.test.ts` | Create | Vitest integration tests for each new module |
+| `src/__tests__/integration/playbook-*.test.ts` | Create | Integration tests (real DB, no vi.fn() service mocks) |
