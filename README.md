@@ -242,8 +242,8 @@ The repo root includes `./flux` as a small lifecycle helper:
 ./flux orchestrator start|stop|restart|status|install|uninstall
 ```
 
-`server dev` starts Next.js on port `3004` and stores its PID/log under `.flux/`.
-`server prod` manages the `fluxaos-web` Docker Compose service in `/mnt/stacks/docker/fluxaos`; `build` delegates to that stack's `build.sh`.
+`server dev` starts Next.js on port `3004` and stores its PID/log under `.flux/`; status reports `dev-flux.jdp21.com = 192.168.54.101:3004`.
+`server prod` manages the `fluxaos-web` Docker Compose service in `/mnt/stacks/docker/fluxaos`; status reports `flux.jdp21.com = 192.168.54.101:3003`, and `build` delegates to that stack's `build.sh`.
 `orchestrator` is the current daemon name and maps to the `fluxaos-daemon` systemd user unit. `./flux orchestrator ...` is shorthand for `./flux daemon orchestrator ...`.
 
 ## Documentation

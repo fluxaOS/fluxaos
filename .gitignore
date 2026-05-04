@@ -47,6 +47,7 @@ next-env.d.ts
 
 # project-specific
 *.log
+.flux/
 .claude/*
 !.claude/AGENT_BEHAVIOR.md
 !.claude/hooks/

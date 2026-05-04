@@ -6,7 +6,12 @@ STATE_DIR="${FLUX_STATE_DIR:-${ROOT_DIR}/.flux}"
 DEV_PID_FILE="${STATE_DIR}/server-dev.pid"
 DEV_LOG_FILE="${STATE_DIR}/server-dev.log"
 DEV_PORT="${FLUX_DEV_PORT:-3004}"
+DEV_HOST="${FLUX_DEV_HOST:-192.168.54.101}"
+DEV_DNS="${FLUX_DEV_DNS:-dev-flux.jdp21.com}"
 STACK_DIR="${FLUX_STACK_DIR:-/mnt/stacks/docker/fluxaos}"
+PROD_HOST="${FLUX_PROD_HOST:-192.168.54.101}"
+PROD_PORT="${FLUX_PROD_PORT:-3003}"
+PROD_DNS="${FLUX_PROD_DNS:-flux.jdp21.com}"
 SYSTEMD_USER_DIR="${FLUX_SYSTEMD_USER_DIR:-${HOME}/.config/systemd/user}"
 DAEMON_UNIT_SOURCE="${ROOT_DIR}/ops/systemd/fluxaos-daemon.service"
 DAEMON_UNIT_NAME="fluxaos-daemon"
@@ -43,6 +48,16 @@ run() {
   "$@"
 }
 
+install_daemon_unit() {
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    echo "+ mkdir -p ${SYSTEMD_USER_DIR}"
+    echo "+ install ${DAEMON_UNIT_SOURCE} ${SYSTEMD_USER_DIR}/${DAEMON_UNIT_NAME}.service with WorkingDirectory=${ROOT_DIR}"
+    return 0
+  fi
+  mkdir -p "${SYSTEMD_USER_DIR}"
+  sed "s|%h/dev/fluxaos|${ROOT_DIR}|g" "${DAEMON_UNIT_SOURCE}" >"${SYSTEMD_USER_DIR}/${DAEMON_UNIT_NAME}.service"
+}
+
 is_running_pid() {
   local pid=$1
   [[ -n "${pid}" ]] && kill -0 "${pid}" >/dev/null 2>&1
@@ -50,6 +65,20 @@ is_running_pid() {
 
 read_dev_pid() {
   [[ -f "${DEV_PID_FILE}" ]] && cat "${DEV_PID_FILE}"
+}
+
+find_dev_port_pid() {
+  local line
+  line="$(ss -ltnp "sport = :${DEV_PORT}" 2>/dev/null | awk 'NR > 1 { print; exit }' || true)"
+  [[ "${line}" =~ pid=([0-9]+) ]] && echo "${BASH_REMATCH[1]}"
+}
+
+print_dev_endpoint() {
+  echo "endpoint: ${DEV_DNS} = ${DEV_HOST}:${DEV_PORT}"
+}
+
+print_prod_endpoint() {
+  echo "endpoint: ${PROD_DNS} = ${PROD_HOST}:${PROD_PORT}"
 }
 
 require_stack_dir() {
@@ -69,15 +98,21 @@ server_dev() {
   local action=${1:-}
   case "${action}" in
     start)
+      if [[ "${DRY_RUN}" == "1" ]]; then
+        echo "+ cd ${ROOT_DIR} && npm run dev -- -p ${DEV_PORT} >${DEV_LOG_FILE} 2>&1 & echo \$! >${DEV_PID_FILE}"
+        return 0
+      fi
       mkdir -p "${STATE_DIR}"
       local pid
-      pid="$(read_dev_pid || true)"
+      pid="$(find_dev_port_pid || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
+        echo "${pid}" >"${DEV_PID_FILE}"
         echo "server dev already running pid=${pid} port=${DEV_PORT}"
         return 0
       fi
-      if [[ "${DRY_RUN}" == "1" ]]; then
-        echo "+ cd ${ROOT_DIR} && npm run dev -- -p ${DEV_PORT} >${DEV_LOG_FILE} 2>&1 & echo \$! >${DEV_PID_FILE}"
+      pid="$(read_dev_pid || true)"
+      if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
+        echo "server dev starting pid=${pid} port=${DEV_PORT}"
         return 0
       fi
       (cd "${ROOT_DIR}" && nohup npm run dev -- -p "${DEV_PORT}" >"${DEV_LOG_FILE}" 2>&1 & echo $! >"${DEV_PID_FILE}")
@@ -86,24 +121,41 @@ server_dev() {
     stop)
       local pid
       pid="$(read_dev_pid || true)"
-      if [[ -z "${pid}" ]] || ! is_running_pid "${pid}"; then
+      local stopped=0
+      if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
+        run kill "${pid}"
+        echo "server dev stopped pid=${pid}"
+        stopped=1
+      fi
+      pid="$(find_dev_port_pid || true)"
+      if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
+        run kill "${pid}"
+        echo "server dev stopped listener pid=${pid}"
+        stopped=1
+      fi
+      if [[ "${stopped}" == "0" ]]; then
         echo "server dev stopped"
         rm -f "${DEV_PID_FILE}"
         return 0
       fi
-      run kill "${pid}"
       rm -f "${DEV_PID_FILE}"
-      echo "server dev stopped pid=${pid}"
       ;;
     restart)
       server_dev stop
       server_dev start
       ;;
     status)
+      print_dev_endpoint
       local pid
+      pid="$(find_dev_port_pid || true)"
+      if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
+        echo "${pid}" >"${DEV_PID_FILE}"
+        echo "server dev running pid=${pid} port=${DEV_PORT} log=${DEV_LOG_FILE}"
+        return 0
+      fi
       pid="$(read_dev_pid || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
-        echo "server dev running pid=${pid} port=${DEV_PORT} log=${DEV_LOG_FILE}"
+        echo "server dev starting pid=${pid} port=${DEV_PORT} log=${DEV_LOG_FILE}"
       else
         echo "server dev stopped"
       fi
@@ -129,6 +181,7 @@ server_prod() {
       ;;
     status)
       require_stack_dir
+      print_prod_endpoint
       run docker compose --project-directory "${STACK_DIR}" ps fluxaos-web
       ;;
     build)
@@ -161,12 +214,15 @@ daemon_action() {
       run systemctl --user restart "${unit}"
       ;;
     status)
-      run systemctl --user status "${unit}" --no-pager
+      if [[ "${DRY_RUN}" == "1" ]]; then
+        run systemctl --user status "${unit}" --no-pager
+      else
+        systemctl --user status "${unit}" --no-pager || true
+      fi
       ;;
     install)
       [[ -f "${DAEMON_UNIT_SOURCE}" ]] || fail "unit source not found: ${DAEMON_UNIT_SOURCE}"
-      run mkdir -p "${SYSTEMD_USER_DIR}"
-      run cp "${DAEMON_UNIT_SOURCE}" "${SYSTEMD_USER_DIR}/${unit}.service"
+      install_daemon_unit
       run systemctl --user daemon-reload
       run systemctl --user enable "${unit}"
       echo "installed ${unit}; run 'flux daemon ${name} start' to start it"
