@@ -229,7 +229,9 @@ export function createEventOrchestrator(
         .where(eq(pipeline.id, run.pipelineId));
 
       if (pipelineRow?.playbookPath) {
-        const { isParallelGroup } = await import('@/core/pipeline/playbook');
+        const { isParallelGroup, isLoopNode } = await import(
+          '@/core/pipeline/playbook'
+        );
         const { resolvePlaybook } = await import(
           '@/core/pipeline/playbook-discovery'
         );
@@ -248,8 +250,8 @@ export function createEventOrchestrator(
         const { composePrompt } = await import(
           '@/core/pipeline/prompt-composer'
         );
-        const { readFileSync, existsSync } = await import('fs');
-        const { join } = await import('path');
+        const { readFileSync, existsSync } = await import('node:fs');
+        const { join } = await import('node:path');
 
         const bundledDir =
           process.env.FLUXAOS_BUNDLED_PIPELINES_DIR ??
@@ -283,7 +285,8 @@ export function createEventOrchestrator(
 
           // Read skill prompt from bundled skills directory
           const skillName =
-            playbookStage?.type === 'sequential'
+            playbookStage?.type === 'sequential' ||
+            playbookStage?.type === 'loop'
               ? playbookStage.skill
               : stage.name;
           const skillFilePath = join(bundledDir, 'skills', `${skillName}.md`);
@@ -324,22 +327,113 @@ export function createEventOrchestrator(
             STAGE_RUN_STATUS.running
           );
 
-          const checkpointer = await getCheckpointer();
-          const { ingestOutput, error: graphError } = await runStageGraph(
-            {
+          let ingestOutput: string;
+          let graphError: string | undefined;
+
+          if (playbookStage && isLoopNode(playbookStage)) {
+            const { runLoopExecutor } = await import(
+              '@/core/agents/loop-executor'
+            );
+            const loopCheckpointer = await getCheckpointer();
+            const loopResult = await runLoopExecutor({
               stageRunId: sRun.id,
               resultDocPath,
               artifactsDir: artifactsBase,
               prompt: composedPrompt,
               driverCommand: driverBinary,
               driverArgs,
+              until: playbookStage.until,
+              maxIterations: playbookStage.maxIterations,
               env: {
                 RESULT_DOC_PATH: resultDocPath,
                 ARTIFACTS_DIR: artifactsBase,
               },
-            },
-            checkpointer
-          );
+              checkpointer: loopCheckpointer,
+            });
+
+            ingestOutput = loopResult.lastIngestOutput;
+            graphError = loopResult.error;
+
+            // Map loop outcome to audit targetState before the shared audit path
+            if (!loopResult.error) {
+              const loopTargetState = loopResult.completed
+                ? playbookStage.onComplete
+                : playbookStage.onExhausted;
+              const loopIsTerminal = !discovered.playbook.stages.some(
+                (s) => s.id === loopTargetState
+              );
+
+              if (run.issueId) {
+                await executePaperwork({
+                  issueId: run.issueId,
+                  projectId: pipelineRow.projectId,
+                  db,
+                  audit: {
+                    action: 'transition',
+                    targetState: loopTargetState,
+                  },
+                });
+              }
+
+              const loopStageStatus =
+                loopTargetState === 'blocked'
+                  ? STAGE_RUN_STATUS.failed
+                  : STAGE_RUN_STATUS.completed;
+              await runService.completeStageRun(sRun.id, loopStageStatus, {});
+
+              if (loopIsTerminal) {
+                const pipelineStatus =
+                  loopTargetState === 'blocked'
+                    ? PIPELINE_RUN_STATUS.blocked
+                    : PIPELINE_RUN_STATUS.completed;
+                if (pipelineStatus === PIPELINE_RUN_STATUS.completed) {
+                  await completePipelineRun(run);
+                } else {
+                  await finishRun(run, pipelineStatus);
+                }
+              } else {
+                const nextStage = await db
+                  .select()
+                  .from(pipelineStage)
+                  .where(
+                    and(
+                      eq(pipelineStage.pipelineId, run.pipelineId),
+                      eq(pipelineStage.name, loopTargetState)
+                    )
+                  )
+                  .then((rows) => rows[0] ?? null);
+
+                if (nextStage) {
+                  await launchStage(run, nextStage);
+                } else {
+                  await finishRun(run, PIPELINE_RUN_STATUS.failed);
+                }
+              }
+
+              return; // skip legacy signal routing
+            }
+
+            // error path falls through to shared error handling below
+          } else {
+            const checkpointer = await getCheckpointer();
+            const graphResult = await runStageGraph(
+              {
+                stageRunId: sRun.id,
+                resultDocPath,
+                artifactsDir: artifactsBase,
+                prompt: composedPrompt,
+                driverCommand: driverBinary,
+                driverArgs,
+                env: {
+                  RESULT_DOC_PATH: resultDocPath,
+                  ARTIFACTS_DIR: artifactsBase,
+                },
+              },
+              checkpointer
+            );
+            ingestOutput = graphResult.ingestOutput;
+            graphError = graphResult.error;
+          }
 
           if (graphError) {
             await runService.completeStageRun(

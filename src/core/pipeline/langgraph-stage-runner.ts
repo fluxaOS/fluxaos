@@ -127,11 +127,12 @@ export function buildStageGraph(
 
 export async function runStageGraph(
   input: StageGraphInput,
-  checkpointer?: BaseCheckpointSaver
+  checkpointer?: BaseCheckpointSaver,
+  threadId?: string
 ): Promise<{ ingestOutput: string; error?: string }> {
   const graph = buildStageGraph(input, checkpointer);
 
-  const config = { configurable: { thread_id: input.stageRunId } };
+  const config = { configurable: { thread_id: threadId ?? input.stageRunId } };
   const result = await graph.invoke(input, config as never);
 
   return {

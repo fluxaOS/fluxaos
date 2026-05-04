@@ -143,4 +143,27 @@ describe('auditResultDoc', () => {
     const result = auditResultDoc(playbookWithBlockRule, 'implement', doc);
     expect(result.action).toBe('fallback');
   });
+
+  it('loop node stage routes to fallback (loop nodes bypass the auditor)', () => {
+    const playbookWithLoop: Playbook = {
+      name: 'test',
+      description: 'Test',
+      prompt: 'Test',
+      stages: [{
+        type: 'loop',
+        id: 'symphony-agent',
+        skill: 'implement',
+        until: 'ISSUE_OUT_OF_ACTIVE_STATE',
+        maxIterations: 10,
+        onComplete: 'complete',
+        onExhausted: 'blocked',
+        fallback: 'blocked',
+        trustMode: 'prescriptive',
+        rules: [],
+      }],
+    };
+    const result = auditResultDoc(playbookWithLoop, 'symphony-agent', baseDoc);
+    expect(result.action).toBe('fallback');
+    expect(result.targetState).toBe('blocked');
+  });
 });
