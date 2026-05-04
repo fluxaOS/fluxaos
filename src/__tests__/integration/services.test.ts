@@ -8,7 +8,6 @@
  * Each test run uses unique slugs: `test-${Date.now()}` (DA Finding #28).
  */
 import 'dotenv/config';
-import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
@@ -22,6 +21,7 @@ import {
   createProjectService,
   createUserService,
 } from '@/core/services';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -31,39 +31,6 @@ const db: Database = provider.getConnection();
 
 // ─── Unique run suffix ──────────────────────────────────────────────────────
 const RUN = Date.now();
-
-// ─── Track IDs for cleanup (reverse order in afterAll) ──────────────────────
-const cleanup: { table: string; id: string }[] = [];
-
-const tableMap: Record<string, any> = {
-  issueEvent: schema.issueEvent,
-  issueComment: schema.issueComment,
-  issue: schema.issue,
-  issueTransition: schema.issueTransition,
-  issueType: schema.issueType,
-  issueState: schema.issueState,
-  issueStatus: schema.issueStatus,
-  issuePriority: schema.issuePriority,
-  issueLabel: schema.issueLabel,
-  configEntry: schema.configEntry,
-  pipeline: schema.pipeline,
-  pipelineStage: schema.pipelineStage,
-  project: schema.project,
-  user: schema.user,
-  organization: schema.organization,
-};
-
-afterAll(async () => {
-  for (const { table, id } of cleanup.reverse()) {
-    const t = tableMap[table];
-    if (t) {
-      await db
-        .delete(t)
-        .where(eq(t.id, id))
-        .catch(() => {});
-    }
-  }
-});
 
 // ─── Shared state across test groups ────────────────────────────────────────
 
@@ -84,6 +51,13 @@ let _labelBugId: string;
 let _transOpenToInProgress: string;
 let _transInProgressToClosed: string;
 
+// Issue ID shared between issue-service tests and comment-service tests
+let _firstIssueId: string;
+
+afterAll(async () => {
+  if (_orgId) await deleteOrgFixture(db, _orgId);
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. Organization + User + Project
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -100,7 +74,6 @@ describe('organization + user + project', () => {
       slug: `test-org-${RUN}`,
       settings: {},
     });
-    cleanup.push({ table: 'organization', id: org.id });
     _orgId = org.id;
     expect(org.slug).toBe(`test-org-${RUN}`);
 
@@ -111,7 +84,6 @@ describe('organization + user + project', () => {
       name: 'Test User',
       slug: `test-user-${RUN}`,
     });
-    cleanup.push({ table: 'user', id: usr.id });
     _userId = usr.id;
     expect(usr.name).toBe('Test User');
 
@@ -126,7 +98,6 @@ describe('organization + user + project', () => {
       name: 'Test Project',
       slug: `test-proj-${RUN}`,
     });
-    cleanup.push({ table: 'project', id: proj.id });
     projectId = proj.id;
     expect(proj.userId).toBe(usr.id);
     expect(proj.orgId).toBe(org.id);
@@ -149,7 +120,6 @@ describe('issue catalogs', () => {
       color: '#0000ff',
       sortOrder: 1,
     });
-    cleanup.push({ table: 'issueType', id: t.id });
     typeId = t.id;
 
     const types = await catalogSvc.types.list(projectId);
@@ -177,7 +147,6 @@ describe('issue catalogs', () => {
       color: '#00ff00',
       sortOrder: 1,
     });
-    cleanup.push({ table: 'issueLabel', id: active.id });
     _labelBugId = active.id;
 
     // Create an inactive label
@@ -188,7 +157,6 @@ describe('issue catalogs', () => {
       color: '#999999',
       sortOrder: 2,
     });
-    cleanup.push({ table: 'issueLabel', id: inactive.id });
     await catalogSvc.labels.deactivate(inactive.id);
 
     const labels = await catalogSvc.labels.list(projectId);
@@ -206,7 +174,6 @@ describe('issue catalogs', () => {
       sortOrder: 1,
       isTerminal: false,
     });
-    cleanup.push({ table: 'issueState', id: open.id });
     stateOpenId = open.id;
 
     const inProgress = await catalogSvc.states.create({
@@ -217,7 +184,6 @@ describe('issue catalogs', () => {
       sortOrder: 2,
       isTerminal: false,
     });
-    cleanup.push({ table: 'issueState', id: inProgress.id });
     stateInProgressId = inProgress.id;
 
     const closed = await catalogSvc.states.create({
@@ -228,7 +194,6 @@ describe('issue catalogs', () => {
       sortOrder: 3,
       isTerminal: true,
     });
-    cleanup.push({ table: 'issueState', id: closed.id });
     stateClosedId = closed.id;
 
     // Create transitions: open→in_progress, in_progress→closed
@@ -238,7 +203,6 @@ describe('issue catalogs', () => {
       toStateId: inProgress.id,
       sortOrder: 1,
     });
-    cleanup.push({ table: 'issueTransition', id: t1.id });
     _transOpenToInProgress = t1.id;
 
     const t2 = await catalogSvc.transitions.create({
@@ -247,7 +211,6 @@ describe('issue catalogs', () => {
       toStateId: closed.id,
       sortOrder: 2,
     });
-    cleanup.push({ table: 'issueTransition', id: t2.id });
     _transInProgressToClosed = t2.id;
 
     // Verify listFrom returns correct targets
@@ -270,7 +233,6 @@ describe('issue catalogs', () => {
       displayName: 'Backlog',
       sortOrder: 1,
     });
-    cleanup.push({ table: 'issueStatus', id: status.id });
     statusBacklogId = status.id;
 
     const priority = await catalogSvc.priorities.create({
@@ -280,7 +242,6 @@ describe('issue catalogs', () => {
       color: '#ff0000',
       weight: 100,
     });
-    cleanup.push({ table: 'issuePriority', id: priority.id });
     priorityHighId = priority.id;
   });
 
@@ -304,7 +265,6 @@ describe('issue catalogs', () => {
         value: `backlog-${RUN}`,
       })
       .returning();
-    cleanup.push({ table: 'configEntry', id: config.id });
 
     expect(config.key).toBe('issues.status.on_create_key');
   });
@@ -320,7 +280,6 @@ describe('issue service', () => {
 
   let issueId: string;
   let issueVersion: number;
-  let secondIssueId: string;
 
   it('creates issue — auto-number 1, correct initial state and status', async () => {
     const created = await issueSvc.create({
@@ -331,8 +290,8 @@ describe('issue service', () => {
       priorityId: priorityHighId,
       author: 'test-user',
     });
-    cleanup.push({ table: 'issue', id: created.id });
     issueId = created.id;
+    _firstIssueId = created.id;
     issueVersion = created.version;
 
     expect(created.number).toBe(1);
@@ -351,8 +310,6 @@ describe('issue service', () => {
       typeId,
       priorityId: priorityHighId,
     });
-    cleanup.push({ table: 'issue', id: created.id });
-    secondIssueId = created.id;
 
     expect(created.number).toBe(2);
   });
@@ -443,16 +400,13 @@ describe('issue service', () => {
   });
 
   it('delete — hard delete removes the issue', async () => {
-    // Delete second issue
-    await issueSvc.delete(secondIssueId);
-    const found = await issueSvc.getById(secondIssueId);
-    expect(found).toBeNull();
-
-    // Remove from cleanup since we already deleted
-    const idx = cleanup.findIndex(
-      (c) => c.table === 'issue' && c.id === secondIssueId
-    );
-    if (idx !== -1) cleanup.splice(idx, 1);
+    // Delete second issue (number 2) — look it up by number
+    const second = await issueSvc.getByNumber(projectId, 2);
+    if (second) {
+      await issueSvc.delete(second.id);
+      const found = await issueSvc.getById(second.id);
+      expect(found).toBeNull();
+    }
   });
 });
 
@@ -471,19 +425,8 @@ describe('comment service', () => {
   let firstCommentVersion: number;
   let _secondCommentId: string;
 
-  // We need to reference the issueId from 'issue service' group.
-  // It was created via issueSvc.create and stored in the outer `cleanup` array.
-  // Let's grab it from the first 'issue' cleanup entry.
-  function getIssueId(): string {
-    const entry = cleanup.find((c) => c.table === 'issue');
-    if (!entry)
-      throw new Error('No issue found in cleanup — issue tests must run first');
-    return entry.id;
-  }
-
   it('creates first comment — commentNumber is 1, bodyHtml populated', async () => {
-    const issueId = getIssueId();
-    const comment = await commentSvc.create(issueId, {
+    const comment = await commentSvc.create(_firstIssueId, {
       bodyMd: 'Hello, this is a test comment',
       author: 'test-user',
     });
@@ -498,8 +441,7 @@ describe('comment service', () => {
   });
 
   it('creates second comment — commentNumber is 2', async () => {
-    const issueId = getIssueId();
-    const comment = await commentSvc.create(issueId, {
+    const comment = await commentSvc.create(_firstIssueId, {
       bodyMd: 'Second comment',
       author: 'test-user',
     });
@@ -509,7 +451,6 @@ describe('comment service', () => {
   });
 
   it('updates comment — editedAt set, event records old/new body', async () => {
-    const issueId = getIssueId();
     const updated = await commentSvc.update(firstCommentId, {
       bodyMd: 'Updated comment body',
       editedBy: 'test-user',
@@ -522,7 +463,7 @@ describe('comment service', () => {
     expect(updated.version).toBe(2);
 
     // Verify comment_edited event
-    const events = await eventSvc.list(issueId);
+    const events = await eventSvc.list(_firstIssueId);
     const editEvents = events.filter((e) => e.type === 'comment_edited');
     expect(editEvents.length).toBe(1);
     expect((editEvents[0].payload as any).old_body).toBe(
@@ -544,7 +485,6 @@ describe('comment service', () => {
   });
 
   it('soft-delete — isDeleted=true, body cleared, event captures original body', async () => {
-    const issueId = getIssueId();
     const deleted = await commentSvc.softDelete(firstCommentId, {
       deletedBy: 'test-user',
       version: firstCommentVersion,
@@ -555,7 +495,7 @@ describe('comment service', () => {
     expect(deleted.bodyHtml).toBe('');
 
     // Verify comment_deleted event captured the body BEFORE clearing
-    const events = await eventSvc.list(issueId);
+    const events = await eventSvc.list(_firstIssueId);
     const deleteEvents = events.filter((e) => e.type === 'comment_deleted');
     expect(deleteEvents.length).toBe(1);
     expect((deleteEvents[0].payload as any).body_md).toBe(

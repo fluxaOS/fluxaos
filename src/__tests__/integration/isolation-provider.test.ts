@@ -20,6 +20,7 @@ import {
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -29,19 +30,10 @@ const db: Database = provider.getConnection();
 const execFileAsync = promisify(execFile);
 
 const RUN = Date.now();
-const cleanup: { table: string; id: string }[] = [];
+let _orgId: string;
 
 afterAll(async () => {
-  for (const { table, id } of cleanup.reverse()) {
-    const t = (schema as Record<string, unknown>)[table];
-    if (t)
-      await db
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .delete(t as any)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .where(eq((t as any).id, id))
-        .catch(() => undefined);
-  }
+  if (_orgId) await deleteOrgFixture(db, _orgId);
   await provider.close();
 });
 
@@ -65,7 +57,7 @@ beforeAll(async () => {
     .insert(schema.organization)
     .values({ name: `iso-org-${RUN}`, slug: `iso-org-${RUN}` })
     .returning();
-  cleanup.push({ table: 'organization', id: org.id });
+  _orgId = org.id;
 
   const [user] = await db
     .insert(schema.user)
@@ -76,7 +68,6 @@ beforeAll(async () => {
       slug: `iso-${RUN}`,
     })
     .returning();
-  cleanup.push({ table: 'user', id: user.id });
 
   const [project] = await db
     .insert(schema.project)
@@ -88,20 +79,17 @@ beforeAll(async () => {
       repoUrl: 'https://github.com/fluxaos/isolation-test-fixture',
     })
     .returning();
-  cleanup.push({ table: 'project', id: project.id });
   projectId = project.id;
 
   const [pipeline] = await db
     .insert(schema.pipeline)
     .values({ projectId: project.id, name: 'iso-pipe' })
     .returning();
-  cleanup.push({ table: 'pipeline', id: pipeline.id });
 
   const [run] = await db
     .insert(schema.pipelineRun)
     .values({ pipelineId: pipeline.id, status: 'pending' })
     .returning();
-  cleanup.push({ table: 'pipelineRun', id: run.id });
   runId = run.id;
 
   isolationProvider = createWorktreeIsolationProvider({ db });
@@ -116,7 +104,6 @@ describe('WorktreeIsolationProvider', () => {
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-a`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
     expect(env.status).toBe('active');
     expect(env.branchName).toBe(`fluxaos/iso-${RUN}-a`);
@@ -139,7 +126,6 @@ describe('WorktreeIsolationProvider', () => {
         status: 'pending',
       })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run2.id });
 
     const first = await isolationProvider.acquire({
       projectId,
@@ -148,7 +134,6 @@ describe('WorktreeIsolationProvider', () => {
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-b`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: first.id });
 
     const second = await isolationProvider.acquire({
       projectId,
@@ -174,7 +159,6 @@ describe('WorktreeIsolationProvider', () => {
         status: 'pending',
       })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run3.id });
 
     const env = await isolationProvider.acquire({
       projectId,
@@ -183,7 +167,6 @@ describe('WorktreeIsolationProvider', () => {
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-c`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
     await isolationProvider.release(env.id);
 
@@ -208,7 +191,6 @@ describe('WorktreeIsolationProvider', () => {
         status: 'pending',
       })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run4.id });
 
     const env = await isolationProvider.acquire({
       projectId,
@@ -217,7 +199,6 @@ describe('WorktreeIsolationProvider', () => {
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-d`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
     // Dirty the worktree
     const { writeFile } = await import('node:fs/promises');
@@ -251,7 +232,6 @@ describe('WorktreeIsolationProvider', () => {
         status: 'pending',
       })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run.id });
 
     const env = await isolationProvider.acquire({
       projectId,
@@ -260,7 +240,6 @@ describe('WorktreeIsolationProvider', () => {
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-art-fresh`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
     // Domain object exposes the resolved absolute path.
     expect(env.artifactsPath).toBeTruthy();
@@ -293,7 +272,6 @@ describe('WorktreeIsolationProvider', () => {
         status: 'pending',
       })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run.id });
 
     const first = await isolationProvider.acquire({
       projectId,
@@ -302,7 +280,6 @@ describe('WorktreeIsolationProvider', () => {
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-art-repair`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: first.id });
 
     const originalArtifactsPath = first.artifactsPath!;
     expect(originalArtifactsPath).toBeTruthy();
@@ -355,7 +332,6 @@ describe('WorktreeIsolationProvider', () => {
           status: 'pending',
         })
         .returning();
-      cleanup.push({ table: 'pipelineRun', id: run.id });
 
       const env = await isolationProvider.acquire({
         projectId,
@@ -364,7 +340,6 @@ describe('WorktreeIsolationProvider', () => {
         repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
         branchName: `fluxaos/iso-${RUN}-art-gi`,
       });
-      cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
       const { readFile } = await import('node:fs/promises');
       const gi = await readFile(join(freshRepo, '.gitignore'), 'utf-8');

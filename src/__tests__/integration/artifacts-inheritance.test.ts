@@ -22,6 +22,7 @@ import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
 import { acquireIsolationEnv } from '@/core/orchestrator/stage-runner-env';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -31,7 +32,7 @@ const db: Database = provider.getConnection();
 const execFileAsync = promisify(execFile);
 
 const RUN = Date.now();
-const cleanup: { table: string; id: string }[] = [];
+let _orgId: string;
 let repoPath: string;
 let projectId: string;
 let pipelineId: string;
@@ -42,16 +43,7 @@ let issuePriorityId: string;
 let isolationProvider: ReturnType<typeof createWorktreeIsolationProvider>;
 
 afterAll(async () => {
-  for (const { table, id } of cleanup.reverse()) {
-    const t = (schema as Record<string, unknown>)[table];
-    if (t)
-      await db
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .delete(t as any)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .where(eq((t as any).id, id))
-        .catch(() => undefined);
-  }
+  if (_orgId) await deleteOrgFixture(db, _orgId);
   if (repoPath) {
     await rm(repoPath, { recursive: true, force: true }).catch(() => undefined);
   }
@@ -73,7 +65,7 @@ beforeAll(async () => {
     .insert(schema.organization)
     .values({ name: `inherit-org-${RUN}`, slug: `inherit-org-${RUN}` })
     .returning();
-  cleanup.push({ table: 'organization', id: org.id });
+  _orgId = org.id;
 
   const [user] = await db
     .insert(schema.user)
@@ -84,7 +76,6 @@ beforeAll(async () => {
       slug: `inherit-${RUN}`,
     })
     .returning();
-  cleanup.push({ table: 'user', id: user.id });
 
   const [proj] = await db
     .insert(schema.project)
@@ -97,14 +88,12 @@ beforeAll(async () => {
       defaultBranch: 'main',
     })
     .returning();
-  cleanup.push({ table: 'project', id: proj.id });
   projectId = proj.id;
 
   const [pipe] = await db
     .insert(schema.pipeline)
     .values({ projectId: proj.id, name: `inherit-pipe-${RUN}` })
     .returning();
-  cleanup.push({ table: 'pipeline', id: pipe.id });
   pipelineId = pipe.id;
 
   // Minimal issue-model lookups so we can insert an issue.
@@ -118,7 +107,6 @@ beforeAll(async () => {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueType', id: itype.id });
   issueTypeId = itype.id;
 
   const [istate] = await db
@@ -131,7 +119,6 @@ beforeAll(async () => {
       color: '#000',
     })
     .returning();
-  cleanup.push({ table: 'issueState', id: istate.id });
   issueStateId = istate.id;
 
   const [istatus] = await db
@@ -143,7 +130,6 @@ beforeAll(async () => {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueStatus', id: istatus.id });
   issueStatusId = istatus.id;
 
   const [iprio] = await db
@@ -156,7 +142,6 @@ beforeAll(async () => {
       color: '#000',
     })
     .returning();
-  cleanup.push({ table: 'issuePriority', id: iprio.id });
   issuePriorityId = iprio.id;
 
   isolationProvider = createWorktreeIsolationProvider({ db });
@@ -178,14 +163,12 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
         bodyMd: 'test',
       })
       .returning();
-    cleanup.push({ table: 'issue', id: iss.id });
 
     // First pipeline_run — no prior artifacts_path exists, should mint fresh.
     const [run1] = await db
       .insert(schema.pipelineRun)
       .values({ pipelineId, issueId: iss.id, status: 'pending' })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run1.id });
 
     const result1 = await acquireIsolationEnv({
       db,
@@ -198,7 +181,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       issueNumber: 1,
       targetRepoPath: repoPath,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: result1.env.id });
 
     expect(result1.env.artifactsPath).toBeTruthy();
     expect(result1.env.artifactsPath).toContain(run1.id);
@@ -218,7 +200,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       .insert(schema.pipelineRun)
       .values({ pipelineId, issueId: iss.id, status: 'pending' })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run2.id });
 
     const result2 = await acquireIsolationEnv({
       db,
@@ -231,7 +212,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       issueNumber: 1,
       targetRepoPath: repoPath,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: result2.env.id });
 
     expect(
       result2.env.artifactsPath,
@@ -259,13 +239,11 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
         bodyMd: 'test',
       })
       .returning();
-    cleanup.push({ table: 'issue', id: iss.id });
 
     const [run] = await db
       .insert(schema.pipelineRun)
       .values({ pipelineId, issueId: iss.id, status: 'pending' })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run.id });
 
     const result = await acquireIsolationEnv({
       db,
@@ -278,7 +256,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       issueNumber: 2,
       targetRepoPath: repoPath,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: result.env.id });
 
     expect(result.env.artifactsPath).toBeTruthy();
     expect(
@@ -294,7 +271,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       .insert(schema.pipelineRun)
       .values({ pipelineId, issueId: null, status: 'pending' })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run.id });
 
     const result = await acquireIsolationEnv({
       db,
@@ -307,7 +283,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       issueNumber: null,
       targetRepoPath: repoPath,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: result.env.id });
 
     expect(result.env.artifactsPath).toContain(run.id);
     await isolationProvider.release(result.env.id);

@@ -10,7 +10,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import {
   getCanonicalRepoPath,
   hasUncommittedChanges,
@@ -280,4 +280,375 @@ export async function runCleanupTeardown(
         .where(eq((t as any).id, id))
         .catch(() => undefined);
   }
+}
+
+/**
+ * FK-safe teardown for a test-created org and all its dependent data.
+ *
+ * Deletes in the same leaf-first order as `src/scripts/db/nuke.ts`, but
+ * scoped to the given org ID so it never touches other tenants' rows.
+ *
+ * Call this from `afterAll` instead of a hand-rolled reverse-cleanup loop
+ * whenever a test creates an org/user/project fixture.
+ */
+export async function deleteOrgFixture(
+  db: Database,
+  orgId: string
+): Promise<void> {
+  // Resolve all project IDs under this org once so every subsequent query
+  // can scope to them with a simple `inArray`.
+  const projectRows = await db
+    .select({ id: schema.project.id })
+    .from(schema.project)
+    .where(eq(schema.project.orgId, orgId))
+    .catch(() => [] as { id: string }[]);
+  const projectIds = projectRows.map((r) => r.id);
+
+  // Resolve all pipeline IDs under these projects.
+  const pipelineIds: string[] =
+    projectIds.length > 0
+      ? await db
+          .select({ id: schema.pipeline.id })
+          .from(schema.pipeline)
+          .where(inArray(schema.pipeline.projectId, projectIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  // Resolve all pipeline_run IDs under these pipelines.
+  const pipelineRunIds: string[] =
+    pipelineIds.length > 0
+      ? await db
+          .select({ id: schema.pipelineRun.id })
+          .from(schema.pipelineRun)
+          .where(inArray(schema.pipelineRun.pipelineId, pipelineIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  // Resolve all stage_run IDs under these pipeline_runs.
+  const stageRunIds: string[] =
+    pipelineRunIds.length > 0
+      ? await db
+          .select({ id: schema.stageRun.id })
+          .from(schema.stageRun)
+          .where(inArray(schema.stageRun.pipelineRunId, pipelineRunIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  // Resolve all issue IDs under these projects.
+  const issueIds: string[] =
+    projectIds.length > 0
+      ? await db
+          .select({ id: schema.issue.id })
+          .from(schema.issue)
+          .where(inArray(schema.issue.projectId, projectIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  // Resolve persona/skill/team IDs under these projects for junction tables.
+  const personaIds: string[] =
+    projectIds.length > 0
+      ? await db
+          .select({ id: schema.persona.id })
+          .from(schema.persona)
+          .where(inArray(schema.persona.projectId, projectIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  const skillIds: string[] =
+    projectIds.length > 0
+      ? await db
+          .select({ id: schema.skill.id })
+          .from(schema.skill)
+          .where(inArray(schema.skill.projectId, projectIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  const teamIds: string[] =
+    projectIds.length > 0
+      ? await db
+          .select({ id: schema.team.id })
+          .from(schema.team)
+          .where(inArray(schema.team.projectId, projectIds))
+          .then((rows) => rows.map((r) => r.id))
+          .catch(() => [])
+      : [];
+
+  // Routing profile IDs under this org (for routingRule children).
+  const routingProfileIds: string[] = await db
+    .select({ id: schema.routingProfile.id })
+    .from(schema.routingProfile)
+    .where(eq(schema.routingProfile.orgId, orgId))
+    .then((rows) => rows.map((r) => r.id))
+    .catch(() => []);
+
+  // Provider IDs under this org (for model children).
+  const providerIds: string[] = await db
+    .select({ id: schema.provider.id })
+    .from(schema.provider)
+    .where(eq(schema.provider.orgId, orgId))
+    .then((rows) => rows.map((r) => r.id))
+    .catch(() => []);
+
+  // ── Delete in FK-safe leaf-first order ──────────────────────────────────
+
+  // 1. issue_event (FK → issue, cascade but delete explicitly for safety)
+  if (issueIds.length > 0) {
+    await db
+      .delete(schema.issueEvent)
+      .where(inArray(schema.issueEvent.issueId, issueIds))
+      .catch(() => undefined);
+  }
+
+  // 2. issue_comment (FK → issue, cascade)
+  if (issueIds.length > 0) {
+    await db
+      .delete(schema.issueComment)
+      .where(inArray(schema.issueComment.issueId, issueIds))
+      .catch(() => undefined);
+  }
+
+  // 3. issue_branch (FK → issue, cascade)
+  if (issueIds.length > 0) {
+    await db
+      .delete(schema.issueBranch)
+      .where(inArray(schema.issueBranch.issueId, issueIds))
+      .catch(() => undefined);
+  }
+
+  // 4. issue_pull_request (FK → issue, cascade)
+  if (issueIds.length > 0) {
+    await db
+      .delete(schema.issuePullRequest)
+      .where(inArray(schema.issuePullRequest.issueId, issueIds))
+      .catch(() => undefined);
+  }
+
+  // 5. issue_commit (FK → issue, cascade)
+  if (issueIds.length > 0) {
+    await db
+      .delete(schema.issueCommit)
+      .where(inArray(schema.issueCommit.issueId, issueIds))
+      .catch(() => undefined);
+  }
+
+  // 6. stage_gate_result (FK → stage_run)
+  if (stageRunIds.length > 0) {
+    await db
+      .delete(schema.stageGateResult)
+      .where(inArray(schema.stageGateResult.stageRunId, stageRunIds))
+      .catch(() => undefined);
+  }
+
+  // 7. event (FK → stage_run)
+  if (stageRunIds.length > 0) {
+    await db
+      .delete(schema.event)
+      .where(inArray(schema.event.stageRunId, stageRunIds))
+      .catch(() => undefined);
+  }
+
+  // 8. stage_run (FK → pipeline_run, pipeline_stage)
+  if (pipelineRunIds.length > 0) {
+    await db
+      .delete(schema.stageRun)
+      .where(inArray(schema.stageRun.pipelineRunId, pipelineRunIds))
+      .catch(() => undefined);
+  }
+
+  // 9. isolation_environment (FK → project, pipeline_run)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.isolationEnvironment)
+      .where(inArray(schema.isolationEnvironment.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 10. pipeline_run (FK → pipeline)
+  if (pipelineIds.length > 0) {
+    await db
+      .delete(schema.pipelineRun)
+      .where(inArray(schema.pipelineRun.pipelineId, pipelineIds))
+      .catch(() => undefined);
+  }
+
+  // 11. issue (FK → project, state, status, type, priority)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.issue)
+      .where(inArray(schema.issue.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 12. issue_transition (FK → project, issue_state)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.issueTransition)
+      .where(inArray(schema.issueTransition.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 13. issue_type / issue_state / issue_status / issue_priority / issue_label
+  //     (FK → project with onDelete: 'restrict')
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.issueType)
+      .where(inArray(schema.issueType.projectId, projectIds))
+      .catch(() => undefined);
+    await db
+      .delete(schema.issueState)
+      .where(inArray(schema.issueState.projectId, projectIds))
+      .catch(() => undefined);
+    await db
+      .delete(schema.issueStatus)
+      .where(inArray(schema.issueStatus.projectId, projectIds))
+      .catch(() => undefined);
+    await db
+      .delete(schema.issuePriority)
+      .where(inArray(schema.issuePriority.projectId, projectIds))
+      .catch(() => undefined);
+    await db
+      .delete(schema.issueLabel)
+      .where(inArray(schema.issueLabel.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 14. pipeline_stage (FK → pipeline)
+  if (pipelineIds.length > 0) {
+    await db
+      .delete(schema.pipelineStage)
+      .where(inArray(schema.pipelineStage.pipelineId, pipelineIds))
+      .catch(() => undefined);
+  }
+
+  // 15. pipeline (FK → project)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.pipeline)
+      .where(inArray(schema.pipeline.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 16. config_entry (FK → project, nullable)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.configEntry)
+      .where(inArray(schema.configEntry.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 17. cron_job (FK → project, onDelete: cascade)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.cronJob)
+      .where(inArray(schema.cronJob.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 18. memory (FK → project, persona — nullable)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.memory)
+      .where(inArray(schema.memory.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 19. persona_skill junction (FK → persona, skill)
+  if (personaIds.length > 0) {
+    await db
+      .delete(schema.personaSkill)
+      .where(inArray(schema.personaSkill.personaId, personaIds))
+      .catch(() => undefined);
+  }
+
+  // 20. team_member junction (FK → team, persona)
+  if (teamIds.length > 0) {
+    await db
+      .delete(schema.teamMember)
+      .where(inArray(schema.teamMember.teamId, teamIds))
+      .catch(() => undefined);
+  }
+
+  // 21. skill (FK → project, nullable)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.skill)
+      .where(inArray(schema.skill.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 22. persona (FK → project, nullable)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.persona)
+      .where(inArray(schema.persona.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 23. team (FK → project)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.team)
+      .where(inArray(schema.team.projectId, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 24. brand (FK → org)
+  await db
+    .delete(schema.brand)
+    .where(eq(schema.brand.orgId, orgId))
+    .catch(() => undefined);
+
+  // 25. routing_rule (FK → routing_profile)
+  if (routingProfileIds.length > 0) {
+    await db
+      .delete(schema.routingRule)
+      .where(inArray(schema.routingRule.profileId, routingProfileIds))
+      .catch(() => undefined);
+  }
+
+  // 26. routing_profile (FK → org)
+  await db
+    .delete(schema.routingProfile)
+    .where(eq(schema.routingProfile.orgId, orgId))
+    .catch(() => undefined);
+
+  // 27. model (FK → provider)
+  if (providerIds.length > 0) {
+    await db
+      .delete(schema.model)
+      .where(inArray(schema.model.providerId, providerIds))
+      .catch(() => undefined);
+  }
+
+  // 28. provider (FK → org)
+  await db
+    .delete(schema.provider)
+    .where(eq(schema.provider.orgId, orgId))
+    .catch(() => undefined);
+
+  // 29. project (FK → org, user)
+  if (projectIds.length > 0) {
+    await db
+      .delete(schema.project)
+      .where(inArray(schema.project.id, projectIds))
+      .catch(() => undefined);
+  }
+
+  // 30. user (FK → org)
+  await db
+    .delete(schema.user)
+    .where(eq(schema.user.orgId, orgId))
+    .catch(() => undefined);
+
+  // 31. organization
+  await db
+    .delete(schema.organization)
+    .where(eq(schema.organization.id, orgId))
+    .catch(() => undefined);
 }

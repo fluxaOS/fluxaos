@@ -25,6 +25,7 @@ import {
 } from '@/core/deploy';
 import type { GitProvider, PullRequest } from '@/core/ports/git';
 import { createIssueService } from '@/core/services/issue';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -34,7 +35,7 @@ const db: Database = provider.getConnection();
 const execFileAsync = promisify(execFile);
 
 const RUN = Date.now();
-const cleanup: { table: string; id: string }[] = [];
+const orgIds: string[] = [];
 const tmpRepos: string[] = [];
 
 async function gitInTmp(cwd: string, args: string[]): Promise<void> {
@@ -90,7 +91,7 @@ async function makeFixture(
       slug: `deploy-org-${label}-${RUN}`,
     })
     .returning();
-  cleanup.push({ table: 'organization', id: org.id });
+  orgIds.push(org.id);
 
   const [userRow] = await db
     .insert(schema.user)
@@ -101,7 +102,6 @@ async function makeFixture(
       slug: `deploy-${label}-${RUN}`,
     })
     .returning();
-  cleanup.push({ table: 'user', id: userRow.id });
 
   const [projectRow] = await db
     .insert(schema.project)
@@ -114,7 +114,6 @@ async function makeFixture(
       defaultBranch: 'main',
     })
     .returning();
-  cleanup.push({ table: 'project', id: projectRow.id });
 
   const [pipelineRow] = await db
     .insert(schema.pipeline)
@@ -123,7 +122,6 @@ async function makeFixture(
       name: `deploy-pipe-${label}`,
     })
     .returning();
-  cleanup.push({ table: 'pipeline', id: pipelineRow.id });
 
   // Catalog bootstrap — minimum to construct an issue + transition to review.
   const [typeRow] = await db
@@ -137,7 +135,6 @@ async function makeFixture(
       isActive: true,
     })
     .returning();
-  cleanup.push({ table: 'issueType', id: typeRow.id });
 
   const [implementState] = await db
     .insert(schema.issueState)
@@ -151,7 +148,6 @@ async function makeFixture(
       isTerminal: false,
     })
     .returning();
-  cleanup.push({ table: 'issueState', id: implementState.id });
 
   const [reviewState] = await db
     .insert(schema.issueState)
@@ -165,10 +161,9 @@ async function makeFixture(
       isTerminal: false,
     })
     .returning();
-  cleanup.push({ table: 'issueState', id: reviewState.id });
 
   // FLX-79: deploy bridge reads the post-deploy state from this config_entry.
-  const [postDeployStateConfig] = await db
+  await db
     .insert(schema.configEntry)
     .values({
       scope: 'project',
@@ -177,9 +172,8 @@ async function makeFixture(
       value: '"review"',
     })
     .returning();
-  cleanup.push({ table: 'configEntry', id: postDeployStateConfig.id });
 
-  const [transitionRow] = await db
+  await db
     .insert(schema.issueTransition)
     .values({
       projectId: projectRow.id,
@@ -190,7 +184,6 @@ async function makeFixture(
       isActive: true,
     })
     .returning();
-  cleanup.push({ table: 'issueTransition', id: transitionRow.id });
 
   const [statusRow] = await db
     .insert(schema.issueStatus)
@@ -202,7 +195,6 @@ async function makeFixture(
       isActive: true,
     })
     .returning();
-  cleanup.push({ table: 'issueStatus', id: statusRow.id });
 
   const [priorityRow] = await db
     .insert(schema.issuePriority)
@@ -215,7 +207,6 @@ async function makeFixture(
       isActive: true,
     })
     .returning();
-  cleanup.push({ table: 'issuePriority', id: priorityRow.id });
 
   const [issueRow] = await db
     .insert(schema.issue)
@@ -229,7 +220,6 @@ async function makeFixture(
       number: 1,
     })
     .returning();
-  cleanup.push({ table: 'issue', id: issueRow.id });
 
   const [runRow] = await db
     .insert(schema.pipelineRun)
@@ -239,7 +229,6 @@ async function makeFixture(
       status: 'running',
     })
     .returning();
-  cleanup.push({ table: 'pipelineRun', id: runRow.id });
 
   return {
     repoPath,
@@ -298,15 +287,8 @@ function makeFakeRegistry(gitProvider: GitProvider): AdapterRegistryLike {
 }
 
 afterAll(async () => {
-  for (const { table, id } of cleanup.reverse()) {
-    const t = (schema as Record<string, unknown>)[table];
-    if (t)
-      await db
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .delete(t as any)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .where(eq((t as any).id, id))
-        .catch(() => undefined);
+  for (const orgId of orgIds) {
+    await deleteOrgFixture(db, orgId);
   }
   for (const dir of tmpRepos) {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -335,7 +317,6 @@ describe('DeployBridge', () => {
       },
       branchName: `fluxaos/deploy-${RUN}-happy`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
     // Dirty the worktree so commitAll has something to commit.
     await writeFile(
@@ -428,7 +409,6 @@ describe('DeployBridge', () => {
       },
       branchName: `fluxaos/deploy-${RUN}-clean`,
     });
-    cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
     // Intentionally leave worktree untouched.
     const fake = makeFakeGitProvider();

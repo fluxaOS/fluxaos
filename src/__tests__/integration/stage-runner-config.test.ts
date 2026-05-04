@@ -7,9 +7,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { AnyColumn } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGitOps } from '@/adapters/git/git-ops';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
@@ -29,6 +27,7 @@ import {
   createProjectService,
   createUserService,
 } from '@/core/services';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const execFileAsync = promisify(execFile);
 
@@ -53,24 +52,12 @@ const provider = new SupabaseDatabaseProvider(url);
 const db: Database = provider.getConnection();
 const RUN = Date.now();
 
-const cleanupList: { table: string; id: string }[] = [];
 const tempDirs: string[] = [];
-const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
-  event: schema.event,
-  stageRun: schema.stageRun,
-  pipelineRun: schema.pipelineRun,
-  pipelineStage: schema.pipelineStage,
-  pipeline: schema.pipeline,
-  model: schema.model,
-  provider: schema.provider,
-  routingRule: schema.routingRule,
-  routingProfile: schema.routingProfile,
-  driver: schema.driver,
-  skill: schema.skill,
-  project: schema.project,
-  user: schema.user,
-  organization: schema.organization,
-};
+// driver rows are global (no orgId); track separately for cleanup
+const driverIds: string[] = [];
+let _orgId: string;
+// unique suffix counter used in createStageRunnerHarness naming
+let _harnessCallCount = 0;
 
 let orgId: string;
 let userId: string;
@@ -91,7 +78,7 @@ beforeAll(async () => {
     settings: {},
   });
   orgId = org.id;
-  cleanupList.push({ table: 'organization', id: orgId });
+  _orgId = org.id;
 
   const user = await createUserService(db).create({
     orgId,
@@ -100,7 +87,6 @@ beforeAll(async () => {
     slug: `stage-runner-config-user-${RUN}`,
   });
   userId = user.id;
-  cleanupList.push({ table: 'user', id: userId });
 
   const project = await createProjectService(db).create({
     orgId,
@@ -110,14 +96,12 @@ beforeAll(async () => {
     repoUrl: `https://github.com/fluxaos/stage-runner-config-${RUN}`,
   });
   projectId = project.id;
-  cleanupList.push({ table: 'project', id: projectId });
 
   const pipeline = await createPipelineService(db).create({
     projectId,
     name: `Stage Runner Config Pipeline ${RUN}`,
   });
   pipelineId = pipeline.id;
-  cleanupList.push({ table: 'pipeline', id: pipelineId });
 });
 
 afterAll(async () => {
@@ -130,14 +114,14 @@ afterAll(async () => {
   for (const path of tempDirs.reverse()) {
     await rm(path, { recursive: true, force: true }).catch(() => {});
   }
-  for (const { table, id } of cleanupList.reverse()) {
-    const t = tableMap[table];
-    if (t)
-      await db
-        .delete(t)
-        .where(eq(t.id, id))
-        .catch(() => {});
+  // driver rows are global (no orgId), clean up separately
+  for (const id of driverIds) {
+    await db
+      .delete(schema.driver)
+      .where(eq(schema.driver.id, id))
+      .catch(() => undefined);
   }
+  if (_orgId) await deleteOrgFixture(db, _orgId);
 });
 
 describe('stage-runner config validation', () => {
@@ -273,11 +257,12 @@ async function createStageRunnerHarness(input: {
   }) => Promise<void> | void;
 }) {
   const svc = createPipelineRunService(db);
+  const callIdx = ++_harnessCallCount;
   const [driverRow] = await db
     .insert(schema.driver)
     .values({
-      name: `FLX-83 Driver ${RUN}-${cleanupList.length}`,
-      slug: `flx-83-driver-${RUN}-${cleanupList.length}`,
+      name: `FLX-83 Driver ${RUN}-${callIdx}`,
+      slug: `flx-83-driver-${RUN}-${callIdx}`,
       binary: 'printf',
       defaultArgs: [],
       modelFlag: '--model',
@@ -294,29 +279,27 @@ async function createStageRunnerHarness(input: {
       },
     })
     .returning();
-  cleanupList.push({ table: 'driver', id: driverRow.id });
+  driverIds.push(driverRow.id);
 
   const [skillRow] = await db
     .insert(schema.skill)
     .values({
       projectId,
-      name: `flx-83-skill-${RUN}-${cleanupList.length}`,
+      name: `flx-83-skill-${RUN}-${callIdx}`,
       promptTemplate: 'Use {{workspace_path}} for source edits.',
     })
     .returning();
-  cleanupList.push({ table: 'skill', id: skillRow.id });
 
   const stage = await createPipelineService(db).stages.create({
     pipelineId,
-    name: `flx-83-stage-${cleanupList.length}`,
-    sortOrder: cleanupList.length,
+    name: `flx-83-stage-${callIdx}`,
+    sortOrder: callIdx,
     gateMode: 'auto',
     maxRetries: 0,
     driver: input.withRouting ? driverRow.slug : null,
     driverId: driverRow.id,
     skillId: skillRow.id,
   });
-  cleanupList.push({ table: 'pipelineStage', id: stage.id });
 
   if (input.withRouting) {
     await createRoutingFixture(stage.name);
@@ -326,10 +309,8 @@ async function createStageRunnerHarness(input: {
     .insert(schema.pipelineRun)
     .values({ pipelineId, issueId: null, status: 'pending' })
     .returning();
-  cleanupList.push({ table: 'pipelineRun', id: run.id });
 
   const stageRun = await svc.createStageRun(run.id, stage.id);
-  cleanupList.push({ table: 'stageRun', id: stageRun.id });
 
   const workingPath = input.gitInitWorkingPath
     ? await makeRepo('fluxaos-worktree-')
@@ -390,44 +371,41 @@ async function createStageRunnerHarness(input: {
 }
 
 async function createRoutingFixture(stageName: string) {
+  const idx = _harnessCallCount;
   const [providerRow] = await db
     .insert(schema.provider)
     .values({
       orgId,
-      name: `FLX-83 Provider ${RUN}-${cleanupList.length}`,
+      name: `FLX-83 Provider ${RUN}-${idx}`,
       type: 'test',
       isHealthy: true,
     })
     .returning();
-  cleanupList.push({ table: 'provider', id: providerRow.id });
 
   const [modelRow] = await db
     .insert(schema.model)
     .values({
       providerId: providerRow.id,
-      name: `FLX-83 Model ${RUN}-${cleanupList.length}`,
-      identifier: `flx-83-model-${RUN}`,
+      name: `FLX-83 Model ${RUN}-${idx}`,
+      identifier: `flx-83-model-${RUN}-${idx}`,
     })
     .returning();
-  cleanupList.push({ table: 'model', id: modelRow.id });
 
   const [profileRow] = await db
     .insert(schema.routingProfile)
     .values({
       orgId,
-      name: `FLX-83 Routing ${RUN}-${cleanupList.length}`,
+      name: `FLX-83 Routing ${RUN}-${idx}`,
     })
     .returning();
-  cleanupList.push({ table: 'routingProfile', id: profileRow.id });
 
-  const [ruleRow] = await db
+  await db
     .insert(schema.routingRule)
     .values({
       profileId: profileRow.id,
       stageName,
     })
     .returning();
-  cleanupList.push({ table: 'routingRule', id: ruleRow.id });
 }
 
 function createIsolationProvider(input: {

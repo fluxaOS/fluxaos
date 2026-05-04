@@ -9,9 +9,7 @@
 import 'dotenv/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AnyColumn } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
@@ -29,6 +27,7 @@ import {
   createUserService,
 } from '@/core/services';
 import { cleanup, materialize } from '@/core/skills/materializer';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -37,30 +36,10 @@ const provider = new SupabaseDatabaseProvider(url);
 const db: Database = provider.getConnection();
 
 const RUN = Date.now();
-const cleanupList: { table: string; id: string }[] = [];
-
-const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
-  event: schema.event,
-  stageGateResult: schema.stageGateResult,
-  stageRun: schema.stageRun,
-  pipelineRun: schema.pipelineRun,
-  pipelineStage: schema.pipelineStage,
-  pipeline: schema.pipeline,
-  issue: schema.issue,
-  project: schema.project,
-  user: schema.user,
-  organization: schema.organization,
-};
+let _orgId: string;
 
 afterAll(async () => {
-  for (const { table, id } of cleanupList.reverse()) {
-    const t = tableMap[table];
-    if (t)
-      await db
-        .delete(t)
-        .where(eq(t.id, id))
-        .catch(() => {});
-  }
+  if (_orgId) await deleteOrgFixture(db, _orgId);
 });
 
 // ─── Shared test data ──────────────────────────────────────────────────────
@@ -78,7 +57,7 @@ beforeAll(async () => {
     settings: {},
   });
   orgId = org.id;
-  cleanupList.push({ table: 'organization', id: orgId });
+  _orgId = org.id;
 
   const user = await createUserService(db).create({
     orgId,
@@ -87,7 +66,6 @@ beforeAll(async () => {
     slug: `orch-user-${RUN}`,
   });
   userId = user.id;
-  cleanupList.push({ table: 'user', id: userId });
 
   const project = await createProjectService(db).create({
     orgId,
@@ -96,14 +74,12 @@ beforeAll(async () => {
     slug: `orch-proj-${RUN}`,
   });
   projectId = project.id;
-  cleanupList.push({ table: 'project', id: projectId });
 
   const pipeline = await createPipelineService(db).create({
     projectId,
     name: `Orch Pipeline ${RUN}`,
   });
   pipelineId = pipeline.id;
-  cleanupList.push({ table: 'pipeline', id: pipelineId });
 
   const stage = await createPipelineService(db).stages.create({
     pipelineId,
@@ -113,7 +89,6 @@ beforeAll(async () => {
     maxRetries: 0,
   });
   stageId = stage.id;
-  cleanupList.push({ table: 'pipelineStage', id: stageId });
 });
 
 // ─── Command Builder ─────────────────────────────────────────────────────
@@ -242,7 +217,6 @@ describe('orchestrator pipeline run lifecycle', () => {
       '00000000-0000-0000-0000-000000000000'
     );
     runId = run.id;
-    cleanupList.push({ table: 'pipelineRun', id: runId });
     expect(run.status).toBe('pending');
     expect(run.pipelineId).toBe(pipelineId);
   });
@@ -251,7 +225,6 @@ describe('orchestrator pipeline run lifecycle', () => {
     const svc = createPipelineRunService(db);
     const sr = await svc.createStageRun(runId, stageId);
     stageRunId = sr.id;
-    cleanupList.push({ table: 'stageRun', id: stageRunId });
     expect(sr.status).toBe('pending');
     expect(sr.pipelineRunId).toBe(runId);
     expect(sr.pipelineStageId).toBe(stageId);
@@ -273,8 +246,6 @@ describe('orchestrator pipeline run lifecycle', () => {
     const evt = events.find((e) => e.type === 'launched');
     expect(evt).toBeDefined();
     expect(evt?.stageRunId).toBe(stageRunId);
-    // Track for cleanup
-    for (const e of events) cleanupList.push({ table: 'event', id: e.id });
   });
 
   it('completes a stage run', async () => {
@@ -332,11 +303,9 @@ describe('event ordering — DEF-017', () => {
       '00000000-0000-0000-0000-000000000000'
     );
     orderingRunId = run.id;
-    cleanupList.push({ table: 'pipelineRun', id: orderingRunId });
 
     const sr = await svc.createStageRun(orderingRunId, stageId);
     orderingStageRunId = sr.id;
-    cleanupList.push({ table: 'stageRun', id: orderingStageRunId });
   });
 
   it('returns stream events in monotonic lineNumber order even when fired off concurrently', async () => {
@@ -370,7 +339,6 @@ describe('event ordering — DEF-017', () => {
     });
 
     const events = await svc.listEvents(orderingStageRunId);
-    for (const e of events) cleanupList.push({ table: 'event', id: e.id });
 
     expect(events.length).toBe(N + 2);
 
