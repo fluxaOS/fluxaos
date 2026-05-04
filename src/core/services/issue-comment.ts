@@ -39,22 +39,6 @@ interface SoftDeleteCommentInput {
 // ─── Service factory ─────────────────────────────────────────────────────────
 
 export function createIssueCommentService(db: Database) {
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  async function recordEvent(
-    issueId: string,
-    actor: string,
-    type: string,
-    payload: Record<string, unknown>
-  ) {
-    await db.insert(issueEvent).values({
-      issueId,
-      actor,
-      type,
-      payload,
-    });
-  }
-
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
@@ -73,7 +57,11 @@ export function createIssueCommentService(db: Database) {
 
     /**
      * Create a new comment on an issue.
-     * Allocates next commentNumber, renders HTML, records event.
+     *
+     * commentNumber is allocated inside a transaction with FOR UPDATE on the
+     * existing comment rows — same pattern as issue.ts issue number allocation.
+     * This serializes concurrent creates for the same issue; the unique index on
+     * (issue_id, comment_number) is the last-resort guard.
      */
     async create(
       issueId: string,
@@ -81,31 +69,34 @@ export function createIssueCommentService(db: Database) {
     ): Promise<IssueCommentSelect> {
       const bodyHtml = renderMarkdown(input.bodyMd);
 
-      // Allocate next comment number
-      const rows = await db.execute(
-        sql`SELECT COALESCE(MAX(comment_number), 0) + 1 AS "nextNumber" FROM issue_comment WHERE issue_id = ${issueId}`
-      );
-      const nextNumber = Number(
-        (rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber
-      );
+      return db.transaction(async (tx) => {
+        const rows = await tx.execute(
+          sql`SELECT COALESCE(MAX(comment_number), 0) + 1 AS "nextNumber" FROM (SELECT comment_number FROM issue_comment WHERE issue_id = ${issueId} FOR UPDATE) AS locked`
+        );
+        const nextNumber = Number(
+          (rows as unknown as Array<{ nextNumber: number }>)[0].nextNumber
+        );
 
-      const [created] = await db
-        .insert(issueComment)
-        .values({
+        const [created] = await tx
+          .insert(issueComment)
+          .values({
+            issueId,
+            commentNumber: nextNumber,
+            bodyMd: input.bodyMd,
+            bodyHtml,
+            author: input.author,
+          })
+          .returning();
+
+        await tx.insert(issueEvent).values({
           issueId,
-          commentNumber: nextNumber,
-          bodyMd: input.bodyMd,
-          bodyHtml,
-          author: input.author,
-        })
-        .returning();
+          actor: input.author,
+          type: 'comment_added',
+          payload: { comment_id: created.id, author: input.author },
+        });
 
-      await recordEvent(issueId, input.author, 'comment_added', {
-        comment_id: created.id,
-        author: input.author,
+        return created;
       });
-
-      return created;
     },
 
     /**
