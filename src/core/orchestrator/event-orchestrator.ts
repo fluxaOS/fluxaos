@@ -13,6 +13,7 @@
  *   all stages done → complete pipeline_run → write issue events
  */
 import { and, eq } from 'drizzle-orm';
+import type { FluxaosConfig } from '@/config/env';
 import type { GateMode } from '@/core/constants';
 import {
   DEFAULT_GATE_MODE,
@@ -64,7 +65,8 @@ export function createEventOrchestrator(
   realtime: RealtimeProvider,
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
-  config: Partial<EventOrchestratorConfig> = {}
+  config: Partial<EventOrchestratorConfig> = {},
+  fluxaosConfig?: FluxaosConfig
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
@@ -254,8 +256,7 @@ export function createEventOrchestrator(
         const { join } = await import('node:path');
 
         const bundledDir =
-          process.env.FLUXAOS_BUNDLED_PIPELINES_DIR ??
-          'src/core/pipeline/bundled';
+          fluxaosConfig?.bundledPipelinesDir ?? 'src/core/pipeline/bundled';
         const discovered = await resolvePlaybook(pipelineRow.playbookPath, {
           bundledDir,
         });
@@ -280,7 +281,7 @@ export function createEventOrchestrator(
 
           const artifactsBase =
             run.artifactsPath ??
-            `${process.env.FLUXAOS_ARTIFACTS_ROOT ?? '.fluxaos-artifacts'}/${run.id}`;
+            `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
           const resultDocPath = `${artifactsBase}/result.json`;
 
           // Read skill prompt from bundled skills directory
@@ -531,6 +532,7 @@ export function createEventOrchestrator(
         runId: run.id,
         stageRunId: sRun.id,
         trigger: TRIGGER_TYPE.automated,
+        targetRepoPath: fluxaosConfig?.targetRepoPath,
       });
 
       const latestRun = await runService.getRun(run.id);

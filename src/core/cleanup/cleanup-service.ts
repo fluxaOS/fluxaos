@@ -83,6 +83,16 @@ export interface CleanupServiceDeps {
   isolation: IsolationProvider;
   logger: CleanupLogger;
   git: CleanupGitHelpers;
+  /**
+   * Maximum worktree age in days before it is considered stale.
+   * Undefined means the stale-age gate is disabled (no-op).
+   */
+  cleanupStaleDays?: number;
+  /**
+   * Minimum age in days before a terminal pipeline_run artifacts dir is
+   * eligible for reaping. Undefined disables the artifacts sweep.
+   */
+  cleanupArtifactsRetentionDays?: number;
 }
 
 export interface CleanupService {
@@ -114,16 +124,11 @@ function ageDays(createdAt: Date, now: Date): number {
   return (now.getTime() - createdAt.getTime()) / msPerDay;
 }
 
-function parseStaleDays(): number | null {
-  const raw = process.env.FLUXAOS_CLEANUP_STALE_DAYS;
-  if (!raw) return null;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
-}
-
 export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
   const { db, isolation, logger, git } = deps;
+  const staleDays: number | null = deps.cleanupStaleDays ?? null;
+  const artifactsRetentionDays: number | undefined =
+    deps.cleanupArtifactsRetentionDays;
 
   async function loadProject(projectId: string): Promise<ProjectRow | null> {
     const [row] = await db
@@ -175,7 +180,6 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     }
 
     // 4. Stale → safe (only if threshold is explicitly configured).
-    const staleDays = parseStaleDays();
     if (staleDays !== null) {
       const age = ageDays(env.createdAt, new Date());
       if (age > staleDays) {
@@ -264,7 +268,12 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     runId: string,
     ageMs: number
   ): Promise<ArtifactsSafetyReason> {
-    return isArtifactsSafeToRemoveImpl(db, runId, ageMs);
+    return isArtifactsSafeToRemoveImpl(
+      db,
+      runId,
+      ageMs,
+      artifactsRetentionDays
+    );
   }
 
   async function runScheduledSweep(): Promise<CleanupReport> {
@@ -312,7 +321,7 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     }
 
     // R-ARTIFACTS W4: artifact reap runs AFTER the worktree pass.
-    await sweepArtifacts(db, logger, git, report);
+    await sweepArtifacts(db, logger, git, report, artifactsRetentionDays);
 
     report.completedAt = new Date();
     logger.info(
@@ -374,7 +383,7 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     }
 
     // R-ARTIFACTS W4: best-effort second-tier — reap stale artifacts too.
-    await sweepArtifacts(db, logger, git, report);
+    await sweepArtifacts(db, logger, git, report, artifactsRetentionDays);
 
     report.completedAt = new Date();
     logger.info(

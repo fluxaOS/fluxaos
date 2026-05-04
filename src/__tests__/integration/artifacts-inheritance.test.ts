@@ -62,8 +62,6 @@ async function gitInTmp(cwd: string, args: string[]): Promise<void> {
 }
 
 beforeAll(async () => {
-  process.env.FLUXAOS_TARGET_REPO_PATH =
-    process.env.FLUXAOS_TARGET_REPO_PATH ?? '';
   repoPath = await mkdtemp(join(tmpdir(), `fluxaos-art-inherit-${RUN}-`));
   await gitInTmp(repoPath, ['init', '-b', 'main']);
   await gitInTmp(repoPath, ['config', 'user.email', 'inherit@fluxaos.local']);
@@ -165,8 +163,6 @@ beforeAll(async () => {
 
 describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
   it("second pipeline_run on same (pipeline, issue) inherits first run's artifacts_path", async () => {
-    process.env.FLUXAOS_TARGET_REPO_PATH = repoPath;
-
     // Issue under test
     const [iss] = await db
       .insert(schema.issue)
@@ -198,6 +194,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: iss.id,
       issueNumber: 1,
+      targetRepoPath: repoPath,
     });
     cleanup.push({ table: 'isolationEnvironment', id: result1.env.id });
 
@@ -229,6 +226,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: iss.id,
       issueNumber: 1,
+      targetRepoPath: repoPath,
     });
     cleanup.push({ table: 'isolationEnvironment', id: result2.env.id });
 
@@ -245,8 +243,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
   }, 60000);
 
   it('first pipeline_run (no prior runs) mints fresh artifacts_path', async () => {
-    process.env.FLUXAOS_TARGET_REPO_PATH = repoPath;
-
     const [iss] = await db
       .insert(schema.issue)
       .values({
@@ -276,6 +272,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: iss.id,
       issueNumber: 2,
+      targetRepoPath: repoPath,
     });
     cleanup.push({ table: 'isolationEnvironment', id: result.env.id });
 
@@ -289,8 +286,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
   }, 60000);
 
   it('pipeline_run with null issueId does not inherit (no issue scope)', async () => {
-    process.env.FLUXAOS_TARGET_REPO_PATH = repoPath;
-
     const [run] = await db
       .insert(schema.pipelineRun)
       .values({ pipelineId, issueId: null, status: 'pending' })
@@ -305,6 +300,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: null,
       issueNumber: null,
+      targetRepoPath: repoPath,
     });
     cleanup.push({ table: 'isolationEnvironment', id: result.env.id });
 

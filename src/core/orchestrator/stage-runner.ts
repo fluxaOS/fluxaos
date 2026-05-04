@@ -60,6 +60,11 @@ export interface StageRunContext {
   runId: string;
   stageRunId: string;
   trigger: TriggerType;
+  /**
+   * Absolute path to the on-disk clone of the target repo. Injected from
+   * FluxaosConfig so core code never reads process.env directly.
+   */
+  targetRepoPath?: string;
 }
 
 export interface StageRunResult {
@@ -204,6 +209,7 @@ export async function executeStageRun(
     pipelineId: run.pipelineId,
     issueId: run.issueId ?? null,
     issueNumber: issueRow?.number ?? null,
+    targetRepoPath: ctx.targetRepoPath,
   });
 
   const resolvedBrand = await resolveStageBrand(db, {
