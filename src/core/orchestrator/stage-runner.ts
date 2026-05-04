@@ -345,10 +345,7 @@ export async function executeStageRun(
       timeoutMs: (stage.timeoutSec ?? DEFAULT_STAGE_TIMEOUT_SEC) * 1000,
       onStart: (_processId, pid) => {
         if (!pid) return;
-        db.update(stageRun)
-          .set({ pid, updatedAt: new Date() })
-          .where(eq(stageRun.id, sRun.id))
-          .catch(logError);
+        runService.recordPid(sRun.id, pid).catch(logError);
       },
       onStdout: (data: string) => {
         const lines = data.split('\n');
