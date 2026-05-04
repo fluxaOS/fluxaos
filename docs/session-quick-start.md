@@ -26,7 +26,7 @@ Note: These scripts are being built (R-INFRA-2). Until then, use `npm run db:stu
 
 ## Dev Server
 
-Headless box. **Prod** runs in Docker on port **3003** (`fluxaos-web` container, deployed via `bash /mnt/stacks/docker/fluxaos/build.sh origin/main`). **Dev** runs on port **3004** — always start with `npm run dev -- -p 3004`. Never start dev on 3003. From other machines: `http://192.168.54.101:3004` (dev) / `http://192.168.54.101:3003` (prod). For Playwright runs against dev: `PLAYWRIGHT_BASE_URL=http://192.168.54.101:3004 npx playwright test`.
+Headless box. **Prod** runs in Docker on port **3003** (`fluxaos-web` container, deployed via `bash /mnt/stacks/docker/fluxaos/build.sh origin/main`). **Dev** runs on port **3004** — always start with `npm run dev -- -H 0.0.0.0 -p 3004`. The `-H 0.0.0.0` is required; without it Next.js only binds IPv6 loopback and LAN clients get connection refused. Never start dev on 3003. From other machines: `http://192.168.54.101:3004` (dev) / `http://192.168.54.101:3003` (prod). For Playwright runs against dev: `PLAYWRIGHT_BASE_URL=http://192.168.54.101:3004 npx playwright test`.
 
 ## Environment Files
 

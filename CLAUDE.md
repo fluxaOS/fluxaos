@@ -8,7 +8,7 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev -- -p 3004` | Next.js dev server (port 3004 — prod/Docker owns 3003) |
+| `npm run dev -- -H 0.0.0.0 -p 3004` | Next.js dev server (port 3004 — prod/Docker owns 3003; `-H 0.0.0.0` required for LAN access) |
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
 | `npm run db:generate` | Drizzle schema codegen |

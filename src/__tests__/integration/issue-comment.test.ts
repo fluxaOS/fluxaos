@@ -21,6 +21,7 @@ import {
   createProjectService,
   createUserService,
 } from '@/core/services';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -30,8 +31,7 @@ const db: Database = provider.getConnection();
 
 const RUN = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-// Track cleanup actions; run in reverse order
-const cleanup: Array<() => Promise<void>> = [];
+let _orgId: string;
 
 // Shared test fixtures
 let projectId: string;
@@ -54,11 +54,7 @@ beforeAll(async () => {
     slug: `ictest-org-${RUN}`,
     settings: {},
   });
-  cleanup.push(async () => {
-    await db
-      .delete(schema.organization)
-      .where(eq(schema.organization.id, org.id));
-  });
+  _orgId = org.id;
 
   const usr = await userSvc.create({
     orgId: org.id,
@@ -66,18 +62,12 @@ beforeAll(async () => {
     name: 'IC Test User',
     slug: `ictest-user-${RUN}`,
   });
-  cleanup.push(async () => {
-    await db.delete(schema.user).where(eq(schema.user.id, usr.id));
-  });
 
   const proj = await projSvc.create({
     orgId: org.id,
     userId: usr.id,
     name: 'IC Test Project',
     slug: `ictest-proj-${RUN}`,
-  });
-  cleanup.push(async () => {
-    await db.delete(schema.project).where(eq(schema.project.id, proj.id));
   });
   projectId = proj.id;
 
@@ -88,12 +78,9 @@ beforeAll(async () => {
     color: '#0000ff',
     sortOrder: 1,
   });
-  cleanup.push(async () => {
-    await db.delete(schema.issueType).where(eq(schema.issueType.id, t.id));
-  });
   typeId = t.id;
 
-  const open = await catalogSvc.states.create({
+  await catalogSvc.states.create({
     projectId,
     key: `open-${RUN}`,
     displayName: 'Open',
@@ -101,20 +88,12 @@ beforeAll(async () => {
     sortOrder: 1,
     isTerminal: false,
   });
-  cleanup.push(async () => {
-    await db.delete(schema.issueState).where(eq(schema.issueState.id, open.id));
-  });
 
-  const status = await catalogSvc.statuses.create({
+  await catalogSvc.statuses.create({
     projectId,
     key: `backlog-${RUN}`,
     displayName: 'Backlog',
     sortOrder: 1,
-  });
-  cleanup.push(async () => {
-    await db
-      .delete(schema.issueStatus)
-      .where(eq(schema.issueStatus.id, status.id));
   });
 
   const priority = await catalogSvc.priorities.create({
@@ -124,14 +103,9 @@ beforeAll(async () => {
     color: '#ff0000',
     weight: 100,
   });
-  cleanup.push(async () => {
-    await db
-      .delete(schema.issuePriority)
-      .where(eq(schema.issuePriority.id, priority.id));
-  });
   priorityId = priority.id;
 
-  const [config] = await db
+  await db
     .insert(schema.configEntry)
     .values({
       scope: 'project',
@@ -140,11 +114,6 @@ beforeAll(async () => {
       value: `backlog-${RUN}`,
     })
     .returning();
-  cleanup.push(async () => {
-    await db
-      .delete(schema.configEntry)
-      .where(eq(schema.configEntry.id, config.id));
-  });
 
   // Seed two independent issues — one per test
   const issueA = await issueSvc.create({
@@ -153,9 +122,6 @@ beforeAll(async () => {
     typeId,
     priorityId,
     author: 'ictest-user',
-  });
-  cleanup.push(async () => {
-    await db.delete(schema.issue).where(eq(schema.issue.id, issueA.id));
   });
   issueAId = issueA.id;
 
@@ -166,16 +132,11 @@ beforeAll(async () => {
     priorityId,
     author: 'ictest-user',
   });
-  cleanup.push(async () => {
-    await db.delete(schema.issue).where(eq(schema.issue.id, issueB.id));
-  });
   issueBId = issueB.id;
 });
 
 afterAll(async () => {
-  for (const fn of cleanup.reverse()) {
-    await fn().catch(() => {});
-  }
+  if (_orgId) await deleteOrgFixture(db, _orgId);
   await provider.close();
 });
 

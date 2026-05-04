@@ -230,6 +230,22 @@ systemctl --user enable --now fluxaos-daemon
 journalctl --user -u fluxaos-daemon -f
 ```
 
+### `flux` operator helper
+
+The repo root includes `./flux` as a small lifecycle helper:
+
+```bash
+./flux server dev start|stop|restart|status
+./flux server prod start|stop|restart|status|build
+./flux daemon list
+./flux daemon orchestrator start|stop|restart|status|install|uninstall
+./flux orchestrator start|stop|restart|status|install|uninstall
+```
+
+`server dev` starts Next.js on port `3004` and stores its PID/log under `.flux/`.
+`server prod` manages the `fluxaos-web` Docker Compose service in `/mnt/stacks/docker/fluxaos`; `build` delegates to that stack's `build.sh`.
+`orchestrator` is the current daemon name and maps to the `fluxaos-daemon` systemd user unit. `./flux orchestrator ...` is shorthand for `./flux daemon orchestrator ...`.
+
 ## Documentation
 
 - `docs/session-quick-start.md` — conventions, gotchas, env vars, ports.

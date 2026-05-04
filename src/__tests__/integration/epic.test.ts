@@ -17,6 +17,7 @@ import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
 import { createIssueService } from '@/core/services/issue';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -25,7 +26,7 @@ const provider = new SupabaseDatabaseProvider(url);
 const db: Database = provider.getConnection();
 
 const RUN = Date.now();
-const cleanup: { table: string; id: string }[] = [];
+const orgIds: string[] = [];
 
 // Suite-wide IDs arranged in beforeAll
 let projectId: string;
@@ -37,15 +38,8 @@ let issuePriorityId: string;
 let issuePriorityIdB: string;
 
 afterAll(async () => {
-  for (const { table, id } of cleanup.reverse()) {
-    const t = (schema as Record<string, unknown>)[table];
-    if (t)
-      await db
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .delete(t as any)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .where(eq((t as any).id, id))
-        .catch(() => undefined);
+  for (const orgId of orgIds) {
+    await deleteOrgFixture(db, orgId);
   }
   await provider.close();
 });
@@ -58,7 +52,7 @@ async function arrangeProject(suffix: string) {
       slug: `epic-org-${RUN}-${suffix}`,
     })
     .returning();
-  cleanup.push({ table: 'organization', id: org.id });
+  orgIds.push(org.id);
 
   const [user] = await db
     .insert(schema.user)
@@ -69,7 +63,6 @@ async function arrangeProject(suffix: string) {
       slug: `epic-${RUN}-${suffix}`,
     })
     .returning();
-  cleanup.push({ table: 'user', id: user.id });
 
   const [proj] = await db
     .insert(schema.project)
@@ -82,7 +75,6 @@ async function arrangeProject(suffix: string) {
       defaultBranch: 'main',
     })
     .returning();
-  cleanup.push({ table: 'project', id: proj.id });
 
   const [itype] = await db
     .insert(schema.issueType)
@@ -94,7 +86,6 @@ async function arrangeProject(suffix: string) {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueType', id: itype.id });
 
   const [openState] = await db
     .insert(schema.issueState)
@@ -107,7 +98,6 @@ async function arrangeProject(suffix: string) {
       isTerminal: false,
     })
     .returning();
-  cleanup.push({ table: 'issueState', id: openState.id });
 
   const [closedState] = await db
     .insert(schema.issueState)
@@ -120,11 +110,10 @@ async function arrangeProject(suffix: string) {
       isTerminal: true,
     })
     .returning();
-  cleanup.push({ table: 'issueState', id: closedState.id });
 
   // Transition open → closed so transition() path also works (stateOverride
   // doesn't need one but we test both)
-  const [trans] = await db
+  await db
     .insert(schema.issueTransition)
     .values({
       projectId: proj.id,
@@ -133,7 +122,6 @@ async function arrangeProject(suffix: string) {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueTransition', id: trans.id });
 
   const [istatus] = await db
     .insert(schema.issueStatus)
@@ -144,7 +132,6 @@ async function arrangeProject(suffix: string) {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueStatus', id: istatus.id });
 
   const [iprio] = await db
     .insert(schema.issuePriority)
@@ -156,10 +143,9 @@ async function arrangeProject(suffix: string) {
       color: '#000',
     })
     .returning();
-  cleanup.push({ table: 'issuePriority', id: iprio.id });
 
   // Config entry so createIssueService.create works.
-  const [cfg] = await db
+  await db
     .insert(schema.configEntry)
     .values({
       scope: 'project',
@@ -168,7 +154,6 @@ async function arrangeProject(suffix: string) {
       value: `open-st-${RUN}-${suffix}`,
     })
     .returning();
-  cleanup.push({ table: 'configEntry', id: cfg.id });
 
   return {
     projectId: proj.id,
@@ -203,7 +188,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: parent.id });
 
     const child1 = await svc.create({
       projectId,
@@ -212,7 +196,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: parent.id,
     });
-    cleanup.push({ table: 'issue', id: child1.id });
 
     const child2 = await svc.create({
       projectId,
@@ -221,7 +204,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: parent.id,
     });
-    cleanup.push({ table: 'issue', id: child2.id });
 
     const kids = await svc.getChildren(parent.id);
     expect(kids.length).toBe(2);
@@ -259,7 +241,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: parent.id });
 
     const child = await svc.create({
       projectId,
@@ -268,7 +249,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: parent.id,
     });
-    cleanup.push({ table: 'issue', id: child.id });
 
     expect(parent.isClosed).toBe(false);
 
@@ -319,7 +299,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: parent.id });
 
     const child = await svc.create({
       projectId,
@@ -328,7 +307,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: parent.id,
     });
-    cleanup.push({ table: 'issue', id: child.id });
 
     // transition() uses the transition graph: open → closed exists per beforeAll.
     await svc.transition(child.id, issueStateIdClosed, child.version, 'test');
@@ -346,7 +324,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: issue.id });
 
     await expect(
       db
@@ -365,7 +342,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: parentA.id });
 
     // Try to create in project B with parent from project A — service layer rejects.
     await expect(
@@ -388,7 +364,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: grandparent.id });
 
     const parent = await svc.create({
       projectId,
@@ -397,7 +372,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: grandparent.id,
     });
-    cleanup.push({ table: 'issue', id: parent.id });
 
     const child = await svc.create({
       projectId,
@@ -406,7 +380,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: parent.id,
     });
-    cleanup.push({ table: 'issue', id: child.id });
 
     await svc.stateOverride(
       child.id,
@@ -430,7 +403,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       typeId: issueTypeId,
       priorityId: issuePriorityId,
     });
-    cleanup.push({ table: 'issue', id: parent.id });
 
     let loaded = await svc.getById(parent.id);
     expect(loaded?.hasOpenChildren).toBe(false);
@@ -442,7 +414,6 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
       parentIssueId: parent.id,
     });
-    cleanup.push({ table: 'issue', id: child.id });
 
     loaded = await svc.getById(parent.id);
     expect(loaded?.hasOpenChildren).toBe(true);

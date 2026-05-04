@@ -4,9 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { AnyColumn } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGitOps } from '@/adapters/git/git-ops';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
@@ -23,6 +21,7 @@ import {
   createProjectService,
   createUserService,
 } from '@/core/services';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const execFileAsync = promisify(execFile);
 const url = process.env.DATABASE_URL;
@@ -32,28 +31,8 @@ const provider = new SupabaseDatabaseProvider(url);
 const db: Database = provider.getConnection();
 const RUN = Date.now();
 const tempDirs: string[] = [];
-const cleanup: { table: string; id: string }[] = [];
-const tables: Record<string, AnyPgTable & { id: AnyColumn }> = {
-  issueEvent: schema.issueEvent,
-  stageRun: schema.stageRun,
-  pipelineRun: schema.pipelineRun,
-  pipelineStage: schema.pipelineStage,
-  pipeline: schema.pipeline,
-  issue: schema.issue,
-  issueState: schema.issueState,
-  issueStatus: schema.issueStatus,
-  issueType: schema.issueType,
-  issuePriority: schema.issuePriority,
-  routingRule: schema.routingRule,
-  routingProfile: schema.routingProfile,
-  model: schema.model,
-  provider: schema.provider,
-  skill: schema.skill,
-  driver: schema.driver,
-  project: schema.project,
-  user: schema.user,
-  organization: schema.organization,
-};
+let fixtureOrgId: string;
+const driverIds: string[] = [];
 
 let previousTargetRepoPath: string | undefined;
 let fixture: Awaited<ReturnType<typeof createFixture>>;
@@ -76,12 +55,14 @@ afterAll(async () => {
   for (const path of tempDirs.reverse()) {
     await rm(path, { recursive: true, force: true }).catch(() => {});
   }
-  for (const { table, id } of cleanup.reverse()) {
+  // driver rows are global (no orgId), clean up separately
+  for (const id of driverIds) {
     await db
-      .delete(tables[table])
-      .where(eq(tables[table].id, id))
-      .catch(() => {});
+      .delete(schema.driver)
+      .where(eq(schema.driver.id, id))
+      .catch(() => undefined);
   }
+  if (fixtureOrgId) await deleteOrgFixture(db, fixtureOrgId);
   await provider.close();
 });
 
@@ -96,10 +77,8 @@ describe('stage-runner issue events', () => {
         status: 'pending',
       })
       .returning();
-    cleanup.push({ table: 'pipelineRun', id: run.id });
 
     const stageRun = await svc.createStageRun(run.id, fixture.stageId);
-    cleanup.push({ table: 'stageRun', id: stageRun.id });
 
     const workingPath = await makeRepo('fluxaos-worktree-');
     const artifactsPath = await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-'));
@@ -133,9 +112,6 @@ describe('stage-runner issue events', () => {
       .select()
       .from(schema.issueEvent)
       .where(eq(schema.issueEvent.issueId, fixture.issueId));
-    for (const row of rows) {
-      cleanup.push({ table: 'issueEvent', id: row.id });
-    }
 
     const completed = rows.find((row) => row.type === 'stage_completed');
     expect(completed?.payload).toMatchObject({
@@ -164,7 +140,7 @@ async function createFixture() {
     slug: `stage-runner-issue-events-${RUN}`,
     settings: {},
   });
-  cleanup.push({ table: 'organization', id: org.id });
+  fixtureOrgId = org.id;
 
   const user = await createUserService(db).create({
     orgId: org.id,
@@ -172,7 +148,6 @@ async function createFixture() {
     name: 'Stage Runner Issue Events User',
     slug: `stage-runner-issue-events-user-${RUN}`,
   });
-  cleanup.push({ table: 'user', id: user.id });
 
   const project = await createProjectService(db).create({
     orgId: org.id,
@@ -181,13 +156,11 @@ async function createFixture() {
     slug: `stage-runner-issue-events-project-${RUN}`,
     repoUrl: `https://github.com/fluxaos/stage-runner-issue-events-${RUN}`,
   });
-  cleanup.push({ table: 'project', id: project.id });
 
   const pipeline = await createPipelineService(db).create({
     projectId: project.id,
     name: `Stage Runner Issue Events Pipeline ${RUN}`,
   });
-  cleanup.push({ table: 'pipeline', id: pipeline.id });
 
   const [driver] = await db
     .insert(schema.driver)
@@ -208,7 +181,7 @@ async function createFixture() {
       },
     })
     .returning();
-  cleanup.push({ table: 'driver', id: driver.id });
+  driverIds.push(driver.id);
 
   const [skill] = await db
     .insert(schema.skill)
@@ -218,7 +191,6 @@ async function createFixture() {
       promptTemplate: 'Emit a flux signal summary.',
     })
     .returning();
-  cleanup.push({ table: 'skill', id: skill.id });
 
   const stage = await createPipelineService(db).stages.create({
     pipelineId: pipeline.id,
@@ -230,7 +202,6 @@ async function createFixture() {
     driverId: driver.id,
     skillId: skill.id,
   });
-  cleanup.push({ table: 'pipelineStage', id: stage.id });
 
   await createRouting(org.id, stage.name);
   const issueId = await createIssue(project.id);
@@ -247,7 +218,6 @@ async function createRouting(orgId: string, stageName: string) {
     .insert(schema.provider)
     .values({ orgId, name: `Issue Events Provider ${RUN}`, type: 'test' })
     .returning();
-  cleanup.push({ table: 'provider', id: providerRow.id });
   const [modelRow] = await db
     .insert(schema.model)
     .values({
@@ -256,17 +226,14 @@ async function createRouting(orgId: string, stageName: string) {
       identifier: `issue-events-model-${RUN}`,
     })
     .returning();
-  cleanup.push({ table: 'model', id: modelRow.id });
   const [profileRow] = await db
     .insert(schema.routingProfile)
     .values({ orgId, name: `Issue Events Routing ${RUN}` })
     .returning();
-  cleanup.push({ table: 'routingProfile', id: profileRow.id });
-  const [ruleRow] = await db
+  await db
     .insert(schema.routingRule)
     .values({ profileId: profileRow.id, stageName })
     .returning();
-  cleanup.push({ table: 'routingRule', id: ruleRow.id });
 }
 
 async function createIssue(projectId: string): Promise<string> {
@@ -280,7 +247,6 @@ async function createIssue(projectId: string): Promise<string> {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueState', id: state.id });
   const [status] = await db
     .insert(schema.issueStatus)
     .values({
@@ -290,7 +256,6 @@ async function createIssue(projectId: string): Promise<string> {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueStatus', id: status.id });
   const [type] = await db
     .insert(schema.issueType)
     .values({
@@ -301,7 +266,6 @@ async function createIssue(projectId: string): Promise<string> {
       sortOrder: 1,
     })
     .returning();
-  cleanup.push({ table: 'issueType', id: type.id });
   const [priority] = await db
     .insert(schema.issuePriority)
     .values({
@@ -312,7 +276,6 @@ async function createIssue(projectId: string): Promise<string> {
       weight: 1,
     })
     .returning();
-  cleanup.push({ table: 'issuePriority', id: priority.id });
   const [issue] = await db
     .insert(schema.issue)
     .values({
@@ -326,7 +289,6 @@ async function createIssue(projectId: string): Promise<string> {
       author: 'test',
     })
     .returning();
-  cleanup.push({ table: 'issue', id: issue.id });
   return issue.id;
 }
 

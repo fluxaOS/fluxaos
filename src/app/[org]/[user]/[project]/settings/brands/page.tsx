@@ -17,6 +17,11 @@ export default function BrandSettingsPage() {
   const [newScope, setNewScope] = useState<'org' | 'project'>('org');
   const [newTone, setNewTone] = useState('');
   const [newStyleGuide, setNewStyleGuide] = useState('');
+  const [newColors, setNewColors] = useState('');
+  const [newFonts, setNewFonts] = useState('');
+  const [newLogoUrl, setNewLogoUrl] = useState('');
+  const [colorsError, setColorsError] = useState<string | null>(null);
+  const [fontsError, setFontsError] = useState<string | null>(null);
 
   const projectSlug = params.project ?? 'fluxaos';
   const currentProjectQuery = trpc.project.getBySlug.useQuery({
@@ -57,19 +62,45 @@ export default function BrandSettingsPage() {
     await utils.brand.listVisibleToProject.invalidate();
   };
 
+  const parseJsonField = (
+    raw: string,
+    setError: (e: string | null) => void
+  ): unknown => {
+    if (!raw.trim()) { setError(null); return null; }
+    try {
+      const parsed = JSON.parse(raw);
+      setError(null);
+      return parsed;
+    } catch {
+      setError('Must be valid JSON (e.g. { "key": "value" }), or leave blank.');
+      return undefined;
+    }
+  };
+
   const onCreate = async () => {
     if (!newName.trim() || !orgId || !projectId) return;
+    const colors = parseJsonField(newColors, setColorsError);
+    const fonts = parseJsonField(newFonts, setFontsError);
+    if (colors === undefined || fonts === undefined) return;
     await createMutation.mutateAsync({
       orgId,
       projectId: newScope === 'project' ? projectId : null,
       name: newName.trim(),
       toneOfVoice: newTone.trim() || null,
       styleGuide: newStyleGuide.trim() || null,
+      colors: (colors ?? null) as Record<string, unknown> | null,
+      fonts: (fonts ?? null) as Record<string, unknown> | null,
+      logoUrl: newLogoUrl.trim() || null,
     });
     setNewName('');
     setNewScope('org');
     setNewTone('');
     setNewStyleGuide('');
+    setNewColors('');
+    setNewFonts('');
+    setNewLogoUrl('');
+    setColorsError(null);
+    setFontsError(null);
     setShowCreate(false);
     await utils.brand.listVisibleToProject.invalidate();
   };
@@ -151,6 +182,49 @@ export default function BrandSettingsPage() {
                   onChange={(e) => setNewStyleGuide(e.target.value)}
                 />
               </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium text-slate-400 block mb-1">
+                  Colors JSON
+                </label>
+                <textarea
+                  aria-label="Colors JSON"
+                  rows={3}
+                  placeholder='{ "primary": "#6366f1" }'
+                  className={`w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white font-mono resize-none ${colorsError ? 'border-red-500/60' : 'border-slate-700/60'}`}
+                  value={newColors}
+                  onChange={(e) => { setNewColors(e.target.value); setColorsError(null); }}
+                />
+                {colorsError ? <p className="mt-1 text-xs text-red-400">{colorsError}</p> : null}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400 block mb-1">
+                  Fonts JSON
+                </label>
+                <textarea
+                  aria-label="Fonts JSON"
+                  rows={3}
+                  placeholder='{ "heading": "Inter" }'
+                  className={`w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white font-mono resize-none ${fontsError ? 'border-red-500/60' : 'border-slate-700/60'}`}
+                  value={newFonts}
+                  onChange={(e) => { setNewFonts(e.target.value); setFontsError(null); }}
+                />
+                {fontsError ? <p className="mt-1 text-xs text-red-400">{fontsError}</p> : null}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Logo URL
+              </label>
+              <input
+                aria-label="Logo URL"
+                type="text"
+                placeholder="https://example.com/logo.svg"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newLogoUrl}
+                onChange={(e) => setNewLogoUrl(e.target.value)}
+              />
             </div>
             <button
               type="button"

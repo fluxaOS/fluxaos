@@ -7,8 +7,7 @@
  * NOT mocks. Every service test hits the real database.
  */
 import 'dotenv/config';
-import { type AnyColumn, desc, eq } from 'drizzle-orm';
-import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
@@ -21,6 +20,7 @@ import {
   createProjectService,
   createUserService,
 } from '@/core/services';
+import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -29,28 +29,10 @@ const provider = new SupabaseDatabaseProvider(url);
 const db: Database = provider.getConnection();
 
 const RUN = Date.now();
-const cleanup: { table: string; id: string }[] = [];
-
-const tableMap: Record<string, AnyPgTable & { id: AnyColumn }> = {
-  stageGateResult: schema.stageGateResult,
-  stageRun: schema.stageRun,
-  pipelineRun: schema.pipelineRun,
-  pipelineStage: schema.pipelineStage,
-  pipeline: schema.pipeline,
-  project: schema.project,
-  user: schema.user,
-  organization: schema.organization,
-};
+let _orgId: string;
 
 afterAll(async () => {
-  for (const { table, id } of cleanup.reverse()) {
-    const t = tableMap[table];
-    if (t)
-      await db
-        .delete(t)
-        .where(eq(t.id, id))
-        .catch(() => {});
-  }
+  if (_orgId) await deleteOrgFixture(db, _orgId);
 });
 
 // ─── Shared test data ──────────────────────────────────────────────────────
@@ -74,7 +56,7 @@ beforeAll(async () => {
     settings: {},
   });
   orgId = org.id;
-  cleanup.push({ table: 'organization', id: orgId });
+  _orgId = org.id;
 
   const userSvc = createUserService(db);
   const usr = await userSvc.create({
@@ -84,7 +66,6 @@ beforeAll(async () => {
     slug: `gate-tester-${RUN}`,
   });
   userId = usr.id;
-  cleanup.push({ table: 'user', id: userId });
 
   const projSvc = createProjectService(db);
   const proj = await projSvc.create({
@@ -94,7 +75,6 @@ beforeAll(async () => {
     slug: `gate-test-project-${RUN}`,
   });
   projectId = proj.id;
-  cleanup.push({ table: 'project', id: projectId });
 
   // Pipeline
   const [pipe] = await db
@@ -106,7 +86,6 @@ beforeAll(async () => {
     })
     .returning();
   pipelineId = pipe.id;
-  cleanup.push({ table: 'pipeline', id: pipelineId });
 
   // Stages with different gate modes
   const costRule: RuleGroup = {
@@ -142,7 +121,6 @@ beforeAll(async () => {
     })
     .returning();
   stageAutoId = sAuto.id;
-  cleanup.push({ table: 'pipelineStage', id: stageAutoId });
 
   const [sRules] = await db
     .insert(schema.pipelineStage)
@@ -155,7 +133,6 @@ beforeAll(async () => {
     })
     .returning();
   stageRulesId = sRules.id;
-  cleanup.push({ table: 'pipelineStage', id: stageRulesId });
 
   const [sHold] = await db
     .insert(schema.pipelineStage)
@@ -168,7 +145,6 @@ beforeAll(async () => {
     })
     .returning();
   stageHoldId = sHold.id;
-  cleanup.push({ table: 'pipelineStage', id: stageHoldId });
 
   // Pipeline run + stage run (for audit trail)
   const [pRun] = await db
@@ -176,7 +152,6 @@ beforeAll(async () => {
     .values({ pipelineId, status: 'running' })
     .returning();
   pipelineRunId = pRun.id;
-  cleanup.push({ table: 'pipelineRun', id: pipelineRunId });
 
   const [sRun] = await db
     .insert(schema.stageRun)
@@ -187,7 +162,6 @@ beforeAll(async () => {
     })
     .returning();
   stageRunId = sRun.id;
-  cleanup.push({ table: 'stageRun', id: stageRunId });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -692,7 +666,6 @@ describe('gate service — evaluateStageGate', () => {
 
     // Track for cleanup
     for (const r of results) {
-      cleanup.push({ table: 'stageGateResult', id: r.id });
     }
   });
 
