@@ -17,6 +17,7 @@ test.describe('@flx-8 @journey @brand-service', () => {
     const brandName = `FLX-8 Runtime Brand ${ts}`;
     const updatedTone = 'Direct, concrete, operator-focused.';
 
+    // ── Create ────────────────────────────────────────────────────────────
     await page.getByRole('button', { name: 'New Brand' }).click();
     await page.getByLabel('Brand name').fill(brandName);
     await page.getByLabel('Tone of voice').fill('Direct and practical.');
@@ -26,21 +27,26 @@ test.describe('@flx-8 @journey @brand-service', () => {
     const row = page.locator('li', { hasText: brandName });
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    await row.getByRole('button', { name: 'Edit' }).click();
+    // ── Edit ──────────────────────────────────────────────────────────────
+    // RecordEditor: click row to select → Edit button appears in detail panel.
+    await row.click();
+    await page.getByRole('button', { name: 'Edit' }).click();
     await page.getByLabel('Tone of voice').fill(updatedTone);
     await page.getByRole('button', { name: 'Save' }).click();
 
-    await expect(
-      page.locator('li', { hasText: brandName }).getByRole('button', {
-        name: 'Edit',
-      })
-    ).toBeVisible({ timeout: 10_000 });
+    // Wait for edit mode to exit.
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
+      timeout: 10_000,
+    });
 
+    // Persistence: reload + click row + verify updated tone in detail panel.
     await page.reload();
     const reloadedRow = page.locator('li', { hasText: brandName });
     await expect(reloadedRow).toBeVisible({ timeout: 10_000 });
-    await expect(reloadedRow.getByText(updatedTone)).toBeVisible();
+    await reloadedRow.click();
+    await expect(page.getByText(updatedTone)).toBeVisible({ timeout: 5_000 });
 
+    // ── Persona brand assignment ──────────────────────────────────────────
     await page.goto(projectPath('/settings/personas'));
     await expect(page.getByRole('heading', { name: 'Personas' })).toBeVisible({
       timeout: 15_000,
@@ -61,6 +67,7 @@ test.describe('@flx-8 @journey @brand-service', () => {
       timeout: 10_000,
     });
 
+    // ── Project default brand ─────────────────────────────────────────────
     await page.goto(projectPath('/settings/projects'));
     await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
       timeout: 15_000,

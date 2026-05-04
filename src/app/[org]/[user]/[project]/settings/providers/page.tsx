@@ -38,10 +38,13 @@ export default function ProviderSettingsPage() {
     patch: Partial<ProviderRecord>,
     expectedVersion: number
   ) => {
+    const clean = Object.fromEntries(
+      Object.entries(patch).filter(([, v]) => v !== null)
+    );
     await updateMutation.mutateAsync({
       id,
       version: expectedVersion,
-      ...(patch as Record<string, unknown>),
+      ...clean,
     });
     await utils.provider.list.invalidate();
   };

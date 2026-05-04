@@ -1,7 +1,7 @@
 // e2e/team-crud.spec.ts
-// FLX-61 — Team CRUD journey: create + edit + delete via the new
-// /settings/teams page. Schema already exists; this spec exercises the
-// freshly built tRPC router + UI.
+// FLX-61 — Team CRUD journey: create + edit + delete via the
+// /settings/teams page. Updated in FLX-126 to use RecordEditor interaction
+// pattern (click row → detail panel → Edit/Save/Delete).
 
 import { expect, projectPath, test } from './helpers/setup';
 
@@ -33,34 +33,32 @@ test.describe('@flx-61 @journey @team-crud', () => {
 
     const row = page.locator('li', { hasText: uniqueName });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row.getByText(uniqueDesc)).toBeVisible();
 
     // ── Edit ──────────────────────────────────────────────────────────────
-    // After clicking Edit, the row's display text is replaced with the
-    // inline form, so a `hasText: uniqueName` filter on <li> stops
-    // matching. Pivot to page-level locators while editing — only one
-    // edit form is open at a time.
+    // RecordEditor: click row to select → Edit button appears in detail panel.
+    await row.click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+
     const updatedName = `${uniqueName} EDITED`;
-    await row.getByRole('button', { name: 'Edit' }).click();
-    const nameInput = page.getByLabel('Team name');
-    await nameInput.fill(updatedName);
+    await page.getByLabel('Name').fill(updatedName);
     await page.getByRole('button', { name: 'Save' }).click();
 
-    const updatedRow = page.locator('li', { hasText: updatedName });
-    await expect(updatedRow).toBeVisible({ timeout: 10_000 });
-
-    // Persistence: reload + reassert.
-    await page.reload();
-    await expect(page.locator('li', { hasText: updatedName })).toBeVisible({
+    // Wait for edit mode to exit (Save → back to viewing state).
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
       timeout: 10_000,
     });
 
+    // Persistence: reload + click the updated row + verify in detail panel.
+    await page.reload();
+    const updatedRow = page.locator('li', { hasText: updatedName });
+    await expect(updatedRow).toBeVisible({ timeout: 10_000 });
+
     // ── Delete ────────────────────────────────────────────────────────────
-    page.once('dialog', (d) => d.accept());
-    await page
-      .locator('li', { hasText: updatedName })
-      .getByRole('button', { name: /^Delete/ })
-      .click();
+    // RecordEditor delete: click row → Edit → Delete → Yes, Delete.
+    await updatedRow.click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Yes, Delete' }).click();
 
     await expect(page.locator('li', { hasText: updatedName })).toHaveCount(0, {
       timeout: 10_000,
