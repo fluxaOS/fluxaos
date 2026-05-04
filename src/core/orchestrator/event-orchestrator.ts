@@ -487,6 +487,54 @@ export function createEventOrchestrator(
               : STAGE_RUN_STATUS.completed;
           await runService.completeStageRun(sRun.id, stageStatus, {});
 
+          // ── Meta-routing sentinel ────────────────────────────────────
+          // When a triage stage emits meta.targetPipeline and its onPass is
+          // '__meta_route__', we switch the pipeline's playbookPath to the
+          // target and launch the first stage of the new playbook.
+          if (
+            audit.targetState === '__meta_route__' &&
+            audit.meta?.targetPipeline
+          ) {
+            const targetPlaybookName = audit.meta.targetPipeline;
+            const targetDiscovered = await resolvePlaybook(targetPlaybookName, {
+              bundledDir,
+            });
+            if (targetDiscovered) {
+              await db
+                .update(pipeline)
+                .set({ playbookPath: targetPlaybookName })
+                .where(eq(pipeline.id, run.pipelineId));
+
+              const firstStage = targetDiscovered.playbook.stages[0];
+              if (firstStage) {
+                const nextStage = await db
+                  .select()
+                  .from(pipelineStage)
+                  .where(
+                    and(
+                      eq(pipelineStage.pipelineId, run.pipelineId),
+                      eq(pipelineStage.name, firstStage.id)
+                    )
+                  )
+                  .then((rows) => rows[0] ?? null);
+
+                if (nextStage) {
+                  await launchStage(run, nextStage);
+                } else {
+                  await finishRun(run, PIPELINE_RUN_STATUS.failed);
+                }
+              } else {
+                await finishRun(run, PIPELINE_RUN_STATUS.failed);
+              }
+            } else {
+              console.error(
+                `[orchestrator] meta-route: target playbook '${targetPlaybookName}' not found (pipelineId: ${run.pipelineId})`
+              );
+              await finishRun(run, PIPELINE_RUN_STATUS.failed);
+            }
+            return; // skip legacy signal routing
+          }
+
           if (isTerminal) {
             const pipelineStatus =
               audit.targetState === 'blocked'
