@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoopExecutorInput } from '@/core/agents/loop-executor';
 
 vi.mock('@/core/pipeline/langgraph-stage-runner', () => ({
@@ -25,7 +25,12 @@ const passIngestOutput = JSON.stringify({
   valid: true,
   doc: {
     issue: { id: 'i1', number: 1, title: 'T' },
-    run: { pipelineRunId: 'p1', stageRunId: 's1', stage: 'implement', attempt: 1 },
+    run: {
+      pipelineRunId: 'p1',
+      stageRunId: 's1',
+      stage: 'implement',
+      attempt: 1,
+    },
     org: { id: 'o1', slug: 'org' },
     project: { id: 'proj1', slug: 'proj' },
     timing: { startedAt: '2026-05-03T00:00:00Z' },
@@ -38,7 +43,12 @@ const failIngestOutput = JSON.stringify({
   valid: true,
   doc: {
     issue: { id: 'i1', number: 1, title: 'T' },
-    run: { pipelineRunId: 'p1', stageRunId: 's1', stage: 'implement', attempt: 1 },
+    run: {
+      pipelineRunId: 'p1',
+      stageRunId: 's1',
+      stage: 'implement',
+      attempt: 1,
+    },
     org: { id: 'o1', slug: 'org' },
     project: { id: 'proj1', slug: 'proj' },
     timing: { startedAt: '2026-05-03T00:00:00Z' },

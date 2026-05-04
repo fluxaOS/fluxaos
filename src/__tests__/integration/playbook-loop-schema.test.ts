@@ -1,27 +1,30 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { LoopNode, PlaybookStage } from '@/core/pipeline/playbook';
 import {
-  parsePlaybook,
   isLoopNode,
   isParallelGroup,
+  parsePlaybook,
 } from '@/core/pipeline/playbook';
-import type { PlaybookStage, LoopNode } from '@/core/pipeline/playbook';
 
-const BUNDLED_DIR = join(
-  __dirname,
-  '../../../src/core/pipeline/bundled'
-);
+const BUNDLED_DIR = join(__dirname, '../../../src/core/pipeline/bundled');
 
 describe('symphony-style.yaml schema round-trip', () => {
   it('parses without error', () => {
-    const yaml = readFileSync(join(BUNDLED_DIR, 'symphony-style.yaml'), 'utf-8');
+    const yaml = readFileSync(
+      join(BUNDLED_DIR, 'symphony-style.yaml'),
+      'utf-8'
+    );
     const result = parsePlaybook(yaml, 'symphony-style.yaml');
     expect(result.success).toBe(true);
   });
 
   it('has exactly one loop stage', () => {
-    const yaml = readFileSync(join(BUNDLED_DIR, 'symphony-style.yaml'), 'utf-8');
+    const yaml = readFileSync(
+      join(BUNDLED_DIR, 'symphony-style.yaml'),
+      'utf-8'
+    );
     const result = parsePlaybook(yaml, 'symphony-style.yaml');
     if (!result.success) throw new Error(result.error);
     const loopStages = result.playbook.stages.filter(isLoopNode);
@@ -29,7 +32,10 @@ describe('symphony-style.yaml schema round-trip', () => {
   });
 
   it('loop stage has correct fields', () => {
-    const yaml = readFileSync(join(BUNDLED_DIR, 'symphony-style.yaml'), 'utf-8');
+    const yaml = readFileSync(
+      join(BUNDLED_DIR, 'symphony-style.yaml'),
+      'utf-8'
+    );
     const result = parsePlaybook(yaml, 'symphony-style.yaml');
     if (!result.success) throw new Error(result.error);
     const [stage] = result.playbook.stages.filter(isLoopNode) as LoopNode[];

@@ -1,6 +1,6 @@
 {
-  "id": "b3c7ad00-3db5-4b6d-97a8-ea953faff08f",
-  "prevId": "8d39ab0f-7987-46f9-a056-3d353d9e0a53",
+  "id": "bc68eb0d-8c16-4cc9-acc3-d548d62d7498",
+  "prevId": "b3c7ad00-3db5-4b6d-97a8-ea953faff08f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -761,7 +761,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "event_stage_run_id_idx": {
+          "name": "event_stage_run_id_idx",
+          "columns": [
+            {
+              "expression": "stage_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "event_stage_run_id_stage_run_id_fk": {
           "name": "event_stage_run_id_stage_run_id_fk",
@@ -1359,7 +1375,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "issue_comment_issue_id_comment_number_idx": {
+          "name": "issue_comment_issue_id_comment_number_idx",
+          "columns": [
+            {
+              "expression": "issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "comment_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "issue_comment_issue_id_issue_id_fk": {
           "name": "issue_comment_issue_id_issue_id_fk",
@@ -2980,6 +3018,18 @@
           "notNull": false,
           "default": false
         },
+        "playbook_path": {
+          "name": "playbook_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "playbook_scope": {
+          "name": "playbook_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3454,7 +3504,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "provider_org_id_name_idx": {
+          "name": "provider_org_id_name_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "provider_org_id_organization_id_fk": {
           "name": "provider_org_id_organization_id_fk",
@@ -4062,6 +4134,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "result_doc": {
+          "name": "result_doc",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "trigger": {
           "name": "trigger",
           "type": "text",
@@ -4102,7 +4180,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "stage_run_pipeline_run_id_idx": {
+          "name": "stage_run_pipeline_run_id_idx",
+          "columns": [
+            {
+              "expression": "pipeline_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stage_run_pipeline_stage_id_idx": {
+          "name": "stage_run_pipeline_stage_id_idx",
+          "columns": [
+            {
+              "expression": "pipeline_stage_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "stage_run_pipeline_run_id_pipeline_run_id_fk": {
           "name": "stage_run_pipeline_run_id_pipeline_run_id_fk",
