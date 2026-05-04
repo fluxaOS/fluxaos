@@ -7,6 +7,7 @@ import { trpc } from '@/lib/trpc/client';
 
 type Provider = {
   id: string;
+  version: number;
   name: string;
   type: string;
   baseUrl: string | null;
@@ -108,6 +109,7 @@ export default function ProviderSettingsPage() {
                       </button>
                       <DeleteProviderButton
                         providerId={p.id}
+                        providerVersion={p.version}
                         onDeleted={() => utils.provider.list.invalidate()}
                       />
                     </div>
@@ -244,6 +246,7 @@ function EditProviderForm({
         if (!name.trim() || !type.trim()) return;
         updateMutation.mutate({
           id: provider.id,
+          version: provider.version,
           name: name.trim(),
           type: type.trim(),
           baseUrl: baseUrl.trim() || undefined,
@@ -318,9 +321,11 @@ function EditProviderForm({
 
 function DeleteProviderButton({
   providerId,
+  providerVersion,
   onDeleted,
 }: {
   providerId: string;
+  providerVersion: number;
   onDeleted: () => void;
 }) {
   const deleteMutation = trpc.provider.delete.useMutation({
@@ -332,7 +337,7 @@ function DeleteProviderButton({
       type="button"
       onClick={() => {
         if (confirm('Delete this provider?')) {
-          deleteMutation.mutate({ id: providerId });
+          deleteMutation.mutate({ id: providerId, version: providerVersion });
         }
       }}
       disabled={deleteMutation.isPending}

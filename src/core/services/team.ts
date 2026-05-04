@@ -1,13 +1,13 @@
 import { desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { team } from '@/core/db/schema';
-import { createCrudService } from './crud-factory';
+import { createVersionedCrudService } from './crud-factory';
 
 type TeamInsert = typeof team.$inferInsert;
 type TeamSelect = typeof team.$inferSelect;
 
 export function createTeamService(db: Database) {
-  const crud = createCrudService<TeamInsert, TeamSelect>(db, team);
+  const crud = createVersionedCrudService<TeamInsert, TeamSelect>(db, team);
 
   return {
     ...crud,

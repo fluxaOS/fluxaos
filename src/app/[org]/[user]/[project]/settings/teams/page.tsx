@@ -86,6 +86,7 @@ export default function TeamsSettingsPage() {
                     </button>
                     <DeleteTeamButton
                       teamId={t.id}
+                      teamVersion={t.version}
                       onDeleted={() => utils.team.listByProject.invalidate()}
                     />
                   </div>
@@ -162,7 +163,12 @@ function EditTeamForm({
   onSaved,
   onCancel,
 }: {
-  team: { id: string; name: string; description: string | null };
+  team: {
+    id: string;
+    version: number;
+    name: string;
+    description: string | null;
+  };
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -180,6 +186,7 @@ function EditTeamForm({
         if (!name.trim()) return;
         updateMutation.mutate({
           id: team.id,
+          version: team.version,
           name: name.trim(),
           description: description.trim() || null,
         });
@@ -226,9 +233,11 @@ function EditTeamForm({
 
 function DeleteTeamButton({
   teamId,
+  teamVersion,
   onDeleted,
 }: {
   teamId: string;
+  teamVersion: number;
   onDeleted: () => void;
 }) {
   const deleteMutation = trpc.team.delete.useMutation({
@@ -240,7 +249,7 @@ function DeleteTeamButton({
       type="button"
       onClick={() => {
         if (confirm('Delete this team?')) {
-          deleteMutation.mutate({ id: teamId });
+          deleteMutation.mutate({ id: teamId, version: teamVersion });
         }
       }}
       disabled={deleteMutation.isPending}

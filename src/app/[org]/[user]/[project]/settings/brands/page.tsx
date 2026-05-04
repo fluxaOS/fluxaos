@@ -9,6 +9,7 @@ import { parseJsonObject, stringifyJson } from '@/lib/utils/json';
 
 type Brand = {
   id: string;
+  version: number;
   orgId: string;
   projectId: string | null;
   name: string;
@@ -115,6 +116,7 @@ export default function BrandSettingsPage() {
                 <BrandForm
                   mode="edit"
                   brandId={brand.id}
+                  brandVersion={brand.version}
                   orgId={orgId}
                   projectId={projectId}
                   initialValues={valuesFromBrand(brand)}
@@ -174,7 +176,11 @@ function BrandRow({
         >
           Edit
         </button>
-        <DeleteBrandButton brandId={brand.id} onDeleted={onDeleted} />
+        <DeleteBrandButton
+          brandId={brand.id}
+          brandVersion={brand.version}
+          onDeleted={onDeleted}
+        />
       </div>
     </div>
   );
@@ -183,6 +189,7 @@ function BrandRow({
 function BrandForm({
   mode,
   brandId,
+  brandVersion,
   orgId,
   projectId,
   initialValues,
@@ -191,6 +198,7 @@ function BrandForm({
 }: {
   mode: 'create' | 'edit';
   brandId?: string;
+  brandVersion?: number;
   orgId: string;
   projectId: string;
   initialValues: BrandFormValues;
@@ -236,8 +244,12 @@ function BrandForm({
 
         if (mode === 'create') {
           createBrand.mutate({ orgId, ...payload });
-        } else if (brandId) {
-          updateBrand.mutate({ id: brandId, ...payload });
+        } else if (brandId && brandVersion !== undefined) {
+          updateBrand.mutate({
+            id: brandId,
+            version: brandVersion,
+            ...payload,
+          });
         }
       }}
       className="card-static p-4 space-y-3"
@@ -375,9 +387,11 @@ function BrandForm({
 
 function DeleteBrandButton({
   brandId,
+  brandVersion,
   onDeleted,
 }: {
   brandId: string;
+  brandVersion: number;
   onDeleted: () => void;
 }) {
   const deleteBrand = trpc.brand.delete.useMutation({ onSuccess: onDeleted });
@@ -387,7 +401,7 @@ function DeleteBrandButton({
       type="button"
       onClick={() => {
         if (confirm('Delete this brand?')) {
-          deleteBrand.mutate({ id: brandId });
+          deleteBrand.mutate({ id: brandId, version: brandVersion });
         }
       }}
       disabled={deleteBrand.isPending}

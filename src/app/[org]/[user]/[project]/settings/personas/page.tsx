@@ -8,6 +8,7 @@ import { trpc } from '@/lib/trpc/client';
 
 type Persona = {
   id: string;
+  version: number;
   name: string;
   scope: string;
   soul: string | null;
@@ -118,6 +119,7 @@ export default function PersonaSettingsPage() {
                       </button>
                       <DeletePersonaButton
                         personaId={p.id}
+                        personaVersion={p.version}
                         onDeleted={() => utils.persona.list.invalidate()}
                       />
                     </div>
@@ -168,6 +170,7 @@ function EditPersonaForm({
         if (!name.trim()) return;
         updateMutation.mutate({
           id: persona.id,
+          version: persona.version,
           name: name.trim(),
           soul: soul.trim() || undefined,
           brandId: brandId || null,
@@ -233,9 +236,11 @@ function EditPersonaForm({
 
 function DeletePersonaButton({
   personaId,
+  personaVersion,
   onDeleted,
 }: {
   personaId: string;
+  personaVersion: number;
   onDeleted: () => void;
 }) {
   const deleteMutation = trpc.persona.delete.useMutation({
@@ -247,7 +252,7 @@ function DeletePersonaButton({
       type="button"
       onClick={() => {
         if (confirm('Delete this persona?')) {
-          deleteMutation.mutate({ id: personaId });
+          deleteMutation.mutate({ id: personaId, version: personaVersion });
         }
       }}
       disabled={deleteMutation.isPending}
