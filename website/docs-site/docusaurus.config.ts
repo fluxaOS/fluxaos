@@ -13,6 +13,11 @@ const config: Config = {
   projectName: 'fluxaos',
 
   onBrokenLinks: 'throw',
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   i18n: {
     defaultLocale: 'en',

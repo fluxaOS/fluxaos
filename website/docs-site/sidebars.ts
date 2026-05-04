@@ -3,6 +3,11 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 const sidebars: SidebarsConfig = {
   docs: [
     {
+      type: 'doc',
+      id: 'index',
+      label: 'Overview',
+    },
+    {
       type: 'category',
       label: 'Concepts',
       items: [
@@ -19,11 +24,11 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Guides',
       items: [
-        { type: 'doc', id: 'guides/first-setup', label: '1. First Setup' },
-        { type: 'doc', id: 'guides/build-a-pipeline', label: '2. Build a Pipeline' },
-        { type: 'doc', id: 'guides/add-an-issue', label: '3. Add an Issue' },
-        { type: 'doc', id: 'guides/run-a-pipeline', label: '4. Run a Pipeline' },
-        { type: 'doc', id: 'guides/read-the-results', label: '5. Read the Results' },
+        'guides/first-setup',
+        'guides/build-a-pipeline',
+        'guides/add-an-issue',
+        'guides/run-a-pipeline',
+        'guides/read-the-results',
       ],
     },
     {
