@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a Docusaurus docs site at `website/docs-site/` served at `fluxaos.io/docs`, populate it with 18 pages covering the full user lifecycle (concepts, guides, reference), and add a GitHub Action that hard-gates critical doc paths and posts LLM-powered soft nudges on every code PR.
+**Goal:** Build a Docusaurus docs site at `website/docs-site/` served at `docs.fluxaos.io`, populate it with 18 pages covering the full user lifecycle (concepts, guides, reference), and add a GitHub Action that hard-gates critical doc paths and posts LLM-powered soft nudges on every code PR.
 
-**Architecture:** Self-contained Docusaurus project at `website/docs-site/` with its own `package.json`. Vercel serves two build targets from one repo via `vercel.json` at the repo root. A GitHub Action (`.github/workflows/doc-drift.yml`) reads a declarative map (`.github/doc-drift-map.yml`) for the hard gate and calls the Anthropic API for the soft nudge.
+**Architecture:** Self-contained Docusaurus project at `website/docs-site/` with its own `package.json`. Deployed to `docs.fluxaos.io` as a separate Vercel project (no `vercel.json` in the repo — the marketing site at `fluxaos.io` is an independent Vercel project and is unaffected). A GitHub Action (`.github/workflows/doc-drift.yml`) reads a declarative map (`.github/doc-drift-map.yml`) for the hard gate and calls the Anthropic API for the soft nudge.
 
-**Tech Stack:** Docusaurus 3 (classic theme), Node 22, TypeScript, GitHub Actions, Anthropic SDK (`@anthropic-ai/sdk`), YAML parsing (`js-yaml`), Vercel monorepo deployment.
+**Tech Stack:** Docusaurus 3 (classic theme), Node 22, TypeScript, GitHub Actions, Anthropic API (fetch, no SDK), js-yaml (already in root `package.json`).
 
 **Spec:** `docs/superpowers/specs/2026-05-04-user-docs-design.md`
 
@@ -16,11 +16,12 @@
 
 ### New files — Docusaurus scaffold
 - `website/docs-site/package.json` — standalone Docusaurus project
-- `website/docs-site/docusaurus.config.ts` — site config (title, baseUrl `/docs`, navbar, footer)
+- `website/docs-site/docusaurus.config.ts` — site config (title, url `docs.fluxaos.io`, baseUrl `/`, navbar, footer)
 - `website/docs-site/sidebars.ts` — sidebar structure (concepts / guides / reference)
 - `website/docs-site/tsconfig.json` — TypeScript config for Docusaurus
 - `website/docs-site/src/css/custom.css` — brand color overrides (minimal)
 - `website/docs-site/static/img/logo.svg` — placeholder SVG logo
+- `website/docs-site/.gitignore` — ignore `build/` and `node_modules/`
 
 ### New files — doc content (concepts, 7 pages)
 - `website/docs-site/docs/concepts/index.md`
@@ -46,9 +47,6 @@
 - `website/docs-site/docs/reference/playbook-schema.md`
 - `website/docs-site/docs/reference/daemon.md`
 
-### New files — Vercel + deployment
-- `vercel.json` — monorepo config: two build targets (website + docs-site)
-
 ### New files — doc-drift Action
 - `.github/doc-drift-map.yml` — declarative critical-path→doc mappings
 - `.github/workflows/doc-drift.yml` — GitHub Action (hard gate + LLM nudge)
@@ -68,7 +66,7 @@ Use `mcp__plugin_linear_linear__save_issue` with:
 {
   "teamId": "<FLX team ID>",
   "title": "User docs site + doc-drift prevention (Docusaurus + GitHub Action)",
-  "description": "Build user-facing docs at fluxaos.io/docs using Docusaurus. 18 pages: 7 concepts, 5 guides (full lifecycle), 6 reference. Add hybrid doc-drift GitHub Action: hard gate via file-path map + LLM soft nudge via Claude API.\n\nSpec: docs/superpowers/specs/2026-05-04-user-docs-design.md\nPlan: docs/superpowers/plans/2026-05-04-user-docs-implementation.md",
+  "description": "Build user-facing docs at docs.fluxaos.io using Docusaurus. 18 pages: 7 concepts, 5 guides (full lifecycle), 6 reference. Add hybrid doc-drift GitHub Action: hard gate via file-path map + LLM soft nudge via Claude API.\n\nSpec: docs/superpowers/specs/2026-05-04-user-docs-design.md\nPlan: docs/superpowers/plans/2026-05-04-user-docs-implementation.md",
   "priority": 2
 }
 ```
@@ -88,8 +86,18 @@ Record the returned issue ID (e.g. `FLX-NNN`) — use it in all commit trailers 
 - Create: `website/docs-site/tsconfig.json`
 - Create: `website/docs-site/src/css/custom.css`
 - Create: `website/docs-site/static/img/logo.svg`
+- Create: `website/docs-site/.gitignore`
 
-- [ ] **Step 1: Create `website/docs-site/package.json`**
+- [ ] **Step 1: Create `website/docs-site/.gitignore`**
+
+```
+# Docusaurus build output and installed deps
+build/
+node_modules/
+.docusaurus/
+```
+
+- [ ] **Step 2: Create `website/docs-site/package.json`**
 
 ```json
 {
@@ -132,7 +140,7 @@ Record the returned issue ID (e.g. `FLX-NNN`) — use it in all commit trailers 
 }
 ```
 
-- [ ] **Step 2: Create `website/docs-site/tsconfig.json`**
+- [ ] **Step 3: Create `website/docs-site/tsconfig.json`**
 
 ```json
 {
@@ -143,7 +151,7 @@ Record the returned issue ID (e.g. `FLX-NNN`) — use it in all commit trailers 
 }
 ```
 
-- [ ] **Step 3: Create `website/docs-site/docusaurus.config.ts`**
+- [ ] **Step 4: Create `website/docs-site/docusaurus.config.ts`**
 
 ```typescript
 import type { Config } from '@docusaurus/types';
@@ -154,10 +162,10 @@ const config: Config = {
   tagline: 'AI orchestration OS — documentation',
   favicon: 'img/logo.svg',
 
-  url: 'https://fluxaos.io',
-  baseUrl: '/docs/',
+  url: 'https://docs.fluxaos.io',
+  baseUrl: '/',
 
-  organizationName: 'fluxaos',
+  organizationName: 'fluxaOS',
   projectName: 'fluxaos',
 
   onBrokenLinks: 'throw',
@@ -175,7 +183,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/',
-          editUrl: 'https://github.com/jpierce/fluxaos/tree/main/website/docs-site/',
+          editUrl: 'https://github.com/fluxaOS/fluxaos/tree/main/website/docs-site/',
         },
         blog: false,
         theme: {
@@ -205,7 +213,7 @@ const config: Config = {
           position: 'right',
         },
         {
-          href: 'https://github.com/jpierce/fluxaos',
+          href: 'https://github.com/fluxaOS/fluxaos',
           label: 'GitHub',
           position: 'right',
         },
@@ -227,7 +235,7 @@ const config: Config = {
 export default config;
 ```
 
-- [ ] **Step 4: Create `website/docs-site/sidebars.ts`**
+- [ ] **Step 5: Create `website/docs-site/sidebars.ts`**
 
 ```typescript
 import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
@@ -276,7 +284,7 @@ const sidebars: SidebarsConfig = {
 export default sidebars;
 ```
 
-- [ ] **Step 5: Create `website/docs-site/src/css/custom.css`**
+- [ ] **Step 6: Create `website/docs-site/src/css/custom.css`**
 
 ```css
 :root {
@@ -297,7 +305,7 @@ export default sidebars;
 }
 ```
 
-- [ ] **Step 6: Create placeholder logo at `website/docs-site/static/img/logo.svg`**
+- [ ] **Step 7: Create placeholder logo at `website/docs-site/static/img/logo.svg`**
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
@@ -306,7 +314,7 @@ export default sidebars;
 </svg>
 ```
 
-- [ ] **Step 7: Install Docusaurus dependencies**
+- [ ] **Step 8: Install Docusaurus dependencies**
 
 ```bash
 cd website/docs-site && npm install
@@ -314,20 +322,20 @@ cd website/docs-site && npm install
 
 Expected: `node_modules/` created, no errors.
 
-- [ ] **Step 8: Verify build works with empty docs**
+- [ ] **Step 9: Verify build works with empty docs**
 
 Create a minimal placeholder to satisfy Docusaurus:
 
 ```bash
-mkdir -p website/docs-site/docs
-cat > website/docs-site/docs/concepts/index.md << 'EOF'
+mkdir -p website/docs-site/docs/concepts
+cat > website/docs-site/docs/concepts/index.md << 'PLACEHOLDER'
 ---
 sidebar_position: 1
 ---
 # What is fluxaOS?
 
 Coming soon.
-EOF
+PLACEHOLDER
 ```
 
 Then run:
@@ -338,7 +346,7 @@ cd website/docs-site && npm run build
 
 Expected: `Build Success` with output in `website/docs-site/build/`.
 
-- [ ] **Step 9: Commit scaffold**
+- [ ] **Step 10: Commit scaffold**
 
 ```bash
 git add website/docs-site/
@@ -349,49 +357,56 @@ Refs FLX-NNN"
 
 ---
 
-## Task 3: Vercel monorepo config
+## Task 3: Vercel deployment setup
 
 **Files:**
-- Create: `vercel.json`
+- No files in this repo — Vercel project created via Vercel dashboard
 
-- [ ] **Step 1: Create `vercel.json` at repo root**
+The docs site deploys as a **separate Vercel project** from the marketing site. This keeps the deploys independent and avoids touching the existing `fluxaos.io` project configuration.
 
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "website/package.json",
-      "use": "@vercel/next"
-    },
-    {
-      "src": "website/docs-site/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/docs/(.*)",
-      "dest": "website/docs-site/build/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "website/$1"
-    }
-  ]
-}
+- [ ] **Step 1: Create a new Vercel project for docs**
+
+In the Vercel dashboard:
+1. Click **Add New Project**
+2. Import the `fluxaOS/fluxaos` GitHub repository
+3. In **Configure Project**:
+   - **Framework Preset**: Other (or Docusaurus if available)
+   - **Root Directory**: `website/docs-site`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `build`
+4. Click **Deploy**
+
+- [ ] **Step 2: Configure the subdomain**
+
+After the first deploy succeeds:
+1. In the Vercel project settings, go to **Domains**
+2. Add the domain `docs.fluxaos.io`
+3. Add a CNAME record in Cloudflare DNS: `docs` → `cname.vercel-dns.com`
+4. Verify the domain goes green in Vercel
+
+- [ ] **Step 3: Verify the deploy**
+
+```
+https://docs.fluxaos.io
 ```
 
-- [ ] **Step 2: Commit**
+Expected: Docusaurus site loads, sidebar visible, all pages render.
+
+- [ ] **Step 4: Confirm marketing site is unaffected**
+
+```
+https://fluxaos.io
+```
+
+Expected: Marketing site still loads normally — the docs Vercel project is completely independent.
+
+- [ ] **Step 5: Commit a deploy note**
 
 ```bash
-git add vercel.json
-git commit -m "feat: add Vercel monorepo config for website + docs-site
+git commit --allow-empty -m "chore: docs.fluxaos.io Vercel project created (separate from marketing site)
 
-Routes /docs/* to Docusaurus build, /* to Next.js marketing site.
+docs.fluxaos.io is a separate Vercel project pointing at website/docs-site/.
+No vercel.json in the repo — each Vercel project is configured independently.
 
 Refs FLX-NNN"
 ```
@@ -511,9 +526,9 @@ Pipelines are config-driven. You define them in the UI: create a pipeline, add s
 | Name | Descriptive label (often matches an issue state: "research", "implement") |
 | Skill | What the AI does |
 | Driver | Which CLI tool runs it |
-| Gate mode | How to validate the output (`auto`, `rules`, `hold`) |
+| Gate mode | How to validate the output (`auto`, `rules`, `hold`, `manual`, `skip`) |
 | Gate rules | Conditions that determine proceed / hold / rework / abort |
-| Timeout | Seconds before the stage is force-killed (default: 300) |
+| Timeout | Seconds before the stage is force-killed |
 
 **Pipeline types:** The standard pipeline is configured in the UI (database-backed stages). Advanced users can also define pipelines as YAML playbooks — see [Playbook Schema](../reference/playbook-schema) for the format.
 
@@ -540,10 +555,11 @@ Gates decouple quality policy from execution. You don't need to change the skill
 
 | Mode | Behavior |
 |------|---------|
-| `auto` | Evaluate rules automatically; proceed if all pass |
-| `rules` | Same as auto but verdict is explicitly displayed |
-| `hold` | Always pause; requires manual approval to continue |
-| `skip` | Do not evaluate; always proceed |
+| `auto` | Always proceed without evaluating any rules |
+| `rules` | Evaluate the ruleset; route based on results |
+| `hold` | Always pause and wait for manual approval |
+| `manual` | Alias for `hold` |
+| `skip` | Bypass this gate entirely; always proceed |
 
 **Gate verdicts:**
 
@@ -569,9 +585,11 @@ title: Signals
 
 # Signals
 
-A signal is how a stage communicates its outcome to the pipeline. After a stage's subprocess finishes, it writes a result document to a file at `$RESULT_DOC_PATH`. The orchestrator reads this file and uses it to route the pipeline.
+A signal is how a stage communicates its outcome to the pipeline. Stages can signal via two mechanisms: a **result document** (a JSON file written to `$RESULT_DOC_PATH`) and a **stdout signal line** (a `flux:signal` JSON line printed to stdout during execution).
 
-The result document is a JSON file with these fields:
+## Result document
+
+After the subprocess finishes, the orchestrator reads the result document at `$RESULT_DOC_PATH`. This is the primary signal for post-stage routing.
 
 | Field | Required | Purpose |
 |-------|----------|---------|
@@ -588,11 +606,29 @@ The result document is a JSON file with these fields:
 
 - `pass` — work is complete; gate rules are evaluated, then `onPass` routing applies
 - `fail` — work was attempted but did not meet the bar; `onFail` routing applies
-- `blocked` — the stage cannot continue; `fallback` routing applies
+- `blocked` — the stage cannot continue; gate rules are skipped; `fallback` routing applies
 
-The orchestrator posts `comment` text to the issue, surfaces `blockers` in the UI, and records `artifacts` for download. Skills that don't write a result document are treated as `blocked`.
+The orchestrator posts `comment` text to the issue, surfaces `blockers` in the UI, and records `artifacts` for download.
 
-For the full list of routing fields and how they interact with gate verdicts, see [Signal Types](../reference/signal-types).
+## flux:signal stdout protocol
+
+A skill can also emit a `flux:signal` line on stdout at any point during execution. The orchestrator reads this and acts immediately, before the result document is processed.
+
+```json
+{"flux:signal": {"verdict": "hold", "reason": "already_complete", "meta": {"targetState": "review"}}}
+```
+
+Signal verdicts: `proceed`, `hold`, `rework`, `abort`.
+
+`hold` takes an optional `reason`:
+- `already_complete` — issue is ahead of its current state; `meta.targetState` tells the orchestrator where to jump. **Signal-driven jumps bypass the normal state transition table** — the orchestrator calls `stateOverride()` directly.
+- `needs_human` — ambiguous or blocked; sets issue status to `Blocked` and surfaces it for human review. `meta.question` can carry a message.
+
+For the full signal type reference, see [Signal Types](../reference/signal-types).
+
+## Realtime dependency {#realtime}
+
+Live updates in the UI depend on Supabase Realtime. The orchestrator writes stage events to the database as they arrive; Realtime pushes those writes to the browser. If the connection is interrupted, the UI will stop updating for that run — it shows the last known state until reconnected.
 ```
 
 - [ ] **Step 7: Write `concepts/state-vs-status.md`**
@@ -632,7 +668,7 @@ Status represents the operational condition of the issue — what fluxaOS is act
 | `Open` | Active, not currently running |
 | `Queued` | A stage run is queued, waiting for the daemon |
 | `Running` | A stage is actively executing right now |
-| `Blocked` | Needs human intervention (skill emitted `blocked` verdict) |
+| `Blocked` | Needs human intervention (skill emitted `blocked` verdict or `needs_human` signal) |
 | `Completed` | The most recent pipeline run finished |
 
 Status changes automatically as the daemon picks up and executes runs. You do not set it manually.
@@ -757,7 +793,8 @@ A pipeline is an ordered sequence of stages. Each stage runs a skill using a dri
    - **Skill**: select from the skills you created in Guide 1
    - **Driver**: select the driver you configured in Guide 1
    - **Gate Mode**: how to validate output after the stage runs:
-     - `auto` — apply rules, proceed if all pass (best for automated workflows)
+     - `auto` — always proceed without evaluating any rules (best for early development)
+     - `rules` — evaluate the ruleset; route based on results
      - `hold` — always pause and wait for your manual approval
 4. Click **Create**
 5. Repeat to add all the stages you need (e.g., research → implement → review → deploy)
@@ -782,7 +819,7 @@ The `hold` gate on "implement" means you'll manually approve each implementation
 
 ## Adding gate rules
 
-Gate rules let you define conditions that must pass before a stage proceeds. For example, to abort if a stage takes longer than 2 hours:
+Gate rules let you define conditions that must pass before a stage proceeds. For example, to hold if a stage takes longer than 2 hours:
 
 1. Set **Gate Mode** to `rules`
 2. Add a rule:
@@ -790,7 +827,7 @@ Gate rules let you define conditions that must pass before a stage proceeds. For
    - Operator: `less_than`
    - Value: `7200`
    - Severity: `block`
-   - On Fail: `abort`
+   - On Fail: `hold`
    - Label: "2 hour cap"
 
 For the full list of available fields and operators, see [Gate Rules](../reference/gate-rules).
@@ -889,7 +926,7 @@ To see live output, click **View Details** on the run card (or open the Run Deta
 - **Output tab** — live transcript of everything the AI printed, including tool calls, tool results, and final cost
 - **Gates tab** — pass/fail for each gate rule (if configured)
 
-The UI updates automatically via Supabase Realtime. If you don't see updates, check your network connection — see [Realtime dependency](../concepts/signals#realtime).
+The UI updates automatically via Supabase Realtime. If you don't see updates, check your network connection — see the [Realtime dependency note in Signals](../concepts/signals#realtime).
 
 ## Step 3: Handle a manual gate (hold)
 
@@ -975,7 +1012,7 @@ For stage output (the AI's actual work), always use the Run Detail Modal.
 1. Open the Run Detail Modal
 2. Check the **Output tab** — look for the last tool call and its error output
 3. Check the **Gates tab** — if a rule failed, the verdict and reason are shown there
-4. Check the issue's **State and Status** — `Blocked` status means a skill emitted `blocked` verdict and needs your attention
+4. Check the issue's **State and Status** — `Blocked` status means a skill emitted `blocked` verdict or a `needs_human` signal and needs your attention
 5. Fix the underlying issue (update the skill prompt, fix the code, clear the blocker), then trigger a new run
 ```
 
@@ -1064,7 +1101,7 @@ title: Signal Types
 
 # Signal Types
 
-Signals are the verdicts a stage emits via its result document. The orchestrator reads the result document after a stage completes and routes the pipeline based on the verdict plus any gate rules.
+Stages communicate their outcome to the orchestrator via two mechanisms: a **result document** (post-stage) and a **flux:signal stdout line** (during execution). See [Signals concept page](../concepts/signals) for an overview.
 
 ## Result document verdicts
 
@@ -1089,6 +1126,30 @@ In a YAML playbook stage:
 ```
 
 The special stage ID `complete` marks the pipeline as finished. The special stage ID `blocked` marks the pipeline as blocked (issue status → Blocked).
+
+## flux:signal stdout protocol
+
+A skill can emit a `flux:signal` line to stdout at any time during execution. The orchestrator reads it and acts before the result document is processed.
+
+```json
+{"flux:signal": {"verdict": "hold", "reason": "already_complete", "meta": {"targetState": "review"}}}
+```
+
+**Signal verdicts:**
+
+| Verdict | Orchestrator action |
+|---------|---------------------|
+| `proceed` | Advance to next pipeline stage immediately |
+| `hold` | Pause — see `reason` field |
+| `rework` | Re-run this stage (up to `maxRetries`) |
+| `abort` | Fail the pipeline run immediately |
+
+**`hold` reasons:**
+
+| Reason | Meaning | Orchestrator action |
+|--------|---------|---------------------|
+| `already_complete` | Issue is ahead of its current state | Transition issue to `meta.targetState` via `stateOverride()` — bypasses the normal transition table |
+| `needs_human` | Ambiguous or blocked | Set issue status to `Blocked`; surface to user. `meta.question` carries the message. |
 
 ## Gate verdicts
 
@@ -1148,9 +1209,11 @@ Each rule has five fields:
 | `equals` | Exact match |
 | `not_equals` | Not equal |
 | `less_than` | Strictly less than |
-| `less_than_or_equal` | Less than or equal |
 | `greater_than` | Strictly greater than |
-| `greater_than_or_equal` | Greater than or equal |
+| `contains` | String or array contains value |
+| `matches` | Regex match |
+| `in` | Value is in a list |
+| `exists` | Field is present and non-null |
 
 ## Severity levels
 
@@ -1169,6 +1232,7 @@ Each rule has five fields:
 | `rework` | Route to `onFail` stage |
 | `abort` | Stop the pipeline; mark the run failed |
 | `notify` | Log the failure (no routing change) |
+| `escalate` | Escalate for attention (no routing change) |
 
 ## Verdict resolution
 
@@ -1176,7 +1240,7 @@ When multiple rules fail, the gate engine takes the **worst** `onFail` action ac
 
 ## Example
 
-Abort if the implementation stage takes longer than 2 hours, and warn if it uses more than 100k tokens:
+Hold if the implementation stage takes longer than 2 hours, and warn if it uses more than 100k input tokens:
 
 ```yaml
 rules:
@@ -1184,7 +1248,7 @@ rules:
     operator: less_than
     value: 7200
     severity: block
-    onFail: abort
+    onFail: hold
     label: "2 hour cap"
   - field: tokens.input
     operator: less_than
@@ -1223,6 +1287,8 @@ When an issue reaches `Complete`, `isClosed` is set to `true` and a `closedAt` t
 
 ## Valid transitions
 
+The table below covers human-initiated moves in the UI. **Signal-driven jumps bypass this table** — when a skill emits a `flux:signal` with `hold/already_complete`, the orchestrator calls `stateOverride()` directly and transitions the issue to `meta.targetState` regardless of whether that transition appears here.
+
 | From | To | How |
 |------|----|-----|
 | `New` | `Research` | Pipeline trigger or manual |
@@ -1243,7 +1309,7 @@ When an issue reaches `Complete`, `isClosed` is set to `true` and a `closedAt` t
 | `Open` | Active, not currently running |
 | `Queued` | In the queue, waiting for the daemon to pick it up |
 | `Running` | A stage is actively executing |
-| `Blocked` | Needs human intervention (skill emitted `blocked` verdict) |
+| `Blocked` | Needs human intervention (skill emitted `blocked` verdict or `needs_human` signal) |
 | `Completed` | Most recent pipeline run finished |
 
 Status is set automatically by the daemon. It is not user-configurable.
@@ -1308,6 +1374,33 @@ Runs one skill. If `type` is omitted, sequential is assumed.
 | `fallback` | Yes | | Next stage ID on blocked verdict |
 | `trustMode` | No | `prescriptive` | `prescriptive` = follow rules strictly; `declarative` = skill has more autonomy |
 | `rules` | No | `[]` | Gate rules array |
+
+### Parallel group
+
+Runs multiple skills concurrently, then aggregates their verdicts.
+
+```yaml
+- type: parallel
+  id: parallel-review
+  children:
+    - id: lint-check
+      skill: lint-review
+    - id: security-check
+      skill: security-review
+  aggregation: all-pass   # how to aggregate child verdicts
+  onPass: deploy
+  onFail: rework
+  fallback: blocked
+```
+
+| Field | Required | Default | Purpose |
+|-------|----------|---------|---------|
+| `type` | Yes | | Must be `parallel` |
+| `children` | Yes | | Array of child stages (minimum 2); each has `id` and `skill` |
+| `aggregation` | Yes | | How to combine child verdicts: `all-pass`, `any-pass`, `majority-pass`, or `none` |
+| `onPass` | Yes | | Next stage ID when aggregation condition is met |
+| `onFail` | Yes | | Next stage ID when aggregation condition is not met |
+| `fallback` | Yes | | Next stage ID on blocked verdict |
 
 ### Loop node
 
@@ -1461,7 +1554,7 @@ Send `SIGTERM` (systemd stop) or `Ctrl+C` (dev). The daemon:
 3. Force-kills any stages still running after the grace period
 4. Exits
 
-Setting `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` too low (e.g., 5) will force-kill stages that are mid-execution. Recommended: 30–60 seconds.
+Set `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` to a value that gives in-flight stages enough time to complete cleanly.
 
 ## Crash recovery
 
@@ -1504,6 +1597,10 @@ Refs FLX-NNN"
 #
 # Keep this list small — only files where a change almost certainly
 # requires a doc update. Everything else is covered by the LLM soft nudge.
+#
+# To skip doc-drift for a PR (pure refactor, no user-visible change),
+# add the label "skip-doc-drift" to the PR or include [skip-doc-drift]
+# in the PR title.
 
 critical:
   - match: src/core/db/schema.ts
@@ -1512,6 +1609,11 @@ critical:
       - website/docs-site/docs/reference/issue-states.md
       - website/docs-site/docs/reference/gate-rules.md
       - website/docs-site/docs/concepts/state-vs-status.md
+
+  - match: src/core/db/seed.ts
+    docs:
+      - website/docs-site/docs/reference/issue-states.md
+      - website/docs-site/docs/reference/gate-rules.md
 
   - match: src/core/pipeline/playbook.ts
     docs:
@@ -1534,6 +1636,8 @@ critical:
 
 - [ ] **Step 2: Create `.github/scripts/doc-drift.mjs`**
 
+`js-yaml` is already in the root `package.json`. The workflow step runs `npm ci` at the repo root before invoking this script, so `js-yaml` is available without a separate `npm install`.
+
 ```javascript
 #!/usr/bin/env node
 // Doc-drift gate: hard gate (file-path map) + LLM soft nudge (Claude API).
@@ -1544,16 +1648,13 @@ critical:
 //   PR_DIFF         — full unified diff of the PR (for LLM nudge)
 //   ANTHROPIC_API_KEY — for LLM nudge (optional; nudge skipped if absent)
 //   GITHUB_TOKEN    — for posting the PR comment
-//   GITHUB_REPOSITORY — e.g. "jpierce/fluxaos"
+//   GITHUB_REPOSITORY — e.g. "fluxaOS/fluxaos"
 //   PR_NUMBER       — pull request number
 //   MAP_FILE        — path to doc-drift-map.yml (default: .github/doc-drift-map.yml)
+//   SKIP_LLM        — set to "true" to disable the LLM nudge layer (hard gate still runs)
 
 import fs from 'fs';
-import path from 'path';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const yaml = require('js-yaml');
+import { load as yamlLoad } from 'js-yaml';
 
 const changedFiles = (process.env.CHANGED_FILES || '').split('\n').filter(Boolean);
 const prDiff = process.env.PR_DIFF || '';
@@ -1562,14 +1663,27 @@ const githubToken = process.env.GITHUB_TOKEN;
 const repo = process.env.GITHUB_REPOSITORY;
 const prNumber = process.env.PR_NUMBER;
 const mapFile = process.env.MAP_FILE || '.github/doc-drift-map.yml';
+const skipLlm = process.env.SKIP_LLM === 'true';
+const prTitle = process.env.PR_TITLE || '';
+const prLabels = (process.env.PR_LABELS || '').split(',').map(l => l.trim());
+
+// ── Escape hatch ───────────────────────────────────────────────────────────
+
+const hasSkipLabel = prLabels.includes('skip-doc-drift');
+const hasSkipTitle = prTitle.includes('[skip-doc-drift]');
+
+if (hasSkipLabel || hasSkipTitle) {
+  console.log('ℹ️  skip-doc-drift flag set — bypassing doc-drift check entirely.');
+  process.exit(0);
+}
 
 // ── Layer 1: Hard gate ─────────────────────────────────────────────────────
 
-const map = yaml.load(fs.readFileSync(mapFile, 'utf-8'));
+const map = yamlLoad(fs.readFileSync(mapFile, 'utf-8'));
 const violations = [];
 
 for (const entry of map.critical) {
-  const sourceChanged = changedFiles.some(f => f === entry.match || f.startsWith(entry.match));
+  const sourceChanged = changedFiles.some(f => f === entry.match || f.startsWith(entry.match + '/'));
   if (!sourceChanged) continue;
 
   const anyDocChanged = entry.docs.some(doc => changedFiles.includes(doc));
@@ -1587,7 +1701,7 @@ if (violations.length > 0) {
     }
     msg += '\n';
   }
-  msg += '_Update at least one mapped doc page, or update `.github/doc-drift-map.yml` if the mapping is wrong._';
+  msg += '_Update at least one mapped doc page, or add the `skip-doc-drift` PR label if no user-visible behavior changed._';
   console.error(msg.replace(/\*\*/g, '').replace(/`/g, ''));
   await postComment(msg);
   process.exit(1);
@@ -1596,6 +1710,11 @@ if (violations.length > 0) {
 console.log('✅ Hard gate passed — no critical doc drift detected.');
 
 // ── Layer 2: LLM soft nudge ────────────────────────────────────────────────
+
+if (skipLlm) {
+  console.log('ℹ️  SKIP_LLM=true — skipping LLM soft nudge.');
+  process.exit(0);
+}
 
 if (!anthropicKey) {
   console.log('ℹ️  ANTHROPIC_API_KEY not set — skipping LLM soft nudge.');
@@ -1655,7 +1774,7 @@ try {
   const result = JSON.parse(text);
 
   if (result.changed && result.pages.length > 0) {
-    nudgeComment = `💡 **Doc nudge** — Claude thinks this PR may affect user-visible behavior:\n\n> ${result.reason}\n\nConsider updating:\n${result.pages.map(p => `- \`${p}\``).join('\n')}\n\n_This is advisory only and does not block the PR._`;
+    nudgeComment = `💡 **Doc nudge** — Claude thinks this PR may affect user-visible behavior:\n\n> ${result.reason}\n\nConsider updating:\n${result.pages.map(p => `- \`${p}\``).join('\n')}\n\n_This is advisory only and does not block the PR. Add the \`skip-doc-drift\` label to silence this nudge._`;
     console.log('LLM nudge:', result.reason);
   } else {
     console.log('LLM nudge: no user-visible changes detected.');
@@ -1673,15 +1792,25 @@ process.exit(0);
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 async function postComment(body) {
-  if (!githubToken || !repo || !prNumber) return;
-  await fetch(`https://api.github.com/repos/${repo}/issues/${prNumber}/comments`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${githubToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ body }),
-  });
+  if (!githubToken || !repo || !prNumber) {
+    console.log('(no GitHub token / repo / PR number — skipping comment)');
+    return;
+  }
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/issues/${prNumber}/comments`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ body }),
+    });
+    if (!res.ok) {
+      console.warn(`GitHub comment failed: ${res.status} ${await res.text()}`);
+    }
+  } catch (err) {
+    console.warn('GitHub comment error (non-blocking):', err.message);
+  }
 }
 ```
 
@@ -1695,6 +1824,11 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+
+# Cancel any in-progress run for the same PR when a new commit is pushed.
+concurrency:
+  group: doc-drift-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   doc-drift:
@@ -1711,26 +1845,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - name: Install js-yaml
-        run: npm install js-yaml
+      - name: Install dependencies
+        run: npm ci
 
       - name: Get changed files
         id: changed
         run: |
           git fetch origin ${{ github.base_ref }}
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          DELIMITER="CHANGED_FILES_$(openssl rand -hex 8)"
+          echo "files<<${DELIMITER}" >> "$GITHUB_OUTPUT"
+          echo "${CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "${DELIMITER}" >> "$GITHUB_OUTPUT"
 
       - name: Get PR diff
         id: diff
         run: |
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- 'src/**')
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DIFF=$(git diff "origin/${{ github.base_ref }}...HEAD" -- 'src/**')
+          DELIMITER="PR_DIFF_$(openssl rand -hex 8)"
+          echo "diff<<${DELIMITER}" >> "$GITHUB_OUTPUT"
+          echo "${DIFF}" >> "$GITHUB_OUTPUT"
+          echo "${DELIMITER}" >> "$GITHUB_OUTPUT"
 
       - name: Run doc-drift gate
         env:
@@ -1740,26 +1877,31 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           MAP_FILE: .github/doc-drift-map.yml
+          # Set SKIP_LLM=true in repo variables to disable the LLM nudge layer.
+          SKIP_LLM: ${{ vars.SKIP_LLM || 'false' }}
         run: node .github/scripts/doc-drift.mjs
 ```
 
-- [ ] **Step 4: Add `js-yaml` dependency note**
+**Fork PR behavior:** For PRs from forks, `GITHUB_TOKEN` has read-only permissions and `ANTHROPIC_API_KEY` is not available to fork workflows. The hard gate (exit code) still runs and will block the PR if a violation is found. Comment posting and the LLM nudge are silently skipped — `postComment` catches the 403 and logs it as a warning without failing the job.
 
-The doc-drift script requires `js-yaml` at runtime in the Action. This is installed inline (`npm install js-yaml`) in the workflow step — no changes to the main `package.json` needed.
-
-- [ ] **Step 5: Commit drift gate**
+- [ ] **Step 4: Commit drift gate**
 
 ```bash
 git add .github/doc-drift-map.yml .github/scripts/doc-drift.mjs .github/workflows/doc-drift.yml
 git commit -m "feat: add doc-drift GitHub Action (hard gate + LLM soft nudge)
 
 Hard gate: fails PR if mapped source file changes without updating
-any of its mapped doc pages.
+any of its mapped doc pages. Escape hatch: add 'skip-doc-drift' PR
+label or [skip-doc-drift] in PR title for pure refactors.
 
 LLM nudge: posts advisory comment via Claude Haiku if user-visible
 behavior may have changed. Non-blocking. Requires ANTHROPIC_API_KEY
-secret in the repo.
+secret. Disable per-repo with SKIP_LLM variable.
+
+Concurrency block cancels stale runs on new commits.
 
 Refs FLX-NNN"
 ```
@@ -1812,24 +1954,26 @@ git push -u origin docs/user-docs-design
 ```bash
 gh pr create \
   --title "feat: user docs site (Docusaurus) + doc-drift prevention GitHub Action" \
-  --body "$(cat <<'EOF'
+  --body "$(cat <<'PREOF'
 ## Summary
 
-- Docusaurus scaffold at `website/docs-site/`, served at `fluxaos.io/docs` via Vercel
+- Docusaurus scaffold at \`website/docs-site/\`, served at \`docs.fluxaos.io\` (separate Vercel project)
 - 18 doc pages: 7 concepts, 5 guides (full lifecycle 01–05), 6 reference
-- Doc-drift GitHub Action: hard gate via `.github/doc-drift-map.yml` + LLM soft nudge via Claude Haiku
-- `vercel.json` wires up monorepo two-build-target deployment
+- Doc-drift GitHub Action: hard gate via \`.github/doc-drift-map.yml\` + LLM soft nudge via Claude Haiku
+- Escape hatch: \`skip-doc-drift\` PR label or \`[skip-doc-drift]\` in title for pure refactors
+- Concurrency block cancels stale Action runs on new commits
 
 ## Test plan
 
-- [ ] `cd website/docs-site && npm run build` succeeds
+- [ ] \`cd website/docs-site && npm run build\` succeeds
 - [ ] Docusaurus dev server shows all pages with correct sidebar
-- [ ] Doc-drift Action triggers on a test PR that changes `src/core/constants.ts`
+- [ ] Doc-drift Action triggers on a test PR that changes \`src/core/constants.ts\`
 - [ ] Hard gate fails when no doc pages updated; passes when any mapped page touched
-- [ ] LLM nudge posts advisory comment (requires `ANTHROPIC_API_KEY` secret)
+- [ ] LLM nudge posts advisory comment (requires \`ANTHROPIC_API_KEY\` secret)
+- [ ] \`skip-doc-drift\` label bypasses both layers
 
 Refs FLX-NNN
-EOF
+PREOF
 )"
 ```
 
@@ -1849,7 +1993,7 @@ Then use `mcp__plugin_linear_linear__save_issue` to set the issue status to "Don
 
 **Spec coverage:**
 - ✅ Docusaurus scaffold at `website/docs-site/` — Task 2
-- ✅ Vercel monorepo config — Task 3
+- ✅ Subdomain Vercel deployment (`docs.fluxaos.io`, separate project) — Task 3
 - ✅ 7 concept pages — Task 4
 - ✅ 5 guide pages (full lifecycle) — Task 5
 - ✅ 6 reference pages — Task 6
@@ -1857,6 +2001,22 @@ Then use `mcp__plugin_linear_linear__save_issue` to set the issue status to "Don
 - ✅ `.github/workflows/doc-drift.yml` (hard gate + LLM nudge) — Task 7
 - ✅ Linear issue — Task 1
 
+**Content accuracy:**
+- Gate modes: 5 modes (`auto`, `rules`, `hold`, `manual`, `skip`); `auto` = always proceed without evaluating rules
+- Operators: 8 actual operators from `gates/types.ts` (`equals`, `not_equals`, `less_than`, `greater_than`, `contains`, `matches`, `in`, `exists`)
+- Playbook: all 3 stage types documented (sequential, parallel, loop)
+- Signals: both result document and `flux:signal` stdout protocol documented
+- Issue states: "signal-driven jumps bypass this table" note present
+- Daemon: no invented grace-period recommendation
+
+**GitHub Action:**
+- Heredoc delimiter: randomized (`openssl rand -hex 8`) — safe against diff content
+- js-yaml: loaded via `import { load as yamlLoad } from 'js-yaml'` — no `createRequire` shim needed
+- Escape hatch: `skip-doc-drift` label and `[skip-doc-drift]` title prefix
+- Concurrency block: cancels stale runs
+- Fork PR behavior: documented; hard gate still fires; comment posting is best-effort
+- `SKIP_LLM` variable: disables LLM layer repo-wide without editing the workflow
+
 **No placeholders or TBDs** — all code blocks are complete and specific.
 
-**Type/name consistency** — `doc-drift.mjs` uses `CHANGED_FILES`, `PR_DIFF`, `MAP_FILE` env vars consistently with the workflow definition.
+**Type/name consistency** — `doc-drift.mjs` uses `CHANGED_FILES`, `PR_DIFF`, `MAP_FILE`, `PR_TITLE`, `PR_LABELS`, `SKIP_LLM` consistently with the workflow definition.
