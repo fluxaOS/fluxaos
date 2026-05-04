@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { configEntry } from '@/core/db/schema';
@@ -55,29 +56,36 @@ export function createConfigService(db: Database) {
       version: number,
       data: UpdateConfigInput
     ): Promise<ConfigEntrySelect> {
-      const [current] = await db
-        .select()
-        .from(configEntry)
-        .where(eq(configEntry.id, id));
-      if (!current) throw new Error(`Config entry not found: ${id}`);
+      return db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(configEntry)
+          .where(eq(configEntry.id, id));
+        if (!current)
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Config entry not found: ${id}`,
+          });
 
-      const patch: Record<string, unknown> = {
-        ...data,
-        version: version + 1,
-        updatedAt: new Date(),
-      };
-      if (data.value !== undefined) {
-        patch.value = data.value;
-        patch.previousValue = current.value;
-      }
+        const patch: Partial<ConfigEntryInsert> = {
+          ...data,
+        } as Partial<ConfigEntryInsert>;
+        if (data.value !== undefined) {
+          (patch as Record<string, unknown>).previousValue = current.value;
+        }
 
-      const [row] = await db
-        .update(configEntry)
-        .set(patch as never)
-        .where(and(eq(configEntry.id, id), eq(configEntry.version, version)))
-        .returning();
-      if (!row) throw new Error('Optimistic concurrency conflict');
-      return row;
+        const [row] = await tx
+          .update(configEntry)
+          .set({
+            ...(patch as Record<string, unknown>),
+            version: version + 1,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(configEntry.id, id), eq(configEntry.version, version)))
+          .returning();
+        if (!row) throw new Error('Optimistic concurrency conflict');
+        return row;
+      });
     },
 
     async delete(id: string, version: number): Promise<ConfigEntrySelect> {
@@ -87,7 +95,11 @@ export function createConfigService(db: Database) {
         .returning();
       if (!row) {
         const existing = await versioned.getById(id);
-        if (!existing) throw new Error(`Config entry not found: ${id}`);
+        if (!existing)
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Config entry not found: ${id}`,
+          });
         throw new Error('Optimistic concurrency conflict');
       }
       return row;

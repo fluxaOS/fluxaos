@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { trpc } from '@/lib/trpc/client';
+import { parseJsonObject, stringifyJson } from '@/lib/utils/json';
 
 type Brand = {
   id: string;
@@ -37,21 +38,6 @@ const emptyForm: BrandFormValues = {
   fonts: '',
   logoUrl: '',
 };
-
-function stringifyJson(value: unknown): string {
-  if (!value || typeof value !== 'object') return '';
-  return JSON.stringify(value, null, 2);
-}
-
-function parseJsonObject(value: string): Record<string, unknown> | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = JSON.parse(trimmed);
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Expected a JSON object.');
-  }
-  return parsed as Record<string, unknown>;
-}
 
 function valuesFromBrand(brand: Brand): BrandFormValues {
   return {

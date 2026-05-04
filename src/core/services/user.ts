@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { user } from '@/core/db/schema';
@@ -49,7 +50,11 @@ export function createUserService(db: Database) {
         .returning();
       if (!row) {
         const existing = await crud.getById(id);
-        if (!existing) throw new Error(`User not found: ${id}`);
+        if (!existing)
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `User not found: ${id}`,
+          });
         throw new Error('Optimistic concurrency conflict');
       }
       return row;
