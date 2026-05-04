@@ -18,7 +18,7 @@ Additionally, there is no mechanism to detect when code changes without correspo
 
 1. Build a user docs site that starts simple (internal testers) and scales to public SaaS / enterprise without a rewrite.
 2. Prevent doc drift via a GitHub Action that combines a deterministic hard gate for critical paths and an LLM soft nudge for everything else.
-3. Integrate docs into the existing public-facing site at `fluxaos.io/docs`.
+3. Serve docs at `docs.fluxaos.io` alongside the existing marketing site.
 
 ---
 
@@ -40,11 +40,11 @@ Additionally, there is no mechanism to detect when code changes without correspo
 
 **Rationale:** Docusaurus is the OSS standard for docs that need to scale. It provides versioning, i18n, Algolia search, MDX support, and custom themes out of the box. Mintlify is prettier but costs money at scale and introduces vendor lock-in. Plain markdown in `docs/` won't scale (no versioning, no search, no sidebar management).
 
-**Deployment:** Vercel monorepo support serves two build targets from one repo:
-- `website/` → `fluxaos.io` (existing Next.js marketing site)
-- `website/docs-site/` → `fluxaos.io/docs` (Docusaurus, `baseUrl: /docs`)
+**Deployment:** Two independent Vercel projects from the same repo:
+- `website/` → `fluxaos.io` (existing Next.js marketing site — unchanged)
+- `website/docs-site/` → `docs.fluxaos.io` (Docusaurus, `baseUrl: /`, separate Vercel project)
 
-Configuration lives in `vercel.json` at the repo root. The docs deploy alongside every push — no separate deploy pipeline needed.
+No `vercel.json` in the repo — each project is configured independently in the Vercel dashboard with its root directory set to the appropriate subdirectory. Keeps the two deploys fully decoupled: a docs change never triggers a marketing site rebuild and vice versa.
 
 **Branding:** Logo placeholder only for now. Theme polish is deferred until the content is stable.
 
@@ -61,7 +61,7 @@ website/docs-site/
       drivers.md         # Binary, flags, prompt transport, output format
       pipelines.md       # Stages, gate modes, ordering
       gates.md           # Rules, verdicts (proceed/hold/rework/abort)
-      signals.md         # How skills communicate outcomes via result docs
+      signals.md         # How skills communicate outcomes: result docs + flux:signal stdout protocol
       state-vs-status.md # Critical distinction: issue state ≠ issue status
 
     guides/
@@ -76,7 +76,7 @@ website/docs-site/
       signal-types.md      # proceed, hold, rework, abort — when each fires
       gate-rules.md        # Fields, operators, severity levels, failure actions
       issue-states.md      # Full state machine with valid transitions
-      playbook-schema.md   # YAML format: sequential and loop node types
+      playbook-schema.md   # YAML format: sequential, parallel, and loop node types
       daemon.md            # What it is, how to check it, recovery behavior
 ```
 
@@ -116,6 +116,10 @@ critical:
       - website/docs-site/docs/reference/issue-states.md
       - website/docs-site/docs/reference/gate-rules.md
       - website/docs-site/docs/concepts/state-vs-status.md
+  - match: src/core/db/seed.ts
+    docs:
+      - website/docs-site/docs/reference/issue-states.md
+      - website/docs-site/docs/reference/gate-rules.md
   - match: src/core/pipeline/playbook.ts
     docs:
       - website/docs-site/docs/reference/playbook-schema.md
@@ -146,6 +150,8 @@ critical:
 
 The map itself is a tracked file — changes to `doc-drift-map.yml` require a PR, so the map stays honest.
 
+**Escape hatch:** Add the `skip-doc-drift` label to a PR (or include `[skip-doc-drift]` in the PR title) to bypass both layers for pure mechanical refactors where no user-visible behavior changed. This is opt-in and auditable via PR history.
+
 ### Layer 2 — LLM Soft Nudge (Everything Else)
 
 After the hard gate (pass or fail), the Action sends the PR diff to Claude via the Anthropic API with a structured prompt:
@@ -153,8 +159,6 @@ After the hard gate (pass or fail), the Action sends the PR diff to Claude via t
 > "You are reviewing a code diff for a product called fluxaOS. Determine whether any user-visible behavior changed. If yes, identify which user doc pages likely need updating from this list: [page list]. Reply with a JSON object: `{ changed: boolean, pages: string[], reason: string }`."
 
 The response is posted as a PR comment. It is **never blocking** — it informs, it does not fail the PR.
-
-**Cost:** The LLM call runs against the diff only, not the full codebase. Typical cost per PR is a fraction of a cent.
 
 ### What This Does Not Cover
 
@@ -186,8 +190,9 @@ These were identified during codebase research and are the most likely points of
 2. **The daemon is always running** — Users do not start the daemon by clicking "Run." If a pipeline run sits at `pending`, the daemon is down. The UI does not currently surface this clearly.
 3. **Gate verdict ≠ stage exit code** — A stage can exit 0 (success) and still fail its gate. Gate failure routes to rework or abort, not the next stage.
 4. **Activity feed ≠ run output** — The activity feed on the issue page shows issue-level events (state changes, comments). Stage output is only in the Run Detail Modal.
-5. **Loop nodes iterate a single skill** — Loop nodes (YAML playbook, FLX-110) repeat a stage up to `maxIterations`. They are different from `maxRetries` in the stage DB config.
-6. **Realtime dependency** — Live updates in the UI depend on Supabase Realtime. If disconnected, the modal will not auto-update.
+5. **Playbook has three stage types** — Sequential (default), parallel (aggregates concurrent skills), and loop (iterates a single skill up to `maxIterations`). Loop nodes are different from `maxRetries` in the stage DB config.
+6. **flux:signal stdout protocol** — Skills can emit a `flux:signal` JSON line to stdout during execution. Signal-driven jumps (`hold/already_complete`) bypass the normal state transition table and call `stateOverride()` directly. This is distinct from the result document verdict.
+7. **Realtime dependency** — Live updates in the UI depend on Supabase Realtime. If disconnected, the modal will not auto-update.
 
 ---
 
@@ -196,10 +201,10 @@ These were identified during codebase research and are the most likely points of
 The implementation plan will cover:
 
 1. Docusaurus scaffold at `website/docs-site/`
-2. Vercel config for two build targets
+2. Vercel subdomain deployment (`docs.fluxaos.io`) — separate Vercel project, no `vercel.json`
 3. First-pass content for all 5 guide pages (full lifecycle)
 4. Concept pages (7 pages, short)
 5. Reference pages (6 pages)
 6. `.github/doc-drift-map.yml` config file
-7. `.github/workflows/doc-drift.yml` GitHub Action (hard gate + LLM nudge)
+7. `.github/workflows/doc-drift.yml` GitHub Action (hard gate + LLM nudge + escape hatch + concurrency block)
 8. Linear issue filed for the work
