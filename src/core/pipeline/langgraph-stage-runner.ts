@@ -1,4 +1,10 @@
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import {
+  Annotation,
+  type BaseCheckpointSaver,
+  END,
+  START,
+  StateGraph,
+} from '@langchain/langgraph';
 import { execFile } from 'child_process';
 import { mkdirSync } from 'fs';
 import { promisify } from 'util';
@@ -103,7 +109,10 @@ async function ingestNode(
   }
 }
 
-export function buildStageGraph(_input: StageGraphInput) {
+export function buildStageGraph(
+  _input: StageGraphInput,
+  checkpointer?: BaseCheckpointSaver
+) {
   const graph = new StateGraph(StageState)
     .addNode('prepare', prepareNode)
     .addNode('execute', executeNode)
@@ -113,14 +122,14 @@ export function buildStageGraph(_input: StageGraphInput) {
     .addEdge('execute', 'ingest')
     .addEdge('ingest', END);
 
-  return graph.compile();
+  return graph.compile({ checkpointer });
 }
 
 export async function runStageGraph(
   input: StageGraphInput,
-  _checkpointer?: unknown
+  checkpointer?: BaseCheckpointSaver
 ): Promise<{ ingestOutput: string; error?: string }> {
-  const graph = buildStageGraph(input);
+  const graph = buildStageGraph(input, checkpointer);
 
   const config = { configurable: { thread_id: input.stageRunId } };
   const result = await graph.invoke(input, config as never);

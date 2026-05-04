@@ -221,26 +221,47 @@ export function createEventOrchestrator(
     // Branch on playbookPath on the pipeline row. Old pipelines (null) fall through.
     {
       const [pipelineRow] = await db
-        .select({ playbookPath: pipeline.playbookPath, projectId: pipeline.projectId })
+        .select({
+          playbookPath: pipeline.playbookPath,
+          projectId: pipeline.projectId,
+        })
         .from(pipeline)
         .where(eq(pipeline.id, run.pipelineId));
 
       if (pipelineRow?.playbookPath) {
         const { isParallelGroup } = await import('@/core/pipeline/playbook');
-        const { resolvePlaybook } = await import('@/core/pipeline/playbook-discovery');
-        const { auditResultDoc } = await import('@/core/pipeline/playbook-auditor');
-        const { executePaperwork } = await import('@/core/pipeline/paperwork-executor');
-        const { runStageGraph } = await import('@/core/pipeline/langgraph-stage-runner');
-        const { getCheckpointer } = await import('@/core/pipeline/checkpoint-store');
-        const { composePrompt } = await import('@/core/pipeline/prompt-composer');
+        const { resolvePlaybook } = await import(
+          '@/core/pipeline/playbook-discovery'
+        );
+        const { auditResultDoc } = await import(
+          '@/core/pipeline/playbook-auditor'
+        );
+        const { executePaperwork } = await import(
+          '@/core/pipeline/paperwork-executor'
+        );
+        const { runStageGraph } = await import(
+          '@/core/pipeline/langgraph-stage-runner'
+        );
+        const { getCheckpointer } = await import(
+          '@/core/pipeline/checkpoint-store'
+        );
+        const { composePrompt } = await import(
+          '@/core/pipeline/prompt-composer'
+        );
         const { readFileSync, existsSync } = await import('fs');
         const { join } = await import('path');
 
-        const bundledDir = process.env.FLUXAOS_BUNDLED_PIPELINES_DIR ?? 'src/core/pipeline/bundled';
-        const discovered = await resolvePlaybook(pipelineRow.playbookPath, { bundledDir });
+        const bundledDir =
+          process.env.FLUXAOS_BUNDLED_PIPELINES_DIR ??
+          'src/core/pipeline/bundled';
+        const discovered = await resolvePlaybook(pipelineRow.playbookPath, {
+          bundledDir,
+        });
 
         if (discovered) {
-          const playbookStage = discovered.playbook.stages.find(s => s.id === stage.name);
+          const playbookStage = discovered.playbook.stages.find(
+            (s) => s.id === stage.name
+          );
 
           if (playbookStage && isParallelGroup(playbookStage)) {
             throw new Error(
@@ -249,7 +270,10 @@ export function createEventOrchestrator(
           }
 
           const [driverRow] = stage.driverId
-            ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
+            ? await db
+                .select()
+                .from(driver)
+                .where(eq(driver.id, stage.driverId))
             : [null];
 
           const artifactsBase =
@@ -258,7 +282,10 @@ export function createEventOrchestrator(
           const resultDocPath = `${artifactsBase}/result.json`;
 
           // Read skill prompt from bundled skills directory
-          const skillName = playbookStage?.type === 'sequential' ? playbookStage.skill : stage.name;
+          const skillName =
+            playbookStage?.type === 'sequential'
+              ? playbookStage.skill
+              : stage.name;
           const skillFilePath = join(bundledDir, 'skills', `${skillName}.md`);
           const skillPrompt = existsSync(skillFilePath)
             ? readFileSync(skillFilePath, 'utf-8')
@@ -274,7 +301,9 @@ export function createEventOrchestrator(
           );
 
           if (!driverRow?.binary) {
-            log.error({ stageRunId: sRun.id }, 'playbook stage has no driver binary configured');
+            console.error(
+              `[orchestrator] playbook stage has no driver binary configured (stageRunId: ${sRun.id})`
+            );
             await finishRun(run, PIPELINE_RUN_STATUS.failed);
             return;
           }
@@ -290,8 +319,13 @@ export function createEventOrchestrator(
           }
           // stdin and file transports deferred — only argv is wired now
 
+          await runService.updateStageRunStatus(
+            sRun.id,
+            STAGE_RUN_STATUS.running
+          );
+
           const checkpointer = await getCheckpointer();
-          const { ingestOutput } = await runStageGraph(
+          const { ingestOutput, error: graphError } = await runStageGraph(
             {
               stageRunId: sRun.id,
               resultDocPath,
@@ -307,6 +341,16 @@ export function createEventOrchestrator(
             checkpointer
           );
 
+          if (graphError) {
+            await runService.completeStageRun(
+              sRun.id,
+              STAGE_RUN_STATUS.failed,
+              {}
+            );
+            await finishRun(run, PIPELINE_RUN_STATUS.failed);
+            return;
+          }
+
           let ingestResult: { valid: boolean; doc?: Record<string, unknown> };
           try {
             ingestResult = JSON.parse(ingestOutput);
@@ -314,14 +358,24 @@ export function createEventOrchestrator(
             ingestResult = { valid: false };
           }
 
-          const { isValidResultDoc } = await import('@/core/pipeline/result-doc');
+          const { isValidResultDoc } = await import(
+            '@/core/pipeline/result-doc'
+          );
           const resultDoc =
-            ingestResult.valid && ingestResult.doc && isValidResultDoc(ingestResult.doc)
+            ingestResult.valid &&
+            ingestResult.doc &&
+            isValidResultDoc(ingestResult.doc)
               ? ingestResult.doc
               : null;
 
-          const audit = auditResultDoc(discovered.playbook, stage.name, resultDoc);
-          const isTerminal = !discovered.playbook.stages.some(s => s.id === audit.targetState);
+          const audit = auditResultDoc(
+            discovered.playbook,
+            stage.name,
+            resultDoc
+          );
+          const isTerminal = !discovered.playbook.stages.some(
+            (s) => s.id === audit.targetState
+          );
 
           if (run.issueId) {
             await executePaperwork({
@@ -332,8 +386,22 @@ export function createEventOrchestrator(
             });
           }
 
+          const stageStatus =
+            audit.targetState === 'blocked'
+              ? STAGE_RUN_STATUS.failed
+              : STAGE_RUN_STATUS.completed;
+          await runService.completeStageRun(sRun.id, stageStatus, {});
+
           if (isTerminal) {
-            await completePipelineRun(run);
+            const pipelineStatus =
+              audit.targetState === 'blocked'
+                ? PIPELINE_RUN_STATUS.blocked
+                : PIPELINE_RUN_STATUS.completed;
+            if (pipelineStatus === PIPELINE_RUN_STATUS.completed) {
+              await completePipelineRun(run);
+            } else {
+              await finishRun(run, pipelineStatus);
+            }
           } else {
             const nextStage = await db
               .select()
@@ -344,7 +412,7 @@ export function createEventOrchestrator(
                   eq(pipelineStage.name, audit.targetState)
                 )
               )
-              .then(rows => rows[0] ?? null);
+              .then((rows) => rows[0] ?? null);
 
             if (nextStage) {
               await launchStage(run, nextStage);
