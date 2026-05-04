@@ -46,6 +46,6 @@ Signal verdicts: `proceed`, `hold`, `rework`, `abort`.
 
 For the full signal type reference, see [Signal Types](../reference/signal-types).
 
-## Realtime dependency \{#realtime\}
+## Realtime dependency {#realtime}
 
 Live updates in the UI depend on Supabase Realtime. The orchestrator writes stage events to the database as they arrive; Realtime pushes those writes to the browser. If the connection is interrupted, the UI will stop updating for that run — it shows the last known state until reconnected.
