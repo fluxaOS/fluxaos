@@ -4,6 +4,8 @@ import type { Playbook } from './playbook';
 import { isLoopNode } from './playbook';
 import type { ResultDoc } from './result-doc';
 
+export const TERMINAL_STATE = 'complete' as const;
+
 export type AuditAction = 'transition' | 'fallback';
 
 export interface AuditResult {

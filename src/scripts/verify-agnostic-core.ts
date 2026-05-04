@@ -48,10 +48,10 @@ const STATE_PLAIN_GREP = "'research'|'implement'|'review'|'deploy'|'complete'";
 type Allow = { file: string; line: number; reason: string; ticket: string };
 const ALLOWLIST: Allow[] = [
   {
-    file: 'src/core/pipeline/paperwork-executor.ts',
-    line: 52,
+    file: 'src/core/pipeline/playbook-auditor.ts',
+    line: 7,
     reason:
-      "'complete' is a routing sentinel (signal issue closure), not a DB stage key",
+      "TERMINAL_STATE = 'complete' is the typed canonical declaration of the routing sentinel, not an inline stage-key literal",
     ticket: 'FLX-108',
   },
 ];
