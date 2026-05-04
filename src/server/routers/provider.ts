@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { createProviderService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const providerRouter = router({
   list: publicProcedure
@@ -10,7 +10,7 @@ export const providerRouter = router({
     ),
 
   getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) => createProviderService(ctx.db).getById(input.id)),
 
   create: publicProcedure
@@ -41,7 +41,7 @@ export const providerRouter = router({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) =>
       createProviderService(ctx.db).remove(input.id)
     ),
@@ -69,7 +69,7 @@ export const providerRouter = router({
     ),
 
   deleteModel: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) =>
       createProviderService(ctx.db).models.remove(input.id)
     ),

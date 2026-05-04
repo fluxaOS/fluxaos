@@ -1,13 +1,13 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { user } from '@/core/db/schema';
-import { createCrudService } from './crud-factory';
+import { createVersionedCrudService } from './crud-factory';
 
 type UserInsert = typeof user.$inferInsert;
 type UserSelect = typeof user.$inferSelect;
 
 export function createUserService(db: Database) {
-  const crud = createCrudService<UserInsert, UserSelect>(db, user);
+  const crud = createVersionedCrudService<UserInsert, UserSelect>(db, user);
 
   return {
     ...crud,
@@ -37,11 +37,7 @@ export function createUserService(db: Database) {
       version: number,
       data: Partial<UserInsert>
     ): Promise<UserSelect> {
-      const [row] = await db
-        .update(user)
-        .set({ ...data, version: version + 1, updatedAt: new Date() })
-        .where(and(eq(user.id, id), eq(user.version, version)))
-        .returning();
+      const row = await crud.updateWithVersion(id, version, data);
       if (!row) throw new Error('Optimistic concurrency conflict');
       return row;
     },
@@ -52,11 +48,8 @@ export function createUserService(db: Database) {
         .where(and(eq(user.id, id), eq(user.version, version)))
         .returning();
       if (!row) {
-        const [exists] = await db
-          .select({ version: user.version })
-          .from(user)
-          .where(eq(user.id, id));
-        if (!exists) throw new Error(`User not found: ${id}`);
+        const existing = await crud.getById(id);
+        if (!existing) throw new Error(`User not found: ${id}`);
         throw new Error('Optimistic concurrency conflict');
       }
       return row;

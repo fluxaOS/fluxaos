@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { cronJob } from '@/core/db/schema';
+import { createVersionedCrudService } from './crud-factory';
 
 type CronJobInsert = typeof cronJob.$inferInsert;
 type CronJobSelect = typeof cronJob.$inferSelect;
@@ -25,7 +26,14 @@ export interface UpdateCronInput {
 }
 
 export function createCronService(db: Database) {
+  const versioned = createVersionedCrudService<CronJobInsert, CronJobSelect>(
+    db,
+    cronJob
+  );
+
   return {
+    ...versioned,
+
     async list(): Promise<CronJobSelect[]> {
       return db.select().from(cronJob).orderBy(cronJob.name);
     },
@@ -36,11 +44,6 @@ export function createCronService(db: Database) {
         .from(cronJob)
         .where(eq(cronJob.projectId, projectId))
         .orderBy(cronJob.name);
-    },
-
-    async getById(id: string): Promise<CronJobSelect | null> {
-      const [row] = await db.select().from(cronJob).where(eq(cronJob.id, id));
-      return row ?? null;
     },
 
     async create(data: CreateCronInput): Promise<CronJobSelect> {
@@ -64,15 +67,11 @@ export function createCronService(db: Database) {
       version: number,
       data: UpdateCronInput
     ): Promise<CronJobSelect> {
-      const [row] = await db
-        .update(cronJob)
-        .set({
-          ...(data as Record<string, unknown>),
-          version: version + 1,
-          updatedAt: new Date(),
-        } as never)
-        .where(and(eq(cronJob.id, id), eq(cronJob.version, version)))
-        .returning();
+      const row = await versioned.updateWithVersion(
+        id,
+        version,
+        data as Partial<CronJobInsert>
+      );
       if (!row) throw new Error('Optimistic concurrency conflict');
       return row;
     },
@@ -83,11 +82,8 @@ export function createCronService(db: Database) {
         .where(and(eq(cronJob.id, id), eq(cronJob.version, version)))
         .returning();
       if (!row) {
-        const [exists] = await db
-          .select({ version: cronJob.version })
-          .from(cronJob)
-          .where(eq(cronJob.id, id));
-        if (!exists) throw new Error(`Cron job not found: ${id}`);
+        const existing = await versioned.getById(id);
+        if (!existing) throw new Error(`Cron job not found: ${id}`);
         throw new Error('Optimistic concurrency conflict');
       }
       return row;

@@ -1,5 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
+import { nextRevisionNumber } from '@/core/db/revision';
 import {
   driver,
   driverRevision,
@@ -66,11 +67,11 @@ async function snapshotDriverRevision(
 ): Promise<void> {
   await db.insert(driverRevision).values({
     driverId: row.id,
-    revisionNumber: sql<number>`(
-      SELECT COALESCE(MAX(${driverRevision.revisionNumber}), 0) + 1
-      FROM ${driverRevision}
-      WHERE ${driverRevision.driverId} = ${row.id}
-    )`,
+    revisionNumber: nextRevisionNumber(
+      driverRevision,
+      driverRevision.driverId,
+      row.id
+    ),
     name: row.name,
     slug: row.slug,
     binary: row.binary,

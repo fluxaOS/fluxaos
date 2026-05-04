@@ -1,9 +1,11 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { Feature } from '@/core/features/features';
 import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createDriverService } from '@/core/services/driver';
 import {
   featureGated,
+  inputId,
   protectedMutation,
   publicProcedure,
   router,
@@ -18,17 +20,23 @@ export const driverRouter = router({
     .input(z.object({ slug: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const row = await createDriverService(ctx.db).getBySlug(input.slug);
-      if (!row) throw new Error(`Driver not found: ${input.slug}`);
+      if (!row)
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Driver not found: ${input.slug}`,
+        });
       return row;
     }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const row = await createDriverService(ctx.db).getById(input.id);
-      if (!row) throw new Error(`Driver not found: ${input.id}`);
-      return row;
-    }),
+  getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
+    const row = await createDriverService(ctx.db).getById(input.id);
+    if (!row)
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: `Driver not found: ${input.id}`,
+      });
+    return row;
+  }),
 
   create: protectedMutation(EDIT_ROLES)
     .input(
@@ -92,7 +100,7 @@ export const driverRouter = router({
   // FLX-91: list revisions for a driver, newest first.
   // FLX-14: revision history is a paid-tier feature.
   listHistory: featureGated(Feature.REVISION_HISTORY)
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(async ({ ctx, input }) => {
       return createDriverService(ctx.db).listHistory(input.id);
     }),

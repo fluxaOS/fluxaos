@@ -5,6 +5,7 @@ import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createSkillService } from '@/core/services';
 import {
   featureGated,
+  inputId,
   protectedMutation,
   publicProcedure,
   router,
@@ -29,11 +30,9 @@ export const skillRouter = router({
     return createSkillService(ctx.db).listGlobal();
   }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createSkillService(ctx.db).getById(input.id);
-    }),
+  getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
+    return createSkillService(ctx.db).getById(input.id);
+  }),
 
   create: protectedMutation(EDIT_ROLES)
     .input(
@@ -78,7 +77,7 @@ export const skillRouter = router({
 
   // FLX-14: revision history is a paid-tier feature.
   listHistory: featureGated(Feature.REVISION_HISTORY)
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) => {
       return createSkillService(ctx.db).listRevisions(input.id);
     }),
@@ -101,11 +100,9 @@ export const skillRouter = router({
       return row;
     }),
 
-  countReferences: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createSkillService(ctx.db).countReferences(input.id);
-    }),
+  countReferences: publicProcedure.input(inputId()).query(({ ctx, input }) => {
+    return createSkillService(ctx.db).countReferences(input.id);
+  }),
 
   delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))

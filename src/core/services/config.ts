@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { configEntry } from '@/core/db/schema';
+import { createVersionedCrudService } from './crud-factory';
 
 type ConfigEntryInsert = typeof configEntry.$inferInsert;
 type ConfigEntrySelect = typeof configEntry.$inferSelect;
@@ -21,17 +22,18 @@ export interface UpdateConfigInput {
 }
 
 export function createConfigService(db: Database) {
+  const versioned = createVersionedCrudService<
+    ConfigEntryInsert,
+    ConfigEntrySelect
+  >(db, configEntry);
+
   return {
     async list(): Promise<ConfigEntrySelect[]> {
       return db.select().from(configEntry).orderBy(configEntry.key);
     },
 
     async getById(id: string): Promise<ConfigEntrySelect | null> {
-      const [row] = await db
-        .select()
-        .from(configEntry)
-        .where(eq(configEntry.id, id));
-      return row ?? null;
+      return versioned.getById(id);
     },
 
     async create(data: CreateConfigInput): Promise<ConfigEntrySelect> {
@@ -84,11 +86,8 @@ export function createConfigService(db: Database) {
         .where(and(eq(configEntry.id, id), eq(configEntry.version, version)))
         .returning();
       if (!row) {
-        const [exists] = await db
-          .select({ version: configEntry.version })
-          .from(configEntry)
-          .where(eq(configEntry.id, id));
-        if (!exists) throw new Error(`Config entry not found: ${id}`);
+        const existing = await versioned.getById(id);
+        if (!existing) throw new Error(`Config entry not found: ${id}`);
         throw new Error('Optimistic concurrency conflict');
       }
       return row;

@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { createRoutingService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const routingRouter = router({
   listProfiles: publicProcedure
@@ -10,7 +10,7 @@ export const routingRouter = router({
     ),
 
   getProfile: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) => createRoutingService(ctx.db).getById(input.id)),
 
   createProfile: publicProcedure
@@ -39,7 +39,7 @@ export const routingRouter = router({
     }),
 
   deleteProfile: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) =>
       createRoutingService(ctx.db).remove(input.id)
     ),
@@ -68,7 +68,7 @@ export const routingRouter = router({
     ),
 
   deleteRule: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) =>
       createRoutingService(ctx.db).rules.remove(input.id)
     ),

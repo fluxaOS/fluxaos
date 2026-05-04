@@ -1,6 +1,7 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createCronService } from '@/core/services/cron';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // Liberal cron expression check — five or six space-separated fields.
@@ -18,13 +19,15 @@ export const cronRouter = router({
       return createCronService(ctx.db).listByProject(input.projectId);
     }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const row = await createCronService(ctx.db).getById(input.id);
-      if (!row) throw new Error(`Cron job not found: ${input.id}`);
-      return row;
-    }),
+  getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
+    const row = await createCronService(ctx.db).getById(input.id);
+    if (!row)
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: `Cron job not found: ${input.id}`,
+      });
+    return row;
+  }),
 
   create: publicProcedure
     .input(

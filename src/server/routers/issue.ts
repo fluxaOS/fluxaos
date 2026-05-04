@@ -11,7 +11,7 @@ import {
   createIssueEventService,
   createIssueService,
 } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const issueRouter = router({
   // ─── Core issue operations ──────────────────────────────────────────────────
@@ -45,7 +45,7 @@ export const issueRouter = router({
     ),
 
   getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) => createIssueService(ctx.db).getById(input.id)),
 
   create: publicProcedure
@@ -73,7 +73,7 @@ export const issueRouter = router({
     ),
 
   hasOpenChildren: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) =>
       createIssueService(ctx.db).hasOpenChildren(input.id)
     ),
@@ -130,11 +130,11 @@ export const issueRouter = router({
     ),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) => createIssueService(ctx.db).delete(input.id)),
 
   transitions: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) =>
       createIssueService(ctx.db).getValidTransitions(input.id)
     ),

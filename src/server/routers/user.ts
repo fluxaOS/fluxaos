@@ -1,7 +1,8 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { DELETE_ROLES, EDIT_ROLES, ROLE_VALUES } from '@/core/features/roles';
 import { createUserService } from '@/core/services/user';
-import { protectedMutation, publicProcedure, router } from '../trpc';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 const roleEnum = z.enum(ROLE_VALUES as readonly [string, ...string[]]);
 
@@ -31,13 +32,15 @@ export const userRouter = router({
       return createUserService(ctx.db).listByOrg(input.orgId);
     }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const row = await createUserService(ctx.db).getById(input.id);
-      if (!row) throw new Error(`User not found: ${input.id}`);
-      return row;
-    }),
+  getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
+    const row = await createUserService(ctx.db).getById(input.id);
+    if (!row)
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: `User not found: ${input.id}`,
+      });
+    return row;
+  }),
 
   create: protectedMutation(EDIT_ROLES)
     .input(

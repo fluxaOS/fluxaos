@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { createTeamService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const teamRouter = router({
   list: publicProcedure.query(({ ctx }) => createTeamService(ctx.db).list()),
@@ -12,7 +12,7 @@ export const teamRouter = router({
     ),
 
   getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) => createTeamService(ctx.db).getById(input.id)),
 
   create: publicProcedure
@@ -39,6 +39,6 @@ export const teamRouter = router({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) => createTeamService(ctx.db).remove(input.id)),
 });
