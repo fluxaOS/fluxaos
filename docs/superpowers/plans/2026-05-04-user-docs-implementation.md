@@ -370,7 +370,7 @@ In the Vercel dashboard:
 1. Click **Add New Project**
 2. Import the `fluxaOS/fluxaos` GitHub repository
 3. In **Configure Project**:
-   - **Framework Preset**: Other (or Docusaurus if available)
+   - **Framework Preset**: **Other** (do not pick Next.js or any other preset — Vercel will auto-detect wrong)
    - **Root Directory**: `website/docs-site`
    - **Build Command**: `npm run build`
    - **Output Directory**: `build`
@@ -1047,7 +1047,7 @@ title: Environment Variables
 
 # Environment Variables
 
-All `FLUXAOS_*` environment variables are read once at daemon startup via `src/config/env.ts` and injected into services. Nothing reads `process.env` directly after bootstrap.
+All `FLUXAOS_*` environment variables are documented here. Core services read them via `FluxaosConfig` (`src/config/env.ts`); adapters and the daemon script read some directly from `process.env`.
 
 Set these in `.env` (committed, non-secret defaults) or `.env.local` (gitignored, secrets and local overrides).
 
@@ -1192,15 +1192,32 @@ Each rule has five fields:
 
 ## Available fields
 
+Gate rules evaluate against a context object. The available fields differ depending on whether the stage is part of a **UI-configured pipeline** or a **YAML playbook**.
+
+### UI pipeline stages
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `exit_code` | integer | Process exit code (0 = success) |
-| `timing.duration_sec` | number | Stage duration in seconds |
-| `cost.total_usd` | number | Total cost in USD |
-| `tokens.input` | integer | Input token count |
-| `tokens.output` | integer | Output token count |
+| `cost_usd` | number | Total cost in USD (currently reported as `0` — result doc parsing not yet wired in UI path) |
+| `tokens_in` | integer | Input token count (currently `0` — same limitation) |
+| `tokens_out` | integer | Output token count (currently `0` — same limitation) |
+| `provider` | string | Provider name reported by the driver |
+| `model` | string | Model identifier reported by the driver |
+| `driver` | string | Driver name |
+
+### YAML playbook stages
+
+Playbook stages evaluate rules against the result document directly using dot-path notation:
+
+| Field | Type | Description |
+|-------|------|-------------|
 | `verdict` | string | Result document verdict: `pass`, `fail`, `blocked` |
+| `timing.duration_sec` | number | Stage duration in seconds |
 | `run.attempt` | integer | Attempt number (1 = first try, 2 = first retry, etc.) |
+| `meta.input_tokens` | integer | Input token count |
+| `meta.output_tokens` | integer | Output token count |
+| `meta.cost_usd` | number | Cost in USD |
 
 ## Operators
 
@@ -1430,7 +1447,7 @@ Repeats a skill until a condition is met or a maximum iteration count is reached
 |-------|---------|
 | `VERDICT_PASS` | Stop when skill emits `pass` verdict |
 | `VERDICT_FAIL` | Stop when skill emits `fail` verdict |
-| `ISSUE_OUT_OF_ACTIVE_STATE` | Stop if issue moved to a terminal state |
+| `ISSUE_OUT_OF_ACTIVE_STATE` | Alias for `VERDICT_PASS` — stops when the skill emits `pass` verdict. The skill is expected to check whether the issue has left active state and emit `pass` when it has. |
 | `ALWAYS` | Always loop until `maxIterations` is hit |
 
 ## Special stage IDs
@@ -1931,6 +1948,7 @@ Open a test PR that changes `src/core/constants.ts` without touching any doc fil
 Then update `website/docs-site/docs/reference/signal-types.md` (add a whitespace change). Expected:
 - Hard gate passes
 - LLM nudge runs and posts an advisory comment (or posts nothing if no user-visible changes)
+- Confirm the nudge comment (if posted) contains `changed`, `pages`, and `reason` fields — this verifies the API key is wired up and the Haiku response parses cleanly
 
 - [ ] **Step 3: Update Linear issue to In Review**
 
@@ -2016,6 +2034,10 @@ Then use `mcp__plugin_linear_linear__save_issue` to set the issue status to "Don
 - Concurrency block: cancels stale runs
 - Fork PR behavior: documented; hard gate still fires; comment posting is best-effort
 - `SKIP_LLM` variable: disables LLM layer repo-wide without editing the workflow
+
+**Gate field accuracy** — `gate-rules.md` splits available fields into two contexts: UI pipeline stages (flat keys: `exit_code`, `cost_usd`, `tokens_in`, `tokens_out`) and YAML playbook stages (dot-path via result doc: `timing.duration_sec`, `run.attempt`, etc.). The UI path currently stubs `cost_usd`/`tokens_in`/`tokens_out` at `0` — documented as a known limitation.
+
+**ISSUE_OUT_OF_ACTIVE_STATE** — documented as an alias for `VERDICT_PASS` (per `loop-executor.ts`), not a DB state check.
 
 **No placeholders or TBDs** — all code blocks are complete and specific.
 
