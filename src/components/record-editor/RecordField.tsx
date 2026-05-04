@@ -379,10 +379,8 @@ function JsonField({
       const parsed = JSON.parse(next);
       setParseError(null);
       onChange(parsed);
-    } catch (err) {
-      setParseError(
-        `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`
-      );
+    } catch {
+      setParseError('Invalid JSON — must be a valid JSON value (e.g. { "key": "value" }). Leave blank to clear.');
     }
   };
 
