@@ -40,7 +40,6 @@ import { resolveStageBrand } from './brand-resolver';
 import { buildCommand, renderTemplate } from './command-builder';
 import type { PipelineRunService } from './pipeline-run-service';
 import { createRoutingResolver } from './routing-resolver';
-import { parseSignalLine, type SkillSignal } from './signal-parser';
 import { acquireIsolationEnv, resolveProjectId } from './stage-runner-env';
 
 export { TargetRepoPathMissingError } from './stage-runner-env';
@@ -336,9 +335,17 @@ export async function executeStageRun(
 
     // Spawn subprocess
     let lineNumber = 0;
-    // Widened type so TS doesn't narrow to `never` after the null-check
-    // (lastSignal is mutated inside the onStdout callback)
-    let lastSignal = null as SkillSignal | null;
+    // lastSignal: signal-based routing removed (FLX-112). Variable kept for
+    // downstream completion logic; always null in the result-doc model.
+    const lastSignal = null as {
+      verdict: string;
+      summary?: string;
+      reason?: string;
+      costUsd?: number;
+      tokensIn?: number;
+      tokensOut?: number;
+      meta?: Record<string, unknown>;
+    } | null;
     const lineParser = registry
       .get<StdoutParser>('stdoutParser')
       .getParser(driverRow.outputFormat as string);
@@ -357,27 +364,6 @@ export async function executeStageRun(
         const lines = data.split('\n');
         for (const line of lines) {
           if (!line.trim()) continue;
-
-          // Check for flux:signal — hold in memory, don't store as event
-          try {
-            const signal = parseSignalLine(line);
-            if (signal) {
-              lastSignal = signal;
-              continue;
-            }
-          } catch (err) {
-            // Invalid signal — store the error as an event and continue
-            lineNumber++;
-            runService
-              .appendEvent(sRun.id, EVENT_TYPE.error, {
-                id: `sig-err-${lineNumber}`,
-                kind: 'system',
-                lineNumber,
-                text: err instanceof Error ? err.message : String(err),
-              } satisfies TranscriptEntry)
-              .catch(logError);
-            continue;
-          }
 
           // Normal output — parse and store immediately
           lineNumber++;
