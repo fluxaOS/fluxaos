@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createGitOps } from '@/adapters/git/git-ops';
 import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
@@ -189,6 +190,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
     const result1 = await acquireIsolationEnv({
       db,
       isolation: isolationProvider,
+      gitOps: createGitOps(),
       projectId,
       runId: run1.id,
       pipelineId,
@@ -221,6 +223,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
     const result2 = await acquireIsolationEnv({
       db,
       isolation: isolationProvider,
+      gitOps: createGitOps(),
       projectId,
       runId: run2.id,
       pipelineId,
@@ -267,6 +270,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
     const result = await acquireIsolationEnv({
       db,
       isolation: isolationProvider,
+      gitOps: createGitOps(),
       projectId,
       runId: run.id,
       pipelineId,
@@ -295,6 +299,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
     const result = await acquireIsolationEnv({
       db,
       isolation: isolationProvider,
+      gitOps: createGitOps(),
       projectId,
       runId: run.id,
       pipelineId,

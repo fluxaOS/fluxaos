@@ -10,7 +10,6 @@
  * event-orchestrator (Realtime-driven state machine).
  */
 import { eq } from 'drizzle-orm';
-import { commitAll } from '@/adapters/git';
 import { registry } from '@/config/registry';
 import type { TriggerType } from '@/core/constants';
 import {
@@ -29,6 +28,7 @@ import {
   skill,
   stageRun,
 } from '@/core/db/schema';
+import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
@@ -56,6 +56,8 @@ export interface StageRunContext {
    * hook (T16) is responsible for releasing it.
    */
   isolation: IsolationProvider;
+  /** Local git operations — injected so core never imports from adapters. */
+  gitOps: GitOpsPort;
   runId: string;
   stageRunId: string;
   trigger: TriggerType;
@@ -203,6 +205,7 @@ export async function executeStageRun(
   const { env, projectRow } = await acquireIsolationEnv({
     db,
     isolation,
+    gitOps: ctx.gitOps,
     projectId,
     runId,
     pipelineId: run.pipelineId,
@@ -440,6 +443,7 @@ export async function executeStageRun(
           stageName: stage.name,
           stageRunId: sRun.id,
           runService,
+          gitOps: ctx.gitOps,
         });
       }
 
@@ -518,6 +522,7 @@ export async function executeStageRun(
         stageName: stage.name,
         stageRunId: sRun.id,
         runService,
+        gitOps: ctx.gitOps,
       });
     }
 
@@ -646,9 +651,10 @@ async function autoCommitProceedingStage(args: {
   stageName: string;
   stageRunId: string;
   runService: PipelineRunService;
+  gitOps: GitOpsPort;
 }): Promise<{ committed: boolean; sha: string | null }> {
   const message = `${args.stageName}: stage_run ${args.stageRunId.slice(0, 8)}`;
-  const result = await commitAll(args.workingPath, message);
+  const result = await args.gitOps.commitAll(args.workingPath, message);
   if (result.noChanges || !result.commitSha) {
     return { committed: false, sha: null };
   }

@@ -19,9 +19,9 @@
  * bridge short-circuits when the run has no issue or the worktree is clean.
  */
 
-import { UncommittedChangesError } from '@/adapters/git';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
 import type { DeployBridge } from '@/core/deploy';
+import { UncommittedChangesError } from '@/core/errors/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 
 export interface PipelineTerminalHookLogger {

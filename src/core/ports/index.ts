@@ -8,9 +8,13 @@ export type {
 } from './auth';
 export type { DatabaseProvider } from './database';
 export type {
+  CommitAllResult,
   CreatePRParams,
+  GitOpsPort,
   GitProvider,
   PullRequest,
+  RepoIdentity,
+  ResolveRepoIdentityInput,
 } from './git';
 export type {
   AcquireEnvironmentParams,

@@ -1,14 +1,13 @@
-import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { user } from '@/core/db/schema';
 import { DELETE_ROLES, EDIT_ROLES, ROLE_VALUES } from '@/core/features/roles';
+import { createUserService } from '@/core/services/user';
 import { protectedMutation, publicProcedure, router } from '../trpc';
 
 const roleEnum = z.enum(ROLE_VALUES as readonly [string, ...string[]]);
 
 export const userRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(user).orderBy(user.name);
+    return createUserService(ctx.db).list();
   }),
 
   // FLX-12: client-side gates need to know the viewer's effective role.
@@ -29,20 +28,13 @@ export const userRouter = router({
   listByOrg: publicProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.orgId, input.orgId))
-        .orderBy(user.name);
+      return createUserService(ctx.db).listByOrg(input.orgId);
     }),
 
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.id, input.id));
+      const row = await createUserService(ctx.db).getById(input.id);
       if (!row) throw new Error(`User not found: ${input.id}`);
       return row;
     }),
@@ -65,8 +57,7 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db.insert(user).values(input).returning();
-      return row;
+      return createUserService(ctx.db).create(input as any);
     }),
 
   update: protectedMutation(EDIT_ROLES)
@@ -87,30 +78,19 @@ export const userRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      const [row] = await ctx.db
-        .update(user)
-        .set({ ...data, version: version + 1, updatedAt: new Date() })
-        .where(and(eq(user.id, id), eq(user.version, version)))
-        .returning();
-      if (!row) throw new Error('Optimistic concurrency conflict');
-      return row;
+      return createUserService(ctx.db).updateWithVersion(
+        id,
+        version,
+        data as any
+      );
     }),
 
   delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .delete(user)
-        .where(and(eq(user.id, input.id), eq(user.version, input.version)))
-        .returning();
-      if (!row) {
-        const [exists] = await ctx.db
-          .select({ version: user.version })
-          .from(user)
-          .where(eq(user.id, input.id));
-        if (!exists) throw new Error(`User not found: ${input.id}`);
-        throw new Error('Optimistic concurrency conflict');
-      }
-      return row;
+      return createUserService(ctx.db).deleteWithVersion(
+        input.id,
+        input.version
+      );
     }),
 });

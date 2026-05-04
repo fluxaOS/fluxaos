@@ -1,3 +1,41 @@
+// ── Local git operations ──────────────────────────────────────────────────────
+
+export interface CommitAllResult {
+  commitSha?: string;
+  noChanges?: true;
+}
+
+export interface RepoIdentity {
+  owner: string;
+  repo: string;
+}
+
+export interface ResolveRepoIdentityInput {
+  repoPath?: string;
+  repoUrl?: string;
+  override?: string;
+}
+
+/**
+ * GitOpsPort — local git operations (filesystem-level).
+ *
+ * Distinct from GitProvider (remote forge operations). Injected into core
+ * services so src/core/ never imports from src/adapters/git directly.
+ */
+export interface GitOpsPort {
+  commitAll(worktreePath: string, message: string): Promise<CommitAllResult>;
+  getHeadSha(worktreePath: string): Promise<string>;
+  push(
+    worktreePath: string,
+    branchName: string,
+    options?: { setUpstream?: boolean }
+  ): Promise<void>;
+  resolveRepoIdentity(input: ResolveRepoIdentityInput): RepoIdentity;
+  branchAheadCount(worktreePath: string, baseRef: string): Promise<number>;
+}
+
+// ── Remote git operations ─────────────────────────────────────────────────────
+
 export interface CreatePRParams {
   repo: string;
   title: string;

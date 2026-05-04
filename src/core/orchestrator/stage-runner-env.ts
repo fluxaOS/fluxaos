@@ -8,9 +8,9 @@
  */
 
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm';
-import { resolveRepoIdentity } from '@/adapters/git';
 import type { Database } from '@/core/db/connection';
 import { type issue, pipeline, pipelineRun, project } from '@/core/db/schema';
+import type { GitOpsPort } from '@/core/ports/git';
 import type {
   IsolationEnvironment,
   IsolationProvider,
@@ -68,6 +68,7 @@ export function deriveBranchName(params: {
 interface AcquireEnvInput {
   db: Database;
   isolation: IsolationProvider;
+  gitOps: GitOpsPort;
   projectId: string;
   runId: string;
   pipelineId: string;
@@ -147,7 +148,7 @@ export async function acquireIsolationEnv(
     throw new TargetRepoPathMissingError();
   }
 
-  const repoIdentity = resolveRepoIdentity({
+  const repoIdentity = input.gitOps.resolveRepoIdentity({
     repoUrl: projectRow.repoUrl,
     repoPath: targetRepoPath,
   });

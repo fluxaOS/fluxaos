@@ -21,6 +21,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { ensureArtifactsDir, removeArtifactsDir } from '@/adapters/fs';
 import type { Database } from '@/core/db/connection';
 import { isolationEnvironment } from '@/core/db/schema';
+import { UncommittedChangesError } from '@/core/errors/git';
 import type {
   AcquireEnvironmentParams,
   IsolationEnvironment,
@@ -38,15 +39,7 @@ import {
 } from './worktree';
 import { copyConfiguredFiles } from './worktree-copy';
 
-export class UncommittedChangesError extends Error {
-  constructor(envId: string, workingPath: string) {
-    super(
-      `Cannot release env ${envId}: uncommitted changes at ${workingPath}. ` +
-        `Pass { force: true } to override.`
-    );
-    this.name = 'UncommittedChangesError';
-  }
-}
+export { UncommittedChangesError };
 
 type IsolationRow = typeof isolationEnvironment.$inferSelect;
 

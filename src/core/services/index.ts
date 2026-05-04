@@ -7,6 +7,9 @@
 
 export { createGateService, type GateService } from '@/core/gates/service';
 export { type BrandService, createBrandService } from './brand';
+export { type ConfigService, createConfigService } from './config';
+export { type CronService, createCronService } from './cron';
+export { createDriverService, type DriverService } from './driver';
 export { createIssueService, type IssueService } from './issue';
 export {
   createIssueCatalogService,

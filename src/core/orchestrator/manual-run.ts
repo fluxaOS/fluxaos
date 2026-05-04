@@ -18,6 +18,7 @@ import {
 import type { Database } from '@/core/db/connection';
 import { issue, pipeline, stageRun } from '@/core/db/schema';
 import { createGateService } from '@/core/gates/service';
+import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import { createIssueService } from '@/core/services/issue';
@@ -35,7 +36,8 @@ export async function executeManualRun(
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
   runId: string,
-  stageRunId: string
+  stageRunId: string,
+  gitOps?: GitOpsPort
 ): Promise<void> {
   const runService = createPipelineRunService(db);
   const gateService = createGateService(db);
@@ -46,6 +48,7 @@ export async function executeManualRun(
       executor,
       runService,
       isolation,
+      gitOps: gitOps ?? createNoopGitOps(),
       runId,
       stageRunId,
       trigger: TRIGGER_TYPE.manual,
@@ -203,4 +206,23 @@ async function resolveProjectIdForRun(
     .from(pipeline)
     .where(eq(pipeline.id, run.pipelineId));
   return pipe?.projectId ?? null;
+}
+
+function createNoopGitOps(): GitOpsPort {
+  const notImpl = (name: string) => () => {
+    throw new Error(
+      `GitOpsPort.${name} called but no gitOps was injected into executeManualRun`
+    );
+  };
+  return {
+    commitAll: notImpl('commitAll') as GitOpsPort['commitAll'],
+    getHeadSha: notImpl('getHeadSha') as GitOpsPort['getHeadSha'],
+    push: notImpl('push') as GitOpsPort['push'],
+    resolveRepoIdentity: notImpl(
+      'resolveRepoIdentity'
+    ) as GitOpsPort['resolveRepoIdentity'],
+    branchAheadCount: notImpl(
+      'branchAheadCount'
+    ) as GitOpsPort['branchAheadCount'],
+  };
 }
