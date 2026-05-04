@@ -113,6 +113,9 @@ export interface PipelineRunService {
 
   /** Fail both the stage run and the pipeline run in one call. */
   failStageAndRun(stageRunId: string, runId: string): Promise<void>;
+
+  /** Record the OS process ID for a stage run. */
+  recordPid(stageRunId: string, pid: number): Promise<void>;
 }
 
 export function createPipelineRunService(db: DbOrTx): PipelineRunService {
@@ -366,6 +369,13 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
           updatedAt: new Date(),
         })
         .where(eq(pipelineRun.id, runId));
+    },
+
+    async recordPid(stageRunId, pid) {
+      await db
+        .update(stageRun)
+        .set({ pid, updatedAt: new Date() })
+        .where(eq(stageRun.id, stageRunId));
     },
   };
 }
