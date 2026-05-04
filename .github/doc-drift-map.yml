@@ -1,0 +1,41 @@
+# Maps critical source files to their corresponding user doc pages.
+# If a mapped source file changes in a PR and none of its docs change,
+# the doc-drift Action fails the PR.
+#
+# Keep this list small — only files where a change almost certainly
+# requires a doc update. Everything else is covered by the LLM soft nudge.
+#
+# To skip doc-drift for a PR (pure refactor, no user-visible change),
+# add the label "skip-doc-drift" to the PR or include [skip-doc-drift]
+# in the PR title.
+
+critical:
+  - match: src/core/db/schema.ts
+    docs:
+      - website/docs-site/docs/reference/env-vars.md
+      - website/docs-site/docs/reference/issue-states.md
+      - website/docs-site/docs/reference/gate-rules.md
+      - website/docs-site/docs/concepts/state-vs-status.md
+
+  - match: src/core/db/seed.ts
+    docs:
+      - website/docs-site/docs/reference/issue-states.md
+      - website/docs-site/docs/reference/gate-rules.md
+
+  - match: src/core/pipeline/playbook.ts
+    docs:
+      - website/docs-site/docs/reference/playbook-schema.md
+
+  - match: src/config/env.ts
+    docs:
+      - website/docs-site/docs/reference/env-vars.md
+
+  - match: src/core/constants.ts
+    docs:
+      - website/docs-site/docs/reference/signal-types.md
+      - website/docs-site/docs/reference/gate-rules.md
+
+  - match: src/core/gates/types.ts
+    docs:
+      - website/docs-site/docs/reference/gate-rules.md
+      - website/docs-site/docs/concepts/gates.md

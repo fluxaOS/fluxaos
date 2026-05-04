@@ -1,0 +1,70 @@
+name: Doc Drift
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+
+# Cancel any in-progress run for the same PR when a new commit is pushed.
+concurrency:
+  group: doc-drift-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  doc-drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get changed files
+        id: changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          DELIMITER="CHANGED_FILES_$(openssl rand -hex 8)"
+          echo "files<<${DELIMITER}" >> "$GITHUB_OUTPUT"
+          echo "${CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "${DELIMITER}" >> "$GITHUB_OUTPUT"
+
+      - name: Get PR diff
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          DIFF=$(git diff "origin/${BASE_REF}...HEAD" -- 'src/**')
+          DELIMITER="PR_DIFF_$(openssl rand -hex 8)"
+          echo "diff<<${DELIMITER}" >> "$GITHUB_OUTPUT"
+          echo "${DIFF}" >> "$GITHUB_OUTPUT"
+          echo "${DELIMITER}" >> "$GITHUB_OUTPUT"
+
+      - name: Run doc-drift gate
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+          PR_DIFF: ${{ steps.diff.outputs.diff }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          MAP_FILE: .github/doc-drift-map.yml
+          # Set SKIP_LLM=true in repo variables to disable the LLM nudge layer.
+          SKIP_LLM: ${{ vars.SKIP_LLM || 'false' }}
+        run: node .github/scripts/doc-drift.mjs
