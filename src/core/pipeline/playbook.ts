@@ -29,6 +29,19 @@ const ParallelGroupSchema = z.object({
   rules: z.array(z.any()).optional().default([]),
 });
 
+const LoopNodeSchema = z.object({
+  type: z.literal('loop'),
+  id: z.string().min(1),
+  skill: z.string().min(1),
+  until: z.string().min(1),
+  maxIterations: z.number().int().positive().default(10),
+  onComplete: z.string().min(1),
+  onExhausted: z.string().min(1),
+  fallback: z.string().min(1),
+  trustMode: z.enum(['prescriptive', 'declarative']).default('prescriptive'),
+  rules: z.array(z.any()).optional().default([]),
+});
+
 // Preprocess stages to inject type:'sequential' when type is absent.
 // z.discriminatedUnion requires the discriminant key to be present in raw input
 // even when the schema has a .default() — defaults run after the discriminant check.
@@ -39,7 +52,11 @@ const PlaybookStageSchema = z.preprocess(
     }
     return val;
   },
-  z.discriminatedUnion('type', [SequentialStageSchema, ParallelGroupSchema])
+  z.discriminatedUnion('type', [
+    SequentialStageSchema,
+    ParallelGroupSchema,
+    LoopNodeSchema,
+  ])
 );
 
 export const PlaybookSchema = z.object({
@@ -53,9 +70,14 @@ export type Playbook = z.infer<typeof PlaybookSchema>;
 export type PlaybookStage = z.infer<typeof PlaybookStageSchema>;
 export type SequentialStage = z.infer<typeof SequentialStageSchema>;
 export type ParallelGroup = z.infer<typeof ParallelGroupSchema>;
+export type LoopNode = z.infer<typeof LoopNodeSchema>;
 
 export function isParallelGroup(stage: PlaybookStage): stage is ParallelGroup {
   return stage.type === 'parallel';
+}
+
+export function isLoopNode(stage: PlaybookStage): stage is LoopNode {
+  return stage.type === 'loop';
 }
 
 export type ParsePlaybookResult =

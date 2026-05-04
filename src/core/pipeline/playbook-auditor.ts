@@ -1,6 +1,7 @@
 import { evaluateGate } from '@/core/gates/engine';
 import type { Rule, RuleGroup } from '@/core/gates/types';
 import type { Playbook } from './playbook';
+import { isLoopNode } from './playbook';
 import type { ResultDoc } from './result-doc';
 
 export type AuditAction = 'transition' | 'fallback';
@@ -25,6 +26,11 @@ export function auditResultDoc(
       action: 'fallback',
       targetState: playbook.stages[0]?.fallback ?? 'blocked',
     };
+  }
+
+  // Loop nodes route via the orchestrator directly; auditResultDoc does not apply.
+  if (isLoopNode(stage)) {
+    return { action: 'fallback', targetState: stage.fallback };
   }
 
   if (!doc) {
