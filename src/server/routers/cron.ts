@@ -1,6 +1,5 @@
-import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { cronJob } from '@/core/db/schema';
+import { createCronService } from '@/core/services/cron';
 import { publicProcedure, router } from '../trpc';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -10,26 +9,19 @@ const CRON_RE = /^(\S+\s+){4,5}\S+$/;
 
 export const cronRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(cronJob).orderBy(cronJob.name);
+    return createCronService(ctx.db).list();
   }),
 
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
-        .select()
-        .from(cronJob)
-        .where(eq(cronJob.projectId, input.projectId))
-        .orderBy(cronJob.name);
+      return createCronService(ctx.db).listByProject(input.projectId);
     }),
 
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .select()
-        .from(cronJob)
-        .where(eq(cronJob.id, input.id));
+      const row = await createCronService(ctx.db).getById(input.id);
       if (!row) throw new Error(`Cron job not found: ${input.id}`);
       return row;
     }),
@@ -52,19 +44,7 @@ export const cronRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .insert(cronJob)
-        .values({
-          projectId: input.projectId,
-          name: input.name,
-          slug: input.slug,
-          cronExpression: input.cronExpression,
-          actionType: input.actionType,
-          actionPayload: (input.actionPayload ?? null) as never,
-          isEnabled: input.isEnabled ?? true,
-        })
-        .returning();
-      return row;
+      return createCronService(ctx.db).create(input);
     }),
 
   update: publicProcedure
@@ -82,36 +62,12 @@ export const cronRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      const [row] = await ctx.db
-        .update(cronJob)
-        .set({
-          ...(data as Record<string, unknown>),
-          version: version + 1,
-          updatedAt: new Date(),
-        } as never)
-        .where(and(eq(cronJob.id, id), eq(cronJob.version, version)))
-        .returning();
-      if (!row) throw new Error('Optimistic concurrency conflict');
-      return row;
+      return createCronService(ctx.db).update(id, version, data);
     }),
 
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      const [row] = await ctx.db
-        .delete(cronJob)
-        .where(
-          and(eq(cronJob.id, input.id), eq(cronJob.version, input.version))
-        )
-        .returning();
-      if (!row) {
-        const [exists] = await ctx.db
-          .select({ version: cronJob.version })
-          .from(cronJob)
-          .where(eq(cronJob.id, input.id));
-        if (!exists) throw new Error(`Cron job not found: ${input.id}`);
-        throw new Error('Optimistic concurrency conflict');
-      }
-      return row;
+      return createCronService(ctx.db).delete(input.id, input.version);
     }),
 });
