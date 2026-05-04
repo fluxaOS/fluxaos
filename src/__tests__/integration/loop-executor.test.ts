@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoopExecutorInput } from '@/core/agents/loop-executor';
 
-vi.mock('@/core/pipeline/langgraph-stage-runner', () => ({
+vi.mock('@/adapters/langgraph/langgraph-stage-runner', () => ({
   runStageGraph: vi.fn(),
 }));
 
+import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
 import { runLoopExecutor } from '@/core/agents/loop-executor';
-import { runStageGraph } from '@/core/pipeline/langgraph-stage-runner';
 
 const mockRunStageGraph = vi.mocked(runStageGraph);
 
