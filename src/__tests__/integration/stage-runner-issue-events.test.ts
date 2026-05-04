@@ -85,7 +85,7 @@ afterAll(async () => {
 });
 
 describe('stage-runner issue events', () => {
-  it('adds stage signal summary to issue timeline events', async () => {
+  it('adds stage_completed event to issue timeline on clean exit', async () => {
     const svc = createPipelineRunService(db);
     const [run] = await db
       .insert(schema.pipelineRun)
@@ -104,14 +104,8 @@ describe('stage-runner issue events', () => {
     const artifactsPath = await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-'));
     tempDirs.push(workingPath, artifactsPath);
 
-    const summary = 'Created the contributing guide and verified links.';
     const executor: StageExecutor = {
-      async execute(params) {
-        params.onStdout?.(
-          `${JSON.stringify({
-            'flux:signal': { verdict: 'proceed', summary },
-          })}\n`
-        );
+      async execute() {
         return {
           exitCode: 0,
           stdout: '',
@@ -145,7 +139,6 @@ describe('stage-runner issue events', () => {
     expect(completed?.payload).toMatchObject({
       stageName: fixture.stageName,
       skillSignal: 'proceed',
-      summary,
     });
   });
 });

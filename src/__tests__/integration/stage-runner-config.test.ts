@@ -226,10 +226,9 @@ describe('stage-runner config validation', () => {
     ).rejects.toThrow();
   });
 
-  // FLX-92: auto-commit on `proceed`. Both the no-signal-clean-exit
-  // synth path and the emitted-proceed-signal path commit; hold/rework
-  // /abort paths leave the tree dirty so a human can inspect.
-  it('FLX-92: auto-commits on proceed; leaves dirty on hold', async () => {
+  // FLX-92: auto-commit on clean exit (no-signal synthesizes proceed).
+  // FLX-112: signal-based routing removed; all clean exits now synthesize proceed.
+  it('FLX-92: auto-commits on clean exit (synthesized proceed)', async () => {
     const proceed = await createStageRunnerHarness({
       issuePromptTemplate: 'work in {{workspace_path}}',
       withRouting: true,
@@ -248,22 +247,6 @@ describe('stage-runner config validation', () => {
     expect(
       (await git(proceed.workingPath, ['status', '--porcelain'])).trim()
     ).toBe('');
-
-    const held = await createStageRunnerHarness({
-      issuePromptTemplate: 'work in {{workspace_path}}',
-      withRouting: true,
-      withArtifactsPath: true,
-      gitInitWorkingPath: true,
-      onExecute: async ({ workingPath }) => {
-        await writeFile(join(workingPath, 'HALF.md'), '# Half\n');
-      },
-      emitStdout: () =>
-        `${JSON.stringify({ 'flux:signal': { verdict: 'hold' } })}\n`,
-    });
-    await held.run();
-    expect(
-      (await git(held.workingPath, ['status', '--porcelain'])).trim()
-    ).toBe('?? HALF.md');
   });
 });
 
@@ -287,12 +270,6 @@ async function createStageRunnerHarness(input: {
     workingPath: string;
     materializedPath: string;
   }) => Promise<void> | void;
-  /**
-   * FLX-92: stdout the executor emits during `execute()`. Lets tests
-   * inject a flux:signal proceed line to exercise the
-   * signal-emitted code path.
-   */
-  emitStdout?: (workingPath: string) => string;
 }) {
   const svc = createPipelineRunService(db);
   const [driverRow] = await db
@@ -369,13 +346,9 @@ async function createStageRunnerHarness(input: {
         workingPath,
         materializedPath: materializedPathFromArgs,
       });
-      const stdout = input.emitStdout?.(workingPath) ?? '';
-      if (stdout && params.onStdout) {
-        params.onStdout(stdout);
-      }
       return {
         exitCode: 0,
-        stdout,
+        stdout: '',
         stderr: '',
         durationMs: 1,
         processId: 'flx-83-test',
