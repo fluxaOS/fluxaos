@@ -268,12 +268,6 @@ export function createEventOrchestrator(
             (s) => s.id === stage.name
           );
 
-          if (playbookStage && isParallelGroup(playbookStage)) {
-            throw new Error(
-              `NotImplementedError: parallel group execution is not yet supported (stage: ${stage.name})`
-            );
-          }
-
           const [driverRow] = stage.driverId
             ? await db
                 .select()
@@ -333,7 +327,81 @@ export function createEventOrchestrator(
           let ingestOutput: string;
           let graphError: string | undefined;
 
-          if (playbookStage && isLoopNode(playbookStage)) {
+          if (playbookStage && isParallelGroup(playbookStage)) {
+            const childStageRuns = await Promise.all(
+              playbookStage.children.map(() =>
+                runService.createStageRun(run.id, stage.id)
+              )
+            );
+
+            const { runParallelExecutor } = await import(
+              '@/core/agents/parallel-executor'
+            );
+            const parallelCheckpointer = await getCheckpointer();
+            const parallelResult = await runParallelExecutor({
+              groupStageRunId: sRun.id,
+              pipelineRunId: run.id,
+              stageId: stage.name,
+              children: playbookStage.children.map((child, i) => {
+                const childSRun = childStageRuns[i];
+                const childArtifactsBase = `${artifactsBase}/${child.id}`;
+                const childResultDocPath = `${childArtifactsBase}/result.json`;
+                const childSkillFilePath = join(
+                  bundledDir,
+                  'skills',
+                  `${child.skill}.md`
+                );
+                const childSkillPrompt = existsSync(childSkillFilePath)
+                  ? readFileSync(childSkillFilePath, 'utf-8')
+                  : '';
+                const childPrompt = composePrompt(
+                  discovered.playbook.prompt,
+                  childSkillPrompt,
+                  {
+                    RESULT_DOC_PATH: childResultDocPath,
+                    ARTIFACTS_DIR: childArtifactsBase,
+                  }
+                );
+                const childDriverArgs: string[] = [
+                  ...((driverRow.defaultArgs as string[] | null) ?? []),
+                ];
+                if (transport === 'argv') {
+                  childDriverArgs.push(childPrompt);
+                }
+                return {
+                  id: child.id,
+                  skill: child.skill,
+                  stageRunId: childSRun.id,
+                  resultDocPath: childResultDocPath,
+                  artifactsDir: childArtifactsBase,
+                  prompt: childPrompt,
+                  driverCommand: driverBinary,
+                  driverArgs: childDriverArgs,
+                  env: {
+                    RESULT_DOC_PATH: childResultDocPath,
+                    ARTIFACTS_DIR: childArtifactsBase,
+                  },
+                };
+              }),
+              aggregation: playbookStage.aggregation,
+              checkpointer: parallelCheckpointer,
+            });
+
+            await Promise.all(
+              parallelResult.childResults.map((cr) =>
+                runService.completeStageRun(
+                  cr.stageRunId,
+                  cr.error
+                    ? STAGE_RUN_STATUS.failed
+                    : STAGE_RUN_STATUS.completed,
+                  {}
+                )
+              )
+            );
+
+            ingestOutput = parallelResult.ingestOutput;
+            graphError = parallelResult.error;
+          } else if (playbookStage && isLoopNode(playbookStage)) {
             const { runLoopExecutor } = await import(
               '@/core/agents/loop-executor'
             );
