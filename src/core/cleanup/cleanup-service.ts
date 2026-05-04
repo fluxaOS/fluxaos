@@ -118,10 +118,11 @@ export interface CleanupService {
 type IsolationRow = typeof isolationEnvironment.$inferSelect;
 type ProjectRow = typeof project.$inferSelect;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 // Helpers.
 function ageDays(createdAt: Date, now: Date): number {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return (now.getTime() - createdAt.getTime()) / msPerDay;
+  return (now.getTime() - createdAt.getTime()) / MS_PER_DAY;
 }
 
 export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
