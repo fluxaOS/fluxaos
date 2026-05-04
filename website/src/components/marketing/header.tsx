@@ -1,110 +1,72 @@
-'use client';
-
 import Link from 'next/link';
-import { useState } from 'react';
-
-const navLinks = [
-  { href: '#features', label: 'Features' },
-  { href: '#how-it-works', label: 'How it works' },
-  { href: '#open-source', label: 'Open source' },
-];
+import { links } from '@/lib/links';
+import { GitHubStarBadge } from '@/lib/use-github-stars';
 
 export function MarketingHeader() {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-void/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-lg font-bold tracking-tight">
-          <span className="text-electric-violet">flux</span>
-          <span className="text-white">aOS</span>
-        </Link>
-
-        {/* Desktop nav */}
-        <nav className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm text-slate-400 transition-colors hover:text-white"
-            >
-              {link.label}
-            </a>
-          ))}
-          <a
-            href="https://github.com/fluxaOS/fluxaos"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-slate-400 transition-colors hover:text-white"
+    <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[rgba(11,10,16,0.7)] backdrop-blur-md">
+      <div className="mx-auto max-w-[1180px] px-8 py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link
+            href="/"
+            className="text-base font-semibold tracking-tight"
           >
-            GitHub
-          </a>
-        </nav>
-
-        {/* Mobile menu button */}
-        <button
-          type="button"
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-white md:hidden"
-          aria-label="Toggle menu"
-        >
-          {menuOpen ? (
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <title>Close menu</title>
-              <path d="M5 5l10 10M15 5L5 15" />
-            </svg>
-          ) : (
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <title>Open menu</title>
-              <path d="M3 6h14M3 10h14M3 14h14" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <nav className="border-t border-white/5 px-6 py-4 md:hidden">
-          <div className="flex flex-col gap-4">
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className="text-sm text-slate-400 transition-colors hover:text-white"
-              >
-                {link.label}
-              </a>
-            ))}
+            <span className="text-electric-violet">flux</span>
+            <span className="text-white">aOS</span>
+          </Link>
+          <nav className="hidden md:flex gap-6">
             <a
-              href="https://github.com/fluxaOS/fluxaos"
+              href="#features"
+              className="text-[13px] text-[var(--muted)] hover:text-white transition-colors"
+            >
+              Product
+            </a>
+            <a
+              href={links.docs}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-slate-400 transition-colors hover:text-white"
+              className="text-[13px] text-[var(--muted)] hover:text-white transition-colors"
             >
-              GitHub
+              Docs
             </a>
-          </div>
-        </nav>
-      )}
+            <a
+              href={links.pipelinesDoc}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] text-[var(--muted)] hover:text-white transition-colors"
+            >
+              Pipelines
+            </a>
+            <a
+              href={links.changelog}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] text-[var(--muted)] hover:text-white transition-colors"
+            >
+              Changelog
+            </a>
+          </nav>
+        </div>
+        <div className="flex items-center gap-3">
+          <GitHubStarBadge />
+          <a
+            href={links.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline text-[13px] text-[var(--muted)] hover:text-white transition-colors"
+          >
+            GitHub ↗
+          </a>
+          <a
+            href={links.gettingStarted}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg bg-electric-violet px-3.5 py-2 text-[13px] font-medium text-white hover:shadow-[0_0_0_1px_rgba(124,58,237,0.5),0_8px_32px_-8px_rgba(124,58,237,0.6)] transition-shadow"
+          >
+            Get started
+          </a>
+        </div>
+      </div>
     </header>
   );
 }
