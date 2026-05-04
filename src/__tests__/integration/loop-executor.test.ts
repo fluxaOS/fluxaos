@@ -63,13 +63,15 @@ describe('runLoopExecutor', () => {
     expect(mockRunStageGraph).toHaveBeenCalledTimes(1);
   });
 
-  it('uses per-iteration stageRunId suffix', async () => {
+  it('passes original stageRunId to runStageGraph (DB row must exist)', async () => {
     mockRunStageGraph.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
 
     await runLoopExecutor(BASE_INPUT);
 
     expect(mockRunStageGraph).toHaveBeenCalledWith(
-      expect.objectContaining({ stageRunId: 'srun-001_iter1' })
+      expect.objectContaining({ stageRunId: 'srun-001' }),
+      undefined,
+      'srun-001_iter1'
     );
   });
 
@@ -131,7 +133,7 @@ describe('runLoopExecutor', () => {
     expect(result.iterations).toBe(1);
   });
 
-  it('ALWAYS condition never exits early; maxIterations is the only stop', async () => {
+  it('ALWAYS condition runs all maxIterations and exits completed:true', async () => {
     mockRunStageGraph.mockResolvedValue({ ingestOutput: passIngestOutput });
 
     const result = await runLoopExecutor({
@@ -140,7 +142,7 @@ describe('runLoopExecutor', () => {
       maxIterations: 2,
     });
 
-    expect(result.completed).toBe(false);
+    expect(result.completed).toBe(true);
     expect(result.iterations).toBe(2);
     expect(mockRunStageGraph).toHaveBeenCalledTimes(2);
   });

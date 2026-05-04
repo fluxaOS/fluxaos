@@ -334,6 +334,7 @@ export function createEventOrchestrator(
             const { runLoopExecutor } = await import(
               '@/core/agents/loop-executor'
             );
+            const loopCheckpointer = await getCheckpointer();
             const loopResult = await runLoopExecutor({
               stageRunId: sRun.id,
               resultDocPath,
@@ -347,6 +348,7 @@ export function createEventOrchestrator(
                 RESULT_DOC_PATH: resultDocPath,
                 ARTIFACTS_DIR: artifactsBase,
               },
+              checkpointer: loopCheckpointer,
             });
 
             ingestOutput = loopResult.lastIngestOutput;

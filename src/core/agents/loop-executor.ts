@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { runStageGraph } from '@/core/pipeline/langgraph-stage-runner';
 import type { ResultDoc } from '@/core/pipeline/result-doc';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
@@ -13,6 +14,7 @@ export interface LoopExecutorInput {
   until: string;
   maxIterations: number;
   env?: Record<string, string>;
+  checkpointer?: BaseCheckpointSaver;
 }
 
 export interface LoopExecutorResult {
@@ -32,7 +34,7 @@ function checkUntilCondition(until: string, doc: ResultDoc | null): boolean {
     case 'VERDICT_FAIL':
       return doc.verdict === 'fail';
     case 'ALWAYS':
-      // Never satisfied — only maxIterations stops the loop
+      // Never satisfied mid-loop — caller marks completed:true after maxIterations
       return false;
     default:
       return false;
@@ -55,19 +57,24 @@ export async function runLoopExecutor(
   let lastIngestOutput = '';
 
   for (let n = 1; n <= input.maxIterations; n++) {
-    const iterStageRunId = `${input.stageRunId}_iter${n}`;
+    // stageRunId must match the DB row — iter suffix goes to thread_id for LangGraph isolation
+    const iterThreadId = `${input.stageRunId}_iter${n}`;
 
     let graphResult: { ingestOutput: string; error?: string };
     try {
-      graphResult = await runStageGraph({
-        stageRunId: iterStageRunId,
-        resultDocPath: input.resultDocPath,
-        artifactsDir: input.artifactsDir,
-        prompt: input.prompt,
-        driverCommand: input.driverCommand,
-        driverArgs: input.driverArgs,
-        env: input.env,
-      });
+      graphResult = await runStageGraph(
+        {
+          stageRunId: input.stageRunId,
+          resultDocPath: input.resultDocPath,
+          artifactsDir: input.artifactsDir,
+          prompt: input.prompt,
+          driverCommand: input.driverCommand,
+          driverArgs: input.driverArgs,
+          env: input.env,
+        },
+        input.checkpointer,
+        iterThreadId
+      );
     } catch (err) {
       return {
         completed: false,
@@ -114,8 +121,9 @@ export async function runLoopExecutor(
     }
   }
 
+  // ALWAYS: treat full completion of maxIterations as success
   return {
-    completed: false,
+    completed: input.until === 'ALWAYS',
     iterations: input.maxIterations,
     lastIngestOutput,
   };
