@@ -26,7 +26,7 @@ Note: These scripts are being built (R-INFRA-2). Until then, use `npm run db:stu
 
 ## Dev Server
 
-Headless box. Dev server runs on port **3003** (port 3000 is taken by semaphore). Always start with `npm run dev -- -p 3003`. From other machines: `http://192.168.54.101:3003`. For Playwright runs against the LAN URL: `PLAYWRIGHT_BASE_URL=http://192.168.54.101:3003 npx playwright test`.
+Headless box. **Prod** runs in Docker on port **3003** (`fluxaos-web` container, deployed via `bash /mnt/stacks/docker/fluxaos/build.sh origin/main`). **Dev** runs on port **3004** — always start with `npm run dev -- -p 3004`. Never start dev on 3003. From other machines: `http://192.168.54.101:3004` (dev) / `http://192.168.54.101:3003` (prod). For Playwright runs against dev: `PLAYWRIGHT_BASE_URL=http://192.168.54.101:3004 npx playwright test`.
 
 ## Environment Files
 

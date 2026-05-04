@@ -8,7 +8,7 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Next.js dev server |
+| `npm run dev -- -p 3004` | Next.js dev server (port 3004 — prod/Docker owns 3003) |
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
 | `npm run db:generate` | Drizzle schema codegen |
@@ -65,7 +65,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 ## Workflow
 
-- **First run:** `npm i` → set `.env` → `npm run db:migrate` → `npm run db:seed` → `npm run dev`
+- **First run:** `npm i` → set `.env` → `npm run db:migrate` → `npm run db:seed` → `npm run dev -- -p 3004`
 - **Reset state:** `tsx src/scripts/db/nuke.ts` → `npm run db:seed`
 - **After schema changes:** `npm run db:generate` → `npm run db:migrate`
 
