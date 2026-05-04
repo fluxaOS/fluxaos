@@ -1,5 +1,7 @@
 # Pipeline Execution Redesign Implementation Plan
 
+> **STATUS: IMPLEMENTED.** All four phases shipped on branch `flx-106-pipeline-execution-redesign` (PR #203). Plan-review issues C1/C4/C6/I4/I6/I8 resolved in implementation. Post-implementation review fixes (undefined `log`, stage_run lifecycle, blocked routing, LangGraph checkpointer wiring) committed 2026-05-03 in `915ee6d`. Checkboxes below were never ticked — work is complete. Architectural debate 2026-05-03 confirmed the design; follow-up issues are FLX-107 (parallel groups), FLX-108 (typed `complete` constant), and two new issues for Archon-style node variants and triage-as-meta-stage. See memory: `project_flx106_architecture_decision.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace signal-based pipeline routing with a playbook-driven execution model where skills do only work, the result document carries facts, and the orchestrator audits and routes — with LangGraph handling stage execution and checkpointing.
