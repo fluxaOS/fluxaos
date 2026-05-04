@@ -24,6 +24,8 @@ import {
   STAGE_RUN_TERMINAL,
 } from './types';
 
+type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
+
 type PipelineRunRow = typeof pipelineRun.$inferSelect;
 type StageRunRow = typeof stageRun.$inferSelect;
 type StageRow = typeof pipelineStage.$inferSelect;
@@ -113,7 +115,7 @@ export interface PipelineRunService {
   failStageAndRun(stageRunId: string, runId: string): Promise<void>;
 }
 
-export function createPipelineRunService(db: Database): PipelineRunService {
+export function createPipelineRunService(db: DbOrTx): PipelineRunService {
   return {
     async createRun(pipelineId, issueId) {
       const [row] = await db

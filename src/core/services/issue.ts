@@ -18,6 +18,8 @@ import {
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
 
+type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
+
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
 type IssueInsert = typeof issue.$inferInsert;
@@ -58,7 +60,7 @@ interface UpdateFieldsInput {
 
 // ─── Service factory ─────────────────────────────────────────────────────────
 
-export function createIssueService(db: Database) {
+export function createIssueService(db: DbOrTx) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   async function resolveInitialState(

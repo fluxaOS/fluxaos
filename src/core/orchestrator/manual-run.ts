@@ -96,18 +96,22 @@ export async function executeManualRun(
               issueRow.projectId,
               targetStateKey
             );
-            await issueService.stateOverride(
-              result.issueId,
-              targetState.id,
-              issueRow.version,
-              'orchestrator'
-            );
-            await runService.appendIssueEvent(
-              result.issueId,
-              ISSUE_EVENT_TYPE.state_changed,
-              { reason: 'already_complete', targetState: targetStateKey },
-              'manual-run'
-            );
+            await db.transaction(async (tx) => {
+              const txIssueService = createIssueService(tx);
+              const txRunService = createPipelineRunService(tx);
+              await txIssueService.stateOverride(
+                result.issueId!,
+                targetState.id,
+                issueRow.version,
+                'orchestrator'
+              );
+              await txRunService.appendIssueEvent(
+                result.issueId!,
+                ISSUE_EVENT_TYPE.state_changed,
+                { reason: 'already_complete', targetState: targetStateKey },
+                'manual-run'
+              );
+            });
           }
         } else {
           // needs_human or unknown reason — block the issue
@@ -116,18 +120,22 @@ export async function executeManualRun(
             'issues.status.on_blocked_key'
           );
           const question = result.skillMetadata?.question as string | undefined;
-          await issueService.updateStatus(
-            result.issueId,
-            blockedStatusId,
-            'orchestrator',
-            question
-          );
-          await runService.appendIssueEvent(
-            result.issueId,
-            ISSUE_EVENT_TYPE.pipeline_failed,
-            { reason: result.skillSignalReason ?? 'needs_human', question },
-            'manual-run'
-          );
+          await db.transaction(async (tx) => {
+            const txIssueService = createIssueService(tx);
+            const txRunService = createPipelineRunService(tx);
+            await txIssueService.updateStatus(
+              result.issueId!,
+              blockedStatusId,
+              'orchestrator',
+              question
+            );
+            await txRunService.appendIssueEvent(
+              result.issueId!,
+              ISSUE_EVENT_TYPE.pipeline_failed,
+              { reason: result.skillSignalReason ?? 'needs_human', question },
+              'manual-run'
+            );
+          });
         }
       }
     }
