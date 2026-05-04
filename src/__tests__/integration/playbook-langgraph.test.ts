@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStageGraph } from '@/core/pipeline/langgraph-stage-runner';
+import { buildStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
 
 describe('buildStageGraph', () => {
   it('returns a compiled graph with invoke method', () => {

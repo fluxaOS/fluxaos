@@ -242,10 +242,10 @@ export function createEventOrchestrator(
           '@/core/pipeline/paperwork-executor'
         );
         const { runStageGraph } = await import(
-          '@/core/pipeline/langgraph-stage-runner'
+          '@/adapters/langgraph/langgraph-stage-runner'
         );
         const { getCheckpointer } = await import(
-          '@/core/pipeline/checkpoint-store'
+          '@/adapters/langgraph/checkpoint-store'
         );
         const { composePrompt } = await import(
           '@/core/pipeline/prompt-composer'

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
-import { runStageGraph } from '@/core/pipeline/langgraph-stage-runner';
+import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
 import type { ResultDoc } from '@/core/pipeline/result-doc';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
 
