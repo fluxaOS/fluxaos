@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { createIssueService } from '@/core/services/issue';
-import { createIssueCommentService } from '@/core/services/issue-comment';
+import { issue } from '@/core/db/schema';
 import { executePaperwork } from '@/core/pipeline/paperwork-executor';
 import type { AuditResult } from '@/core/pipeline/playbook-auditor';
-import { issue } from '@/core/db/schema';
+import { createIssueService } from '@/core/services/issue';
+import { createIssueCommentService } from '@/core/services/issue-comment';
 
 // Real DB integration — requires DIRECT_URL or DATABASE_URL in env
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -19,7 +19,10 @@ describe.skipIf(skip)('executePaperwork (real DB)', () => {
 
   beforeAll(async () => {
     if (!db) return;
-    const [row] = await db.select({ id: issue.id, projectId: issue.projectId }).from(issue).limit(1);
+    const [row] = await db
+      .select({ id: issue.id, projectId: issue.projectId })
+      .from(issue)
+      .limit(1);
     if (!row) throw new Error('No issues in DB — run db:seed first');
     testIssueId = row.id;
     testProjectId = row.projectId;
@@ -47,7 +50,9 @@ describe.skipIf(skip)('executePaperwork (real DB)', () => {
     });
 
     const comments = await commentService.list(testIssueId);
-    const testComment = comments.find(c => c.bodyMd?.includes('Paperwork executor integration test comment.'));
+    const testComment = comments.find((c) =>
+      c.bodyMd?.includes('Paperwork executor integration test comment.')
+    );
     expect(testComment).toBeDefined();
   });
 
@@ -72,7 +77,9 @@ describe.skipIf(skip)('executePaperwork (real DB)', () => {
     });
 
     const comments = await commentService.list(testIssueId);
-    const blockerComment = comments.find(c => c.bodyMd?.includes('Stage flagged 2 blocker(s)'));
+    const blockerComment = comments.find((c) =>
+      c.bodyMd?.includes('Stage flagged 2 blocker(s)')
+    );
     expect(blockerComment).toBeDefined();
   });
 });

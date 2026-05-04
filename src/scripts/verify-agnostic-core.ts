@@ -50,7 +50,8 @@ const ALLOWLIST: Allow[] = [
   {
     file: 'src/core/pipeline/paperwork-executor.ts',
     line: 52,
-    reason: "'complete' is a routing sentinel (signal issue closure), not a DB stage key",
+    reason:
+      "'complete' is a routing sentinel (signal issue closure), not a DB stage key",
     ticket: 'FLX-108',
   },
 ];

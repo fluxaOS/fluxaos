@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { composePrompt } from '@/core/pipeline/prompt-composer';
 
 describe('composePrompt', () => {
@@ -9,9 +9,13 @@ describe('composePrompt', () => {
   });
 
   it('substitutes ${RESULT_DOC_PATH} in base prompt', () => {
-    const result = composePrompt('Write to ${RESULT_DOC_PATH} when done.', 'Work.', {
-      RESULT_DOC_PATH: '/tmp/result.json',
-    });
+    const result = composePrompt(
+      'Write to ${RESULT_DOC_PATH} when done.',
+      'Work.',
+      {
+        RESULT_DOC_PATH: '/tmp/result.json',
+      }
+    );
     expect(result).toContain('/tmp/result.json');
     expect(result).not.toContain('${RESULT_DOC_PATH}');
   });

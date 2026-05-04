@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { parsePlaybook } from '@/core/pipeline/playbook';
 
 const minimalYaml = `
@@ -66,7 +66,7 @@ describe('parsePlaybook', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.playbook.stages).toHaveLength(4);
-      const impl = result.playbook.stages.find(s => s.id === 'implement');
+      const impl = result.playbook.stages.find((s) => s.id === 'implement');
       expect(impl?.type).toBe('sequential');
       if (impl?.type === 'sequential') {
         expect(impl.rules).toHaveLength(1);
@@ -76,12 +76,18 @@ describe('parsePlaybook', () => {
   });
 
   it('fails on missing name', () => {
-    const result = parsePlaybook('description: no name\nstages: []', 'bad.yaml');
+    const result = parsePlaybook(
+      'description: no name\nstages: []',
+      'bad.yaml'
+    );
     expect(result.success).toBe(false);
   });
 
   it('fails on missing stages', () => {
-    const result = parsePlaybook('name: x\ndescription: y\nprompt: z', 'bad.yaml');
+    const result = parsePlaybook(
+      'name: x\ndescription: y\nprompt: z',
+      'bad.yaml'
+    );
     expect(result.success).toBe(false);
   });
 
@@ -105,7 +111,8 @@ stages:
     if (result.success) {
       const stage = result.playbook.stages[0];
       expect(stage.type).toBe('sequential');
-      if (stage.type === 'sequential') expect(stage.trustMode).toBe('prescriptive');
+      if (stage.type === 'sequential')
+        expect(stage.trustMode).toBe('prescriptive');
     }
   });
 
@@ -140,7 +147,9 @@ stages:
     const result = parsePlaybook(yaml, 'parallel-test.yaml');
     expect(result.success).toBe(true);
     if (result.success) {
-      const bundle = result.playbook.stages.find(s => s.id === 'review-bundle');
+      const bundle = result.playbook.stages.find(
+        (s) => s.id === 'review-bundle'
+      );
       expect(bundle?.type).toBe('parallel');
       if (bundle?.type === 'parallel') {
         expect(bundle.children).toHaveLength(2);

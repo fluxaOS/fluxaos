@@ -137,36 +137,43 @@ export const pipelineRun = pgTable('pipeline_run', {
   updatedAt,
 });
 
-export const stageRun = pgTable('stage_run', {
-  id,
-  pipelineRunId: uuid('pipeline_run_id')
-    .notNull()
-    .references(() => pipelineRun.id),
-  pipelineStageId: uuid('pipeline_stage_id')
-    .notNull()
-    .references(() => pipelineStage.id),
-  status: text('status').notNull().default('queued'),
-  provider: text('provider'),
-  model: text('model'),
-  driver: text('driver'),
-  attempt: integer('attempt').notNull().default(1),
-  pid: integer('pid'),
-  exitCode: integer('exit_code'),
-  costUsd: numeric('cost_usd', { precision: 10, scale: 6 }).default('0'),
-  tokensIn: integer('tokens_in').default(0),
-  tokensOut: integer('tokens_out').default(0),
-  skillId: uuid('skill_id').references(() => skill.id),
-  driverId: uuid('driver_id').references(() => driver.id),
-  skillSignal: text('skill_signal'),
-  skillMetadata: jsonb('skill_metadata'),
-  resultDoc: jsonb('result_doc'),
-  trigger: text('trigger').notNull().default('manual'),
-  errorMessage: text('error_message'),
-  startedAt: timestamp('started_at', { withTimezone: true }),
-  completedAt: timestamp('completed_at', { withTimezone: true }),
-  createdAt,
-  updatedAt,
-});
+export const stageRun = pgTable(
+  'stage_run',
+  {
+    id,
+    pipelineRunId: uuid('pipeline_run_id')
+      .notNull()
+      .references(() => pipelineRun.id),
+    pipelineStageId: uuid('pipeline_stage_id')
+      .notNull()
+      .references(() => pipelineStage.id),
+    status: text('status').notNull().default('queued'),
+    provider: text('provider'),
+    model: text('model'),
+    driver: text('driver'),
+    attempt: integer('attempt').notNull().default(1),
+    pid: integer('pid'),
+    exitCode: integer('exit_code'),
+    costUsd: numeric('cost_usd', { precision: 10, scale: 6 }).default('0'),
+    tokensIn: integer('tokens_in').default(0),
+    tokensOut: integer('tokens_out').default(0),
+    skillId: uuid('skill_id').references(() => skill.id),
+    driverId: uuid('driver_id').references(() => driver.id),
+    skillSignal: text('skill_signal'),
+    skillMetadata: jsonb('skill_metadata'),
+    resultDoc: jsonb('result_doc'),
+    trigger: text('trigger').notNull().default('manual'),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    index('stage_run_pipeline_run_id_idx').on(t.pipelineRunId),
+    index('stage_run_pipeline_stage_id_idx').on(t.pipelineStageId),
+  ]
+);
 
 // ─── Gate Results (append-only audit) ──────────────────────────────────────
 
@@ -261,18 +268,22 @@ export const driverRevision = pgTable(
 
 // ─── Event Store (append-only) ──────────────────────────────────────────────
 
-export const event = pgTable('event', {
-  id,
-  stageRunId: uuid('stage_run_id')
-    .notNull()
-    .references(() => stageRun.id),
-  type: text('type').notNull(),
-  payload: jsonb('payload').notNull(),
-  timestamp: timestamp('timestamp', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  createdAt,
-});
+export const event = pgTable(
+  'event',
+  {
+    id,
+    stageRunId: uuid('stage_run_id')
+      .notNull()
+      .references(() => stageRun.id),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull(),
+    timestamp: timestamp('timestamp', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdAt,
+  },
+  (t) => [index('event_stage_run_id_idx').on(t.stageRunId)]
+);
 
 // ─── Issue Catalogs ────────────────────────────────────────────────────────
 
@@ -498,21 +509,30 @@ export const issueEvent = pgTable('issue_event', {
 
 // ─── Issue Entities ────────────────────────────────────────────────────────
 
-export const issueComment = pgTable('issue_comment', {
-  id,
-  issueId: uuid('issue_id')
-    .notNull()
-    .references(() => issue.id, { onDelete: 'cascade' }),
-  commentNumber: integer('comment_number').notNull(),
-  bodyMd: text('body_md'),
-  bodyHtml: text('body_html'),
-  author: text('author'),
-  version: integer('version').notNull().default(1),
-  isDeleted: boolean('is_deleted').notNull().default(false),
-  editedAt: timestamp('edited_at', { withTimezone: true }),
-  createdAt,
-  updatedAt,
-});
+export const issueComment = pgTable(
+  'issue_comment',
+  {
+    id,
+    issueId: uuid('issue_id')
+      .notNull()
+      .references(() => issue.id, { onDelete: 'cascade' }),
+    commentNumber: integer('comment_number').notNull(),
+    bodyMd: text('body_md'),
+    bodyHtml: text('body_html'),
+    author: text('author'),
+    version: integer('version').notNull().default(1),
+    isDeleted: boolean('is_deleted').notNull().default(false),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('issue_comment_issue_id_comment_number_idx').on(
+      t.issueId,
+      t.commentNumber
+    ),
+  ]
+);
 
 // ─── Issue Git Placeholders (no CRUD until R5) ────────────────────────────
 
@@ -595,19 +615,23 @@ export const isolationEnvironment = pgTable(
 
 // ─── Routing ────────────────────────────────────────────────────────────────
 
-export const provider = pgTable('provider', {
-  id,
-  orgId: uuid('org_id')
-    .notNull()
-    .references(() => organization.id),
-  name: text('name').notNull(),
-  type: text('type').notNull(),
-  baseUrl: text('base_url'),
-  apiKeyRef: text('api_key_ref'),
-  isHealthy: boolean('is_healthy').default(true),
-  createdAt,
-  updatedAt,
-});
+export const provider = pgTable(
+  'provider',
+  {
+    id,
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    type: text('type').notNull(),
+    baseUrl: text('base_url'),
+    apiKeyRef: text('api_key_ref'),
+    isHealthy: boolean('is_healthy').default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [uniqueIndex('provider_org_id_name_idx').on(t.orgId, t.name)]
+);
 
 export const model = pgTable('model', {
   id,
