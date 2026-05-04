@@ -46,7 +46,14 @@ const STATE_PLAIN_GREP = "'research'|'implement'|'review'|'deploy'|'complete'";
 // FLX-78 + FLX-79 retired 2026-04-27 — list intentionally empty. Any new
 // vendor-name or stage/state literal in src/core/ fails the build.
 type Allow = { file: string; line: number; reason: string; ticket: string };
-const ALLOWLIST: Allow[] = [];
+const ALLOWLIST: Allow[] = [
+  {
+    file: 'src/core/pipeline/paperwork-executor.ts',
+    line: 52,
+    reason: "'complete' is a routing sentinel (signal issue closure), not a DB stage key",
+    ticket: 'FLX-108',
+  },
+];
 
 interface Hit {
   file: string;

@@ -95,6 +95,8 @@ export const pipeline = pgTable('pipeline', {
   name: text('name').notNull(),
   description: text('description'),
   isDefault: boolean('is_default').default(false),
+  playbookPath: text('playbook_path'),
+  playbookScope: text('playbook_scope'),
   createdAt,
   updatedAt,
 });
@@ -157,6 +159,7 @@ export const stageRun = pgTable('stage_run', {
   driverId: uuid('driver_id').references(() => driver.id),
   skillSignal: text('skill_signal'),
   skillMetadata: jsonb('skill_metadata'),
+  resultDoc: jsonb('result_doc'),
   trigger: text('trigger').notNull().default('manual'),
   errorMessage: text('error_message'),
   startedAt: timestamp('started_at', { withTimezone: true }),

@@ -25,10 +25,14 @@
     "verify:agnostic-core": "tsx src/scripts/verify-agnostic-core.ts",
     "verify:prod-docker": "tsx tests/verify/production-docker-files.ts",
     "daemon": "tsx src/scripts/daemon.ts",
-    "daemon:prod": "node .next/daemon/daemon.mjs"
+    "daemon:prod": "node .next/daemon/daemon.mjs",
+    "pipeline:init-result-doc": "tsx src/scripts/pipeline/init-result-doc.ts",
+    "pipeline:ingest-result-doc": "tsx src/scripts/pipeline/ingest-result-doc.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.0",
+    "@langchain/langgraph": "^1.2.9",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.1",
     "@octokit/rest": "^22.0.1",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.102.1",
@@ -54,6 +58,7 @@
     "@biomejs/biome": "^2.4.10",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

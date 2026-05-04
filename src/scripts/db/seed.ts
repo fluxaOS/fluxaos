@@ -120,7 +120,17 @@ async function seed() {
         name: 'Standard Dev',
         description: 'Research → Implement → Review → Deploy',
         isDefault: true,
+        playbookPath: 'standard-dev',
+        playbookScope: 'bundled',
       })
+      .returning();
+  }
+
+  if (pipe && !pipe.playbookPath) {
+    [pipe] = await db
+      .update(pipeline)
+      .set({ playbookPath: 'standard-dev', playbookScope: 'bundled' })
+      .where(eq(pipeline.id, pipe.id))
       .returning();
   }
   console.log(`  pipeline: ${pipe.name} (${pipe.id})`);
