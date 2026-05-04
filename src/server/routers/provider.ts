@@ -55,17 +55,25 @@ export const providerRouter = router({
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      const ok = await createProviderService(ctx.db).deleteWithVersion(
-        input.id,
-        input.version
-      );
-      if (!ok)
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message:
-            'Optimistic concurrency conflict — provider was modified elsewhere.',
-        });
-      return { id: input.id };
+      return ctx.db.transaction(async (tx) => {
+        const svc = createProviderService(tx);
+        const refs = await svc.countReferences(input.id);
+        if (refs.models > 0) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Cannot delete provider — referenced by ${refs.models} model(s). Remove models first.`,
+          });
+        }
+        const ok = await svc.deleteWithVersion(input.id, input.version);
+        if (!ok) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'Optimistic concurrency conflict — provider was modified elsewhere.',
+          });
+        }
+        return { id: input.id };
+      });
     }),
 
   // Models

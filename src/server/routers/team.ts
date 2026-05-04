@@ -53,16 +53,24 @@ export const teamRouter = router({
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      const ok = await createTeamService(ctx.db).deleteWithVersion(
-        input.id,
-        input.version
-      );
-      if (!ok)
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message:
-            'Optimistic concurrency conflict — team was modified elsewhere.',
-        });
-      return { id: input.id };
+      return ctx.db.transaction(async (tx) => {
+        const svc = createTeamService(tx);
+        const refs = await svc.countReferences(input.id);
+        if (refs.members > 0) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Cannot delete team — referenced by ${refs.members} member(s). Remove members first.`,
+          });
+        }
+        const ok = await svc.deleteWithVersion(input.id, input.version);
+        if (!ok) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'Optimistic concurrency conflict — team was modified elsewhere.',
+          });
+        }
+        return { id: input.id };
+      });
     }),
 });

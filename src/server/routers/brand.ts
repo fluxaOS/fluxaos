@@ -72,16 +72,24 @@ export const brandRouter = router({
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      const ok = await createBrandService(ctx.db).deleteWithVersion(
-        input.id,
-        input.version
-      );
-      if (!ok)
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message:
-            'Optimistic concurrency conflict — brand was modified elsewhere.',
-        });
-      return { id: input.id };
+      return ctx.db.transaction(async (tx) => {
+        const svc = createBrandService(tx);
+        const refs = await svc.countReferences(input.id);
+        if (refs.personas > 0) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Cannot delete brand — referenced by ${refs.personas} persona(s). Remove references first.`,
+          });
+        }
+        const ok = await svc.deleteWithVersion(input.id, input.version);
+        if (!ok) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'Optimistic concurrency conflict — brand was modified elsewhere.',
+          });
+        }
+        return { id: input.id };
+      });
     }),
 });
