@@ -12,6 +12,9 @@ export interface AuditResult {
   comment?: string;
   blockers?: Array<{ title: string; description: string }>;
   artifacts?: string[];
+  meta?: {
+    targetPipeline?: string;
+  };
 }
 
 export function auditResultDoc(
@@ -91,10 +94,15 @@ export function auditResultDoc(
   // Trust mode: prescriptive (default) — use agent verdict directly
   const targetState = doc.verdict === 'pass' ? stage.onPass : stage.onFail;
 
+  const meta: AuditResult['meta'] = doc.meta?.targetPipeline
+    ? { targetPipeline: doc.meta.targetPipeline }
+    : undefined;
+
   return {
     action: 'transition',
     targetState,
     comment: doc.comment,
     artifacts: doc.artifacts,
+    ...(meta !== undefined ? { meta } : {}),
   };
 }

@@ -15,6 +15,7 @@ const MetaSchema = z.object({
   model: z.string().optional(),
   input_tokens: z.number().optional(),
   output_tokens: z.number().optional(),
+  targetPipeline: z.string().optional(),
 });
 
 export const ResultDocSchema = z.object({
