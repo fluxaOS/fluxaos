@@ -33,9 +33,11 @@ jobs:
 
       - name: Get changed files
         id: changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin ${{ github.base_ref }}
-          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          git fetch origin "$BASE_REF"
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD")
           DELIMITER="CHANGED_FILES_$(openssl rand -hex 8)"
           echo "files<<${DELIMITER}" >> "$GITHUB_OUTPUT"
           echo "${CHANGED}" >> "$GITHUB_OUTPUT"
@@ -43,8 +45,10 @@ jobs:
 
       - name: Get PR diff
         id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          DIFF=$(git diff "origin/${{ github.base_ref }}...HEAD" -- 'src/**')
+          DIFF=$(git diff "origin/${BASE_REF}...HEAD" -- 'src/**')
           DELIMITER="PR_DIFF_$(openssl rand -hex 8)"
           echo "diff<<${DELIMITER}" >> "$GITHUB_OUTPUT"
           echo "${DIFF}" >> "$GITHUB_OUTPUT"

@@ -129,7 +129,8 @@ try {
   });
 
   const data = await response.json();
-  const text = data.content?.[0]?.text || '';
+  const raw = data.content?.[0]?.text || '';
+  const text = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
   const result = JSON.parse(text);
 
   if (result.changed && result.pages.length > 0) {
