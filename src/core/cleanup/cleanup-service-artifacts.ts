@@ -24,21 +24,6 @@ export type ArtifactsSafetyReason =
   | 'retention-not-reached';
 
 /**
- * R-ARTIFACTS W4 — parse artifacts retention days.
- *
- * Positive integer day-count, or null when unset/unparseable. Callers treat
- * null as "feature disabled — skip the sweep" (no invented defaults; see
- * AGENT_BEHAVIOR.md).
- */
-export function parseArtifactsRetentionDays(): number | null {
-  const raw = process.env.FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS;
-  if (!raw) return null;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-/**
  * Gate for artifact-dir reap. The directory basename IS the pipeline_run
  * id, so we decide from (a) pipeline_run status and (b) the mtime age passed
  * by the caller (who already stat'd the dir).
@@ -47,11 +32,15 @@ export function parseArtifactsRetentionDays(): number | null {
  *   - 'active-run'             — pipeline_run exists, status non-terminal
  *   - 'retention-not-reached'  — terminal (or row missing) but ageMs < window
  *   - 'stale'                  — terminal/missing AND ageMs >= window
+ *
+ * `retentionDays` must be provided by the caller (injected from FluxaosConfig
+ * via CleanupService). Passing undefined/null disables the gate defensively.
  */
 export async function isArtifactsSafeToRemove(
   db: Database,
   runId: string,
-  ageMs: number
+  ageMs: number,
+  retentionDays?: number
 ): Promise<ArtifactsSafetyReason> {
   const [run] = await db
     .select({ status: pipelineRun.status })
@@ -63,8 +52,7 @@ export async function isArtifactsSafeToRemove(
     return 'active-run';
   }
 
-  const retentionDays = parseArtifactsRetentionDays();
-  if (retentionDays === null) {
+  if (retentionDays === undefined || retentionDays === null) {
     // Defensive: the sweep-level caller checks first, but guard here too.
     return 'retention-not-reached';
   }
@@ -139,10 +127,10 @@ export async function sweepArtifacts(
   db: Database,
   logger: CleanupLogger,
   git: CleanupGitHelpers,
-  report: CleanupReport
+  report: CleanupReport,
+  retentionDays?: number
 ): Promise<void> {
-  const retentionDays = parseArtifactsRetentionDays();
-  if (retentionDays === null) {
+  if (retentionDays === undefined || retentionDays === null) {
     logger.warn(
       { envVar: 'FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS' },
       'cleanup.artifacts.skipped.missing_env'
@@ -172,7 +160,12 @@ export async function sweepArtifacts(
       try {
         const mtime = await git.getArtifactsDirAge(dir);
         const ageMs = now - mtime.getTime();
-        const verdict = await isArtifactsSafeToRemove(db, runId, ageMs);
+        const verdict = await isArtifactsSafeToRemove(
+          db,
+          runId,
+          ageMs,
+          retentionDays
+        );
         if (verdict !== 'stale') {
           report.skipped.push({
             envId: `artifacts:${runId}`,

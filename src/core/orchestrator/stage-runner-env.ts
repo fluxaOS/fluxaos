@@ -80,6 +80,11 @@ interface AcquireEnvInput {
    */
   issueId: string | null;
   issueNumber?: number | null;
+  /**
+   * Absolute path to the on-disk clone of the target repo. Injected from
+   * FluxaosConfig so core code never reads process.env directly.
+   */
+  targetRepoPath?: string;
 }
 
 /**
@@ -137,7 +142,7 @@ export async function acquireIsolationEnv(
     );
   }
 
-  const targetRepoPath = process.env.FLUXAOS_TARGET_REPO_PATH;
+  const targetRepoPath = input.targetRepoPath;
   if (!targetRepoPath) {
     throw new TargetRepoPathMissingError();
   }

@@ -25,6 +25,7 @@ import {
   isBranchMerged,
 } from '@/adapters/git/worktree';
 import { bootstrap } from '@/config/bootstrap';
+import { loadFluxaosConfig } from '@/config/env';
 import { registry } from '@/config/registry';
 import {
   type CleanupScheduler,
@@ -136,6 +137,7 @@ async function drainRunningStageRuns(
 export async function createDaemon(): Promise<Daemon> {
   loadDaemonEnvFiles();
   const env = parseEnv();
+  const fluxaosConfig = loadFluxaosConfig();
   bootstrap();
 
   consoleLogger.info({
@@ -189,7 +191,9 @@ export async function createDaemon(): Promise<Daemon> {
     executor,
     realtime,
     isolation,
-    terminalHook
+    terminalHook,
+    {},
+    fluxaosConfig
   );
 
   const cleanupService = createCleanupService({
@@ -205,6 +209,8 @@ export async function createDaemon(): Promise<Daemon> {
       getArtifactsDirAge,
       getArtifactsBase,
     },
+    cleanupStaleDays: fluxaosConfig.cleanupStaleDays,
+    cleanupArtifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,
   });
 
   const cleanupScheduler = createCleanupScheduler({
