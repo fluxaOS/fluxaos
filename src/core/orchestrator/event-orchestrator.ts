@@ -301,8 +301,12 @@ export function createEventOrchestrator(
           );
 
           if (!driverRow?.binary) {
+            const parallelNote =
+              playbookStage && isParallelGroup(playbookStage)
+                ? ` (parallel group — all children share the parent stage driver; ensure stage.driverId is set)`
+                : '';
             console.error(
-              `[orchestrator] playbook stage has no driver binary configured (stageRunId: ${sRun.id})`
+              `[orchestrator] playbook stage has no driver binary configured (stageRunId: ${sRun.id})${parallelNote}`
             );
             await finishRun(run, PIPELINE_RUN_STATUS.failed);
             return;
@@ -391,7 +395,7 @@ export function createEventOrchestrator(
               parallelResult.childResults.map((cr) =>
                 runService.completeStageRun(
                   cr.stageRunId,
-                  cr.error
+                  cr.error || cr.verdict === 'fail'
                     ? STAGE_RUN_STATUS.failed
                     : STAGE_RUN_STATUS.completed,
                   {}

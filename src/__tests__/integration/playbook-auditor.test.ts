@@ -188,3 +188,56 @@ describe('auditResultDoc', () => {
     expect(result.targetState).toBe('blocked');
   });
 });
+
+describe('parallel group stage', () => {
+  const playbookWithParallel: Playbook = {
+    name: 'parallel-test',
+    description: 'Test parallel routing',
+    prompt: 'Test',
+    stages: [
+      {
+        type: 'parallel',
+        id: 'dual-review',
+        children: [
+          { id: 'review-a', skill: 'review' },
+          { id: 'review-b', skill: 'review' },
+        ],
+        aggregation: 'all-pass',
+        onPass: 'deploy',
+        onFail: 'rework',
+        fallback: 'blocked',
+        rules: [],
+      },
+    ],
+  };
+
+  const passDoc: ResultDoc = {
+    ...baseDoc,
+    verdict: 'pass',
+    run: { ...baseDoc.run, stage: 'dual-review' },
+  };
+
+  const failDoc: ResultDoc = {
+    ...passDoc,
+    verdict: 'fail',
+    summary: 'One or more reviewers failed.',
+  };
+
+  it('routes pass verdict to onPass state', () => {
+    const result = auditResultDoc(playbookWithParallel, 'dual-review', passDoc);
+    expect(result.action).toBe('transition');
+    expect(result.targetState).toBe('deploy');
+  });
+
+  it('routes fail verdict to onFail state', () => {
+    const result = auditResultDoc(playbookWithParallel, 'dual-review', failDoc);
+    expect(result.action).toBe('transition');
+    expect(result.targetState).toBe('rework');
+  });
+
+  it('routes to fallback when result doc is null', () => {
+    const result = auditResultDoc(playbookWithParallel, 'dual-review', null);
+    expect(result.action).toBe('fallback');
+    expect(result.targetState).toBe('blocked');
+  });
+});

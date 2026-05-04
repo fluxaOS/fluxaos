@@ -207,6 +207,18 @@ describe('runParallelExecutor', () => {
       expect(result.childResults[0].error).toContain('crash');
     });
 
+    it('exposes verdict: fail on childResults when child returns fail verdict with no error', async () => {
+      mockRunStageGraph
+        .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') })
+        .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
+
+      const result = await runParallelExecutor(BASE_INPUT);
+
+      expect(result.childResults[0].verdict).toBe('fail');
+      expect(result.childResults[0].error).toBeUndefined();
+      expect(result.childResults[1].verdict).toBe('pass');
+    });
+
     it('runs all children even when some fail (Promise.allSettled)', async () => {
       mockRunStageGraph
         .mockRejectedValueOnce(new Error('crash'))
