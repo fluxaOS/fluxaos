@@ -5,7 +5,7 @@ import { pipelineRun, stageGateResult, stageRun } from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 import { listIssueRunsWithStages } from './pipeline-run-history';
 
 export const pipelineRouter = router({
@@ -19,11 +19,9 @@ export const pipelineRouter = router({
       return createPipelineService(ctx.db).listByProject(input.projectId);
     }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createPipelineService(ctx.db).getById(input.id);
-    }),
+  getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
+    return createPipelineService(ctx.db).getById(input.id);
+  }),
 
   create: publicProcedure
     .input(
@@ -52,11 +50,9 @@ export const pipelineRouter = router({
       return createPipelineService(ctx.db).update(id, data);
     }),
 
-  delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(({ ctx, input }) => {
-      return createPipelineService(ctx.db).remove(input.id);
-    }),
+  delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+    return createPipelineService(ctx.db).remove(input.id);
+  }),
 
   // Stages
   stages: router({
@@ -109,11 +105,9 @@ export const pipelineRouter = router({
         return createPipelineService(ctx.db).stages.update(id, data);
       }),
 
-    delete: publicProcedure
-      .input(z.object({ id: z.string().uuid() }))
-      .mutation(({ ctx, input }) => {
-        return createPipelineService(ctx.db).stages.remove(input.id);
-      }),
+    delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+      return createPipelineService(ctx.db).stages.remove(input.id);
+    }),
   }),
 
   // ─── Pipeline Runs ──────────────────────────────────────────────────────
@@ -162,42 +156,40 @@ export const pipelineRouter = router({
       }),
 
     /** Get a pipeline run by ID with enriched stage runs (stage name, events). */
-    get: publicProcedure
-      .input(z.object({ id: z.string().uuid() }))
-      .query(async ({ ctx, input }) => {
-        const { pipelineStage } = await import('@/core/db/schema');
-        const svc = createPipelineRunService(ctx.db);
-        const run = await svc.getRun(input.id);
-        if (!run) return null;
+    get: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
+      const { pipelineStage } = await import('@/core/db/schema');
+      const svc = createPipelineRunService(ctx.db);
+      const run = await svc.getRun(input.id);
+      if (!run) return null;
 
-        const rawStageRuns = await svc.getStageRuns(input.id);
+      const rawStageRuns = await svc.getStageRuns(input.id);
 
-        // Enrich each stage run with stage definition + events
-        const enrichedStageRuns = await Promise.all(
-          rawStageRuns.map(async (sr) => {
-            const [stageDef] = await ctx.db
-              .select()
-              .from(pipelineStage)
-              .where(eq(pipelineStage.id, sr.pipelineStageId));
+      // Enrich each stage run with stage definition + events
+      const enrichedStageRuns = await Promise.all(
+        rawStageRuns.map(async (sr) => {
+          const [stageDef] = await ctx.db
+            .select()
+            .from(pipelineStage)
+            .where(eq(pipelineStage.id, sr.pipelineStageId));
 
-            const events = await svc.listEvents(sr.id);
+          const events = await svc.listEvents(sr.id);
 
-            return {
-              ...sr,
-              pipelineStage: stageDef
-                ? {
-                    name: stageDef.name,
-                    sortOrder: stageDef.sortOrder,
-                    gateMode: stageDef.gateMode,
-                  }
-                : null,
-              events,
-            };
-          })
-        );
+          return {
+            ...sr,
+            pipelineStage: stageDef
+              ? {
+                  name: stageDef.name,
+                  sortOrder: stageDef.sortOrder,
+                  gateMode: stageDef.gateMode,
+                }
+              : null,
+            events,
+          };
+        })
+      );
 
-        return { ...run, stageRuns: enrichedStageRuns };
-      }),
+      return { ...run, stageRuns: enrichedStageRuns };
+    }),
 
     /** List pipeline runs for a pipeline. */
     list: publicProcedure
@@ -251,7 +243,7 @@ export const pipelineRouter = router({
 
     /** Cancel a pipeline run. */
     cancel: publicProcedure
-      .input(z.object({ id: z.string().uuid() }))
+      .input(inputId())
       .mutation(async ({ ctx, input }) => {
         const svc = createPipelineRunService(ctx.db);
         // Cancel all non-terminal stage runs

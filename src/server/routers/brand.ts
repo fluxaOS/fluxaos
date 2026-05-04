@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { createBrandService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -21,7 +21,7 @@ export const brandRouter = router({
     ),
 
   getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .query(({ ctx, input }) => createBrandService(ctx.db).getById(input.id)),
 
   create: publicProcedure
@@ -58,6 +58,6 @@ export const brandRouter = router({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) => createBrandService(ctx.db).remove(input.id)),
 });

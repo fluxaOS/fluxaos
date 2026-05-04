@@ -1,5 +1,6 @@
-import { and, count, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
+import { nextRevisionNumber } from '@/core/db/revision';
 import {
   personaSkill,
   pipelineStage,
@@ -189,11 +190,11 @@ async function snapshotSkillRevision(
 ): Promise<void> {
   await db.insert(skillRevision).values({
     skillId: row.id,
-    revisionNumber: sql<number>`(
-      SELECT COALESCE(MAX(${skillRevision.revisionNumber}), 0) + 1
-      FROM ${skillRevision}
-      WHERE ${skillRevision.skillId} = ${row.id}
-    )`,
+    revisionNumber: nextRevisionNumber(
+      skillRevision,
+      skillRevision.skillId,
+      row.id
+    ),
     name: row.name,
     scope: row.scope,
     description: row.description,

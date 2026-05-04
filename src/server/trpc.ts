@@ -11,6 +11,7 @@
  */
 import { initTRPC, TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod/v4';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
 import type { Database } from '@/core/db/connection';
@@ -113,6 +114,9 @@ const t = initTRPC.context<TRPCContext>().create();
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
+
+/** Shared input shape for single-record lookups by UUID primary key. */
+export const inputId = () => z.object({ id: z.string().uuid() });
 
 /**
  * FLX-12 — wrap a procedure with a role gate. Throws FORBIDDEN if the

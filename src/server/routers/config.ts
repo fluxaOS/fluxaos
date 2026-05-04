@@ -1,19 +1,22 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createConfigService } from '@/core/services/config';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const configRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
     return createConfigService(ctx.db).list();
   }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const row = await createConfigService(ctx.db).getById(input.id);
-      if (!row) throw new Error(`Config entry not found: ${input.id}`);
-      return row;
-    }),
+  getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
+    const row = await createConfigService(ctx.db).getById(input.id);
+    if (!row)
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: `Config entry not found: ${input.id}`,
+      });
+    return row;
+  }),
 
   create: publicProcedure
     .input(

@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { TIER_VALUES } from '@/core/features/tiers';
 import { createOrganizationService } from '@/core/services';
-import { protectedMutation, publicProcedure, router } from '../trpc';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 const tierEnum = z.enum(TIER_VALUES as readonly [string, ...string[]]);
 
@@ -11,11 +11,9 @@ export const organizationRouter = router({
     return createOrganizationService(ctx.db).list();
   }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createOrganizationService(ctx.db).getById(input.id);
-    }),
+  getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
+    return createOrganizationService(ctx.db).getById(input.id);
+  }),
 
   getBySlug: publicProcedure
     .input(z.object({ slug: z.string() }))
@@ -57,7 +55,7 @@ export const organizationRouter = router({
     }),
 
   delete: protectedMutation(DELETE_ROLES)
-    .input(z.object({ id: z.string().uuid() }))
+    .input(inputId())
     .mutation(({ ctx, input }) => {
       return createOrganizationService(ctx.db).remove(input.id);
     }),

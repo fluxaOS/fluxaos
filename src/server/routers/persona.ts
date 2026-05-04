@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { personaSkill, skill } from '@/core/db/schema';
 import { createPersonaService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const personaRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -19,11 +19,9 @@ export const personaRouter = router({
     return createPersonaService(ctx.db).listGlobal();
   }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createPersonaService(ctx.db).getById(input.id);
-    }),
+  getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
+    return createPersonaService(ctx.db).getById(input.id);
+  }),
 
   create: publicProcedure
     .input(
@@ -58,11 +56,9 @@ export const personaRouter = router({
       return createPersonaService(ctx.db).update(id, data);
     }),
 
-  delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(({ ctx, input }) => {
-      return createPersonaService(ctx.db).remove(input.id);
-    }),
+  delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+    return createPersonaService(ctx.db).remove(input.id);
+  }),
 
   /** List skills attached to a persona. */
   skills: publicProcedure

@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createPipelineService, createProjectService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
   list: publicProcedure.query(({ ctx }) => {
@@ -20,11 +20,9 @@ export const projectRouter = router({
       return createProjectService(ctx.db).listByUser(input.userId);
     }),
 
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createProjectService(ctx.db).getById(input.id);
-    }),
+  getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
+    return createProjectService(ctx.db).getById(input.id);
+  }),
 
   getBySlug: publicProcedure
     .input(z.object({ slug: z.string().min(1) }))
@@ -63,11 +61,9 @@ export const projectRouter = router({
       return createProjectService(ctx.db).update(id, data);
     }),
 
-  delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(({ ctx, input }) => {
-      return createProjectService(ctx.db).remove(input.id);
-    }),
+  delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+    return createProjectService(ctx.db).remove(input.id);
+  }),
 
   /**
    * Set (or clear) the project's default pipeline. Validates the

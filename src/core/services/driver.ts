@@ -1,5 +1,7 @@
+import { TRPCError } from '@trpc/server';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
+import { nextRevisionNumber } from '@/core/db/revision';
 import {
   driver,
   driverRevision,
@@ -66,11 +68,11 @@ async function snapshotDriverRevision(
 ): Promise<void> {
   await db.insert(driverRevision).values({
     driverId: row.id,
-    revisionNumber: sql<number>`(
-      SELECT COALESCE(MAX(${driverRevision.revisionNumber}), 0) + 1
-      FROM ${driverRevision}
-      WHERE ${driverRevision.driverId} = ${row.id}
-    )`,
+    revisionNumber: nextRevisionNumber(
+      driverRevision,
+      driverRevision.driverId,
+      row.id
+    ),
     name: row.name,
     slug: row.slug,
     binary: row.binary,
@@ -249,7 +251,11 @@ export function createDriverService(db: Database) {
             .select({ version: driver.version })
             .from(driver)
             .where(eq(driver.id, id));
-          if (!exists) throw new Error(`Driver not found: ${id}`);
+          if (!exists)
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: `Driver not found: ${id}`,
+            });
           throw new Error('Optimistic concurrency conflict');
         }
         return row;

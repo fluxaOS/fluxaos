@@ -8,12 +8,11 @@
  */
 import { z } from 'zod/v4';
 import { createIssueCatalogService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { inputId, publicProcedure, router } from '../trpc';
 
 // ─── Reusable input schemas ──────────────────────────────────────────────────
 
 const projectIdInput = z.object({ projectId: z.string().uuid() });
-const idInput = z.object({ id: z.string().uuid() });
 
 const typeInput = z.object({
   projectId: z.string().uuid(),
@@ -81,13 +80,13 @@ export const issueCatalogRouter = router({
         createIssueCatalogService(ctx.db).types.create(input)
       ),
     update: publicProcedure
-      .input(idInput.merge(typeInput.partial()))
+      .input(inputId().merge(typeInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).types.update(id, data);
       }),
     deactivate: publicProcedure
-      .input(idInput)
+      .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).types.deactivate(input.id)
       ),
@@ -111,13 +110,13 @@ export const issueCatalogRouter = router({
         createIssueCatalogService(ctx.db).states.create(input)
       ),
     update: publicProcedure
-      .input(idInput.merge(stateInput.partial()))
+      .input(inputId().merge(stateInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).states.update(id, data);
       }),
     deactivate: publicProcedure
-      .input(idInput)
+      .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).states.deactivate(input.id)
       ),
@@ -141,13 +140,13 @@ export const issueCatalogRouter = router({
         createIssueCatalogService(ctx.db).statuses.create(input)
       ),
     update: publicProcedure
-      .input(idInput.merge(statusInput.partial()))
+      .input(inputId().merge(statusInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).statuses.update(id, data);
       }),
     deactivate: publicProcedure
-      .input(idInput)
+      .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).statuses.deactivate(input.id)
       ),
@@ -171,13 +170,13 @@ export const issueCatalogRouter = router({
         createIssueCatalogService(ctx.db).priorities.create(input)
       ),
     update: publicProcedure
-      .input(idInput.merge(priorityInput.partial()))
+      .input(inputId().merge(priorityInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).priorities.update(id, data);
       }),
     deactivate: publicProcedure
-      .input(idInput)
+      .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).priorities.deactivate(input.id)
       ),
@@ -201,13 +200,13 @@ export const issueCatalogRouter = router({
         createIssueCatalogService(ctx.db).labels.create(input)
       ),
     update: publicProcedure
-      .input(idInput.merge(labelInput.partial()))
+      .input(inputId().merge(labelInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).labels.update(id, data);
       }),
     deactivate: publicProcedure
-      .input(idInput)
+      .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).labels.deactivate(input.id)
       ),
@@ -234,7 +233,7 @@ export const issueCatalogRouter = router({
         createIssueCatalogService(ctx.db).transitions.create(input)
       ),
     delete: publicProcedure
-      .input(idInput)
+      .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).transitions.delete(input.id)
       ),
