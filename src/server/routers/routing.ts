@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createRoutingService } from '@/core/services';
 import { publicProcedure, router } from '../trpc';
@@ -28,21 +29,53 @@ export const routingRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        version: z.number().int(),
         name: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
         isDefault: z.boolean().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const { id, ...patch } = input;
-      return createRoutingService(ctx.db).update(id, patch);
+    .mutation(async ({ ctx, input }) => {
+      const { id, version, ...patch } = input;
+      const row = await createRoutingService(ctx.db).updateWithVersion(
+        id,
+        version,
+        patch
+      );
+      if (!row)
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Optimistic concurrency conflict',
+        });
+      return row;
     }),
 
   deleteProfile: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(({ ctx, input }) =>
-      createRoutingService(ctx.db).remove(input.id)
-    ),
+    .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.transaction(async (tx) => {
+        const svc = createRoutingService(tx);
+
+        // FK guard: reject if any persona still references this profile
+        const refs = await svc.countReferences(input.id);
+        if (refs.personas > 0) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Cannot delete routing profile — referenced by ${refs.personas} persona(s). Remove references first.`,
+          });
+        }
+
+        const ok = await svc.deleteWithVersion(input.id, input.version);
+        if (!ok) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'Optimistic concurrency conflict — routing profile was modified elsewhere.',
+          });
+        }
+        return { id: input.id };
+      });
+    }),
 
   // Rules
   listRules: publicProcedure

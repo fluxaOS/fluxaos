@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { personaSkill, skill } from '@/core/db/schema';
@@ -46,6 +47,7 @@ export const personaRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        version: z.number().int(),
         name: z.string().min(1).optional(),
         soul: z.string().optional(),
         identity: z.unknown().optional(),
@@ -53,15 +55,46 @@ export const personaRouter = router({
         routingProfileId: z.string().uuid().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const { id, ...data } = input;
-      return createPersonaService(ctx.db).update(id, data);
+    .mutation(async ({ ctx, input }) => {
+      const { id, version, ...data } = input;
+      const row = await createPersonaService(ctx.db).updateWithVersion(
+        id,
+        version,
+        data
+      );
+      if (!row)
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Optimistic concurrency conflict',
+        });
+      return row;
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(({ ctx, input }) => {
-      return createPersonaService(ctx.db).remove(input.id);
+    .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.db.transaction(async (tx) => {
+        const svc = createPersonaService(tx);
+
+        // FK guard: reject with a meaningful message if anything still points here
+        const refs = await svc.countReferences(input.id);
+        if (refs.pipelineStages > 0) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Cannot delete persona — referenced by ${refs.pipelineStages} pipeline stage(s). Remove references first.`,
+          });
+        }
+
+        const ok = await svc.deleteWithVersion(input.id, input.version);
+        if (!ok) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'Optimistic concurrency conflict — persona was modified elsewhere.',
+          });
+        }
+        return { id: input.id };
+      });
     }),
 
   /** List skills attached to a persona. */

@@ -7,6 +7,7 @@ import { trpc } from '@/lib/trpc/client';
 
 type Profile = {
   id: string;
+  version: number;
   name: string;
   description: string | null;
   isDefault: boolean;
@@ -103,6 +104,7 @@ export default function RoutingSettingsPage() {
                     </button>
                     <DeleteProfileButton
                       profileId={p.id}
+                      profileVersion={p.version}
                       onDeleted={() => utils.routing.listProfiles.invalidate()}
                     />
                   </div>
@@ -201,6 +203,7 @@ function EditProfileForm({
         if (!name.trim()) return;
         updateMutation.mutate({
           id: profile.id,
+          version: profile.version,
           name: name.trim(),
           description: description.trim() || null,
         });
@@ -247,9 +250,11 @@ function EditProfileForm({
 
 function DeleteProfileButton({
   profileId,
+  profileVersion,
   onDeleted,
 }: {
   profileId: string;
+  profileVersion: number;
   onDeleted: () => void;
 }) {
   const deleteMutation = trpc.routing.deleteProfile.useMutation({
@@ -261,7 +266,7 @@ function DeleteProfileButton({
       type="button"
       onClick={() => {
         if (confirm('Delete this routing profile?')) {
-          deleteMutation.mutate({ id: profileId });
+          deleteMutation.mutate({ id: profileId, version: profileVersion });
         }
       }}
       disabled={deleteMutation.isPending}

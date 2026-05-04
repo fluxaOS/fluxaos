@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createProviderService } from '@/core/services';
 import { publicProcedure, router } from '../trpc';
@@ -29,22 +30,43 @@ export const providerRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        version: z.number().int(),
         name: z.string().min(1).optional(),
         type: z.string().min(1).optional(),
         baseUrl: z.string().optional(),
         apiKeyRef: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const { id, ...data } = input;
-      return createProviderService(ctx.db).update(id, data);
+    .mutation(async ({ ctx, input }) => {
+      const { id, version, ...data } = input;
+      const row = await createProviderService(ctx.db).updateWithVersion(
+        id,
+        version,
+        data
+      );
+      if (!row)
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Optimistic concurrency conflict',
+        });
+      return row;
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(({ ctx, input }) =>
-      createProviderService(ctx.db).remove(input.id)
-    ),
+    .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      const ok = await createProviderService(ctx.db).deleteWithVersion(
+        input.id,
+        input.version
+      );
+      if (!ok)
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message:
+            'Optimistic concurrency conflict — provider was modified elsewhere.',
+        });
+      return { id: input.id };
+    }),
 
   // Models
   listModels: publicProcedure

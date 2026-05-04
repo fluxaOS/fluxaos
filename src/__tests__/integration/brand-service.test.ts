@@ -141,6 +141,7 @@ describe('brand router', () => {
 
     const updated = await caller.brand.update({
       id: created.id,
+      version: created.version,
       name: `Router Brand Updated ${RUN}`,
       toneOfVoice: 'Updated router tone',
       styleGuide: 'Updated router style',
@@ -161,8 +162,11 @@ describe('brand router', () => {
     });
     expect(updatedProject?.brandId).toBe(created.id);
 
-    const deleted = await caller.brand.delete({ id: created.id });
-    expect(deleted).toBe(true);
+    const deleted = await caller.brand.delete({
+      id: created.id,
+      version: updated.version,
+    });
+    expect(deleted).toEqual({ id: created.id });
     removeCleanup('brand', created.id);
   });
 });

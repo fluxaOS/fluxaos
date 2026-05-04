@@ -1,13 +1,13 @@
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { brand } from '@/core/db/schema';
-import { createCrudService } from './crud-factory';
+import { createVersionedCrudService } from './crud-factory';
 
 type BrandInsert = typeof brand.$inferInsert;
 type BrandSelect = typeof brand.$inferSelect;
 
 export function createBrandService(db: Database) {
-  const crud = createCrudService<BrandInsert, BrandSelect>(db, brand);
+  const crud = createVersionedCrudService<BrandInsert, BrandSelect>(db, brand);
 
   return {
     ...crud,
