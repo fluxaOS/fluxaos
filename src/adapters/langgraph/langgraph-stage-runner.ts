@@ -11,6 +11,8 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_STAGE_TIMEOUT_SEC = 7200;
+
 export interface StageGraphInput {
   stageRunId: string;
   resultDocPath: string;
@@ -74,7 +76,7 @@ async function executeNode(
 
     await execFileAsync(state.driverCommand, state.driverArgs, {
       env: agentEnv,
-      timeout: 2 * 60 * 60 * 1000, // 2 hours max
+      timeout: DEFAULT_STAGE_TIMEOUT_SEC * 1000,
     });
 
     return { executed: true };
