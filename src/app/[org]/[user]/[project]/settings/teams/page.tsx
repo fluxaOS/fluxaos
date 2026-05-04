@@ -1,14 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { EmptyState } from '@/components/empty-state';
+import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
+import { RecordEditor } from '@/components/record-editor/RecordEditor';
+import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
 import { trpc } from '@/lib/trpc/client';
+import { type TeamRecord, teamDescriptor } from './descriptor';
 
 export default function TeamsSettingsPage() {
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
 
   const orgsQuery = trpc.organization.list.useQuery();
   const orgId = orgsQuery.data?.[0]?.id;
@@ -22,240 +26,112 @@ export default function TeamsSettingsPage() {
     { projectId: projectId! },
     { enabled: !!projectId }
   );
-  const teams = teamsQuery.data ?? [];
+  const records = (teamsQuery.data ?? []) as unknown as TeamRecord[];
+
+  const updateMutation = trpc.team.update.useMutation();
+  const deleteMutation = trpc.team.delete.useMutation();
+  const createMutation = trpc.team.create.useMutation();
+
+  const canEdit = useCanEdit();
+  const canDelete = useCanDelete();
+
+  const onSave = async (
+    id: string,
+    patch: Partial<TeamRecord>,
+    expectedVersion: number
+  ) => {
+    await updateMutation.mutateAsync({
+      id,
+      version: expectedVersion,
+      ...(patch as Record<string, unknown>),
+    });
+    await utils.team.listByProject.invalidate();
+  };
+
+  const onDelete = async (id: string, expectedVersion: number) => {
+    await deleteMutation.mutateAsync({ id, version: expectedVersion });
+    await utils.team.listByProject.invalidate();
+  };
+
+  const onCreate = async () => {
+    if (!newName.trim() || !projectId) return;
+    await createMutation.mutateAsync({
+      projectId,
+      name: newName.trim(),
+      description: newDescription.trim() || undefined,
+    });
+    setNewName('');
+    setNewDescription('');
+    setShowCreate(false);
+    await utils.team.listByProject.invalidate();
+  };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Teams"
-        action={
-          projectId ? (
+    <div className="space-y-5">
+      <PageHeader title="Teams" />
+
+      {projectId ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all"
+            onClick={() => setShowCreate((v) => !v)}
+          >
+            {showCreate ? 'Cancel New Team' : 'New Team'}
+          </button>
+        </div>
+      ) : null}
+
+      {showCreate ? (
+        <Card padding="p-6">
+          <h3 className="text-sm font-semibold text-white mb-3">New Team</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                aria-label="Team name"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 block mb-1">
+                Description
+              </label>
+              <input
+                aria-label="Team description"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </div>
             <button
               type="button"
-              onClick={() => setShowCreate(!showCreate)}
-              className="px-4 py-2 bg-electric-violet hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.3)]"
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
+              disabled={!newName.trim() || createMutation.isPending}
+              onClick={onCreate}
             >
-              {showCreate ? 'Cancel' : 'New Team'}
+              Create
             </button>
-          ) : undefined
-        }
+          </div>
+        </Card>
+      ) : null}
+
+      <RecordEditor<TeamRecord>
+        descriptor={teamDescriptor}
+        records={records}
+        isLoading={teamsQuery.isLoading}
+        onSave={onSave}
+        onDelete={onDelete}
+        onRefresh={async () => {
+          await utils.team.listByProject.invalidate();
+        }}
+        canEdit={() => canEdit}
+        canDelete={() => canDelete}
       />
-
-      {showCreate && projectId && (
-        <CreateTeamForm
-          projectId={projectId}
-          onCreated={async () => {
-            setShowCreate(false);
-            await utils.team.listByProject.invalidate();
-          }}
-        />
-      )}
-
-      {teams.length === 0 ? (
-        <EmptyState title="No teams configured" />
-      ) : (
-        <ul className="space-y-3">
-          {teams.map((t) => (
-            <li key={t.id} className="card-static p-4">
-              {editingId === t.id ? (
-                <EditTeamForm
-                  team={t}
-                  onSaved={async () => {
-                    setEditingId(null);
-                    await utils.team.listByProject.invalidate();
-                  }}
-                  onCancel={() => setEditingId(null)}
-                />
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-medium">{t.name}</span>
-                    {t.description && (
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {t.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(t.id)}
-                      className="text-xs text-slate-400 hover:text-slate-300"
-                    >
-                      Edit
-                    </button>
-                    <DeleteTeamButton
-                      teamId={t.id}
-                      teamVersion={t.version}
-                      onDeleted={() => utils.team.listByProject.invalidate()}
-                    />
-                  </div>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
-  );
-}
-
-function CreateTeamForm({
-  projectId,
-  onCreated,
-}: {
-  projectId: string;
-  onCreated: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-
-  const createMutation = trpc.team.create.useMutation({
-    onSuccess: () => onCreated(),
-  });
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        createMutation.mutate({
-          projectId,
-          name: name.trim(),
-          description: description.trim() || undefined,
-        });
-      }}
-      className="card-static p-4 flex gap-3 items-end"
-    >
-      <label className="flex-1">
-        <span className="text-xs text-slate-400">Name</span>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-label="Team name"
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-        />
-      </label>
-      <label className="flex-1">
-        <span className="text-xs text-slate-400">Description</span>
-        <input
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          aria-label="Team description"
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={!name.trim() || createMutation.isPending}
-        className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
-      >
-        {createMutation.isPending ? 'Creating…' : 'Create'}
-      </button>
-    </form>
-  );
-}
-
-function EditTeamForm({
-  team,
-  onSaved,
-  onCancel,
-}: {
-  team: {
-    id: string;
-    version: number;
-    name: string;
-    description: string | null;
-  };
-  onSaved: () => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState(team.name);
-  const [description, setDescription] = useState(team.description ?? '');
-
-  const updateMutation = trpc.team.update.useMutation({
-    onSuccess: () => onSaved(),
-  });
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        updateMutation.mutate({
-          id: team.id,
-          version: team.version,
-          name: name.trim(),
-          description: description.trim() || null,
-        });
-      }}
-      className="flex gap-3 items-end"
-    >
-      <label className="flex-1">
-        <span className="text-xs text-slate-400">Name</span>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-label="Team name"
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-        />
-      </label>
-      <label className="flex-1">
-        <span className="text-xs text-slate-400">Description</span>
-        <input
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          aria-label="Team description"
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={!name.trim() || updateMutation.isPending}
-        className="px-3 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
-      >
-        Save
-      </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="px-3 py-1.5 text-slate-400 text-sm"
-      >
-        Cancel
-      </button>
-    </form>
-  );
-}
-
-function DeleteTeamButton({
-  teamId,
-  teamVersion,
-  onDeleted,
-}: {
-  teamId: string;
-  teamVersion: number;
-  onDeleted: () => void;
-}) {
-  const deleteMutation = trpc.team.delete.useMutation({
-    onSuccess: () => onDeleted(),
-  });
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (confirm('Delete this team?')) {
-          deleteMutation.mutate({ id: teamId, version: teamVersion });
-        }
-      }}
-      disabled={deleteMutation.isPending}
-      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
-    >
-      {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-    </button>
   );
 }

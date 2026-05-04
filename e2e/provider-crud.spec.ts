@@ -1,6 +1,7 @@
 // e2e/provider-crud.spec.ts
 // FLX-65 — Provider CRUD journey: create + edit + delete via
-// /settings/providers. Edit + Delete affordances added in same PR.
+// /settings/providers. Updated in FLX-126 to use RecordEditor interaction
+// pattern (click row → detail panel → Edit/Save/Delete).
 
 import { expect, projectPath, test } from './helpers/setup';
 
@@ -25,31 +26,34 @@ test.describe('@flx-65 @journey @provider-crud', () => {
 
     const row = page.locator('li', { hasText: uniqueName });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row.getByText(initialType)).toBeVisible();
 
     // ── Edit ──────────────────────────────────────────────────────────────
+    // RecordEditor: click row to select → Edit button appears in detail panel.
     const updatedBaseUrl = 'https://example.test/api/v2';
-    await row.getByRole('button', { name: 'Edit' }).click();
-    await page.getByLabel('Provider base URL').fill(updatedBaseUrl);
+    await row.click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByLabel('Base URL').fill(updatedBaseUrl);
     await page.getByRole('button', { name: 'Save' }).click();
 
-    // Wait for the edit form to unmount (Save success → setEditingId(null)).
-    // Reloading before this races the mutation.
-    await expect(
-      page.locator('li', { hasText: uniqueName }).getByRole('button', {
-        name: 'Edit',
-      })
-    ).toBeVisible({ timeout: 10_000 });
+    // Wait for edit mode to exit.
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
+      timeout: 10_000,
+    });
 
-    // Persistence
+    // Persistence: reload + click row + verify in detail panel.
     await page.reload();
     const reloadedRow = page.locator('li', { hasText: uniqueName });
     await expect(reloadedRow).toBeVisible({ timeout: 10_000 });
-    await expect(reloadedRow.getByText(updatedBaseUrl)).toBeVisible();
+    await reloadedRow.click();
+    await expect(page.getByLabel('Base URL')).toHaveValue(updatedBaseUrl, {
+      timeout: 5_000,
+    });
 
     // ── Delete ────────────────────────────────────────────────────────────
-    page.once('dialog', (d) => d.accept());
-    await reloadedRow.getByRole('button', { name: /^Delete/ }).click();
+    // RecordEditor delete: row already selected → Edit → Delete → Yes, Delete.
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Yes, Delete' }).click();
 
     await expect(page.locator('li', { hasText: uniqueName })).toHaveCount(0, {
       timeout: 10_000,

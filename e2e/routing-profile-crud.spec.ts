@@ -1,8 +1,7 @@
 // e2e/routing-profile-crud.spec.ts
 // FLX-64 — Routing Profile CRUD journey: create + edit + delete via
-// /settings/routing. Edit + Delete affordances + the updateProfile
-// tRPC endpoint were added in the same PR; this spec is the
-// verification.
+// /settings/routing. Updated in FLX-126 to use RecordEditor interaction
+// pattern (click row → detail panel → Edit/Save/Delete).
 
 import { expect, projectPath, test } from './helpers/setup';
 
@@ -27,29 +26,31 @@ test.describe('@flx-64 @journey @routing-profile-crud', () => {
 
     const row = page.locator('li', { hasText: uniqueName });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row.getByText(description)).toBeVisible();
 
     // ── Edit ──────────────────────────────────────────────────────────────
+    // RecordEditor: click row to select → Edit button appears in detail panel.
     const updatedName = `${uniqueName} EDITED`;
-    await row.getByRole('button', { name: 'Edit' }).click();
-    await page.getByLabel('Profile name').fill(updatedName);
+    await row.click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByLabel('Name').fill(updatedName);
     await page.getByRole('button', { name: 'Save' }).click();
 
-    const updatedRow = page.locator('li', { hasText: updatedName });
-    await expect(updatedRow).toBeVisible({ timeout: 10_000 });
-
-    // Persistence
-    await page.reload();
-    await expect(page.locator('li', { hasText: updatedName })).toBeVisible({
+    // Wait for edit mode to exit.
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
       timeout: 10_000,
     });
 
+    // Persistence: reload + click updated row.
+    await page.reload();
+    const updatedRow = page.locator('li', { hasText: updatedName });
+    await expect(updatedRow).toBeVisible({ timeout: 10_000 });
+
     // ── Delete ────────────────────────────────────────────────────────────
-    page.once('dialog', (d) => d.accept());
-    await page
-      .locator('li', { hasText: updatedName })
-      .getByRole('button', { name: /^Delete/ })
-      .click();
+    // RecordEditor delete: click row → Edit → Delete → Yes, Delete.
+    await updatedRow.click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Yes, Delete' }).click();
 
     await expect(page.locator('li', { hasText: updatedName })).toHaveCount(0, {
       timeout: 10_000,
