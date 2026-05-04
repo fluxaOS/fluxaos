@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { createGitOps } from '@/adapters/git/git-ops';
 import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
@@ -362,6 +363,7 @@ describe('DeployBridge', () => {
       logger,
       isolation: isolationProvider,
       issueService,
+      gitOps: createGitOps(),
     });
 
     const result = await bridge.deploy(fixture.runId);
@@ -440,6 +442,7 @@ describe('DeployBridge', () => {
       logger,
       isolation: isolationProvider,
       issueService,
+      gitOps: createGitOps(),
     });
 
     const result = await bridge.deploy(fixture2.runId);
@@ -477,6 +480,7 @@ describe('DeployBridge', () => {
       logger,
       isolation: isolationProvider,
       issueService,
+      gitOps: createGitOps(),
     });
 
     const result = await bridge.deploy(fixture3.runId);

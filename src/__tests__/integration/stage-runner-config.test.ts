@@ -11,6 +11,7 @@ import type { AnyColumn } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createGitOps } from '@/adapters/git/git-ops';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { bootstrap } from '@/config/bootstrap';
 import type { Database } from '@/core/db/connection';
@@ -380,6 +381,7 @@ async function createStageRunnerHarness(input: {
           workingPath,
           artifactsPath,
         }),
+        gitOps: createGitOps(),
         runId: run.id,
         stageRunId: stageRun.id,
         trigger: 'manual',

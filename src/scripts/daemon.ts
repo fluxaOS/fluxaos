@@ -19,6 +19,7 @@ import {
   removeArtifactsDir,
 } from '@/adapters/fs/artifacts';
 import { getArtifactsBase } from '@/adapters/git/artifacts-path';
+import { createGitOps } from '@/adapters/git/git-ops';
 import {
   getCanonicalRepoPath,
   hasUncommittedChanges,
@@ -154,12 +155,15 @@ export async function createDaemon(): Promise<Daemon> {
   const issueService = createIssueService(db);
   const runService = createPipelineRunService(db);
 
+  const gitOps = createGitOps();
+
   const deployBridge = createDeployBridge({
     db,
     registry,
     logger: consoleLogger,
     isolation,
     issueService,
+    gitOps,
   });
 
   const terminalHook = createPipelineTerminalHook({
@@ -193,7 +197,8 @@ export async function createDaemon(): Promise<Daemon> {
     isolation,
     terminalHook,
     {},
-    fluxaosConfig
+    fluxaosConfig,
+    gitOps
   );
 
   const cleanupService = createCleanupService({

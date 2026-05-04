@@ -36,6 +36,7 @@ import {
 } from '@/core/db/schema';
 import { createGateService } from '@/core/gates/service';
 import type { Unsubscribe } from '@/core/ports/auth';
+import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageExecutor } from '@/core/ports/stage-executor';
@@ -66,7 +67,8 @@ export function createEventOrchestrator(
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
   config: Partial<EventOrchestratorConfig> = {},
-  fluxaosConfig?: FluxaosConfig
+  fluxaosConfig?: FluxaosConfig,
+  gitOps?: GitOpsPort
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
@@ -577,6 +579,7 @@ export function createEventOrchestrator(
         executor,
         runService,
         isolation,
+        gitOps: gitOps ?? createNoopGitOps(),
         runId: run.id,
         stageRunId: sRun.id,
         trigger: TRIGGER_TYPE.automated,
@@ -954,4 +957,28 @@ async function resolveProjectIdForRun(
     .from(pipeline)
     .where(eq(pipeline.id, run.pipelineId));
   return pipe?.projectId ?? null;
+}
+
+/**
+ * Stub GitOpsPort used when no real gitOps is injected (test scenarios that
+ * don't exercise the deploy path). Real runs must always inject a concrete
+ * implementation via createEventOrchestrator's gitOps parameter.
+ */
+function createNoopGitOps(): GitOpsPort {
+  const notImpl = (name: string) => () => {
+    throw new Error(
+      `GitOpsPort.${name} called but no gitOps was injected into createEventOrchestrator`
+    );
+  };
+  return {
+    commitAll: notImpl('commitAll') as GitOpsPort['commitAll'],
+    getHeadSha: notImpl('getHeadSha') as GitOpsPort['getHeadSha'],
+    push: notImpl('push') as GitOpsPort['push'],
+    resolveRepoIdentity: notImpl(
+      'resolveRepoIdentity'
+    ) as GitOpsPort['resolveRepoIdentity'],
+    branchAheadCount: notImpl(
+      'branchAheadCount'
+    ) as GitOpsPort['branchAheadCount'],
+  };
 }

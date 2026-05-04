@@ -113,7 +113,13 @@ export function createDriverService(db: Database) {
     async create(data: CreateDriverInput): Promise<DriverSelect> {
       const [row] = await db
         .insert(driver)
-        .values(data as any)
+        .values({
+          ...data,
+          defaultArgs: (data.defaultArgs ?? []) as never,
+          envVars: (data.envVars ?? {}) as never,
+          extraArgs: (data.extraArgs ?? {}) as never,
+          contextLayout: data.contextLayout as never,
+        })
         .returning();
       return row;
     },
@@ -127,7 +133,19 @@ export function createDriverService(db: Database) {
         const [row] = await tx
           .update(driver)
           .set({
-            ...(data as any),
+            ...data,
+            ...(data.defaultArgs !== undefined && {
+              defaultArgs: data.defaultArgs as never,
+            }),
+            ...(data.envVars !== undefined && {
+              envVars: data.envVars as never,
+            }),
+            ...(data.extraArgs !== undefined && {
+              extraArgs: data.extraArgs as never,
+            }),
+            ...(data.contextLayout !== undefined && {
+              contextLayout: data.contextLayout as never,
+            }),
             version: version + 1,
             updatedAt: new Date(),
           })
@@ -173,7 +191,7 @@ export function createDriverService(db: Database) {
             name: target.name,
             slug: target.slug,
             binary: target.binary,
-            defaultArgs: target.defaultArgs as any,
+            defaultArgs: target.defaultArgs as never,
             modelFlag: target.modelFlag,
             dirFlag: target.dirFlag,
             sessionNameFlag: target.sessionNameFlag,
@@ -184,9 +202,9 @@ export function createDriverService(db: Database) {
             probeCommand: target.probeCommand,
             issuePromptTemplate: target.issuePromptTemplate,
             queuePromptTemplate: target.queuePromptTemplate,
-            envVars: target.envVars as any,
-            extraArgs: target.extraArgs as any,
-            contextLayout: target.contextLayout,
+            envVars: target.envVars as never,
+            extraArgs: target.extraArgs as never,
+            contextLayout: target.contextLayout as never,
             isEnabled: target.isEnabled,
             notes: target.notes,
             version: version + 1,

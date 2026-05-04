@@ -27,14 +27,6 @@
  */
 
 import { and, desc, eq } from 'drizzle-orm';
-import {
-  branchAheadCount,
-  commitAll,
-  getHeadSha,
-  push,
-  resolveRepoIdentity,
-  UncommittedChangesError,
-} from '@/adapters/git';
 import type { Database } from '@/core/db/connection';
 import {
   issue,
@@ -45,7 +37,8 @@ import {
   project,
   stageRun,
 } from '@/core/db/schema';
-import type { GitProvider, PullRequest } from '@/core/ports/git';
+import { UncommittedChangesError } from '@/core/errors/git';
+import type { GitOpsPort, GitProvider, PullRequest } from '@/core/ports/git';
 import type { GitProviderFactory } from '@/core/ports/git-factory';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { IssueService } from '@/core/services/issue';
@@ -104,6 +97,8 @@ export interface DeployBridgeDeps {
   logger: DeployBridgeLogger;
   isolation: IsolationProvider;
   issueService: IssueService;
+  /** Local git operations — injected so core never imports from adapters. */
+  gitOps: GitOpsPort;
 }
 
 export interface DeployBridge {
@@ -111,7 +106,7 @@ export interface DeployBridge {
 }
 
 export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
-  const { db, registry, logger, isolation, issueService } = deps;
+  const { db, registry, logger, isolation, issueService, gitOps } = deps;
 
   async function deploy(runId: string): Promise<DeployResult> {
     // 1. Load run
@@ -173,7 +168,9 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     }
 
     // 4. Parse project.repoUrl into owner/name for the GitProvider.
-    const identity = resolveRepoIdentity({ repoUrl: projectRow.repoUrl });
+    const identity = gitOps.resolveRepoIdentity({
+      repoUrl: projectRow.repoUrl,
+    });
     const repoSlug = `${identity.owner}/${identity.repo}`;
 
     // 5. Discover the most recent stage_run for the commit message prefix.
@@ -193,7 +190,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
 
     let commitResult;
     try {
-      commitResult = await commitAll(env.workingPath, commitMessage);
+      commitResult = await gitOps.commitAll(env.workingPath, commitMessage);
     } catch (err) {
       throw new DeployBridgeError(
         'commit',
@@ -208,7 +205,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     // push + PR creation as long as the branch is ahead of the base.
     let commitSha = commitResult.commitSha;
     if (commitResult.noChanges) {
-      const ahead = await branchAheadCount(
+      const ahead = await gitOps.branchAheadCount(
         env.workingPath,
         projectRow.defaultBranch
       );
@@ -221,7 +218,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       }
       // Branch has commits (from stage-runner auto-commits) — capture
       // current HEAD so the PR body links to a real SHA.
-      commitSha = await getHeadSha(env.workingPath);
+      commitSha = await gitOps.getHeadSha(env.workingPath);
       logger.info(
         {
           runId,
@@ -242,7 +239,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
 
     // 7. push()
     try {
-      await push(env.workingPath, env.branchName, { setUpstream: true });
+      await gitOps.push(env.workingPath, env.branchName, { setUpstream: true });
     } catch (err) {
       throw new DeployBridgeError(
         'push',
