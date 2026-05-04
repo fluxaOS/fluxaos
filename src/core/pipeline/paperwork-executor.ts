@@ -3,7 +3,7 @@ import type { Database } from '@/core/db/connection';
 import { issue } from '@/core/db/schema';
 import { createIssueService } from '@/core/services/issue';
 import { createIssueCommentService } from '@/core/services/issue-comment';
-import type { AuditResult } from './playbook-auditor';
+import { type AuditResult, TERMINAL_STATE } from './playbook-auditor';
 
 export interface PaperworkInput {
   issueId: string;
@@ -49,7 +49,7 @@ export async function executePaperwork(input: PaperworkInput): Promise<void> {
   const [issueRow] = await db.select().from(issue).where(eq(issue.id, issueId));
   if (!issueRow) return; // issue deleted concurrently — skip
 
-  if (audit.targetState === 'complete') {
+  if (audit.targetState === TERMINAL_STATE) {
     await issueService.close(issueId, issueRow.version, 'orchestrator');
   } else if (audit.targetState === 'blocked') {
     // 'blocked' is a status sentinel — update status without changing state
