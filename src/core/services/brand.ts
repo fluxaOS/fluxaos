@@ -1,16 +1,29 @@
-import { and, desc, eq, isNull, or } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, or } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { brand } from '@/core/db/schema';
-import { createCrudService } from './crud-factory';
+import { brand, persona } from '@/core/db/schema';
+import { createVersionedCrudService } from './crud-factory';
 
 type BrandInsert = typeof brand.$inferInsert;
 type BrandSelect = typeof brand.$inferSelect;
 
-export function createBrandService(db: Database) {
-  const crud = createCrudService<BrandInsert, BrandSelect>(db, brand);
+type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
+
+export function createBrandService(db: DbOrTx) {
+  const crud = createVersionedCrudService<BrandInsert, BrandSelect>(
+    db as Database,
+    brand
+  );
 
   return {
     ...crud,
+
+    async countReferences(id: string): Promise<{ personas: number }> {
+      const [p] = await db
+        .select({ c: count() })
+        .from(persona)
+        .where(eq(persona.brandId, id));
+      return { personas: Number(p?.c ?? 0) };
+    },
 
     async listByOrg(orgId: string): Promise<BrandSelect[]> {
       return db

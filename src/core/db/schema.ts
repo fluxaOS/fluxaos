@@ -627,6 +627,8 @@ export const provider = pgTable(
     baseUrl: text('base_url'),
     apiKeyRef: text('api_key_ref'),
     isHealthy: boolean('is_healthy').default(true),
+    // Optimistic concurrency token — required by RecordEditor (FLX-124).
+    version: integer('version').notNull().default(1),
     createdAt,
     updatedAt,
   },
@@ -655,6 +657,8 @@ export const routingProfile = pgTable('routing_profile', {
   name: text('name').notNull(),
   description: text('description'),
   isDefault: boolean('is_default').default(false),
+  // Optimistic concurrency token — required by RecordEditor (FLX-124).
+  version: integer('version').notNull().default(1),
   createdAt,
   updatedAt,
 });
@@ -688,6 +692,8 @@ export const persona = pgTable('persona', {
     () => routingProfile.id
   ),
   parentPersonaId: uuid('parent_persona_id'),
+  // Optimistic concurrency token — required by RecordEditor (FLX-124).
+  version: integer('version').notNull().default(1),
   createdAt,
   updatedAt,
 });
@@ -762,6 +768,8 @@ export const team = pgTable('team', {
     .references(() => project.id),
   name: text('name').notNull(),
   description: text('description'),
+  // Optimistic concurrency token — required by RecordEditor (FLX-124).
+  version: integer('version').notNull().default(1),
   createdAt,
   updatedAt,
 });
@@ -796,6 +804,8 @@ export const brand = pgTable('brand', {
   toneOfVoice: text('tone_of_voice'),
   styleGuide: text('style_guide'),
   logoUrl: text('logo_url'),
+  // Optimistic concurrency token — required by RecordEditor (FLX-124).
+  version: integer('version').notNull().default(1),
   createdAt,
   updatedAt,
 });

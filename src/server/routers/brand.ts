@@ -1,6 +1,7 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createBrandService } from '@/core/services';
-import { inputId, publicProcedure, router } from '../trpc';
+import { publicProcedure, router } from '../trpc';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -21,7 +22,7 @@ export const brandRouter = router({
     ),
 
   getById: publicProcedure
-    .input(inputId())
+    .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => createBrandService(ctx.db).getById(input.id)),
 
   create: publicProcedure
@@ -43,6 +44,7 @@ export const brandRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        version: z.number().int(),
         projectId: z.string().uuid().nullable().optional(),
         name: z.string().min(1).optional(),
         colors: jsonObject.nullable().optional(),
@@ -52,12 +54,42 @@ export const brandRouter = router({
         logoUrl: z.string().nullable().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const { id, ...data } = input;
-      return createBrandService(ctx.db).update(id, data);
+    .mutation(async ({ ctx, input }) => {
+      const { id, version, ...data } = input;
+      const row = await createBrandService(ctx.db).updateWithVersion(
+        id,
+        version,
+        data
+      );
+      if (!row)
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Optimistic concurrency conflict',
+        });
+      return row;
     }),
 
   delete: publicProcedure
-    .input(inputId())
-    .mutation(({ ctx, input }) => createBrandService(ctx.db).remove(input.id)),
+    .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.transaction(async (tx) => {
+        const svc = createBrandService(tx);
+        const refs = await svc.countReferences(input.id);
+        if (refs.personas > 0) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Cannot delete brand — referenced by ${refs.personas} persona(s). Remove references first.`,
+          });
+        }
+        const ok = await svc.deleteWithVersion(input.id, input.version);
+        if (!ok) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'Optimistic concurrency conflict — brand was modified elsewhere.',
+          });
+        }
+        return { id: input.id };
+      });
+    }),
 });
