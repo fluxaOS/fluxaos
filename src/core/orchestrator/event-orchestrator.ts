@@ -38,10 +38,7 @@ import {
   stageRun,
 } from '@/core/db/schema';
 import type { Unsubscribe } from '@/core/ports/auth';
-import type { GitOpsPort } from '@/core/ports/git';
-import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
-import type { StageExecutor } from '@/core/ports/stage-executor';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
@@ -63,13 +60,10 @@ export interface EventOrchestrator {
 
 export function createEventOrchestrator(
   db: Database,
-  executor: StageExecutor,
   realtime: RealtimeProvider,
-  isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
   config: Partial<EventOrchestratorConfig> = {},
-  fluxaosConfig?: FluxaosConfig,
-  gitOps?: GitOpsPort
+  fluxaosConfig?: FluxaosConfig
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
@@ -222,183 +216,184 @@ export function createEventOrchestrator(
     }
 
     // ── DB-driven execution path ─────────────────────────────────────
-    {
-      const [pipelineRow] = await db
-        .select({ projectId: pipeline.projectId })
-        .from(pipeline)
-        .where(eq(pipeline.id, run.pipelineId));
+    const [pipelineRow] = await db
+      .select({ projectId: pipeline.projectId })
+      .from(pipeline)
+      .where(eq(pipeline.id, run.pipelineId));
 
-      if (!pipelineRow) {
-        throw new Error(`Pipeline not found: ${run.pipelineId}`);
-      }
+    if (!pipelineRow) {
+      throw new Error(`Pipeline not found: ${run.pipelineId}`);
+    }
 
-      const [driverRow] = stage.driverId
-        ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
-        : [null];
+    const [driverRow] = stage.driverId
+      ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
+      : [null];
 
-      if (!driverRow?.binary) {
-        console.error(
-          `[orchestrator] stage has no driver binary configured (stageRunId: ${sRun.id})`
-        );
-        await finishRun(run, PIPELINE_RUN_STATUS.failed);
-        return;
-      }
-
-      const artifactsBase =
-        run.artifactsPath ??
-        `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
-      const resultDocPath = `${artifactsBase}/result.json`;
-
-      // Load persona soul — every stage must have a persona configured
-      if (!stage.personaId) {
-        throw new Error(
-          `Stage '${stage.name}' has no personaId configured — every stage must have a persona assigned`
-        );
-      }
-      const [personaRow] = await db
-        .select({ soul: persona.soul })
-        .from(persona)
-        .where(eq(persona.id, stage.personaId));
-      if (!personaRow) {
-        throw new Error(`Persona not found: ${stage.personaId}`);
-      }
-      if (!personaRow.soul) {
-        throw new Error(`Persona soul is empty for persona: ${stage.personaId}`);
-      }
-      const personaSoul = personaRow.soul;
-
-      // Load all skills from DB as tool-manual references
-      const skillRows = await db
-        .select({
-          name: skill.name,
-          description: skill.description,
-          promptTemplate: skill.promptTemplate,
-        })
-        .from(skill);
-
-      const skills = skillRows.filter(
-        (s): s is typeof s & { promptTemplate: string } =>
-          s.promptTemplate !== null && s.promptTemplate !== ''
-      );
-
-      // Load issue and project context
-      const [issueRow] = run.issueId
-        ? await db
-            .select({ title: issue.title, description: issue.bodyMd })
-            .from(issue)
-            .where(eq(issue.id, run.issueId))
-        : [null];
-
-      const [projectRow] = await db
-        .select({ name: project.name })
-        .from(project)
-        .where(eq(project.id, pipelineRow.projectId));
-
-      const { composePrompt } = await import('@/core/pipeline/prompt-composer');
-      const composedPrompt = composePrompt(personaSoul, skills, {
-        title: issueRow?.title ?? 'Untitled issue',
-        description: issueRow?.description ?? null,
-        stageName: stage.name,
-        projectName: projectRow?.name ?? 'Unknown project',
-        resultDocPath,
-        artifactsDir: artifactsBase,
+    if (!driverRow?.binary) {
+      const msg = stage.driverId
+        ? `stage driver has no binary configured (driverId: ${stage.driverId})`
+        : `stage has no driver configured`;
+      console.error(`[orchestrator] ${msg} (stageRunId: ${sRun.id})`);
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        errorMessage: msg,
       });
-
-      const transport = driverRow.promptTransport ?? 'argv';
-      const driverBinary = driverRow.binary;
-      const driverArgs: string[] = [
-        ...((driverRow.defaultArgs as string[] | null) ?? []),
-      ];
-
-      if (transport === 'argv') {
-        driverArgs.push(composedPrompt);
-      }
-
-      await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.running);
-
-      const { runStageGraph } = await import(
-        '@/adapters/langgraph/langgraph-stage-runner'
-      );
-      const { getCheckpointer } = await import(
-        '@/adapters/langgraph/checkpoint-store'
-      );
-      const checkpointer = await getCheckpointer();
-
-      let ingestOutput: string;
-      let graphError: string | undefined;
-
-      try {
-        const result = await runStageGraph(
-          {
-            stageRunId: sRun.id,
-            resultDocPath,
-            artifactsDir: artifactsBase,
-            prompt: composedPrompt,
-            driverCommand: driverBinary,
-            driverArgs,
-            env: {
-              RESULT_DOC_PATH: resultDocPath,
-              ARTIFACTS_DIR: artifactsBase,
-            },
-            initResultDocScript:
-              fluxaosConfig?.initResultDocScript ??
-              'src/scripts/pipeline/init-result-doc.ts',
-            ingestResultDocScript:
-              fluxaosConfig?.ingestResultDocScript ??
-              'src/scripts/pipeline/ingest-result-doc.ts',
-          },
-          checkpointer
-        );
-        ingestOutput = result.ingestOutput;
-        graphError = result.error;
-      } catch (err) {
-        await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
-          driver: driverBinary,
-          trigger: TRIGGER_TYPE.automated,
-          errorMessage: err instanceof Error ? err.message : String(err),
-        });
-        await handleStageFailed(run, stage, sRun);
-        return;
-      }
-
-      if (graphError) {
-        await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
-          driver: driverBinary,
-          trigger: TRIGGER_TYPE.automated,
-          errorMessage: graphError,
-        });
-        await handleStageFailed(run, stage, sRun);
-        return;
-      }
-
-      // Parse ingest output to extract verdict and signal info
-      let verdict: string = GATE_VERDICT.proceed;
-      let signalReason: string | null = null;
-      let signalMeta: Record<string, unknown> | null = null;
-
-      try {
-        const parsed = JSON.parse(ingestOutput) as {
-          verdict?: string;
-          signal_reason?: string;
-          signal_meta?: Record<string, unknown>;
-        };
-        if (parsed.verdict === 'pass') verdict = GATE_VERDICT.proceed;
-        else if (parsed.verdict === 'fail') verdict = GATE_VERDICT.rework;
-        else if (parsed.verdict === 'blocked') verdict = GATE_VERDICT.hold;
-        signalReason = parsed.signal_reason ?? null;
-        signalMeta = parsed.signal_meta ?? null;
-      } catch {
-        // ingestOutput not JSON — treat as pass
-      }
-
-      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.completed, {
-        driver: driverBinary,
-        trigger: TRIGGER_TYPE.automated,
-      });
-
-      await applyVerdict(run, stage, sRun, verdict, signalReason, signalMeta);
+      await finishRun(run, PIPELINE_RUN_STATUS.failed);
       return;
     }
+
+    const artifactsBase =
+      run.artifactsPath ??
+      `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
+    const resultDocPath = `${artifactsBase}/result.json`;
+
+    // Load persona soul — every stage must have a persona configured
+    if (!stage.personaId) {
+      throw new Error(
+        `Stage '${stage.name}' has no personaId configured — every stage must have a persona assigned`
+      );
+    }
+    const [personaRow] = await db
+      .select({ soul: persona.soul })
+      .from(persona)
+      .where(eq(persona.id, stage.personaId));
+    if (!personaRow) {
+      throw new Error(`Persona not found: ${stage.personaId}`);
+    }
+    if (!personaRow.soul) {
+      throw new Error(`Persona soul is empty for persona: ${stage.personaId}`);
+    }
+    const personaSoul = personaRow.soul;
+
+    // Load all skills from DB as tool-manual references
+    const skillRows = await db
+      .select({
+        name: skill.name,
+        description: skill.description,
+        promptTemplate: skill.promptTemplate,
+      })
+      .from(skill);
+
+    const skills = skillRows.filter(
+      (s): s is typeof s & { promptTemplate: string } =>
+        s.promptTemplate !== null && s.promptTemplate !== ''
+    );
+
+    // Load issue and project context
+    const [issueRow] = run.issueId
+      ? await db
+          .select({ title: issue.title, description: issue.bodyMd })
+          .from(issue)
+          .where(eq(issue.id, run.issueId))
+      : [null];
+
+    const [projectRow] = await db
+      .select({ name: project.name })
+      .from(project)
+      .where(eq(project.id, pipelineRow.projectId));
+
+    const { composePrompt } = await import('@/core/pipeline/prompt-composer');
+    const composedPrompt = composePrompt(personaSoul, skills, {
+      title: issueRow?.title ?? 'Untitled issue',
+      description: issueRow?.description ?? null,
+      stageName: stage.name,
+      projectName: projectRow?.name ?? 'Unknown project',
+      resultDocPath,
+      artifactsDir: artifactsBase,
+    });
+
+    const transport = driverRow.promptTransport ?? 'argv';
+    const driverBinary = driverRow.binary;
+    const driverArgs: string[] = [
+      ...((driverRow.defaultArgs as string[] | null) ?? []),
+    ];
+
+    if (transport === 'argv') {
+      driverArgs.push(composedPrompt);
+    }
+
+    await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.running);
+
+    const { runStageGraph } = await import(
+      '@/adapters/langgraph/langgraph-stage-runner'
+    );
+    const { getCheckpointer } = await import(
+      '@/adapters/langgraph/checkpoint-store'
+    );
+    const checkpointer = await getCheckpointer();
+
+    let ingestOutput: string;
+    let graphError: string | undefined;
+
+    try {
+      const result = await runStageGraph(
+        {
+          stageRunId: sRun.id,
+          resultDocPath,
+          artifactsDir: artifactsBase,
+          prompt: composedPrompt,
+          driverCommand: driverBinary,
+          driverArgs,
+          env: {
+            RESULT_DOC_PATH: resultDocPath,
+            ARTIFACTS_DIR: artifactsBase,
+          },
+          initResultDocScript:
+            fluxaosConfig?.initResultDocScript ??
+            'src/scripts/pipeline/init-result-doc.ts',
+          ingestResultDocScript:
+            fluxaosConfig?.ingestResultDocScript ??
+            'src/scripts/pipeline/ingest-result-doc.ts',
+        },
+        checkpointer
+      );
+      ingestOutput = result.ingestOutput;
+      graphError = result.error;
+    } catch (err) {
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        driver: driverBinary,
+        trigger: TRIGGER_TYPE.automated,
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    if (graphError) {
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        driver: driverBinary,
+        trigger: TRIGGER_TYPE.automated,
+        errorMessage: graphError,
+      });
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    // Parse ingest output to extract verdict and signal info
+    let verdict: string = GATE_VERDICT.proceed;
+    let signalReason: string | null = null;
+    let signalMeta: Record<string, unknown> | null = null;
+
+    try {
+      const parsed = JSON.parse(ingestOutput) as {
+        verdict?: string;
+        signal_reason?: string;
+        signal_meta?: Record<string, unknown>;
+      };
+      if (parsed.verdict === 'pass') verdict = GATE_VERDICT.proceed;
+      else if (parsed.verdict === 'fail') verdict = GATE_VERDICT.rework;
+      else if (parsed.verdict === 'blocked') verdict = GATE_VERDICT.hold;
+      signalReason = parsed.signal_reason ?? null;
+      signalMeta = parsed.signal_meta ?? null;
+    } catch {
+      // ingestOutput not JSON — treat as pass
+    }
+
+    await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.completed, {
+      driver: driverBinary,
+      trigger: TRIGGER_TYPE.automated,
+    });
+
+    await applyVerdict(run, stage, sRun, verdict, signalReason, signalMeta);
   }
 
   // ─── Verdict Application ────────────────────────────────────────────

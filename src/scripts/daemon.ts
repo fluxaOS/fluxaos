@@ -192,13 +192,10 @@ export async function createDaemon(): Promise<Daemon> {
 
   const orchestrator = createEventOrchestrator(
     db,
-    executor,
     realtime,
-    isolation,
     terminalHook,
     {},
-    fluxaosConfig,
-    gitOps
+    fluxaosConfig
   );
 
   const cleanupService = createCleanupService({
