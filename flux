@@ -9,9 +9,9 @@ DEV_PORT="${FLUX_DEV_PORT:-3004}"
 DEV_HOST="${FLUX_DEV_HOST:-192.168.54.101}"
 DEV_DNS="${FLUX_DEV_DNS:-dev-flux.jdp21.com}"
 STACK_DIR="${FLUX_STACK_DIR:-/mnt/stacks/docker/fluxaos}"
-PROD_HOST="${FLUX_PROD_HOST:-192.168.54.101}"
-PROD_PORT="${FLUX_PROD_PORT:-3003}"
-PROD_DNS="${FLUX_PROD_DNS:-flux.jdp21.com}"
+UAT_HOST="${FLUX_UAT_HOST:-192.168.54.101}"
+UAT_PORT="${FLUX_UAT_PORT:-3003}"
+UAT_DNS="${FLUX_UAT_DNS:-flux.jdp21.com}"
 SYSTEMD_USER_DIR="${FLUX_SYSTEMD_USER_DIR:-${HOME}/.config/systemd/user}"
 DAEMON_UNIT_SOURCE="${ROOT_DIR}/ops/systemd/fluxaos-daemon.service"
 DAEMON_UNIT_NAME="fluxaos-daemon"
@@ -21,7 +21,7 @@ usage() {
   cat <<'USAGE'
 Usage:
   flux server dev start|stop|restart|reset|status
-  flux server prod start|stop|restart|status|build
+  flux server uat start|stop|restart|status|build
   flux daemon list
   flux daemon orchestrator start|stop|restart|status|install|uninstall
   flux orchestrator start|stop|restart|status|install|uninstall
@@ -29,7 +29,7 @@ Usage:
 Notes:
   server dev runs Next.js on port 3004 by default.
   server dev reset stops the server, nukes + reseeds the DB, then starts fresh.
-  server prod manages the Docker Compose web service in /mnt/stacks/docker/fluxaos.
+  server uat manages the Docker Compose web service in /mnt/stacks/docker/fluxaos.
   orchestrator is an alias for daemon orchestrator.
 USAGE
 }
@@ -78,8 +78,8 @@ print_dev_endpoint() {
   echo "endpoint: ${DEV_DNS} = ${DEV_HOST}:${DEV_PORT}"
 }
 
-print_prod_endpoint() {
-  echo "endpoint: ${PROD_DNS} = ${PROD_HOST}:${PROD_PORT}"
+print_uat_endpoint() {
+  echo "endpoint: ${UAT_DNS} = ${UAT_HOST}:${UAT_PORT}"
 }
 
 require_stack_dir() {
@@ -173,7 +173,7 @@ server_dev() {
   esac
 }
 
-server_prod() {
+server_uat() {
   local action=${1:-}
   case "${action}" in
     start)
@@ -190,14 +190,14 @@ server_prod() {
       ;;
     status)
       require_stack_dir
-      print_prod_endpoint
+      print_uat_endpoint
       run docker compose --project-directory "${STACK_DIR}" ps fluxaos-web
       ;;
     build)
-      [[ -x "${STACK_DIR}/build.sh" ]] || fail "production build script is not executable: ${STACK_DIR}/build.sh"
+      [[ -x "${STACK_DIR}/build.sh" ]] || fail "UAT build script is not executable: ${STACK_DIR}/build.sh"
       run "${STACK_DIR}/build.sh"
       ;;
-    *) usage; fail "unknown server prod action: ${action:-<missing>}" ;;
+    *) usage; fail "unknown server uat action: ${action:-<missing>}" ;;
   esac
 }
 
@@ -259,7 +259,7 @@ main() {
       shift || true
       case "${mode}" in
         dev) server_dev "${1:-}" ;;
-        prod) server_prod "${1:-}" ;;
+        uat) server_uat "${1:-}" ;;
         *) usage; fail "unknown server mode: ${mode:-<missing>}" ;;
       esac
       ;;

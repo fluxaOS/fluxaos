@@ -25,6 +25,7 @@ run_flux() {
 
 output=$(run_flux help 2>&1 || true)
 assert_contains "${output}" "flux server dev start|stop|restart|reset|status"
+assert_contains "${output}" "flux server uat start|stop|restart|status|build"
 assert_contains "${output}" "flux daemon list"
 
 output=$(run_flux daemon list 2>&1)
@@ -64,25 +65,25 @@ output=$(run_flux server dev status 2>&1)
 assert_contains "${output}" "dev-flux.jdp21.com"
 assert_contains "${output}" "192.168.54.101:3004"
 
-output=$(run_flux server prod start 2>&1)
+output=$(run_flux server uat start 2>&1)
 assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "up"
 assert_contains "${output}" "fluxaos-web"
 
-output=$(run_flux server prod stop 2>&1)
+output=$(run_flux server uat stop 2>&1)
 assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "stop"
 assert_contains "${output}" "fluxaos-web"
 
-output=$(run_flux server prod restart 2>&1)
+output=$(run_flux server uat restart 2>&1)
 assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "restart"
 assert_contains "${output}" "fluxaos-web"
 
-output=$(run_flux server prod status 2>&1)
+output=$(run_flux server uat status 2>&1)
 assert_contains "${output}" "flux.jdp21.com"
 assert_contains "${output}" "192.168.54.101:3003"
 assert_contains "${output}" "docker"
@@ -90,8 +91,8 @@ assert_contains "${output}" "compose"
 assert_contains "${output}" "ps"
 assert_contains "${output}" "fluxaos-web"
 
-output=$(FLUX_DRY_RUN=1 FLUX_STACK_DIR="${ROOT_DIR}/tests/fixtures/missing-stack" "${FLUX}" server prod build 2>&1 || true)
-assert_contains "${output}" "production build script is not executable"
+output=$(FLUX_DRY_RUN=1 FLUX_STACK_DIR="${ROOT_DIR}/tests/fixtures/missing-stack" "${FLUX}" server uat build 2>&1 || true)
+assert_contains "${output}" "UAT build script is not executable"
 
 output=$(run_flux daemon orchestrator start 2>&1)
 assert_contains "${output}" "systemctl --user start fluxaos-daemon"
