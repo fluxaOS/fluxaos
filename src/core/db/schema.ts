@@ -95,8 +95,6 @@ export const pipeline = pgTable('pipeline', {
   name: text('name').notNull(),
   description: text('description'),
   isDefault: boolean('is_default').default(false),
-  playbookPath: text('playbook_path'),
-  playbookScope: text('playbook_scope'),
   createdAt,
   updatedAt,
 });
@@ -114,7 +112,9 @@ export const pipelineStage = pgTable('pipeline_stage', {
   maxRetries: integer('max_retries').default(0),
   gateMode: text('gate_mode').default('auto'),
   gateRules: jsonb('gate_rules'),
-  skillId: uuid('skill_id').references(() => skill.id),
+  onPass: text('on_pass'),
+  onFail: text('on_fail'),
+  fallback: text('fallback'),
   driverId: uuid('driver_id').references(() => driver.id),
   createdAt,
   updatedAt,
@@ -947,10 +947,6 @@ export const pipelineStageRelations = relations(
     persona: one(persona, {
       fields: [pipelineStage.personaId],
       references: [persona.id],
-    }),
-    skillEntry: one(skill, {
-      fields: [pipelineStage.skillId],
-      references: [skill.id],
     }),
     driverEntry: one(driver, {
       fields: [pipelineStage.driverId],
