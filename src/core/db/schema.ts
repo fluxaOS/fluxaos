@@ -1124,7 +1124,6 @@ export const skillRelations = relations(skill, ({ one, many }) => ({
     references: [project.id],
   }),
   personaSkills: many(personaSkill),
-  pipelineStages: many(pipelineStage),
   stageRuns: many(stageRun),
 }));
 
