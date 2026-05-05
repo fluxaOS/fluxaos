@@ -10,7 +10,6 @@ import {
   Server,
   Sparkles,
   Terminal,
-  Users,
   Workflow,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -48,8 +47,7 @@ export function Nav() {
       exact: true,
       icon: Workflow,
     },
-    { href: `${basePath}/settings/personas`, label: 'Personas', icon: Users },
-    { href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
+{ href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
     { href: `${basePath}/settings/drivers`, label: 'Drivers', icon: Terminal },
     { href: `${basePath}/settings/routing`, label: 'Routing', icon: Route },
     {

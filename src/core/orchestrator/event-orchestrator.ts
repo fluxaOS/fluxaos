@@ -32,6 +32,7 @@ import {
   pipeline,
   type pipelineRun,
   pipelineStage,
+  skill,
   stageRun,
 } from '@/core/db/schema';
 import { createGateService } from '@/core/gates/service';
@@ -280,16 +281,23 @@ export function createEventOrchestrator(
             `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
           const resultDocPath = `${artifactsBase}/result.json`;
 
-          // Read skill prompt from bundled skills directory
+          // Load skill prompt: DB record takes precedence; bundled file is the fallback.
           const skillName =
             playbookStage?.type === 'sequential' ||
             playbookStage?.type === 'loop'
               ? playbookStage.skill
               : stage.name;
+          const [skillRow] = await db
+            .select({ promptTemplate: skill.promptTemplate })
+            .from(skill)
+            .where(eq(skill.name, skillName))
+            .limit(1);
           const skillFilePath = join(bundledDir, 'skills', `${skillName}.md`);
-          const skillPrompt = existsSync(skillFilePath)
-            ? readFileSync(skillFilePath, 'utf-8')
-            : '';
+          const skillPrompt =
+            skillRow?.promptTemplate ||
+            (existsSync(skillFilePath)
+              ? readFileSync(skillFilePath, 'utf-8')
+              : '');
 
           const composedPrompt = composePrompt(
             discovered.playbook.prompt,
@@ -338,6 +346,28 @@ export function createEventOrchestrator(
               )
             );
 
+            // Pre-fetch all child skill prompts (DB first, bundled fallback).
+            const childSkillPrompts = await Promise.all(
+              playbookStage.children.map(async (child) => {
+                const [childSkillRow] = await db
+                  .select({ promptTemplate: skill.promptTemplate })
+                  .from(skill)
+                  .where(eq(skill.name, child.skill))
+                  .limit(1);
+                if (childSkillRow?.promptTemplate) {
+                  return childSkillRow.promptTemplate;
+                }
+                const childSkillFilePath = join(
+                  bundledDir,
+                  'skills',
+                  `${child.skill}.md`
+                );
+                return existsSync(childSkillFilePath)
+                  ? readFileSync(childSkillFilePath, 'utf-8')
+                  : '';
+              })
+            );
+
             const { runParallelExecutor } = await import(
               '@/core/agents/parallel-executor'
             );
@@ -350,14 +380,7 @@ export function createEventOrchestrator(
                 const childSRun = childStageRuns[i];
                 const childArtifactsBase = `${artifactsBase}/${child.id}`;
                 const childResultDocPath = `${childArtifactsBase}/result.json`;
-                const childSkillFilePath = join(
-                  bundledDir,
-                  'skills',
-                  `${child.skill}.md`
-                );
-                const childSkillPrompt = existsSync(childSkillFilePath)
-                  ? readFileSync(childSkillFilePath, 'utf-8')
-                  : '';
+                const childSkillPrompt = childSkillPrompts[i];
                 const childPrompt = composePrompt(
                   discovered.playbook.prompt,
                   childSkillPrompt,
