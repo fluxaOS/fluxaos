@@ -10,6 +10,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod/v4';
+import { TRPCError } from '@trpc/server';
 import { protectedMutation, publicProcedure, router } from '../trpc';
 
 const execFileAsync = promisify(execFile);
@@ -18,19 +19,33 @@ const UNIT = 'fluxaos-daemon';
 
 type DaemonState = 'running' | 'stopped' | 'draining' | 'unknown';
 
+// systemctl --user requires XDG_RUNTIME_DIR when running from a non-interactive
+// process (e.g. nohup Next.js server). Derive it from the process uid.
+function systemctlEnv(): NodeJS.ProcessEnv {
+  const uid = process.getuid?.() ?? 1000;
+  return {
+    ...process.env,
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR ?? `/run/user/${uid}`,
+  };
+}
+
+async function systemctl(...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(
+    'systemctl',
+    ['--user', ...args],
+    { env: systemctlEnv() }
+  );
+  return stdout.trim();
+}
+
 async function getSystemctlState(): Promise<DaemonState> {
   try {
-    const { stdout } = await execFileAsync('systemctl', [
-      '--user',
-      'is-active',
-      UNIT,
-    ]);
-    const state = stdout.trim();
+    const state = await systemctl('is-active', UNIT);
     if (state === 'active') return 'running';
     if (state === 'deactivating') return 'draining';
     return 'stopped';
   } catch {
-    // is-active exits non-zero when inactive/failed
+    // is-active exits non-zero when inactive/failed — that's stopped, not an error
     return 'stopped';
   }
 }
@@ -46,13 +61,27 @@ export const daemonRouter = router({
     if (current === 'running') {
       return { ok: true, state: 'running' as DaemonState };
     }
-    await execFileAsync('systemctl', ['--user', 'start', UNIT]);
+    try {
+      await systemctl('start', UNIT);
+    } catch (err) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to start daemon: ${String(err)}`,
+      });
+    }
     return { ok: true, state: 'running' as DaemonState };
   }),
 
   // Graceful shutdown — SIGTERM lets in-flight stages finish within grace period.
   drain: protectedMutation(['admin']).mutation(async () => {
-    await execFileAsync('systemctl', ['--user', 'stop', UNIT]);
+    try {
+      await systemctl('stop', UNIT);
+    } catch (err) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to drain daemon: ${String(err)}`,
+      });
+    }
     return { ok: true, state: 'stopped' as DaemonState };
   }),
 
@@ -60,12 +89,26 @@ export const daemonRouter = router({
   stop: protectedMutation(['admin'])
     .input(z.object({ confirm: z.literal(true) }))
     .mutation(async () => {
-      await execFileAsync('systemctl', ['--user', 'kill', '--kill-who=all', '--signal=SIGKILL', UNIT]);
+      try {
+        await systemctl('kill', '--kill-who=all', '--signal=SIGKILL', UNIT);
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to stop daemon: ${String(err)}`,
+        });
+      }
       return { ok: true, state: 'stopped' as DaemonState };
     }),
 
   restart: protectedMutation(['admin']).mutation(async () => {
-    await execFileAsync('systemctl', ['--user', 'restart', UNIT]);
+    try {
+      await systemctl('restart', UNIT);
+    } catch (err) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to restart daemon: ${String(err)}`,
+      });
+    }
     return { ok: true, state: 'running' as DaemonState };
   }),
 });
