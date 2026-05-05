@@ -69,3 +69,36 @@ worktrees/
 
 # fluxaOS per-run artifacts (managed by R-ARTIFACTS)
 .fluxaos-artifacts/
+
+# BEGIN fhc-managed - DO NOT EDIT THIS SECTION
+# Managed by fhc sync from fh-commons
+__pycache__/
+*.code-workspace
+*jscpd*.json
+*.log
+*.py[cod]
+.agents/
+.claude/
+.coverage
+.DS_Store
+.fhc-config.json
+.forgejo_token
+.forgejo/workflows/test-gate.yaml
+.jscpd.json
+.mcp.json
+.mypy_cache/
+.pytest_cache/
+.superpowers/
+.sync.lock
+.trash
+ARCHITECTURAL_STANDARDS.md
+cache/
+config/install-state.json
+reports/
+tests/browser/screenshots/
+tests/spikes/
+sleep-preview.json
+worktrees/
+WORKTREES.md
+.worktree-state/
+# END fhc-managed
