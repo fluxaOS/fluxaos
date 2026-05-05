@@ -249,23 +249,23 @@ export function createEventOrchestrator(
         `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
       const resultDocPath = `${artifactsBase}/result.json`;
 
-      // Load persona soul — fail fast if personaId set but not found or empty
-      let personaSoul = 'You are a capable AI agent.';
-      if (stage.personaId) {
-        const [personaRow] = await db
-          .select({ soul: persona.soul })
-          .from(persona)
-          .where(eq(persona.id, stage.personaId));
-        if (!personaRow) {
-          throw new Error(`Persona not found: ${stage.personaId}`);
-        }
-        if (!personaRow.soul) {
-          throw new Error(
-            `Persona soul is empty for persona: ${stage.personaId}`
-          );
-        }
-        personaSoul = personaRow.soul;
+      // Load persona soul — every stage must have a persona configured
+      if (!stage.personaId) {
+        throw new Error(
+          `Stage '${stage.name}' has no personaId configured — every stage must have a persona assigned`
+        );
       }
+      const [personaRow] = await db
+        .select({ soul: persona.soul })
+        .from(persona)
+        .where(eq(persona.id, stage.personaId));
+      if (!personaRow) {
+        throw new Error(`Persona not found: ${stage.personaId}`);
+      }
+      if (!personaRow.soul) {
+        throw new Error(`Persona soul is empty for persona: ${stage.personaId}`);
+      }
+      const personaSoul = personaRow.soul;
 
       // Load all skills from DB as tool-manual references
       const skillRows = await db
