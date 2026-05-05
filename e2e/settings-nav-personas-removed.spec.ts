@@ -1,5 +1,6 @@
 // e2e/settings-nav-personas-removed.spec.ts
-// FLX-129 — Personas tab must be gone from Settings nav; Skills tab must remain.
+// FLX-129 — Settings nav surface: Skills tab is present; Personas tab was
+// removed then restored (FLX-153 follow-up) — both tabs coexist.
 // Skills edited in the UI must be readable by the orchestrator via the skill
 // table (DB-first lookup tested at integration level; this spec verifies the
 // UI surface that feeds that table is intact and accessible).
@@ -7,7 +8,7 @@
 import { expect, projectPath, test } from './helpers/setup';
 
 test.describe('@flx-129 @journey @settings-nav', () => {
-  test('Settings nav: Personas tab is absent, Skills tab is present', async ({
+  test('Settings nav: Skills tab is present and navigable', async ({
     page,
   }) => {
     await page.goto(projectPath('/settings'));
@@ -16,9 +17,6 @@ test.describe('@flx-129 @journey @settings-nav', () => {
     });
 
     const nav = page.getByRole('navigation', { name: 'Settings tabs' });
-
-    // Personas tab must not exist
-    await expect(nav.getByRole('link', { name: 'Personas' })).toHaveCount(0);
 
     // Skills tab must be present and navigable
     await expect(nav.getByRole('link', { name: 'Skills' })).toBeVisible();

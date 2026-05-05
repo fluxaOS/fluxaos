@@ -17,7 +17,13 @@ test('ingest-result-doc script: exits cleanly when help requested', async () => 
   expect(result).toContain('Usage:');
 });
 
+// FLX-153: playbook.ts + playbook-auditor.ts deleted — YAML-playbook system
+// replaced by DB-first routing (onPass/onFail/fallback columns on pipeline_stage).
+// This test is permanently skipped; the routing contract is covered by the
+// pipeline-db-routing.spec.ts journey tests.
 test('playbook smoke: standard-dev.yaml parses and auditor routes correctly', async () => {
+  test.skip(true, 'FLX-153: playbook modules deleted — routing is now DB-driven');
+  // dead code below — kept for history
   const output = execSync(
     'npx tsx -e "' +
       [
