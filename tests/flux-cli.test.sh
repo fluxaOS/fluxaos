@@ -84,7 +84,7 @@ assert_contains "${output}" "restart"
 assert_contains "${output}" "fluxaos-web"
 
 output=$(run_flux server uat status 2>&1)
-assert_contains "${output}" "flux.jdp21.com"
+assert_contains "${output}" "uat-flux.jdp21.com"
 assert_contains "${output}" "192.168.54.101:3003"
 assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
