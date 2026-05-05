@@ -20,7 +20,7 @@ DRY_RUN="${FLUX_DRY_RUN:-0}"
 usage() {
   cat <<'USAGE'
 Usage:
-  flux server dev start|stop|restart|status
+  flux server dev start|stop|restart|reset|status
   flux server prod start|stop|restart|status|build
   flux daemon list
   flux daemon orchestrator start|stop|restart|status|install|uninstall
@@ -28,6 +28,7 @@ Usage:
 
 Notes:
   server dev runs Next.js on port 3004 by default.
+  server dev reset stops the server, nukes + reseeds the DB, then starts fresh.
   server prod manages the Docker Compose web service in /mnt/stacks/docker/fluxaos.
   orchestrator is an alias for daemon orchestrator.
 USAGE
@@ -142,6 +143,14 @@ server_dev() {
       ;;
     restart)
       server_dev stop
+      server_dev start
+      ;;
+    reset)
+      server_dev stop
+      echo "nuking database..."
+      run npx tsx "${ROOT_DIR}/src/scripts/db/nuke.ts"
+      echo "seeding database..."
+      run npm --prefix "${ROOT_DIR}" run db:seed
       server_dev start
       ;;
     status)

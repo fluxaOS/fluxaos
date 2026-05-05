@@ -24,7 +24,7 @@ run_flux() {
 }
 
 output=$(run_flux help 2>&1 || true)
-assert_contains "${output}" "flux server dev start|stop|restart|status"
+assert_contains "${output}" "flux server dev start|stop|restart|reset|status"
 assert_contains "${output}" "flux daemon list"
 
 output=$(run_flux daemon list 2>&1)
@@ -52,6 +52,12 @@ assert_contains "${output}" "server dev stopped"
 
 output=$(run_flux server dev restart 2>&1)
 assert_contains "${output}" "server dev stopped"
+assert_contains "${output}" "npm run dev -- -p 3004"
+
+output=$(run_flux server dev reset 2>&1)
+assert_contains "${output}" "server dev stopped"
+assert_contains "${output}" "nuke.ts"
+assert_contains "${output}" "db:seed"
 assert_contains "${output}" "npm run dev -- -p 3004"
 
 output=$(run_flux server dev status 2>&1)
