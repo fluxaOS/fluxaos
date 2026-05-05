@@ -13,6 +13,8 @@ export interface ParallelChild {
   driverCommand: string;
   driverArgs: string[];
   env?: Record<string, string>;
+  initResultDocScript: string;
+  ingestResultDocScript: string;
 }
 
 export interface ParallelExecutorInput {
@@ -22,6 +24,8 @@ export interface ParallelExecutorInput {
   children: ParallelChild[];
   aggregation: ParallelGroup['aggregation'];
   checkpointer?: BaseCheckpointSaver;
+  initResultDocScript: string;
+  ingestResultDocScript: string;
 }
 
 export interface ChildResult {
@@ -54,6 +58,8 @@ async function runChild(
         driverCommand: child.driverCommand,
         driverArgs: child.driverArgs,
         env: child.env,
+        initResultDocScript: child.initResultDocScript,
+        ingestResultDocScript: child.ingestResultDocScript,
       },
       checkpointer,
       threadId

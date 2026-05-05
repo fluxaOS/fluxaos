@@ -15,6 +15,8 @@ export interface LoopExecutorInput {
   maxIterations: number;
   env?: Record<string, string>;
   checkpointer?: BaseCheckpointSaver;
+  initResultDocScript: string;
+  ingestResultDocScript: string;
 }
 
 export interface LoopExecutorResult {
@@ -71,6 +73,8 @@ export async function runLoopExecutor(
           driverCommand: input.driverCommand,
           driverArgs: input.driverArgs,
           env: input.env,
+          initResultDocScript: input.initResultDocScript,
+          ingestResultDocScript: input.ingestResultDocScript,
         },
         input.checkpointer,
         iterThreadId
