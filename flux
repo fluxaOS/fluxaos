@@ -20,7 +20,7 @@ DRY_RUN="${FLUX_DRY_RUN:-0}"
 usage() {
   cat <<'USAGE'
 Usage:
-  flux server dev start|stop|restart|reset|status
+  flux server dev start|stop|restart|reset|status [--root <path>] [--port <port>]
   flux server uat start|stop|restart|status|build
   flux daemon list
   flux daemon orchestrator start|stop|restart|status|install|uninstall
@@ -28,6 +28,8 @@ Usage:
 
 Notes:
   server dev runs Next.js on port 3004 by default.
+  --root <path>  serve a different directory (e.g. a worktree) instead of the repo root.
+  --port <port>  listen on a different port (overrides FLUX_DEV_PORT and the 3004 default).
   server dev reset stops the server, nukes + reseeds the DB, then starts fresh.
   server uat manages the Docker Compose web service in /mnt/stacks/docker/fluxaos.
   orchestrator is an alias for daemon orchestrator.
@@ -97,38 +99,66 @@ daemon_unit_for() {
 
 server_dev() {
   local action=${1:-}
+  shift || true
+
+  # Parse --root and --port flags from remaining args.
+  local dev_root="${ROOT_DIR}"
+  local dev_port="${DEV_PORT}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --root)  dev_root="${2:?--root requires a path}"; shift 2 ;;
+      --port)  dev_port="${2:?--port requires a port number}"; shift 2 ;;
+      *) fail "unknown server dev option: $1" ;;
+    esac
+  done
+
+  # Derive per-root state paths so multiple roots don't collide.
+  local state_dir="${dev_root}/.flux"
+  local pid_file="${state_dir}/server-dev.pid"
+  local log_file="${state_dir}/server-dev.log"
+
+  find_dev_port_pid_for() {
+    local line
+    line="$(ss -ltnp "sport = :${dev_port}" 2>/dev/null | awk 'NR > 1 { print; exit }' || true)"
+    [[ "${line}" =~ pid=([0-9]+) ]] && echo "${BASH_REMATCH[1]}"
+  }
+
+  read_dev_pid_for() {
+    [[ -f "${pid_file}" ]] && cat "${pid_file}"
+  }
+
   case "${action}" in
     start)
       if [[ "${DRY_RUN}" == "1" ]]; then
-        echo "+ cd ${ROOT_DIR} && npm run dev -- -p ${DEV_PORT} >${DEV_LOG_FILE} 2>&1 & echo \$! >${DEV_PID_FILE}"
+        echo "+ cd ${dev_root} && npm run dev -- -p ${dev_port} >${log_file} 2>&1 & echo \$! >${pid_file}"
         return 0
       fi
-      mkdir -p "${STATE_DIR}"
+      mkdir -p "${state_dir}"
       local pid
-      pid="$(find_dev_port_pid || true)"
+      pid="$(find_dev_port_pid_for || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
-        echo "${pid}" >"${DEV_PID_FILE}"
-        echo "server dev already running pid=${pid} port=${DEV_PORT}"
+        echo "${pid}" >"${pid_file}"
+        echo "server dev already running pid=${pid} port=${dev_port}"
         return 0
       fi
-      pid="$(read_dev_pid || true)"
+      pid="$(read_dev_pid_for || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
-        echo "server dev starting pid=${pid} port=${DEV_PORT}"
+        echo "server dev starting pid=${pid} port=${dev_port}"
         return 0
       fi
-      (cd "${ROOT_DIR}" && nohup npm run dev -- -p "${DEV_PORT}" >"${DEV_LOG_FILE}" 2>&1 & echo $! >"${DEV_PID_FILE}")
-      echo "server dev started pid=$(cat "${DEV_PID_FILE}") port=${DEV_PORT} log=${DEV_LOG_FILE}"
+      (cd "${dev_root}" && nohup npm run dev -- -p "${dev_port}" >"${log_file}" 2>&1 & echo $! >"${pid_file}")
+      echo "server dev started pid=$(cat "${pid_file}") root=${dev_root} port=${dev_port} log=${log_file}"
       ;;
     stop)
       local pid
-      pid="$(read_dev_pid || true)"
+      pid="$(read_dev_pid_for || true)"
       local stopped=0
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
         run kill "${pid}"
         echo "server dev stopped pid=${pid}"
         stopped=1
       fi
-      pid="$(find_dev_port_pid || true)"
+      pid="$(find_dev_port_pid_for || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
         run kill "${pid}"
         echo "server dev stopped listener pid=${pid}"
@@ -136,35 +166,34 @@ server_dev() {
       fi
       if [[ "${stopped}" == "0" ]]; then
         echo "server dev stopped"
-        rm -f "${DEV_PID_FILE}"
-        return 0
       fi
-      rm -f "${DEV_PID_FILE}"
+      rm -f "${pid_file}"
       ;;
     restart)
-      server_dev stop
-      server_dev start
+      server_dev stop --root "${dev_root}" --port "${dev_port}"
+      server_dev start --root "${dev_root}" --port "${dev_port}"
       ;;
     reset)
-      server_dev stop
+      server_dev stop --root "${dev_root}" --port "${dev_port}"
       echo "nuking database..."
-      run npx tsx "${ROOT_DIR}/src/scripts/db/nuke.ts"
+      run npx tsx "${dev_root}/src/scripts/db/nuke.ts"
       echo "seeding database..."
-      run npm --prefix "${ROOT_DIR}" run db:seed
-      server_dev start
+      run npm --prefix "${dev_root}" run db:seed
+      server_dev start --root "${dev_root}" --port "${dev_port}"
       ;;
     status)
-      print_dev_endpoint
+      echo "endpoint: ${DEV_DNS} = ${DEV_HOST}:${dev_port}"
+      echo "root: ${dev_root}"
       local pid
-      pid="$(find_dev_port_pid || true)"
+      pid="$(find_dev_port_pid_for || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
-        echo "${pid}" >"${DEV_PID_FILE}"
-        echo "server dev running pid=${pid} port=${DEV_PORT} log=${DEV_LOG_FILE}"
+        echo "${pid}" >"${pid_file}"
+        echo "server dev running pid=${pid} port=${dev_port} log=${log_file}"
         return 0
       fi
-      pid="$(read_dev_pid || true)"
+      pid="$(read_dev_pid_for || true)"
       if [[ -n "${pid}" ]] && is_running_pid "${pid}"; then
-        echo "server dev starting pid=${pid} port=${DEV_PORT} log=${DEV_LOG_FILE}"
+        echo "server dev starting pid=${pid} port=${dev_port} log=${log_file}"
       else
         echo "server dev stopped"
       fi
@@ -258,7 +287,7 @@ main() {
       local mode=${1:-}
       shift || true
       case "${mode}" in
-        dev) server_dev "${1:-}" ;;
+        dev) server_dev "$@" ;;
         uat) server_uat "${1:-}" ;;
         *) usage; fail "unknown server mode: ${mode:-<missing>}" ;;
       esac
