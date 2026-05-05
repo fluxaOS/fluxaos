@@ -3,6 +3,7 @@
  */
 
 import { brandRouter } from './routers/brand';
+import { daemonRouter } from './routers/daemon';
 import { configRouter } from './routers/config';
 import { cronRouter } from './routers/cron';
 import { driverRouter } from './routers/driver';
@@ -41,6 +42,7 @@ export const appRouter = router({
   team: teamRouter,
   user: userRouter,
   mission: missionRouter,
+  daemon: daemonRouter,
 });
 
 export type AppRouter = typeof appRouter;

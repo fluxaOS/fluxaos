@@ -11,6 +11,7 @@ import {
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/card';
+import { DaemonControls } from '@/components/daemon-controls';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -116,10 +117,13 @@ export function MissionControlClient({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Mission Control"
-        description={`Live daemon activity for ${projectName}`}
-      />
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <PageHeader
+          title="Mission Control"
+          description={`Live daemon activity for ${projectName}`}
+        />
+        <DaemonControls />
+      </div>
 
       {/* Section 1: Queue depth */}
       <Card padding="p-6">
