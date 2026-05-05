@@ -146,7 +146,8 @@ server_dev() {
         echo "server dev starting pid=${pid} port=${dev_port}"
         return 0
       fi
-      (cd "${dev_root}" && nohup npm run dev -- -p "${dev_port}" >"${log_file}" 2>&1 & echo $! >"${pid_file}")
+      nohup bash -c "cd '${dev_root}' && exec npm run dev -- -H 0.0.0.0 -p '${dev_port}'" >"${log_file}" 2>&1 &
+      echo $! >"${pid_file}"
       echo "server dev started pid=$(cat "${pid_file}") root=${dev_root} port=${dev_port} log=${log_file}"
       ;;
     stop)
