@@ -44,6 +44,8 @@ const BASE_INPUT: ParallelExecutorInput = {
       prompt: 'Review the code.',
       driverCommand: 'npx',
       driverArgs: ['claude-code', '--headless'],
+      initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+      ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
     },
     {
       id: 'child-b',
@@ -54,9 +56,13 @@ const BASE_INPUT: ParallelExecutorInput = {
       prompt: 'Review the code.',
       driverCommand: 'npx',
       driverArgs: ['claude-code', '--headless'],
+      initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+      ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
     },
   ],
   aggregation: 'all-pass',
+  initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+  ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
 };
 
 beforeEach(() => {
@@ -148,6 +154,8 @@ describe('runParallelExecutor', () => {
             prompt: 'Review the code.',
             driverCommand: 'npx',
             driverArgs: ['claude-code', '--headless'],
+            initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+            ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
           },
         ],
       });

@@ -1,12 +1,7 @@
 import { and, count, desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { nextRevisionNumber } from '@/core/db/revision';
-import {
-  personaSkill,
-  skill,
-  skillRevision,
-  stageRun,
-} from '@/core/db/schema';
+import { personaSkill, skill, skillRevision, stageRun } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
 
 type SkillInsert = typeof skill.$inferInsert;

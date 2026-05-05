@@ -3,9 +3,9 @@
  */
 
 import { brandRouter } from './routers/brand';
-import { daemonRouter } from './routers/daemon';
 import { configRouter } from './routers/config';
 import { cronRouter } from './routers/cron';
+import { daemonRouter } from './routers/daemon';
 import { driverRouter } from './routers/driver';
 import { gateRouter } from './routers/gate';
 import { issueRouter } from './routers/issue';

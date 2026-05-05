@@ -281,15 +281,6 @@ async function createStageRunnerHarness(input: {
     .returning();
   driverIds.push(driverRow.id);
 
-  const [skillRow] = await db
-    .insert(schema.skill)
-    .values({
-      projectId,
-      name: `flx-83-skill-${RUN}-${callIdx}`,
-      promptTemplate: 'Use {{workspace_path}} for source edits.',
-    })
-    .returning();
-
   const stage = await createPipelineService(db).stages.create({
     pipelineId,
     name: `flx-83-stage-${callIdx}`,
@@ -298,7 +289,6 @@ async function createStageRunnerHarness(input: {
     maxRetries: 0,
     driver: input.withRouting ? driverRow.slug : null,
     driverId: driverRow.id,
-    skillId: skillRow.id,
   });
 
   if (input.withRouting) {

@@ -183,15 +183,6 @@ async function createFixture() {
     .returning();
   driverIds.push(driver.id);
 
-  const [skill] = await db
-    .insert(schema.skill)
-    .values({
-      projectId: project.id,
-      name: `issue-events-skill-${RUN}`,
-      promptTemplate: 'Emit a flux signal summary.',
-    })
-    .returning();
-
   const stage = await createPipelineService(db).stages.create({
     pipelineId: pipeline.id,
     name: `issue-events-stage-${RUN}`,
@@ -200,7 +191,6 @@ async function createFixture() {
     maxRetries: 0,
     driver: driver.slug,
     driverId: driver.id,
-    skillId: skill.id,
   });
 
   await createRouting(org.id, stage.name);

@@ -47,7 +47,7 @@ export function Nav() {
       exact: true,
       icon: Workflow,
     },
-{ href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
+    { href: `${basePath}/settings/skills`, label: 'Skills', icon: Sparkles },
     { href: `${basePath}/settings/drivers`, label: 'Drivers', icon: Terminal },
     { href: `${basePath}/settings/routing`, label: 'Routing', icon: Route },
     {

@@ -1005,7 +1005,9 @@ When you receive an issue:
     let [personaRow] = await db
       .select()
       .from(persona)
-      .where(and(eq(persona.name, pd.personaName), eq(persona.projectId, proj.id)));
+      .where(
+        and(eq(persona.name, pd.personaName), eq(persona.projectId, proj.id))
+      );
 
     if (!personaRow) {
       [personaRow] = await db

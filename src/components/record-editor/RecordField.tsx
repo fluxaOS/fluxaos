@@ -380,7 +380,9 @@ function JsonField({
       setParseError(null);
       onChange(parsed);
     } catch {
-      setParseError('Invalid JSON — must be a valid JSON value (e.g. { "key": "value" }). Leave blank to clear.');
+      setParseError(
+        'Invalid JSON — must be a valid JSON value (e.g. { "key": "value" }). Leave blank to clear.'
+      );
     }
   };
 

@@ -612,4 +612,3 @@ async function resolveProjectIdForRun(
     .where(eq(pipeline.id, run.pipelineId));
   return pipe?.projectId ?? null;
 }
-

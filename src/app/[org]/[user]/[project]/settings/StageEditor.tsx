@@ -205,7 +205,7 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                         className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
                       />
                     ) : (
-                      s.onPass ?? '-'
+                      (s.onPass ?? '-')
                     )}
                   </td>
                   <td className="pr-3 py-1">
@@ -219,7 +219,7 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                         className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
                       />
                     ) : (
-                      s.onFail ?? '-'
+                      (s.onFail ?? '-')
                     )}
                   </td>
                   <td className="pr-3 py-1">
@@ -233,7 +233,7 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                         className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
                       />
                     ) : (
-                      s.fallback ?? '-'
+                      (s.fallback ?? '-')
                     )}
                   </td>
                   <td className="pr-3 py-1">

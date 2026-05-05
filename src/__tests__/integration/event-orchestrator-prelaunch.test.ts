@@ -60,11 +60,9 @@ describe('FLX-94 pre-launch stage failures', () => {
       },
       async cancel() {},
     };
-    const orchestrator = createEventOrchestrator(
-      db,
-      realtime,
-      { async onTerminal() {} }
-    );
+    const orchestrator = createEventOrchestrator(db, realtime, {
+      async onTerminal() {},
+    });
 
     try {
       orchestrator.start();
