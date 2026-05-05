@@ -18,7 +18,10 @@ function getBuildMeta(): { sha: string; buildTime: string; version: string } {
     process.env.NEXT_PUBLIC_GIT_SHA ??
     (() => {
       try {
-        return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+        return execSync('git rev-parse HEAD', {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
       } catch {
         return 'unknown';
       }
