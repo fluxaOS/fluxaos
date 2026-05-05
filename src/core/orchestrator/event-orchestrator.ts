@@ -408,6 +408,12 @@ export function createEventOrchestrator(
                     RESULT_DOC_PATH: childResultDocPath,
                     ARTIFACTS_DIR: childArtifactsBase,
                   },
+                  initResultDocScript:
+                    fluxaosConfig?.initResultDocScript ??
+                    'src/scripts/pipeline/init-result-doc.ts',
+                  ingestResultDocScript:
+                    fluxaosConfig?.ingestResultDocScript ??
+                    'src/scripts/pipeline/ingest-result-doc.ts',
                 };
               }),
               aggregation: playbookStage.aggregation,
@@ -447,6 +453,12 @@ export function createEventOrchestrator(
                 ARTIFACTS_DIR: artifactsBase,
               },
               checkpointer: loopCheckpointer,
+              initResultDocScript:
+                fluxaosConfig?.initResultDocScript ??
+                'src/scripts/pipeline/init-result-doc.ts',
+              ingestResultDocScript:
+                fluxaosConfig?.ingestResultDocScript ??
+                'src/scripts/pipeline/ingest-result-doc.ts',
             });
 
             ingestOutput = loopResult.lastIngestOutput;
@@ -526,6 +538,12 @@ export function createEventOrchestrator(
                   RESULT_DOC_PATH: resultDocPath,
                   ARTIFACTS_DIR: artifactsBase,
                 },
+                initResultDocScript:
+                  fluxaosConfig?.initResultDocScript ??
+                  'src/scripts/pipeline/init-result-doc.ts',
+                ingestResultDocScript:
+                  fluxaosConfig?.ingestResultDocScript ??
+                  'src/scripts/pipeline/ingest-result-doc.ts',
               },
               checkpointer
             );

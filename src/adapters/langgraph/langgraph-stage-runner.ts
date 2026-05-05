@@ -8,10 +8,9 @@ import {
   START,
   StateGraph,
 } from '@langchain/langgraph';
+import { DEFAULT_STAGE_TIMEOUT_SEC } from '@/core/constants';
 
 const execFileAsync = promisify(execFile);
-
-const DEFAULT_STAGE_TIMEOUT_SEC = 7200;
 
 export interface StageGraphInput {
   stageRunId: string;
@@ -21,6 +20,8 @@ export interface StageGraphInput {
   driverCommand: string;
   driverArgs: string[];
   env?: Record<string, string>;
+  initResultDocScript: string;
+  ingestResultDocScript: string;
 }
 
 const StageState = Annotation.Root({
@@ -31,6 +32,8 @@ const StageState = Annotation.Root({
   driverCommand: Annotation<string>(),
   driverArgs: Annotation<string[]>(),
   env: Annotation<Record<string, string> | undefined>(),
+  initResultDocScript: Annotation<string>(),
+  ingestResultDocScript: Annotation<string>(),
   prepared: Annotation<boolean>(),
   executed: Annotation<boolean>(),
   ingestOutput: Annotation<string | undefined>(),
@@ -47,7 +50,7 @@ async function prepareNode(
       'npx',
       [
         'tsx',
-        'src/scripts/pipeline/init-result-doc.ts',
+        state.initResultDocScript,
         '--stage-run-id',
         state.stageRunId,
         '--output',
@@ -94,7 +97,7 @@ async function ingestNode(
       'npx',
       [
         'tsx',
-        'src/scripts/pipeline/ingest-result-doc.ts',
+        state.ingestResultDocScript,
         '--stage-run-id',
         state.stageRunId,
         '--result-doc',

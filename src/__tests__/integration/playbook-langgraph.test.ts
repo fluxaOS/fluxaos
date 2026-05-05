@@ -10,6 +10,8 @@ describe('buildStageGraph', () => {
       prompt: 'Test prompt.',
       driverCommand: 'echo',
       driverArgs: ['hello'],
+      initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+      ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
     });
     expect(graph).toBeDefined();
     expect(typeof graph.invoke).toBe('function');
