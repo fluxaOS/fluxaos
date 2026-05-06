@@ -6,8 +6,8 @@
  * worktrees so stage outputs never get committed to the target repo.
  *
  * Resolution precedence (first non-empty wins):
- *   1. FLUXAOS_ARTIFACTS_ROOT — absolute. Dedicated override for artifacts.
- *   2. FLUXAOS_WORKSPACE_ROOT — absolute. Shared override with worktrees.
+ *   1. opts.artifactsRoot — absolute. Dedicated override for artifacts.
+ *   2. opts.workspaceRoot — absolute. Shared override with worktrees.
  *   3. <repoPath>/.fluxaos-artifacts/ — default in-project layout.
  *
  * Shape mirrors path-resolver.ts exactly so behavior is predictable across
@@ -16,34 +16,44 @@
 
 import { isAbsolute, join, resolve } from 'node:path';
 
+export interface ArtifactsPathOpts {
+  /** Dedicated artifacts-root override (FLUXAOS_ARTIFACTS_ROOT). */
+  artifactsRoot?: string | undefined;
+  /** Shared workspace-root override (FLUXAOS_WORKSPACE_ROOT). */
+  workspaceRoot?: string | undefined;
+}
+
 /**
  * Root directory under which per-run artifacts are stored for a given repo.
  *
- * If FLUXAOS_ARTIFACTS_ROOT is set (absolute), used as-is.
- * Else if FLUXAOS_WORKSPACE_ROOT is set (absolute), used as-is.
+ * If opts.artifactsRoot is set (absolute), used as-is.
+ * Else if opts.workspaceRoot is set (absolute), used as-is.
  * Else falls back to `<repoPath>/.fluxaos-artifacts/`.
  *
- * Throws if either env var is set to a non-absolute path.
+ * Throws if either override is set to a non-absolute path.
  */
-export function getArtifactsBase(repoPath: string): string {
-  const artifactsOverride = process.env.FLUXAOS_ARTIFACTS_ROOT;
-  if (artifactsOverride) {
-    if (!isAbsolute(artifactsOverride)) {
+export function getArtifactsBase(
+  repoPath: string,
+  opts: ArtifactsPathOpts = {}
+): string {
+  const { artifactsRoot, workspaceRoot } = opts;
+
+  if (artifactsRoot) {
+    if (!isAbsolute(artifactsRoot)) {
       throw new Error(
-        `FLUXAOS_ARTIFACTS_ROOT must be an absolute path, got '${artifactsOverride}'.`
+        `FLUXAOS_ARTIFACTS_ROOT must be an absolute path, got '${artifactsRoot}'.`
       );
     }
-    return artifactsOverride;
+    return artifactsRoot;
   }
 
-  const workspaceOverride = process.env.FLUXAOS_WORKSPACE_ROOT;
-  if (workspaceOverride) {
-    if (!isAbsolute(workspaceOverride)) {
+  if (workspaceRoot) {
+    if (!isAbsolute(workspaceRoot)) {
       throw new Error(
-        `FLUXAOS_WORKSPACE_ROOT must be an absolute path, got '${workspaceOverride}'.`
+        `FLUXAOS_WORKSPACE_ROOT must be an absolute path, got '${workspaceRoot}'.`
       );
     }
-    return workspaceOverride;
+    return workspaceRoot;
   }
 
   return join(resolve(repoPath), '.fluxaos-artifacts');
@@ -53,6 +63,10 @@ export function getArtifactsBase(repoPath: string): string {
  * Compose the absolute per-run artifacts directory.
  * `path.join` handles slash normalization — no double-slashes on linux.
  */
-export function getArtifactsPath(repoPath: string, runId: string): string {
-  return join(getArtifactsBase(repoPath), runId);
+export function getArtifactsPath(
+  repoPath: string,
+  runId: string,
+  opts: ArtifactsPathOpts = {}
+): string {
+  return join(getArtifactsBase(repoPath, opts), runId);
 }

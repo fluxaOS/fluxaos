@@ -2,6 +2,7 @@
  * Integration tests: src/adapters/git/path-resolver.ts against real filesystem.
  *
  * Touches real tmpdirs for repoPath resolution. No DB.
+ * Config overrides are passed as parameters — no process.env manipulation needed.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -85,46 +86,30 @@ describe('resolveRepoIdentity', () => {
 });
 
 describe('getWorkspaceRoot', () => {
-  const originalEnv = process.env.FLUXAOS_WORKSPACE_ROOT;
-  afterEach(() => {
-    if (originalEnv === undefined) {
-      delete process.env.FLUXAOS_WORKSPACE_ROOT;
-    } else {
-      process.env.FLUXAOS_WORKSPACE_ROOT = originalEnv;
-    }
-  });
-
-  it('returns null without the env var', () => {
-    delete process.env.FLUXAOS_WORKSPACE_ROOT;
+  it('returns null without an override', () => {
+    expect(getWorkspaceRoot(undefined)).toBeNull();
     expect(getWorkspaceRoot()).toBeNull();
   });
 
-  it('returns the env var when absolute', () => {
-    process.env.FLUXAOS_WORKSPACE_ROOT = '/srv/fluxaos/workspaces';
-    expect(getWorkspaceRoot()).toBe('/srv/fluxaos/workspaces');
+  it('returns the override when absolute', () => {
+    expect(getWorkspaceRoot('/srv/fluxaos/workspaces')).toBe(
+      '/srv/fluxaos/workspaces'
+    );
   });
 
-  it('throws on relative env var', () => {
-    process.env.FLUXAOS_WORKSPACE_ROOT = 'relative/path';
-    expect(() => getWorkspaceRoot()).toThrow();
+  it('throws on relative override', () => {
+    expect(() => getWorkspaceRoot('relative/path')).toThrow();
   });
 });
 
 describe('getWorktreeBase + getWorktreePath against real tmpdirs', () => {
   let repoPath: string;
-  const originalEnv = process.env.FLUXAOS_WORKSPACE_ROOT;
 
   beforeEach(async () => {
     repoPath = await mkdtemp(join(tmpdir(), 'fluxaos-path-resolver-'));
-    delete process.env.FLUXAOS_WORKSPACE_ROOT;
   });
 
   afterEach(async () => {
-    if (originalEnv === undefined) {
-      delete process.env.FLUXAOS_WORKSPACE_ROOT;
-    } else {
-      process.env.FLUXAOS_WORKSPACE_ROOT = originalEnv;
-    }
     await rm(repoPath, { recursive: true, force: true });
   });
 
@@ -136,11 +121,11 @@ describe('getWorktreeBase + getWorktreePath against real tmpdirs', () => {
     expect(base).toBe(join(repoPath, '.fluxaos-worktrees'));
   });
 
-  it('uses override root when env var is set', () => {
-    process.env.FLUXAOS_WORKSPACE_ROOT = '/srv/flux';
+  it('uses override root when workspaceRoot is set', () => {
     const base = getWorktreeBase({
       repoPath,
       repoIdentity: { owner: 'acme', repo: 'widgets' },
+      workspaceRoot: '/srv/flux',
     });
     expect(base).toBe('/srv/flux/acme/widgets/worktrees');
   });

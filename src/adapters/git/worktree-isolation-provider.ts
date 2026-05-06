@@ -62,15 +62,18 @@ function rowToDomain(row: IsolationRow): IsolationEnvironment {
 /**
  * Ensure `.fluxaos-worktrees/` is in the target repo's .gitignore.
  * Only applies to the default (in-project) layout; a no-op when an
- * external FLUXAOS_WORKSPACE_ROOT is configured.
+ * external workspaceRoot is configured.
  *
  * Delegates to the shared `ensureGitignoreEntry` helper (src/adapters/git/
- * gitignore.ts). The env-var guard stays here in the call site because the
+ * gitignore.ts). The guard stays here in the call site because the
  * shared helper intentionally reads no env vars — different features
  * (worktrees, artifacts) have different "is it external?" predicates.
  */
-async function ensureWorktreeGitignored(repoPath: string): Promise<void> {
-  if (getWorkspaceRoot()) return; // external root — no .gitignore change needed
+async function ensureWorktreeGitignored(
+  repoPath: string,
+  workspaceRoot: string | undefined
+): Promise<void> {
+  if (getWorkspaceRoot(workspaceRoot)) return; // external root — no .gitignore change needed
   await ensureGitignoreEntry(
     repoPath,
     '.fluxaos-worktrees/',
@@ -81,17 +84,20 @@ async function ensureWorktreeGitignored(repoPath: string): Promise<void> {
 /**
  * Ensure `.fluxaos-artifacts/` is in the target repo's .gitignore.
  * Sibling to `ensureWorktreeGitignored` — artifacts have a distinct
- * "is it external?" predicate: either FLUXAOS_WORKSPACE_ROOT or the
- * dedicated FLUXAOS_ARTIFACTS_ROOT override points outside the repo.
- * When either is set, the artifacts dir lives elsewhere and no
- * .gitignore entry is needed.
+ * "is it external?" predicate: either workspaceRoot or the dedicated
+ * artifactsRoot override points outside the repo. When either is set,
+ * the artifacts dir lives elsewhere and no .gitignore entry is needed.
  */
-async function ensureArtifactsGitignored(repoPath: string): Promise<void> {
+async function ensureArtifactsGitignored(
+  repoPath: string,
+  workspaceRoot: string | undefined,
+  artifactsRoot: string | undefined
+): Promise<void> {
   // No-op when either workspace root or artifacts root points outside the
   // repo — the directory isn't inside the target repo, so no .gitignore
   // entry is needed.
-  if (getWorkspaceRoot()) return;
-  if (process.env.FLUXAOS_ARTIFACTS_ROOT) return;
+  if (getWorkspaceRoot(workspaceRoot)) return;
+  if (artifactsRoot) return;
   await ensureGitignoreEntry(
     repoPath,
     '.fluxaos-artifacts/',
@@ -101,12 +107,16 @@ async function ensureArtifactsGitignored(repoPath: string): Promise<void> {
 
 export interface WorktreeIsolationProviderDeps {
   db: Database;
+  /** Injected from FluxaosConfig.workspaceRoot — overrides in-project worktree layout. */
+  workspaceRoot?: string | undefined;
+  /** Injected from FluxaosConfig.artifactsRoot — overrides in-project artifacts layout. */
+  artifactsRoot?: string | undefined;
 }
 
 export function createWorktreeIsolationProvider(
   deps: WorktreeIsolationProviderDeps
 ): IsolationProvider {
-  const { db } = deps;
+  const { db, workspaceRoot, artifactsRoot } = deps;
 
   async function acquire(
     params: AcquireEnvironmentParams
@@ -132,6 +142,7 @@ export function createWorktreeIsolationProvider(
       repoPath,
       repoIdentity,
       branchName,
+      workspaceRoot,
     });
 
     // 1. Check for an existing active environment for this run.
@@ -157,7 +168,7 @@ export function createWorktreeIsolationProvider(
       // the dir, and writing the column. Surfaced via console.warn so
       // operators see the backfill in logs.
       const backfillPath =
-        artifactsPathParam ?? getArtifactsPath(repoPath, runId);
+        artifactsPathParam ?? getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
       await ensureArtifactsDir(backfillPath);
       console.warn('isolation.artifactsPath.backfilled', {
         envId: existing.id,
@@ -172,7 +183,7 @@ export function createWorktreeIsolationProvider(
 
     if (existing && !(await worktreeExists(existing.workingPath))) {
       // Row exists but worktree gone. Repair: recreate worktree, update row.
-      await ensureWorktreeGitignored(repoPath);
+      await ensureWorktreeGitignored(repoPath, workspaceRoot);
       await createWorktree(
         repoPath,
         existing.workingPath,
@@ -203,7 +214,7 @@ export function createWorktreeIsolationProvider(
       const repairArtifactsPath =
         existing.artifactsPath ??
         artifactsPathParam ??
-        getArtifactsPath(repoPath, runId);
+        getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
       await ensureArtifactsDir(repairArtifactsPath);
       const [updated] = await db
         .update(isolationEnvironment)
@@ -217,8 +228,8 @@ export function createWorktreeIsolationProvider(
     }
 
     // 2. No active row. Mint a new worktree + row atomically.
-    await ensureWorktreeGitignored(repoPath);
-    await ensureArtifactsGitignored(repoPath);
+    await ensureWorktreeGitignored(repoPath, workspaceRoot);
+    await ensureArtifactsGitignored(repoPath, workspaceRoot, artifactsRoot);
     await createWorktree(repoPath, worktreePath, branchName, baseBranch);
 
     let copyReport;
@@ -227,7 +238,7 @@ export function createWorktreeIsolationProvider(
     }
 
     const resolvedArtifactsPath =
-      artifactsPathParam ?? getArtifactsPath(repoPath, runId);
+      artifactsPathParam ?? getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
     await ensureArtifactsDir(resolvedArtifactsPath);
 
     try {

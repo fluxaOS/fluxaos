@@ -2,7 +2,7 @@
  * Integration tests: src/adapters/git/artifacts-path.ts against real filesystem.
  *
  * Mirrors path-resolver.test.ts. Uses real tmpdirs for repoPath resolution.
- * Restores process.env between tests so env-var assertions don't leak.
+ * Config overrides are passed as parameters — no process.env manipulation needed.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -16,26 +16,12 @@ import {
 
 describe('getArtifactsBase + getArtifactsPath against real tmpdirs', () => {
   let repoPath: string;
-  const originalArtifactsRoot = process.env.FLUXAOS_ARTIFACTS_ROOT;
-  const originalWorkspaceRoot = process.env.FLUXAOS_WORKSPACE_ROOT;
 
   beforeEach(async () => {
     repoPath = await mkdtemp(join(tmpdir(), 'fluxaos-artifacts-path-'));
-    delete process.env.FLUXAOS_ARTIFACTS_ROOT;
-    delete process.env.FLUXAOS_WORKSPACE_ROOT;
   });
 
   afterEach(async () => {
-    if (originalArtifactsRoot === undefined) {
-      delete process.env.FLUXAOS_ARTIFACTS_ROOT;
-    } else {
-      process.env.FLUXAOS_ARTIFACTS_ROOT = originalArtifactsRoot;
-    }
-    if (originalWorkspaceRoot === undefined) {
-      delete process.env.FLUXAOS_WORKSPACE_ROOT;
-    } else {
-      process.env.FLUXAOS_WORKSPACE_ROOT = originalWorkspaceRoot;
-    }
     await rm(repoPath, { recursive: true, force: true });
   });
 
@@ -44,27 +30,31 @@ describe('getArtifactsBase + getArtifactsPath against real tmpdirs', () => {
     expect(base).toBe(join(repoPath, '.fluxaos-artifacts'));
   });
 
-  it('uses FLUXAOS_ARTIFACTS_ROOT when set to an absolute path', () => {
-    process.env.FLUXAOS_ARTIFACTS_ROOT = '/srv/flux/artifacts';
-    expect(getArtifactsBase(repoPath)).toBe('/srv/flux/artifacts');
+  it('uses artifactsRoot when set to an absolute path', () => {
+    expect(getArtifactsBase(repoPath, { artifactsRoot: '/srv/flux/artifacts' })).toBe(
+      '/srv/flux/artifacts'
+    );
   });
 
-  it('throws when FLUXAOS_ARTIFACTS_ROOT is relative', () => {
-    process.env.FLUXAOS_ARTIFACTS_ROOT = 'relative/path';
-    expect(() => getArtifactsBase(repoPath)).toThrow(
+  it('throws when artifactsRoot is relative', () => {
+    expect(() => getArtifactsBase(repoPath, { artifactsRoot: 'relative/path' })).toThrow(
       /FLUXAOS_ARTIFACTS_ROOT must be an absolute path/
     );
   });
 
-  it('falls back to FLUXAOS_WORKSPACE_ROOT when ARTIFACTS_ROOT is unset', () => {
-    process.env.FLUXAOS_WORKSPACE_ROOT = '/srv/flux/workspaces';
-    expect(getArtifactsBase(repoPath)).toBe('/srv/flux/workspaces');
+  it('falls back to workspaceRoot when artifactsRoot is unset', () => {
+    expect(getArtifactsBase(repoPath, { workspaceRoot: '/srv/flux/workspaces' })).toBe(
+      '/srv/flux/workspaces'
+    );
   });
 
-  it('prefers FLUXAOS_ARTIFACTS_ROOT over FLUXAOS_WORKSPACE_ROOT when both set', () => {
-    process.env.FLUXAOS_ARTIFACTS_ROOT = '/srv/flux/artifacts';
-    process.env.FLUXAOS_WORKSPACE_ROOT = '/srv/flux/workspaces';
-    expect(getArtifactsBase(repoPath)).toBe('/srv/flux/artifacts');
+  it('prefers artifactsRoot over workspaceRoot when both set', () => {
+    expect(
+      getArtifactsBase(repoPath, {
+        artifactsRoot: '/srv/flux/artifacts',
+        workspaceRoot: '/srv/flux/workspaces',
+      })
+    ).toBe('/srv/flux/artifacts');
   });
 
   it('getArtifactsPath composes base + runId with no double-slashes', () => {

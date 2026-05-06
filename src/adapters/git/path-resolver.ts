@@ -77,14 +77,14 @@ export function resolveRepoIdentity(
 
 /**
  * Root for worktree storage. Default: in-project `.fluxaos-worktrees/`.
- * Overridable via FLUXAOS_WORKSPACE_ROOT env var (absolute path).
  *
- * If an env var override is given it is treated as the root for ALL
- * workspaces across all repos (Archon's workspace-scoped layout).
- * Without it, each repo gets its own in-project dir via getWorktreeBase.
+ * Accepts an explicit override (injected from FluxaosConfig.workspaceRoot).
+ * When override is undefined, returns null — each repo gets its own
+ * in-project dir via getWorktreeBase.
+ *
+ * Throws if the override value is not an absolute path.
  */
-export function getWorkspaceRoot(): string | null {
-  const override = process.env.FLUXAOS_WORKSPACE_ROOT;
+export function getWorkspaceRoot(override?: string | undefined): string | null {
   if (!override) return null;
   if (!isAbsolute(override)) {
     throw new Error(
@@ -97,8 +97,8 @@ export function getWorkspaceRoot(): string | null {
 /**
  * Derive the base directory under which a repo's worktrees live.
  *
- * If FLUXAOS_WORKSPACE_ROOT is set:
- *   <FLUXAOS_WORKSPACE_ROOT>/<owner>/<repo>/worktrees/
+ * If workspaceRoot is provided (absolute):
+ *   <workspaceRoot>/<owner>/<repo>/worktrees/
  *
  * Otherwise (default, in-project layout):
  *   <repoPath>/.fluxaos-worktrees/
@@ -106,8 +106,9 @@ export function getWorkspaceRoot(): string | null {
 export function getWorktreeBase(params: {
   repoPath: string;
   repoIdentity: RepoIdentity;
+  workspaceRoot?: string | undefined;
 }): string {
-  const override = getWorkspaceRoot();
+  const override = getWorkspaceRoot(params.workspaceRoot);
   if (override) {
     return join(
       override,
@@ -127,12 +128,14 @@ export function getWorktreePath(params: {
   repoPath: string;
   repoIdentity: RepoIdentity;
   branchName: string;
+  workspaceRoot?: string | undefined;
 }): string {
   const safeBranchDir = params.branchName.replace(/\//g, '__');
   return join(
     getWorktreeBase({
       repoPath: params.repoPath,
       repoIdentity: params.repoIdentity,
+      workspaceRoot: params.workspaceRoot,
     }),
     safeBranchDir
   );

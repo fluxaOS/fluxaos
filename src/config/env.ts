@@ -15,6 +15,8 @@
 export interface FluxaosConfig {
   /** Root directory for per-run artifact dirs. Optional — adapters have an in-repo default. */
   artifactsRoot: string | undefined;
+  /** Override root for worktree storage (all repos share this root). Optional — adapters default to in-project layout. */
+  workspaceRoot: string | undefined;
   /** Absolute path to the on-disk clone of the target repo (R-RUNTIME alpha). */
   targetRepoPath: string | undefined;
   /** How often the cleanup sweep runs (minutes). Required — no default. */
@@ -55,6 +57,7 @@ function parseRequiredPositiveInt(name: string): number {
 export function loadFluxaosConfig(): FluxaosConfig {
   return {
     artifactsRoot: process.env.FLUXAOS_ARTIFACTS_ROOT,
+    workspaceRoot: process.env.FLUXAOS_WORKSPACE_ROOT,
     targetRepoPath: process.env.FLUXAOS_TARGET_REPO_PATH,
     cleanupSweepIntervalMin: parseRequiredPositiveInt(REQUIRED_CLEANUP_VARS[0]),
     cleanupStaleDays: parseRequiredPositiveInt(REQUIRED_CLEANUP_VARS[1]),
