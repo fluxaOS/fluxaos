@@ -2,17 +2,8 @@
  * Cleanup scheduler — thin setInterval harness around cleanup-service.
  *
  * Wired from the orchestrator bootstrap or a dev-only entry that sets
- * FLUXAOS_RUN_CLEANUP_SCHEDULER=1. Refuses to start unless all four
- * required env vars are set with parseable positive integers:
- *
- *   - FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN
- *   - FLUXAOS_CLEANUP_STALE_DAYS
- *   - FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS
- *   - FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS   (R-ARTIFACTS W4)
- *
- * The no-defaults stance comes from the no-invented-thresholds rule:
- * numbers with real operational meaning belong to the operator, not the
- * spec or code.
+ * FLUXAOS_RUN_CLEANUP_SCHEDULER=1. All four scheduling thresholds are
+ * injected via deps — no process.env reads in this file.
  *
  * Shape borrowed from Archon's packages/core/src/services/cleanup-scheduler.ts
  * (MIT, shape-only).
@@ -25,6 +16,14 @@ export interface CleanupSchedulerDeps {
     runScheduledSweep(): Promise<CleanupReport>;
   };
   logger: CleanupLogger;
+  /** How often the sweep runs (minutes). */
+  sweepIntervalMin: number;
+  /** Maximum worktree age in days before considered stale. */
+  staleDays: number;
+  /** Minimum session age in days before a terminal session is reaped. */
+  sessionRetentionDays: number;
+  /** Minimum age in days before a terminal artifacts dir is reaped. */
+  artifactsRetentionDays: number;
 }
 
 export interface CleanupScheduler {
@@ -33,55 +32,17 @@ export interface CleanupScheduler {
   isRunning(): boolean;
 }
 
-// Env-var names exposed for tests and docs.
-export const SWEEP_INTERVAL_ENV = 'FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN';
-export const STALE_DAYS_ENV = 'FLUXAOS_CLEANUP_STALE_DAYS';
-export const SESSION_RETENTION_ENV = 'FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS';
-export const ARTIFACTS_RETENTION_ENV =
-  'FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS';
-
-interface ParsedConfig {
-  intervalMin: number;
-  staleDays: number;
-  sessionRetentionDays: number;
-  artifactsRetentionDays: number;
-}
-
-function parseConfig(): ParsedConfig | { missing: string[] } {
-  const missing: string[] = [];
-  const required = [
-    SWEEP_INTERVAL_ENV,
-    STALE_DAYS_ENV,
-    SESSION_RETENTION_ENV,
-    ARTIFACTS_RETENTION_ENV,
-  ];
-  const parsed: Record<string, number> = {};
-  for (const name of required) {
-    const raw = process.env[name];
-    if (raw === undefined || raw === '') {
-      missing.push(name);
-      continue;
-    }
-    const n = Number.parseInt(raw, 10);
-    if (!Number.isFinite(n) || n <= 0) {
-      missing.push(name);
-      continue;
-    }
-    parsed[name] = n;
-  }
-  if (missing.length > 0) return { missing };
-  return {
-    intervalMin: parsed[SWEEP_INTERVAL_ENV],
-    staleDays: parsed[STALE_DAYS_ENV],
-    sessionRetentionDays: parsed[SESSION_RETENTION_ENV],
-    artifactsRetentionDays: parsed[ARTIFACTS_RETENTION_ENV],
-  };
-}
-
 export function createCleanupScheduler(
   deps: CleanupSchedulerDeps
 ): CleanupScheduler {
-  const { cleanupService, logger } = deps;
+  const {
+    cleanupService,
+    logger,
+    sweepIntervalMin,
+    staleDays,
+    sessionRetentionDays,
+    artifactsRetentionDays,
+  } = deps;
   let timer: NodeJS.Timeout | null = null;
 
   function isRunning(): boolean {
@@ -94,16 +55,7 @@ export function createCleanupScheduler(
       return;
     }
 
-    const config = parseConfig();
-    if ('missing' in config) {
-      logger.warn(
-        { missing: config.missing },
-        'cleanup_scheduler.disabled_missing_env'
-      );
-      return;
-    }
-
-    const intervalMs = config.intervalMin * 60 * 1000;
+    const intervalMs = sweepIntervalMin * 60 * 1000;
     timer = setInterval(() => {
       void cleanupService.runScheduledSweep().catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
@@ -119,10 +71,10 @@ export function createCleanupScheduler(
 
     logger.info(
       {
-        intervalMin: config.intervalMin,
-        staleDays: config.staleDays,
-        sessionRetentionDays: config.sessionRetentionDays,
-        artifactsRetentionDays: config.artifactsRetentionDays,
+        intervalMin: sweepIntervalMin,
+        staleDays,
+        sessionRetentionDays,
+        artifactsRetentionDays,
       },
       'cleanup_scheduler.started'
     );
