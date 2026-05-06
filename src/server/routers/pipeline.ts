@@ -22,6 +22,7 @@ import { createIssueService } from '@/core/services/issue';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 import { listIssueRunsWithStages } from './pipeline-run-history';
+import { enrichStageRuns } from './_shared/enrich-stage-runs';
 
 /**
  * Resolve the projectId that owns a given pipeline run. Returns null if the
@@ -244,7 +245,6 @@ export const pipelineRouter = router({
     get: publicProcedure
       .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-        const { pipelineStage } = await import('@/core/db/schema');
         const svc = createPipelineRunService(ctx.db);
         const run = await svc.getRun(input.id);
         if (!run) return null;
@@ -261,29 +261,11 @@ export const pipelineRouter = router({
 
         const rawStageRuns = await svc.getStageRuns(input.id);
 
-        // Enrich each stage run with stage definition + events
-        const enrichedStageRuns = await Promise.all(
-          rawStageRuns.map(async (sr) => {
-            const [stageDef] = await ctx.db
-              .select()
-              .from(pipelineStage)
-              .where(eq(pipelineStage.id, sr.pipelineStageId));
-
-            const events = await svc.listEvents(sr.id);
-
-            return {
-              ...sr,
-              pipelineStage: stageDef
-                ? {
-                    name: stageDef.name,
-                    sortOrder: stageDef.sortOrder,
-                    gateMode: stageDef.gateMode,
-                  }
-                : null,
-              events,
-            };
-          })
-        );
+        // Enrich each stage run with stage definition, gate mode, and events
+        const enrichedStageRuns = await enrichStageRuns(ctx.db, rawStageRuns, {
+          includeGateMode: true,
+          includeEvents: true,
+        });
 
         return { ...run, stageRuns: enrichedStageRuns };
       }),

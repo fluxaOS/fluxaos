@@ -1,6 +1,7 @@
 import { asc, desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { pipelineRun, pipelineStage, stageRun } from '@/core/db/schema';
+import { pipelineRun, stageRun } from '@/core/db/schema';
+import { enrichStageRuns } from './_shared/enrich-stage-runs';
 
 export async function listIssueRunsWithStages(db: Database, issueId: string) {
   const runs = await db
@@ -17,19 +18,7 @@ export async function listIssueRunsWithStages(db: Database, issueId: string) {
         .where(eq(stageRun.pipelineRunId, run.id))
         .orderBy(asc(stageRun.createdAt));
 
-      const enrichedStageRuns = await Promise.all(
-        rawStageRuns.map(async (sr) => {
-          const [stageDef] = await db
-            .select({
-              name: pipelineStage.name,
-              sortOrder: pipelineStage.sortOrder,
-            })
-            .from(pipelineStage)
-            .where(eq(pipelineStage.id, sr.pipelineStageId));
-
-          return { ...sr, pipelineStage: stageDef ?? null };
-        })
-      );
+      const enrichedStageRuns = await enrichStageRuns(db, rawStageRuns);
 
       return { ...run, stageRuns: enrichedStageRuns };
     })

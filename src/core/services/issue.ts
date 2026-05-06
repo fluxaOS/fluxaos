@@ -64,30 +64,6 @@ interface UpdateFieldsInput {
 export function createIssueService(db: DbOrTx) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  async function resolveInitialState(
-    projectId: string
-  ): Promise<IssueStateSelect> {
-    const [state] = await db
-      .select()
-      .from(issueState)
-      .where(
-        and(
-          eq(issueState.projectId, projectId),
-          eq(issueState.isTerminal, false),
-          eq(issueState.isActive, true)
-        )
-      )
-      .orderBy(issueState.sortOrder)
-      .limit(1);
-
-    if (!state) {
-      throw new Error(
-        `No active non-terminal state found for project ${projectId}. Run seed or configure issue states.`
-      );
-    }
-    return state;
-  }
-
   async function resolveInitialStatusId(projectId: string): Promise<string> {
     // 1. Read config key
     const [config] = await db
@@ -392,7 +368,7 @@ export function createIssueService(db: DbOrTx) {
   return {
     async create(data: CreateIssueInput): Promise<IssueSelect> {
       const [initialState, statusId] = await Promise.all([
-        resolveInitialState(data.projectId),
+        findNonTerminalState(data.projectId),
         resolveInitialStatusId(data.projectId),
       ]);
 
