@@ -166,6 +166,7 @@ export function IssueDetailClient({
     if (!issue) return;
     updateFields.mutate({
       id: issue.id,
+      projectId,
       version: issue.version,
       ...fields,
     });
@@ -287,6 +288,7 @@ export function IssueDetailClient({
               onSelect={(toStateId) =>
                 transitionMutation.mutate({
                   id: issue.id,
+                  projectId,
                   toStateId,
                   version: issue.version,
                 })
@@ -301,6 +303,7 @@ export function IssueDetailClient({
       <RelationshipsCard
         issueId={issue.id}
         parentIssueId={issue.parentIssueId ?? null}
+        projectId={projectId}
         basePath={basePath}
       />
 
@@ -475,7 +478,7 @@ export function IssueDetailClient({
         type="button"
         onClick={() => {
           if (confirm('Delete this issue and all its data?')) {
-            deleteIssue.mutate({ id: issue.id });
+            deleteIssue.mutate({ id: issue.id, projectId });
           }
         }}
         disabled={deleteIssue.isPending}

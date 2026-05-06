@@ -335,7 +335,8 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
           issueRow.id,
           postDeployState.id,
           issueRow.version,
-          'deploy-bridge'
+          'deploy-bridge',
+          issueRow.projectId
         );
 
         return { branchRowId: branchRow.id, prRowId: prRow.id };

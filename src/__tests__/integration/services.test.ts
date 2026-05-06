@@ -403,8 +403,8 @@ describe('issue service', () => {
     // Delete second issue (number 2) — look it up by number
     const second = await issueSvc.getByNumber(projectId, 2);
     if (second) {
-      await issueSvc.delete(second.id);
-      const found = await issueSvc.getById(second.id);
+      await issueSvc.delete(second.id, projectId);
+      const found = await issueSvc.getById(second.id, projectId);
       expect(found).toBeNull();
     }
   });

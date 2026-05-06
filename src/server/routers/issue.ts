@@ -5,6 +5,7 @@
  * All IDs are UUIDs. No hardcoded enums. Version required on all mutations
  * that modify existing data. Routers are thin — logic lives in services.
  */
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import {
   createIssueCommentService,
@@ -45,8 +46,17 @@ export const issueRouter = router({
     ),
 
   getById: publicProcedure
-    .input(inputId())
-    .query(({ ctx, input }) => createIssueService(ctx.db).getById(input.id)),
+    .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const result = await createIssueService(ctx.db).getById(
+        input.id,
+        input.projectId
+      );
+      if (!result) {
+        throw new TRPCError({ code: 'NOT_FOUND' });
+      }
+      return result;
+    }),
 
   create: publicProcedure
     .input(
@@ -91,6 +101,7 @@ export const issueRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        projectId: z.string().uuid(),
         version: z.number().int(),
         title: z.string().min(1).optional(),
         bodyMd: z.string().optional(),
@@ -102,12 +113,13 @@ export const issueRouter = router({
       })
     )
     .mutation(({ ctx, input }) => {
-      const { id, version, userId, ...fields } = input;
+      const { id, projectId, version, userId, ...fields } = input;
       return createIssueService(ctx.db).updateFields(
         id,
         fields,
         version,
-        userId
+        userId,
+        projectId
       );
     }),
 
@@ -115,6 +127,7 @@ export const issueRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        projectId: z.string().uuid(),
         toStateId: z.string().uuid(),
         version: z.number().int(),
         userId: z.string().optional(),
@@ -125,13 +138,16 @@ export const issueRouter = router({
         input.id,
         input.toStateId,
         input.version,
-        input.userId
+        input.userId,
+        input.projectId
       )
     ),
 
   delete: publicProcedure
-    .input(inputId())
-    .mutation(({ ctx, input }) => createIssueService(ctx.db).delete(input.id)),
+    .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
+    .mutation(({ ctx, input }) =>
+      createIssueService(ctx.db).delete(input.id, input.projectId)
+    ),
 
   transitions: publicProcedure
     .input(inputId())
