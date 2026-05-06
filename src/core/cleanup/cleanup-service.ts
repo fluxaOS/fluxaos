@@ -96,7 +96,11 @@ export interface CleanupServiceDeps {
 }
 
 export interface CleanupService {
-  onPrClosed(prNumber: number, options: { merged: boolean }): Promise<void>;
+  onPrClosed(
+    prNumber: number,
+    repo: string,
+    options: { merged: boolean }
+  ): Promise<void>;
   removeEnvironment(
     envId: string,
     options?: { force?: boolean }
@@ -400,14 +404,20 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
 
   async function onPrClosed(
     prNumber: number,
+    repo: string,
     options: { merged: boolean }
   ): Promise<void> {
     const rows = await db
       .select()
       .from(issuePullRequest)
-      .where(eq(issuePullRequest.prNumber, prNumber));
+      .where(
+        and(
+          eq(issuePullRequest.prNumber, prNumber),
+          eq(issuePullRequest.repo, repo)
+        )
+      );
     if (rows.length === 0) {
-      logger.warn({ prNumber }, 'cleanup.pr_not_found');
+      logger.warn({ prNumber, repo }, 'cleanup.pr_not_found');
       return;
     }
 

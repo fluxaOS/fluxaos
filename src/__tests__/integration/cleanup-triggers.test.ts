@@ -162,7 +162,7 @@ describe('cleanup-service — triggers', () => {
       .returning();
     cleanup.push({ table: 'issuePullRequest', id: pr.id });
 
-    await service.onPrClosed(7, { merged: true });
+    await service.onPrClosed(7, 'fluxaos/cleanup-prclosed', { merged: true });
 
     const [after] = await db
       .select()

@@ -61,6 +61,10 @@ SIZE_EXEMPT_FILES=(
   # lifecycle for one stage_run. Splitting separates lifecycle phases
   # that share invariants and exit semantics.
   "src/core/orchestrator/stage-runner.ts"
+  # Cleanup service: four triggers (sweep, onPrClosed, removeEnvironment,
+  # makeRoom) share fixtures and invariants. Splitting fragments the
+  # release-flow contract between triggers.
+  "src/core/cleanup/cleanup-service.ts"
 )
 
 is_size_exempt() {
