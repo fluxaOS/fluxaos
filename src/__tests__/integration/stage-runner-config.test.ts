@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGitOps } from '@/adapters/git/git-ops';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { bootstrap } from '@/config/bootstrap';
+import { registry } from '@/config/registry';
 import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
@@ -21,6 +22,7 @@ import type {
   IsolationProvider,
 } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { StdoutParser } from '@/core/ports/stdout-parser';
 import {
   createOrganizationService,
   createPipelineService,
@@ -353,6 +355,7 @@ async function createStageRunnerHarness(input: {
           artifactsPath,
         }),
         gitOps: createGitOps(),
+        stdoutParser: registry.get<StdoutParser>('stdoutParser'),
         runId: run.id,
         stageRunId: stageRun.id,
         trigger: 'manual',

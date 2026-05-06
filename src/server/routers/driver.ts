@@ -126,6 +126,13 @@ export const driverRouter = router({
   delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      return createDriverService(ctx.db).delete(input.id, input.version);
+      try {
+        return await createDriverService(ctx.db).delete(input.id, input.version);
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith('Driver not found:')) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+        }
+        throw err;
+      }
     }),
 });
