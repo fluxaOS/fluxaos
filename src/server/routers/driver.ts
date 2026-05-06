@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
+import { NotFoundError } from '@/core/errors/domain';
 import { Feature } from '@/core/features/features';
 import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createDriverService } from '@/core/services/driver';
@@ -126,6 +127,13 @@ export const driverRouter = router({
   delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      return createDriverService(ctx.db).delete(input.id, input.version);
+      try {
+        return await createDriverService(ctx.db).delete(input.id, input.version);
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+        }
+        throw err;
+      }
     }),
 });

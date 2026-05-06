@@ -21,6 +21,7 @@ import { createGateService } from '@/core/gates/service';
 import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { StdoutParser } from '@/core/ports/stdout-parser';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
@@ -35,6 +36,7 @@ export async function executeManualRun(
   executor: StageExecutor,
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
+  stdoutParser: StdoutParser,
   runId: string,
   stageRunId: string,
   gitOps?: GitOpsPort
@@ -48,6 +50,7 @@ export async function executeManualRun(
       executor,
       runService,
       isolation,
+      stdoutParser,
       gitOps: gitOps ?? createNoopGitOps(),
       runId,
       stageRunId,

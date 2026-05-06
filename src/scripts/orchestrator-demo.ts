@@ -12,6 +12,7 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { createWorktreeIsolationProvider } from '@/adapters/git';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
 import {
   event,
@@ -218,6 +219,7 @@ async function demo() {
     mockExecutor,
     isolation,
     noopTerminalHook,
+    new SubprocessStdoutParser(),
     run.id,
     sRun.id
   );

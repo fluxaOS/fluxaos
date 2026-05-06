@@ -10,7 +10,6 @@
  * event-orchestrator (Realtime-driven state machine).
  */
 import { eq } from 'drizzle-orm';
-import { registry } from '@/config/registry';
 import type { TriggerType } from '@/core/constants';
 import {
   DEFAULT_STAGE_TIMEOUT_SEC,
@@ -58,6 +57,8 @@ export interface StageRunContext {
   isolation: IsolationProvider;
   /** Local git operations — injected so core never imports from adapters. */
   gitOps: GitOpsPort;
+  /** Output line parser — injected so core never imports from adapters. */
+  stdoutParser: StdoutParser;
   runId: string;
   stageRunId: string;
   trigger: TriggerType;
@@ -97,7 +98,7 @@ export interface StageRunResult {
 export async function executeStageRun(
   ctx: StageRunContext
 ): Promise<StageRunResult> {
-  const { db, executor, runService, isolation, runId, stageRunId } = ctx;
+  const { db, executor, runService, isolation, stdoutParser, runId, stageRunId } = ctx;
 
   // ── Load all required data ───────────────────────────────────────
 
@@ -346,9 +347,7 @@ export async function executeStageRun(
       tokensOut?: number;
       meta?: Record<string, unknown>;
     } | null;
-    const lineParser = registry
-      .get<StdoutParser>('stdoutParser')
-      .getParser(driverRow.outputFormat as string);
+    const lineParser = stdoutParser.getParser(driverRow.outputFormat as string);
 
     const result = await executor.execute({
       command: cmd.binary,
