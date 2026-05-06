@@ -1,7 +1,7 @@
 export interface WorkspaceMaterializerPort {
   /**
-   * Write content to a file in the workspace atomically (write-then-rename).
-   * Creates parent directories as needed.
+   * Write content to a file atomically (write-then-rename).
+   * The parent directory must already exist.
    */
   writeFile(path: string, content: string): Promise<void>;
 

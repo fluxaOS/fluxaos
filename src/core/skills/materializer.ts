@@ -64,9 +64,9 @@ export interface MaterializeOptions {
  * Materialize skill + persona + issue context to an isolated workspace.
  * Returns the workspace path for the driver to use.
  *
- * With `into`: writes to the caller-supplied directory (does NOT mkdir it;
- * isolation provider already created it). Without: mints a fresh tmp dir
- * under `${tmpdir}/fluxaos-runs/${stageRunId}` (legacy behavior).
+ * With `into`: writes to the caller-supplied directory (mkdir is still called
+ * but is idempotent). Without: mints a fresh tmp dir under
+ * `${tmpdir}/fluxaos-runs/${stageRunId}` (legacy behavior).
  */
 export async function materialize(
   options: MaterializeOptions
