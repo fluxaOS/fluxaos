@@ -21,8 +21,6 @@ import {
 } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
-  issue,
-  pipeline,
   type pipelineRun,
   pipelineStage,
   stageRun,
@@ -31,6 +29,7 @@ import type { Unsubscribe } from '@/core/ports/auth';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createPipelineRunService } from './pipeline-run-service';
+import { resolveProjectIdForRun } from './run-helpers';
 import { createStageExecutor } from './stage-executor';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 
@@ -89,7 +88,7 @@ export function createEventOrchestrator(
   ): Promise<void> {
     await runService.completeRun(run.id, status);
 
-    const projectId = await resolveProjectIdForRun(db, run);
+    const projectId = await resolveProjectIdForRun(db, run.id);
 
     await terminalHook.onTerminal({
       runId: run.id,
@@ -267,25 +266,3 @@ export function createEventOrchestrator(
   };
 }
 
-/**
- * Resolve a pipeline_run's projectId via its issue (preferred) or its
- * pipeline row (fallback). Used by the terminal hook to locate the
- * isolation env for non-completed terminal statuses.
- */
-async function resolveProjectIdForRun(
-  db: Database,
-  run: typeof pipelineRun.$inferSelect
-): Promise<string | null> {
-  if (run.issueId) {
-    const [issueRow] = await db
-      .select()
-      .from(issue)
-      .where(eq(issue.id, run.issueId));
-    if (issueRow?.projectId) return issueRow.projectId;
-  }
-  const [pipe] = await db
-    .select({ projectId: pipeline.projectId })
-    .from(pipeline)
-    .where(eq(pipeline.id, run.pipelineId));
-  return pipe?.projectId ?? null;
-}
