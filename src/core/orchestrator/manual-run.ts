@@ -3,7 +3,6 @@
 import { eq } from 'drizzle-orm';
 import {
   ACTOR,
-  CONFIG_KEY,
   EVENT_TYPE,
   GATE_VERDICT,
   ISSUE_EVENT_TYPE,
@@ -27,7 +26,7 @@ import type { StdoutParser } from '@/core/ports/stdout-parser';
 import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
-import { resolveProjectIdForRun } from './run-helpers';
+import { blockIssueOnRun, resolveProjectIdForRun } from './run-helpers';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import { executeStageRun } from './stage-runner';
 
@@ -128,27 +127,15 @@ export async function executeManualRun(
           });
         } else {
           // No targetState declared — block the issue and surface the reason.
-          const blockedStatusId = await issueService.getStatusIdByConfigKey(
-            issueRow.projectId,
-            CONFIG_KEY.issueStatusOnBlocked
-          );
           const question = result.skillMetadata?.question as string | undefined;
           await db.transaction(async (tx) => {
-            const txIssueService = createIssueService(tx);
-            const txRunService = createPipelineRunService(tx);
-            await txIssueService.updateStatus(
-              result.issueId!,
-              blockedStatusId,
-              ACTOR.orchestrator,
-              issueRow.version,
-              question
-            );
-            await txRunService.appendIssueEvent(
-              result.issueId!,
-              ISSUE_EVENT_TYPE.pipeline_failed,
-              { reason: result.skillSignalReason ?? 'needs_human', question },
-              ACTOR.manualRun
-            );
+            await blockIssueOnRun(tx, result.issueId, {
+              reason: result.skillSignalReason ?? 'needs_human',
+              question,
+              actor: ACTOR.manualRun,
+              appendStatusChanged: false,
+              appendPipelineFailed: true,
+            });
           });
         }
       }
