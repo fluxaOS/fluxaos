@@ -1,12 +1,36 @@
 import { TRPCError } from '@trpc/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
+import { project } from '@/core/db/schema';
 import { createConfigService } from '@/core/services/config';
 import { inputId, publicProcedure, router } from '../trpc';
 
 export const configRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
-    return createConfigService(ctx.db).list();
-  }),
+  list: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      // Ownership check: verify the requesting user owns this project.
+      // Skip when fluxaUserId is null (LAN auth bypass = admin role).
+      if (ctx.viewer.fluxaUserId !== null) {
+        const [proj] = await ctx.db
+          .select({ userId: project.userId })
+          .from(project)
+          .where(eq(project.id, input.projectId));
+        if (!proj) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Project not found: ${input.projectId}`,
+          });
+        }
+        if (proj.userId !== ctx.viewer.fluxaUserId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this project.',
+          });
+        }
+      }
+      return createConfigService(ctx.db).listByProject(input.projectId);
+    }),
 
   getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
     const row = await createConfigService(ctx.db).getById(input.id);

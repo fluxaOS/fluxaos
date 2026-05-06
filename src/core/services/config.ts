@@ -33,6 +33,14 @@ export function createConfigService(db: Database) {
       return db.select().from(configEntry).orderBy(configEntry.key);
     },
 
+    async listByProject(projectId: string): Promise<ConfigEntrySelect[]> {
+      return db
+        .select()
+        .from(configEntry)
+        .where(eq(configEntry.projectId, projectId))
+        .orderBy(configEntry.key);
+    },
+
     async getById(id: string): Promise<ConfigEntrySelect | null> {
       return versioned.getById(id);
     },

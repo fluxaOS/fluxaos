@@ -1,6 +1,7 @@
 // src/app/[org]/[user]/[project]/settings/system/page.tsx
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
@@ -10,8 +11,20 @@ import { trpc } from '@/lib/trpc/client';
 import { type ConfigEntryRecord, configEntryDescriptor } from './descriptor';
 
 export default function SystemSettingsPage() {
+  const params = useParams<{ project: string }>();
   const utils = trpc.useUtils();
-  const listQuery = trpc.config.list.useQuery();
+
+  const projectSlug = params.project ?? '';
+  const currentProjectQuery = trpc.project.getBySlug.useQuery(
+    { slug: projectSlug },
+    { enabled: !!projectSlug }
+  );
+  const projectId = currentProjectQuery.data?.id ?? null;
+
+  const listQuery = trpc.config.list.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId }
+  );
   const updateMutation = trpc.config.update.useMutation();
   const createMutation = trpc.config.create.useMutation();
   const deleteMutation = trpc.config.delete.useMutation();
@@ -40,12 +53,12 @@ export default function SystemSettingsPage() {
       version: expectedVersion,
       ...(allowed as Record<string, unknown>),
     });
-    await utils.config.list.invalidate();
+    await utils.config.list.invalidate({ projectId: projectId! });
   };
 
   const onDelete = async (id: string, expectedVersion: number) => {
     await deleteMutation.mutateAsync({ id, version: expectedVersion });
-    await utils.config.list.invalidate();
+    await utils.config.list.invalidate({ projectId: projectId! });
   };
 
   const onCreate = async () => {
@@ -69,7 +82,7 @@ export default function SystemSettingsPage() {
       setNewScope('global');
       setNewValue('{\n  \n}');
       setShowCreate(false);
-      await utils.config.list.invalidate();
+      await utils.config.list.invalidate({ projectId: projectId! });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
     }
@@ -164,7 +177,7 @@ export default function SystemSettingsPage() {
         onSave={onSave}
         onDelete={onDelete}
         onRefresh={async () => {
-          await utils.config.list.invalidate();
+          await utils.config.list.invalidate({ projectId: projectId! });
         }}
         canEdit={() => canEdit}
         canDelete={() => canDelete}
