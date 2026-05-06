@@ -79,9 +79,15 @@ export function buildCommand(
   const args: string[] = [];
 
   // 1. Default args from driver config
-  const defaultArgs = Array.isArray(driver.defaultArgs)
-    ? (driver.defaultArgs as string[])
-    : [];
+  if (
+    !Array.isArray(driver.defaultArgs) ||
+    !driver.defaultArgs.every((a) => typeof a === 'string')
+  ) {
+    throw new Error(
+      `Driver '${driver.binary}' defaultArgs must be a string array, got ${JSON.stringify(driver.defaultArgs)}`
+    );
+  }
+  const defaultArgs = driver.defaultArgs as string[];
   args.push(...defaultArgs);
 
   // 2. Output format flag

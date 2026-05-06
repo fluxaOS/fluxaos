@@ -159,7 +159,9 @@ export async function acquireIsolationEnv(
   });
 
   const copyFiles = Array.isArray(projectRow.worktreeCopyFiles)
-    ? (projectRow.worktreeCopyFiles as string[])
+    ? (projectRow.worktreeCopyFiles as unknown[]).filter(
+        (f): f is string => typeof f === 'string'
+      )
     : [];
 
   const inheritedArtifactsPath = await findInheritedArtifactsPath(
