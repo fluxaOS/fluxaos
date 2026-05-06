@@ -108,6 +108,8 @@ export const DEFAULT_GATE_MODE = GATE_MODE.auto;
 export const DEFAULT_SORT_STRATEGY = 'quality' as const;
 export const KILL_GRACE_PERIOD_MS = 5_000;
 export const ORCHESTRATOR_HEARTBEAT_MS = 5_000;
+export const DEFAULT_PROMPT_TRANSPORT = 'argv' as const;
+export const DEFAULT_ISOLATION_PROVIDER = 'worktree' as const;
 
 // ── System Actor ──────────────────────────────────────────
 /** Canonical actor string for records created by the fluxaOS system itself. */

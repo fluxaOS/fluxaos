@@ -22,8 +22,6 @@ export {
   type StageRunStatus,
 } from '@/core/constants';
 
-import { ORCHESTRATOR_HEARTBEAT_MS } from '@/core/constants';
-
 // ─── Routing ───────────────────────────────────────────────────────────
 
 /** Result of resolving routing for a stage. All from DB config. */
@@ -58,22 +56,3 @@ export interface StageJobPayload {
   timeoutMs: number;
 }
 
-// ─── Orchestrator Config ───────────────────────────────────────────────
-
-export interface OrchestratorConfig {
-  /** How often the orchestrator checks for work (ms). */
-  heartbeatIntervalMs: number;
-  /** Max concurrent pipeline runs. */
-  maxConcurrentRuns: number;
-  /** Max concurrent stages across all runs. */
-  maxConcurrentStages: number;
-  /** Queue name for stage execution jobs. */
-  queueName: string;
-}
-
-export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
-  heartbeatIntervalMs: ORCHESTRATOR_HEARTBEAT_MS,
-  maxConcurrentRuns: 5,
-  maxConcurrentStages: 3,
-  queueName: 'stage-execution',
-};

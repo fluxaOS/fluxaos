@@ -10,14 +10,14 @@
  */
 import { type ChildProcess, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { KILL_GRACE_PERIOD_MS } from '@/core/constants';
+import { DEFAULT_STAGE_TIMEOUT_SEC, KILL_GRACE_PERIOD_MS } from '@/core/constants';
 import type {
   ExecuteParams,
   ExecuteResult,
   StageExecutor,
 } from '@/core/ports/stage-executor';
 
-const DEFAULT_TIMEOUT_MS = 300_000;
+const DEFAULT_TIMEOUT_MS = DEFAULT_STAGE_TIMEOUT_SEC * 1000;
 
 export class SubprocessExecutor implements StageExecutor {
   private processes = new Map<string, ChildProcess>();
