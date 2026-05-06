@@ -22,6 +22,7 @@ export function createGiteaAdapter(): GitProvider {
   const reject = (method: string) =>
     Promise.reject(new GiteaNotImplementedError(method));
   return {
+    providerName: () => 'gitea',
     createBranch: () => reject('createBranch'),
     createPullRequest: (_: CreatePRParams) => reject('createPullRequest'),
     getPullRequest: () => reject('getPullRequest'),

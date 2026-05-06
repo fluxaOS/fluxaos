@@ -22,6 +22,7 @@ export function createGitLabAdapter(): GitProvider {
   const reject = (method: string) =>
     Promise.reject(new GitLabNotImplementedError(method));
   return {
+    providerName: () => 'gitlab',
     createBranch: () => reject('createBranch'),
     createPullRequest: (_: CreatePRParams) => reject('createPullRequest'),
     getPullRequest: () => reject('getPullRequest'),

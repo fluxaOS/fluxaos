@@ -109,6 +109,10 @@ export const DEFAULT_SORT_STRATEGY = 'quality' as const;
 export const KILL_GRACE_PERIOD_MS = 5_000;
 export const ORCHESTRATOR_HEARTBEAT_MS = 5_000;
 
+// ── System Actor ──────────────────────────────────────────
+/** Canonical actor string for records created by the fluxaOS system itself. */
+export const SYSTEM_ACTOR = 'fluxaos' as const;
+
 // ── Trigger Types ─────────────────────────────────────────
 export const TRIGGER_TYPE = {
   manual: 'manual',

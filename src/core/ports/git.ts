@@ -1,3 +1,5 @@
+import type { KnownForge } from './git-factory';
+
 // ── Local git operations ──────────────────────────────────────────────────────
 
 export interface CommitAllResult {
@@ -57,6 +59,9 @@ export interface PullRequest {
 }
 
 export interface GitProvider {
+  /** Returns the provider's canonical forge slug. */
+  providerName(): KnownForge;
+
   createBranch(repo: string, branch: string, fromRef?: string): Promise<void>;
 
   createPullRequest(params: CreatePRParams): Promise<PullRequest>;
