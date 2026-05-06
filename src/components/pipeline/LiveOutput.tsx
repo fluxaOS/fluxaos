@@ -11,6 +11,7 @@ import { trpc } from '@/lib/trpc/client';
 interface LiveOutputProps {
   stageRunId: string;
   isActive: boolean;
+  projectId: string;
 }
 
 interface RealtimeEventPayload {
@@ -124,7 +125,11 @@ function ResultEntry({ entry }: { entry: TranscriptEntry }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
+export function LiveOutput({
+  stageRunId,
+  isActive,
+  projectId,
+}: LiveOutputProps) {
   const [rawJson, setRawJson] = useState(false);
   const [verbose, setVerbose] = useState(false);
   // Hook lifecycle entries (init / hook_started / hook_response) are noisy
@@ -139,9 +144,9 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
 
   // Fetch existing events
   const eventsQuery = trpc.pipeline.runs.events.useQuery(
-    { stageRunId },
+    { stageRunId, projectId },
     {
-      enabled: !!stageRunId,
+      enabled: !!stageRunId && !!projectId,
       refetchInterval: isActive ? 2000 : false,
     }
   );
@@ -205,28 +210,31 @@ export function LiveOutput({ stageRunId, isActive }: LiveOutputProps) {
         const row = payload.new as RealtimeEventPayload;
         if (getRealtimeStageRunId(row) !== stageRunId) return;
 
-        utils.pipeline.runs.events.setData({ stageRunId }, (current) => {
-          const existing = current ?? [];
-          if (existing.some((event) => event.id === row.id)) return existing;
-          return [
-            ...existing,
-            {
-              id: row.id,
-              stageRunId,
-              type: row.type,
-              payload: row.payload,
-              timestamp: row.timestamp,
-              createdAt: row.createdAt ?? row.created_at ?? row.timestamp,
-            },
-          ];
-        });
+        utils.pipeline.runs.events.setData(
+          { stageRunId, projectId },
+          (current) => {
+            const existing = current ?? [];
+            if (existing.some((event) => event.id === row.id)) return existing;
+            return [
+              ...existing,
+              {
+                id: row.id,
+                stageRunId,
+                type: row.type,
+                payload: row.payload,
+                timestamp: row.timestamp,
+                createdAt: row.createdAt ?? row.created_at ?? row.timestamp,
+              },
+            ];
+          }
+        );
       }
     );
 
     return () => {
       unsubscribe();
     };
-  }, [stageRunId, isActive, utils.pipeline.runs.events]);
+  }, [stageRunId, isActive, utils.pipeline.runs.events, projectId]);
 
   // Auto-scroll
   const scrollTrigger = rawJson ? eventCount : entries.length;

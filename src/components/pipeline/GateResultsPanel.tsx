@@ -5,12 +5,16 @@ import { trpc } from '@/lib/trpc/client';
 
 interface GateResultsPanelProps {
   stageRunId: string;
+  projectId: string;
 }
 
-export function GateResultsPanel({ stageRunId }: GateResultsPanelProps) {
+export function GateResultsPanel({
+  stageRunId,
+  projectId,
+}: GateResultsPanelProps) {
   const gateQuery = trpc.pipeline.runs.gateResults.useQuery(
-    { stageRunId },
-    { enabled: !!stageRunId }
+    { stageRunId, projectId },
+    { enabled: !!stageRunId && !!projectId }
   );
 
   const results = gateQuery.data ?? [];

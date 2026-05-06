@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Check, RotateCcw, XOctagon } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { use, useState } from 'react';
 import { Card } from '@/components/card';
 import { VerdictBadge } from '@/components/gates/VerdictBadge';
@@ -18,6 +18,15 @@ function useBasePath() {
     : '/';
 }
 
+function useProjectId() {
+  const params = useParams<{ project: string }>();
+  const projectQuery = trpc.project.getBySlug.useQuery(
+    { slug: params.project },
+    { enabled: !!params.project }
+  );
+  return projectQuery.data?.id ?? null;
+}
+
 export default function RunDetailPage({
   params,
 }: {
@@ -25,11 +34,13 @@ export default function RunDetailPage({
 }) {
   const { id } = use(params);
   const basePath = useBasePath();
+  const projectId = useProjectId();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const runQuery = trpc.pipeline.runs.get.useQuery(
-    { id },
+    { id, projectId: projectId! },
     {
+      enabled: !!projectId,
       refetchInterval: (query) => {
         const status = query.state.data?.status;
         return status === 'running' || status === 'pending' ? 2000 : false;
@@ -51,7 +62,7 @@ export default function RunDetailPage({
 
   const run = runQuery.data;
 
-  if (runQuery.isLoading) {
+  if (!projectId || runQuery.isLoading) {
     return <div className="text-slate-500 py-8 text-center">Loading…</div>;
   }
 
@@ -83,7 +94,9 @@ export default function RunDetailPage({
             {(run.status === 'running' || run.status === 'pending') && (
               <button
                 type="button"
-                onClick={() => cancelRun.mutate({ id: run.id })}
+                onClick={() =>
+                  cancelRun.mutate({ id: run.id, projectId: projectId! })
+                }
                 disabled={cancelRun.isPending}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-400 border border-red-400/20 bg-red-400/10 hover:bg-red-400/20 transition-colors disabled:opacity-50"
               >
@@ -118,6 +131,7 @@ export default function RunDetailPage({
 
       <RunDetailModal
         runId={selectedRunId}
+        projectId={projectId}
         onClose={() => {
           setSelectedRunId(null);
           runQuery.refetch();
@@ -133,12 +147,22 @@ export default function RunDetailPage({
               key={sr.id}
               stageRun={sr}
               isLast={idx === stageRuns.length - 1}
-              onApprove={() => approveStage.mutate({ stageRunId: sr.id })}
+              onApprove={() =>
+                approveStage.mutate({ stageRunId: sr.id, projectId })
+              }
               onRework={() =>
-                rejectStage.mutate({ stageRunId: sr.id, verdict: 'rework' })
+                rejectStage.mutate({
+                  stageRunId: sr.id,
+                  projectId,
+                  verdict: 'rework',
+                })
               }
               onAbort={() =>
-                rejectStage.mutate({ stageRunId: sr.id, verdict: 'abort' })
+                rejectStage.mutate({
+                  stageRunId: sr.id,
+                  projectId,
+                  verdict: 'abort',
+                })
               }
               isActing={approveStage.isPending || rejectStage.isPending}
             />

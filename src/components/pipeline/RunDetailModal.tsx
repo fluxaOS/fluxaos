@@ -16,6 +16,7 @@ type DetailTab = 'output' | 'gates';
 
 interface RunDetailModalProps {
   runId: string | null;
+  projectId: string;
   onClose: () => void;
   initialStageName?: string;
 }
@@ -59,6 +60,7 @@ function getDurationSeconds(
 
 export function RunDetailModal({
   runId,
+  projectId,
   onClose,
   initialStageName,
 }: RunDetailModalProps) {
@@ -73,9 +75,9 @@ export function RunDetailModal({
   const isOpen = runId !== null;
 
   const runQuery = trpc.pipeline.runs.get.useQuery(
-    { id: runId! },
+    { id: runId!, projectId },
     {
-      enabled: isOpen,
+      enabled: isOpen && !!projectId,
     }
   );
 
@@ -206,7 +208,7 @@ export function RunDetailModal({
     if (!runId) return;
     setCancelling(true);
     try {
-      await cancelRunMutation.mutateAsync({ id: runId });
+      await cancelRunMutation.mutateAsync({ id: runId, projectId });
     } finally {
       setCancelling(false);
     }
@@ -216,7 +218,10 @@ export function RunDetailModal({
     if (!selectedStageRunId) return;
     setCancellingStage(true);
     try {
-      await cancelStageMutation.mutateAsync({ stageRunId: selectedStageRunId });
+      await cancelStageMutation.mutateAsync({
+        stageRunId: selectedStageRunId,
+        projectId,
+      });
     } finally {
       setCancellingStage(false);
     }
@@ -451,10 +456,14 @@ export function RunDetailModal({
                         <LiveOutput
                           stageRunId={selectedStageRun.id}
                           isActive={isSelectedStageActive}
+                          projectId={projectId}
                         />
                       )}
                       {activeTab === 'gates' && (
-                        <GateResultsPanel stageRunId={selectedStageRun.id} />
+                        <GateResultsPanel
+                          stageRunId={selectedStageRun.id}
+                          projectId={projectId}
+                        />
                       )}
                     </div>
                   </>

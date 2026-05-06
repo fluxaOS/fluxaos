@@ -370,7 +370,10 @@ export function IssueDetailClient({
                         (existingSr.status === 'pending' ||
                           existingSr.status === 'queued')
                       ) {
-                        executeStage.mutate({ stageRunId: existingSr.id });
+                        executeStage.mutate({
+                          stageRunId: existingSr.id,
+                          projectId,
+                        });
                       } else {
                         // Otherwise trigger a new pipeline run for this stage
                         triggerRun.mutate({
@@ -460,6 +463,7 @@ export function IssueDetailClient({
 
               <RunDetailModal
                 runId={activeRunId}
+                projectId={projectId}
                 onClose={() => {
                   setActiveRunId(null);
                   pipelineStateQuery.refetch();
