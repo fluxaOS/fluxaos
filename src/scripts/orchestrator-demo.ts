@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm';
 import { createWorktreeIsolationProvider } from '@/adapters/git';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
+import { fsMaterializerAdapter } from '@/adapters/fs';
 import { PIPELINE_RUN_STATUS } from '@/core/constants';
 import {
   event,
@@ -220,6 +221,7 @@ async function demo() {
     isolation,
     noopTerminalHook,
     new SubprocessStdoutParser(),
+    fsMaterializerAdapter,
     run.id,
     sRun.id
   );

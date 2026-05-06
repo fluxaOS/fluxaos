@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { ResultDoc } from '@/core/pipeline/result-doc';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
@@ -16,6 +15,8 @@ export interface LoopExecutorInput {
   stageGraphRunner: StageGraphRunner;
   initResultDocScript: string;
   ingestResultDocScript: string;
+  /** Read a file from disk and return its contents, or null if absent/unreadable. */
+  readFile: (path: string) => string | null;
 }
 
 export interface LoopExecutorResult {
@@ -42,10 +43,14 @@ function checkUntilCondition(until: string, doc: ResultDoc | null): boolean {
   }
 }
 
-function readResultDoc(path: string): ResultDoc | null {
-  if (!existsSync(path)) return null;
+function readResultDoc(
+  path: string,
+  readFile: (p: string) => string | null
+): ResultDoc | null {
+  const contents = readFile(path);
+  if (contents === null) return null;
   try {
-    const raw = JSON.parse(readFileSync(path, 'utf-8')) as unknown;
+    const raw = JSON.parse(contents) as unknown;
     return isValidResultDoc(raw) ? raw : null;
   } catch {
     return null;
@@ -112,7 +117,7 @@ export async function runLoopExecutor(
       ingestResult.doc &&
       isValidResultDoc(ingestResult.doc)
         ? ingestResult.doc
-        : readResultDoc(input.resultDocPath);
+        : readResultDoc(input.resultDocPath, input.readFile);
 
     if (checkUntilCondition(input.until, doc)) {
       return {
