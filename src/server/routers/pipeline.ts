@@ -84,6 +84,42 @@ async function assertProjectOwnership(
   }
 }
 
+/**
+ * Full ownership guard for a pipeline run: verify the run belongs to the
+ * declared project, then verify the project belongs to the viewer.
+ * Throws NOT_FOUND on any mismatch.
+ */
+async function assertRunOwnership(
+  db: Database,
+  runId: string,
+  projectId: string,
+  viewerId: string | null
+): Promise<void> {
+  const owningProjectId = await getProjectIdForRun(db, runId);
+  if (owningProjectId !== projectId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+  }
+  await assertProjectOwnership(db, projectId, viewerId);
+}
+
+/**
+ * Full ownership guard for a stage run: verify the stage run belongs to the
+ * declared project, then verify the project belongs to the viewer.
+ * Throws NOT_FOUND on any mismatch.
+ */
+async function assertStageRunOwnership(
+  db: Database,
+  stageRunId: string,
+  projectId: string,
+  viewerId: string | null
+): Promise<void> {
+  const owningProjectId = await getProjectIdForStageRun(db, stageRunId);
+  if (owningProjectId !== projectId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+  }
+  await assertProjectOwnership(db, projectId, viewerId);
+}
+
 export const pipelineRouter = router({
   /**
    * List pipelines scoped to the given project.
@@ -251,13 +287,7 @@ export const pipelineRouter = router({
 
         // Ownership check: verify this run belongs to the declared project,
         // and that project belongs to the viewer.
-        const owningProjectId = await getProjectIdForRun(ctx.db, input.id);
-        if (owningProjectId !== input.projectId) return null;
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertRunOwnership(ctx.db, input.id, input.projectId, ctx.viewer.fluxaUserId);
 
         const rawStageRuns = await svc.getStageRuns(input.id);
 
@@ -330,15 +360,7 @@ export const pipelineRouter = router({
     cancel: protectedMutation(EDIT_ROLES)
       .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
-        const owningProjectId = await getProjectIdForRun(ctx.db, input.id);
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertRunOwnership(ctx.db, input.id, input.projectId, ctx.viewer.fluxaUserId);
         const svc = createPipelineRunService(ctx.db);
         // Cancel all non-terminal stage runs
         const stages = await svc.getStageRuns(input.id);
@@ -366,18 +388,7 @@ export const pipelineRouter = router({
       .mutation(async ({ ctx, input }) => {
         // Ownership check: verify the stage run belongs to the declared
         // project before performing any state mutation.
-        const owningProjectId = await getProjectIdForStageRun(
-          ctx.db,
-          input.stageRunId
-        );
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
 
         const svc = createPipelineRunService(ctx.db);
         const [row] = await ctx.db
@@ -412,18 +423,7 @@ export const pipelineRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
-        const owningProjectId = await getProjectIdForStageRun(
-          ctx.db,
-          input.stageRunId
-        );
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
         return createPipelineRunService(ctx.db).listEvents(input.stageRunId);
       }),
 
@@ -436,18 +436,7 @@ export const pipelineRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const owningProjectId = await getProjectIdForStageRun(
-          ctx.db,
-          input.stageRunId
-        );
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
 
         const svc = createPipelineRunService(ctx.db);
         // Mark the pending stage as launching so the orchestrator picks it up
@@ -472,18 +461,7 @@ export const pipelineRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const owningProjectId = await getProjectIdForStageRun(
-          ctx.db,
-          input.stageRunId
-        );
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
 
         const svc = createPipelineRunService(ctx.db);
         const status =
@@ -562,18 +540,7 @@ export const pipelineRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const owningProjectId = await getProjectIdForStageRun(
-          ctx.db,
-          input.stageRunId
-        );
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
 
         const svc = createPipelineRunService(ctx.db);
         await svc.updateStageRunStatus(
@@ -595,18 +562,7 @@ export const pipelineRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
-        const owningProjectId = await getProjectIdForStageRun(
-          ctx.db,
-          input.stageRunId
-        );
-        if (owningProjectId !== input.projectId) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
-        }
-        await assertProjectOwnership(
-          ctx.db,
-          input.projectId,
-          ctx.viewer.fluxaUserId
-        );
+        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
         return ctx.db
           .select()
           .from(stageGateResult)
