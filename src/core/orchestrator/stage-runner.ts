@@ -340,17 +340,6 @@ export async function executeStageRun(
 
     // Spawn subprocess
     let lineNumber = 0;
-    // lastSignal: signal-based routing removed (FLX-112). Variable kept for
-    // downstream completion logic; always null in the result-doc model.
-    const lastSignal = null as {
-      verdict: string;
-      summary?: string;
-      reason?: string;
-      costUsd?: number;
-      tokensIn?: number;
-      tokensOut?: number;
-      meta?: Record<string, unknown>;
-    } | null;
     const lineParser = stdoutParser.getParser(driverRow.outputFormat as string);
 
     const result = await executor.execute({
@@ -424,99 +413,19 @@ export async function executeStageRun(
     //                FLX-81 (2026-04-27): originally hard-failed; now
     //                soft-pass on clean exit.
     //   - exit !=0:  skill crashed / aborted — failure stands.
-    if (!lastSignal) {
-      const cleanExit = result.exitCode === 0;
-      const status = cleanExit
-        ? STAGE_RUN_STATUS.completed
-        : STAGE_RUN_STATUS.failed;
-      const synthSignal = cleanExit ? 'proceed' : null;
-      const reason = cleanExit
-        ? 'no_signal_clean_exit'
-        : 'no skill signal emitted';
+    const cleanExit = result.exitCode === 0;
+    const status = cleanExit
+      ? STAGE_RUN_STATUS.completed
+      : STAGE_RUN_STATUS.failed;
+    const synthSignal = cleanExit ? 'proceed' : null;
+    const reason = cleanExit
+      ? 'no_signal_clean_exit'
+      : 'no skill signal emitted';
 
-      // FLX-92: clean-exit-no-signal counts as `proceed` per FLX-81.
-      // Auto-commit any uncommitted worktree changes so the next stage
-      // and the deploy bridge see a clean tree.
-      if (cleanExit) {
-        await autoCommitProceedingStage({
-          workingPath: env.workingPath,
-          stageName: stage.name,
-          stageRunId: sRun.id,
-          runService,
-          gitOps: ctx.gitOps,
-        });
-      }
-
-      await runService.completeStageRun(sRun.id, status, {
-        provider: routing?.providerName,
-        model: routing?.modelIdentifier,
-        driver: driverRow.name,
-        trigger: ctx.trigger,
-        skillSignal: synthSignal ?? undefined,
-        errorMessage: cleanExit ? undefined : 'no skill signal emitted',
-      });
-
-      await runService.appendEvent(
-        sRun.id,
-        cleanExit ? EVENT_TYPE.completed : EVENT_TYPE.error,
-        {
-          message: cleanExit
-            ? 'no flux:signal emitted but skill exited 0 — synthesizing proceed (FLX-81)'
-            : 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
-          exitCode: result.exitCode,
-        }
-      );
-
-      // Issue event
-      if (run.issueId) {
-        await runService.appendIssueEvent(
-          run.issueId,
-          cleanExit
-            ? ISSUE_EVENT_TYPE.stage_completed
-            : ISSUE_EVENT_TYPE.stage_failed,
-          {
-            stageRunId: sRun.id,
-            stageName: stage.name,
-            reason,
-            exitCode: result.exitCode,
-          },
-          'stage-runner'
-        );
-      }
-
-      // Env is pipeline-scoped now — T16's pipeline-terminal hook owns release.
-
-      return {
-        exitCode: result.exitCode,
-        durationMs: result.durationMs,
-        stageName: stage.name,
-        driverName: driverRow.name,
-        providerName: routing?.providerName ?? null,
-        modelIdentifier: routing?.modelIdentifier ?? null,
-        issueId: run.issueId,
-        stageId: stage.id,
-        skillSignal: synthSignal,
-        skillSignalReason: cleanExit ? 'no_signal_clean_exit' : null,
-        skillMetadata: null,
-      };
-    }
-
-    // Signal was emitted — use it
-    const finalStatus =
-      result.exitCode === 0
-        ? STAGE_RUN_STATUS.completed
-        : STAGE_RUN_STATUS.failed;
-
-    // Build skill metadata from signal
-    const skillMetadata: Record<string, unknown> = {};
-    if (lastSignal.summary) skillMetadata.summary = lastSignal.summary;
-    if (lastSignal.meta) Object.assign(skillMetadata, lastSignal.meta);
-
-    // FLX-92: auto-commit any worktree changes the worker left
-    // uncommitted, but only when verdict is `proceed` and exit was
-    // clean. `hold` / `rework` / `abort` deliberately leave the tree
-    // dirty so a human (or a follow-up stage) can inspect or retry.
-    if (lastSignal.verdict === 'proceed' && result.exitCode === 0) {
+    // FLX-92: clean-exit-no-signal counts as `proceed` per FLX-81.
+    // Auto-commit any uncommitted worktree changes so the next stage
+    // and the deploy bridge see a clean tree.
+    if (cleanExit) {
       await autoCommitProceedingStage({
         workingPath: env.workingPath,
         stageName: stage.name,
@@ -526,52 +435,44 @@ export async function executeStageRun(
       });
     }
 
-    await runService.completeStageRun(sRun.id, finalStatus, {
+    await runService.completeStageRun(sRun.id, status, {
       provider: routing?.providerName,
       model: routing?.modelIdentifier,
       driver: driverRow.name,
-      costUsd: lastSignal.costUsd?.toFixed(6),
-      tokensIn: lastSignal.tokensIn,
-      tokensOut: lastSignal.tokensOut,
-      skillSignal: lastSignal.verdict,
-      skillMetadata:
-        Object.keys(skillMetadata).length > 0 ? skillMetadata : undefined,
       trigger: ctx.trigger,
-      errorMessage:
-        result.exitCode !== 0 ? `exit code ${result.exitCode}` : undefined,
+      skillSignal: synthSignal ?? undefined,
+      errorMessage: cleanExit ? undefined : 'no skill signal emitted',
     });
 
-    // Completion event
-    const eventType =
-      result.exitCode === 0 ? EVENT_TYPE.completed : EVENT_TYPE.error;
-    await runService.appendEvent(sRun.id, eventType, {
-      exitCode: result.exitCode,
-      duration: result.durationMs,
-      skillSignal: lastSignal.verdict,
-      summary: lastSignal.summary,
-    });
+    await runService.appendEvent(
+      sRun.id,
+      cleanExit ? EVENT_TYPE.completed : EVENT_TYPE.error,
+      {
+        message: cleanExit
+          ? 'no flux:signal emitted but skill exited 0 — synthesizing proceed (FLX-81)'
+          : 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
+        exitCode: result.exitCode,
+      }
+    );
 
-    // Issue events
+    // Issue event
     if (run.issueId) {
-      const issueEventType =
-        result.exitCode === 0
-          ? ISSUE_EVENT_TYPE.stage_completed
-          : ISSUE_EVENT_TYPE.stage_failed;
       await runService.appendIssueEvent(
         run.issueId,
-        issueEventType,
+        cleanExit
+          ? ISSUE_EVENT_TYPE.stage_completed
+          : ISSUE_EVENT_TYPE.stage_failed,
         {
           stageRunId: sRun.id,
           stageName: stage.name,
+          reason,
           exitCode: result.exitCode,
-          skillSignal: lastSignal.verdict,
-          summary: lastSignal.summary,
         },
         'stage-runner'
       );
     }
 
-    // Env is pipeline-scoped — T16's pipeline-terminal hook owns release.
+    // Env is pipeline-scoped now — T16's pipeline-terminal hook owns release.
 
     return {
       exitCode: result.exitCode,
@@ -582,10 +483,9 @@ export async function executeStageRun(
       modelIdentifier: routing?.modelIdentifier ?? null,
       issueId: run.issueId,
       stageId: stage.id,
-      skillSignal: lastSignal.verdict,
-      skillSignalReason: lastSignal.reason ?? null,
-      skillMetadata:
-        Object.keys(skillMetadata).length > 0 ? skillMetadata : null,
+      skillSignal: synthSignal,
+      skillSignalReason: cleanExit ? 'no_signal_clean_exit' : null,
+      skillMetadata: null,
     };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
