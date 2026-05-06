@@ -1,5 +1,4 @@
-import type { BaseCheckpointSaver } from '@langchain/langgraph';
-import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
 
 export type ParallelAggregation =
@@ -28,7 +27,7 @@ export interface ParallelExecutorInput {
   stageId: string;
   children: ParallelChild[];
   aggregation: ParallelAggregation;
-  checkpointer?: BaseCheckpointSaver;
+  stageGraphRunner: StageGraphRunner;
   initResultDocScript: string;
   ingestResultDocScript: string;
 }
@@ -50,11 +49,11 @@ export interface ParallelExecutorResult {
 
 async function runChild(
   child: ParallelChild,
-  checkpointer: BaseCheckpointSaver | undefined
+  stageGraphRunner: StageGraphRunner
 ): Promise<ChildResult> {
   const threadId = `${child.stageRunId}_parallel`;
   try {
-    const graphResult = await runStageGraph(
+    const graphResult = await stageGraphRunner.run(
       {
         stageRunId: child.stageRunId,
         resultDocPath: child.resultDocPath,
@@ -66,7 +65,6 @@ async function runChild(
         initResultDocScript: child.initResultDocScript,
         ingestResultDocScript: child.ingestResultDocScript,
       },
-      checkpointer,
       threadId
     );
 
@@ -141,7 +139,7 @@ export async function runParallelExecutor(
   input: ParallelExecutorInput
 ): Promise<ParallelExecutorResult> {
   const settled = await Promise.allSettled(
-    input.children.map((child) => runChild(child, input.checkpointer))
+    input.children.map((child) => runChild(child, input.stageGraphRunner))
   );
 
   const childResults: ChildResult[] = settled.map((result, i) => {

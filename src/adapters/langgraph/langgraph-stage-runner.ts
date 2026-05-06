@@ -9,20 +9,11 @@ import {
   StateGraph,
 } from '@langchain/langgraph';
 import { DEFAULT_STAGE_TIMEOUT_SEC } from '@/core/constants';
+import type { StageGraphInput } from '@/core/ports/stage-graph-runner';
+
+export type { StageGraphInput };
 
 const execFileAsync = promisify(execFile);
-
-export interface StageGraphInput {
-  stageRunId: string;
-  resultDocPath: string;
-  artifactsDir: string;
-  prompt: string;
-  driverCommand: string;
-  driverArgs: string[];
-  env?: Record<string, string>;
-  initResultDocScript: string;
-  ingestResultDocScript: string;
-}
 
 const StageState = Annotation.Root({
   stageRunId: Annotation<string>(),

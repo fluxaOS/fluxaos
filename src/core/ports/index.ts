@@ -34,3 +34,8 @@ export type {
   ExecuteResult,
   StageExecutor,
 } from './stage-executor';
+export type {
+  StageGraphInput,
+  StageGraphResult,
+  StageGraphRunner,
+} from './stage-graph-runner';
