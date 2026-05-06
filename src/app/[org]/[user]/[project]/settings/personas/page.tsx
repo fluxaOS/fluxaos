@@ -40,8 +40,20 @@ export default function PersonaSettingsPage() {
   );
   const brands = (brandsQuery.data ?? []) as BrandOption[];
 
-  const personasQuery = trpc.persona.list.useQuery();
-  const personas = (personasQuery.data ?? []) as Persona[];
+  // List personas scoped to the current project (project-scoped) and global.
+  // The router returns project personas when projectId is provided, global
+  // personas when omitted. We load both and merge for a complete view.
+  const projectPersonasQuery = trpc.persona.list.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId }
+  );
+  const globalPersonasQuery = trpc.persona.list.useQuery({});
+  const personas = (
+    [
+      ...(projectPersonasQuery.data ?? []),
+      ...(globalPersonasQuery.data ?? []),
+    ] as Persona[]
+  ).filter((p, idx, arr) => arr.findIndex((x) => x.id === p.id) === idx);
 
   return (
     <div className="space-y-6">
@@ -365,7 +377,7 @@ function CreatePersonaForm({
 function PersonaDetail({ personaId }: { personaId: string }) {
   const personaQuery = trpc.persona.getById.useQuery({ id: personaId });
   const skillsQuery = trpc.persona.skills.useQuery({ personaId });
-  const allSkillsQuery = trpc.skill.list.useQuery();
+  const allSkillsQuery = trpc.skill.list.useQuery({});
 
   const attachSkill = trpc.persona.attachSkill.useMutation({
     onSuccess: () => skillsQuery.refetch(),

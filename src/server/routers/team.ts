@@ -4,7 +4,15 @@ import { createTeamService } from '@/core/services';
 import { publicProcedure, router } from '../trpc';
 
 export const teamRouter = router({
-  list: publicProcedure.query(({ ctx }) => createTeamService(ctx.db).list()),
+  /**
+   * List teams scoped to the given project.
+   * Replaces the banned unscoped crud-factory `list()`.
+   */
+  list: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(({ ctx, input }) =>
+      createTeamService(ctx.db).listByProject(input.projectId)
+    ),
 
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))

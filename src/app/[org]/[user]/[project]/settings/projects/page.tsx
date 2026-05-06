@@ -9,13 +9,20 @@ import { trpc } from '@/lib/trpc/client';
 import { type ProjectRecord, projectDescriptor } from './descriptor';
 
 export default function ProjectsSettingsPage() {
-  const params = useParams<{ project: string }>();
+  const params = useParams<{ org: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
 
-  const projectsQuery = trpc.project.list.useQuery();
+  // Resolve the org from the URL slug — gives us the orgId we need to
+  // scope the project list without an unscoped all-tenants query.
+  const orgQuery = trpc.organization.getBySlug.useQuery({ slug: params.org });
+  const orgId = orgQuery.data?.id ?? null;
+
+  const projectsQuery = trpc.project.list.useQuery(
+    { orgId: orgId! },
+    { enabled: !!orgId }
+  );
   const envQuery = trpc.system.env.getPublic.useQuery();
-  const pipelinesQuery = trpc.pipeline.list.useQuery();
 
   const updateMutation = trpc.project.update.useMutation();
   const deleteMutation = trpc.project.delete.useMutation();
@@ -25,7 +32,6 @@ export default function ProjectsSettingsPage() {
     projects.find((project) => project.slug === params.project) ??
     projects.find((project) => project.slug === 'fluxaos') ??
     null;
-  const pipelines = pipelinesQuery.data ?? [];
   const envValue = envQuery.data?.FLUXAOS_TARGET_REPO_PATH ?? null;
 
   // FLX-60: Create form needs an orgId + userId. The seeded project provides
@@ -34,6 +40,13 @@ export default function ProjectsSettingsPage() {
   const seedOrgId = currentProject?.orgId ?? projects[0]?.orgId ?? null;
   const seedUserId = currentProject?.userId ?? projects[0]?.userId ?? null;
   const seedProjectId = currentProject?.id ?? projects[0]?.id ?? null;
+
+  // Pipelines are scoped to the current project — only load once we have it.
+  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
+    { projectId: seedProjectId! },
+    { enabled: !!seedProjectId }
+  );
+  const pipelines = pipelinesQuery.data ?? [];
   const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
     { orgId: seedOrgId!, projectId: seedProjectId! },
     { enabled: !!seedOrgId && !!seedProjectId }

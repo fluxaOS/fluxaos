@@ -14,7 +14,9 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
   });
   const stages = stagesQuery.data ?? [];
 
-  const personaQuery = trpc.persona.list.useQuery();
+  // Load global personas (scope='global') for stage assignment. Project-scoped
+  // personas can be added via persona.listByProject if needed.
+  const personaQuery = trpc.persona.list.useQuery({});
   const driverQuery = trpc.driver.list.useQuery();
   const personas = personaQuery.data ?? [];
   const drivers = driverQuery.data ?? [];

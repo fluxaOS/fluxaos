@@ -18,6 +18,15 @@ type WithVersionColumn = { version: PgColumn };
 type WithUpdatedAtColumn = { updatedAt: PgColumn };
 
 export interface CrudService<TInsert, TSelect> {
+  /**
+   * Intentionally omitted: unscoped `list()` is banned — every caller must
+   * provide a tenant scope (orgId, projectId, etc.) so cross-tenant data
+   * can never leak. Each service that needs a list method must implement its
+   * own scoped variant (e.g. `listByOrg`, `listByProject`).
+   *
+   * If you call this at runtime it throws immediately rather than silently
+   * returning all rows across all tenants.
+   */
   list(): Promise<TSelect[]>;
   getById(id: string): Promise<TSelect | null>;
   create(data: TInsert): Promise<TSelect>;
@@ -41,7 +50,9 @@ export function createCrudService<TInsert, TSelect>(
 ): CrudService<TInsert, TSelect> {
   return {
     async list(): Promise<TSelect[]> {
-      return (await db.select().from(table)) as TSelect[];
+      throw new Error(
+        'list() not implemented — provide a scoped override (listByOrg, listByProject, etc.) to avoid cross-tenant data leaks.'
+      );
     },
     async getById(id: string): Promise<TSelect | null> {
       const [row] = await db.select().from(table).where(eq(table.id, id));
