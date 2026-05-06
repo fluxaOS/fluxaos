@@ -21,7 +21,6 @@ import type {
 import {
   PIPELINE_RUN_STATUS,
   STAGE_RUN_STATUS,
-  STAGE_RUN_TERMINAL,
 } from './types';
 
 // Services that open transactions must receive the root Database, not a transaction handle.
@@ -55,9 +54,6 @@ export interface PipelineRunService {
     pipelineRunId: string,
     pipelineStageId: string
   ): Promise<StageRunRow>;
-
-  /** Get the current (latest non-terminal) stage run for a pipeline run. */
-  getCurrentStageRun(pipelineRunId: string): Promise<StageRunRow | null>;
 
   /** Get all stage runs for a pipeline run (ordered by creation). */
   getStageRuns(pipelineRunId: string): Promise<StageRunRow[]>;
@@ -98,12 +94,6 @@ export interface PipelineRunService {
    * timestamp position. See DEF-017.
    */
   listEvents(stageRunId: string): Promise<Array<typeof event.$inferSelect>>;
-
-  /** Get the next stage after the given one (by sortOrder). */
-  getNextStage(
-    pipelineId: string,
-    currentSortOrder: number
-  ): Promise<StageRow | null>;
 
   /** Write an issue event (stage_started, stage_completed, etc.) */
   appendIssueEvent(
@@ -219,22 +209,6 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
       return row;
     },
 
-    async getCurrentStageRun(pipelineRunId) {
-      const rows = await db
-        .select()
-        .from(stageRun)
-        .where(eq(stageRun.pipelineRunId, pipelineRunId))
-        .orderBy(asc(stageRun.createdAt));
-
-      // Find the last non-terminal stage run
-      for (let i = rows.length - 1; i >= 0; i--) {
-        if (!STAGE_RUN_TERMINAL.has(rows[i].status)) {
-          return rows[i];
-        }
-      }
-      return null;
-    },
-
     async getStageRuns(pipelineRunId) {
       return db
         .select()
@@ -333,21 +307,6 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
       }
       while (li < lifecycle.length) result.push(lifecycle[li++]);
       return result;
-    },
-
-    async getNextStage(pipelineId, currentSortOrder) {
-      const [next] = await db
-        .select()
-        .from(pipelineStage)
-        .where(
-          and(
-            eq(pipelineStage.pipelineId, pipelineId),
-            sql`${pipelineStage.sortOrder} > ${currentSortOrder}`
-          )
-        )
-        .orderBy(asc(pipelineStage.sortOrder))
-        .limit(1);
-      return next ?? null;
     },
 
     async appendIssueEvent(issueId, type, payload, actor) {

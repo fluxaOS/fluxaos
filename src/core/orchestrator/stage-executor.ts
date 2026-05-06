@@ -18,6 +18,7 @@ import {
   ISSUE_EVENT_TYPE,
   PIPELINE_RUN_STATUS,
   PIPELINE_SENTINEL,
+  RESULT_DOC_VERDICT,
   STAGE_RUN_STATUS,
   TRIGGER_TYPE,
 } from '@/core/constants';
@@ -269,9 +270,9 @@ export function createStageExecutor(deps: StageExecutorDeps) {
 
       if (parsed.valid) {
         const doc = parsed.doc;
-        if (doc.verdict === 'pass') verdict = GATE_VERDICT.proceed;
-        else if (doc.verdict === 'fail') verdict = GATE_VERDICT.rework;
-        else if (doc.verdict === 'blocked') verdict = GATE_VERDICT.hold;
+        if (doc.verdict === RESULT_DOC_VERDICT.pass) verdict = GATE_VERDICT.proceed;
+        else if (doc.verdict === RESULT_DOC_VERDICT.fail) verdict = GATE_VERDICT.rework;
+        else if (doc.verdict === RESULT_DOC_VERDICT.blocked) verdict = GATE_VERDICT.hold;
         signalReason = doc.signal_reason ?? null;
         signalMeta = doc.signal_meta ?? null;
         tokensIn = doc.meta?.input_tokens;
