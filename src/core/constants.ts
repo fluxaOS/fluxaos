@@ -151,6 +151,17 @@ export const TRIGGER_TYPE = {
 
 export type TriggerType = (typeof TRIGGER_TYPE)[keyof typeof TRIGGER_TYPE];
 
+// ── Result Doc Verdicts ───────────────────────────────────
+/** Verdict strings written into the result doc by AI workers. */
+export const RESULT_DOC_VERDICT = {
+  pass: 'pass',
+  fail: 'fail',
+  blocked: 'blocked',
+} as const;
+
+export type ResultDocVerdict =
+  (typeof RESULT_DOC_VERDICT)[keyof typeof RESULT_DOC_VERDICT];
+
 // ── Pipeline Routing Sentinels ─────────────────────────────
 /** Special stage-name values stored in onPass/onFail/fallback columns. */
 export const PIPELINE_SENTINEL = {

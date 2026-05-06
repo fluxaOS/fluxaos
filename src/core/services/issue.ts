@@ -64,50 +64,6 @@ interface UpdateFieldsInput {
 export function createIssueService(db: DbOrTx) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  async function resolveInitialStatusId(projectId: string): Promise<string> {
-    // 1. Read config key
-    const [config] = await db
-      .select()
-      .from(configEntry)
-      .where(
-        and(
-          eq(configEntry.projectId, projectId),
-          eq(configEntry.key, CONFIG_KEY.issueStatusOnCreate)
-        )
-      );
-
-    if (!config) {
-      throw new Error(
-        `Missing config: issues.status.on_create_key for project ${projectId}. Run seed.`
-      );
-    }
-
-    if (typeof config.value !== 'string') {
-      throw new Error(
-        `Config key '${CONFIG_KEY.issueStatusOnCreate}' must be a string value, got ${typeof config.value}`
-      );
-    }
-    const statusKey = config.value;
-
-    // 2. Resolve key → statusId
-    const [status] = await db
-      .select()
-      .from(issueStatus)
-      .where(
-        and(
-          eq(issueStatus.projectId, projectId),
-          eq(issueStatus.key, statusKey)
-        )
-      );
-
-    if (!status) {
-      throw new Error(
-        `Status '${statusKey}' not found for project ${projectId}. Check issue_status catalog.`
-      );
-    }
-
-    return status.id;
-  }
 
   async function recordEvent(
     issueId: string,
@@ -369,7 +325,7 @@ export function createIssueService(db: DbOrTx) {
     async create(data: CreateIssueInput): Promise<IssueSelect> {
       const [initialState, statusId] = await Promise.all([
         findNonTerminalState(data.projectId),
-        resolveInitialStatusId(data.projectId),
+        resolveStatusByConfigKey(data.projectId, CONFIG_KEY.issueStatusOnCreate),
       ]);
 
       const actor = data.author ?? 'system';
