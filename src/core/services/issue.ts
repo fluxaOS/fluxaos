@@ -7,6 +7,7 @@
  * Body HTML is rendered at write time from markdown.
  */
 import { and, desc, eq, ilike, sql } from 'drizzle-orm';
+import { ACTOR, CONFIG_KEY, ISSUE_EVENT_TYPE } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
   configEntry,
@@ -95,7 +96,7 @@ export function createIssueService(db: DbOrTx) {
       .where(
         and(
           eq(configEntry.projectId, projectId),
-          eq(configEntry.key, 'issues.status.on_create_key')
+          eq(configEntry.key, CONFIG_KEY.issueStatusOnCreate)
         )
       );
 
@@ -335,10 +336,10 @@ export function createIssueService(db: DbOrTx) {
           .returning();
         if (!updated) return 'conflict';
 
-        await recordEvent(parentId, 'orchestrator', 'state_changed', {
+        await recordEvent(parentId, ACTOR.orchestrator, ISSUE_EVENT_TYPE.state_changed, {
           from_state: parent.stateId,
           to_state: terminalState.id,
-          user: 'orchestrator',
+          user: ACTOR.orchestrator,
           override: true,
           reason: 'auto_close_all_children_closed',
           last_child: childId,
@@ -427,7 +428,7 @@ export function createIssueService(db: DbOrTx) {
         await tx.insert(issueEvent).values({
           issueId: created.id,
           actor,
-          type: 'issue_created',
+          type: ISSUE_EVENT_TYPE.issue_created,
           payload: { author: actor },
         });
 
@@ -567,7 +568,7 @@ export function createIssueService(db: DbOrTx) {
 
       const actor = userId ?? 'system';
       if (Object.keys(changes).length > 0) {
-        await recordEvent(id, actor, 'fields_updated', {
+        await recordEvent(id, actor, ISSUE_EVENT_TYPE.fields_updated, {
           changes,
           user: actor,
         });
@@ -627,7 +628,7 @@ export function createIssueService(db: DbOrTx) {
       }
 
       const actor = userId ?? 'system';
-      await recordEvent(id, actor, 'state_changed', {
+      await recordEvent(id, actor, ISSUE_EVENT_TYPE.state_changed, {
         from_state: current.stateId,
         to_state: toStateId,
         user: actor,
@@ -688,7 +689,7 @@ export function createIssueService(db: DbOrTx) {
       }
 
       const actor = userId ?? 'system';
-      await recordEvent(id, actor, 'state_changed', {
+      await recordEvent(id, actor, ISSUE_EVENT_TYPE.state_changed, {
         from_state: current.stateId,
         to_state: toStateId,
         user: actor,
@@ -764,7 +765,7 @@ export function createIssueService(db: DbOrTx) {
         );
       }
 
-      await recordEvent(id, actor, 'status_changed', { statusId, reason });
+      await recordEvent(id, actor, ISSUE_EVENT_TYPE.status_changed, { statusId, reason });
       return updated;
     },
 

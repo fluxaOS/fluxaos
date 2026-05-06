@@ -76,6 +76,11 @@ export const ISSUE_EVENT_TYPE = {
   gate_hold: 'gate_hold',
   state_changed: 'state_changed',
   status_changed: 'status_changed',
+  issue_created: 'issue_created',
+  fields_updated: 'fields_updated',
+  comment_added: 'comment_added',
+  comment_edited: 'comment_edited',
+  comment_deleted: 'comment_deleted',
 } as const;
 
 export type IssueEventType =
@@ -114,6 +119,29 @@ export const DEFAULT_ISOLATION_PROVIDER = 'worktree' as const;
 // ── System Actor ──────────────────────────────────────────
 /** Canonical actor string for records created by the fluxaOS system itself. */
 export const SYSTEM_ACTOR = 'fluxaos' as const;
+
+// ── Internal Actors ───────────────────────────────────────
+/** Canonical actor identifiers for internal fluxaOS subsystems. */
+export const ACTOR = {
+  orchestrator: 'orchestrator',
+  stageRunner: 'stage-runner',
+  manualRun: 'manual-run',
+  deployBridge: 'deploy-bridge',
+} as const;
+
+export type Actor = (typeof ACTOR)[keyof typeof ACTOR];
+
+// ── Config Keys ───────────────────────────────────────────
+/** Config entry keys used for issue status/state lifecycle automation. */
+export const CONFIG_KEY = {
+  issueStatusOnCreate: 'issues.status.on_create_key',
+  issueStatusOnEnqueued: 'issues.status.on_enqueued_key',
+  issueStatusOnRunning: 'issues.status.on_running_key',
+  issueStatusOnBlocked: 'issues.status.on_blocked_key',
+  issueStatusOnCompleted: 'issues.status.on_completed_key',
+} as const;
+
+export type ConfigKey = (typeof CONFIG_KEY)[keyof typeof CONFIG_KEY];
 
 // ── Trigger Types ─────────────────────────────────────────
 export const TRIGGER_TYPE = {

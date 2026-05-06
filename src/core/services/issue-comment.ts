@@ -10,6 +10,7 @@
  * Body HTML is rendered at write time from markdown.
  */
 import { and, asc, eq, sql } from 'drizzle-orm';
+import { ISSUE_EVENT_TYPE } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import { issueComment, issueEvent } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
@@ -91,7 +92,7 @@ export function createIssueCommentService(db: Database) {
         await tx.insert(issueEvent).values({
           issueId,
           actor: input.author,
-          type: 'comment_added',
+          type: ISSUE_EVENT_TYPE.comment_added,
           payload: { comment_id: created.id, author: input.author },
         });
 
@@ -152,7 +153,7 @@ export function createIssueCommentService(db: Database) {
         await tx.insert(issueEvent).values({
           issueId: current.issueId,
           actor: input.editedBy,
-          type: 'comment_edited',
+          type: ISSUE_EVENT_TYPE.comment_edited,
           payload: {
             comment_id: commentId,
             old_body: current.bodyMd,
@@ -198,7 +199,7 @@ export function createIssueCommentService(db: Database) {
         await tx.insert(issueEvent).values({
           issueId: current.issueId,
           actor: input.deletedBy,
-          type: 'comment_deleted',
+          type: ISSUE_EVENT_TYPE.comment_deleted,
           payload: {
             comment_id: commentId,
             body_md: current.bodyMd,

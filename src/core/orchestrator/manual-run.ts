@@ -2,6 +2,8 @@
 
 import { eq } from 'drizzle-orm';
 import {
+  ACTOR,
+  CONFIG_KEY,
   EVENT_TYPE,
   GATE_VERDICT,
   ISSUE_EVENT_TYPE,
@@ -114,20 +116,20 @@ export async function executeManualRun(
               result.issueId!,
               targetState.id,
               issueRow.version,
-              'orchestrator'
+              ACTOR.orchestrator
             );
             await txRunService.appendIssueEvent(
               result.issueId!,
               ISSUE_EVENT_TYPE.state_changed,
               { reason: result.skillSignalReason ?? 'hold', targetState: targetStateKey },
-              'manual-run'
+              ACTOR.manualRun
             );
           });
         } else {
           // No targetState declared — block the issue and surface the reason.
           const blockedStatusId = await issueService.getStatusIdByConfigKey(
             issueRow.projectId,
-            'issues.status.on_blocked_key'
+            CONFIG_KEY.issueStatusOnBlocked
           );
           const question = result.skillMetadata?.question as string | undefined;
           await db.transaction(async (tx) => {
@@ -136,7 +138,7 @@ export async function executeManualRun(
             await txIssueService.updateStatus(
               result.issueId!,
               blockedStatusId,
-              'orchestrator',
+              ACTOR.orchestrator,
               issueRow.version,
               question
             );
@@ -144,7 +146,7 @@ export async function executeManualRun(
               result.issueId!,
               ISSUE_EVENT_TYPE.pipeline_failed,
               { reason: result.skillSignalReason ?? 'needs_human', question },
-              'manual-run'
+              ACTOR.manualRun
             );
           });
         }
@@ -168,7 +170,7 @@ export async function executeManualRun(
         result.issueId,
         issueEventType,
         { runId, exitCode: result.exitCode },
-        'manual-run'
+        ACTOR.manualRun
       );
     }
 
