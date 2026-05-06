@@ -80,6 +80,7 @@ export interface PipelineRunService {
       skillMetadata?: Record<string, unknown>;
       trigger?: string;
       errorMessage?: string;
+      resultDoc?: Record<string, unknown>;
     }
   ): Promise<void>;
 
@@ -274,6 +275,7 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
           skillMetadata: results.skillMetadata,
           trigger: results.trigger,
           errorMessage: results.errorMessage,
+          resultDoc: results.resultDoc,
           updatedAt: new Date(),
         })
         .where(where);

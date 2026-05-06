@@ -35,6 +35,8 @@ export const ResultDocSchema = z.object({
   blockers: z.array(BlockerSchema).optional(),
   artifacts: z.array(z.string()).optional(),
   meta: MetaSchema.optional(),
+  signal_reason: z.string().optional(),
+  signal_meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ResultDoc = z.infer<typeof ResultDocSchema>;

@@ -3,12 +3,11 @@ import { type ResultDoc, validateResultDoc } from '@/core/pipeline/result-doc';
 
 async function main() {
   const args = process.argv.slice(2);
-  const stageRunIdIdx = args.indexOf('--stage-run-id');
   const resultDocIdx = args.indexOf('--result-doc');
 
-  if (stageRunIdIdx === -1 || resultDocIdx === -1) {
+  if (resultDocIdx === -1) {
     console.error(
-      'Usage: ingest-result-doc.ts --stage-run-id <uuid> --result-doc <path>'
+      'Usage: ingest-result-doc.ts --result-doc <path> [--stage-run-id <uuid> (accepted but unused)]'
     );
     process.exit(1);
   }
