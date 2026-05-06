@@ -369,22 +369,49 @@ export function createEventOrchestrator(
       return;
     }
 
-    // Parse ingest output to extract verdict and signal info
+    // Parse ingest output to extract verdict, signal info, and execution metadata
     let verdict: string = GATE_VERDICT.proceed;
     let signalReason: string | null = null;
     let signalMeta: Record<string, unknown> | null = null;
+    let tokensIn: number | undefined;
+    let tokensOut: number | undefined;
+    let modelIdentifier: string | undefined;
 
     try {
       const parsed = JSON.parse(ingestOutput) as {
-        verdict?: string;
-        signal_reason?: string;
-        signal_meta?: Record<string, unknown>;
+        valid?: boolean;
+        doc?: {
+          verdict?: string;
+          signal_reason?: string;
+          signal_meta?: Record<string, unknown>;
+          meta?: {
+            input_tokens?: number;
+            output_tokens?: number;
+            model?: string;
+          };
+        };
+        raw?: Record<string, unknown>;
       };
-      if (parsed.verdict === 'pass') verdict = GATE_VERDICT.proceed;
-      else if (parsed.verdict === 'fail') verdict = GATE_VERDICT.rework;
-      else if (parsed.verdict === 'blocked') verdict = GATE_VERDICT.hold;
-      signalReason = parsed.signal_reason ?? null;
-      signalMeta = parsed.signal_meta ?? null;
+
+      if (parsed.valid === false && parsed.raw) {
+        // Invalid doc — write raw for audit trail
+        await db
+          .update(stageRun)
+          .set({ resultDoc: parsed.raw, updatedAt: new Date() })
+          .where(eq(stageRun.id, sRun.id));
+      }
+
+      if (parsed.valid && parsed.doc) {
+        const doc = parsed.doc;
+        if (doc.verdict === 'pass') verdict = GATE_VERDICT.proceed;
+        else if (doc.verdict === 'fail') verdict = GATE_VERDICT.rework;
+        else if (doc.verdict === 'blocked') verdict = GATE_VERDICT.hold;
+        signalReason = (doc.signal_reason as string | null) ?? null;
+        signalMeta = doc.signal_meta ?? null;
+        tokensIn = doc.meta?.input_tokens;
+        tokensOut = doc.meta?.output_tokens;
+        modelIdentifier = doc.meta?.model;
+      }
     } catch {
       // ingestOutput not JSON — treat as pass
     }
@@ -392,6 +419,9 @@ export function createEventOrchestrator(
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.completed, {
       driver: driverBinary,
       trigger: TRIGGER_TYPE.automated,
+      tokensIn,
+      tokensOut,
+      model: modelIdentifier,
     });
 
     await applyVerdict(run, stage, sRun, verdict, signalReason, signalMeta);
