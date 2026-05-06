@@ -54,3 +54,15 @@ export function validateResultDoc(raw: unknown): ValidateResultDocResult {
 export function isValidResultDoc(raw: unknown): raw is ResultDoc {
   return ResultDocSchema.safeParse(raw).success;
 }
+
+export const IngestOutputSchema = z.discriminatedUnion('valid', [
+  z.object({ valid: z.literal(true), doc: ResultDocSchema }),
+  z.object({
+    valid: z.literal(false),
+    reason: z.string(),
+    raw: z.record(z.string(), z.unknown()).optional(),
+    errors: z.array(z.unknown()).optional(),
+  }),
+]);
+
+export type IngestOutput = z.infer<typeof IngestOutputSchema>;

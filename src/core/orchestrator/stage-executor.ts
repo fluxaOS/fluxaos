@@ -31,7 +31,7 @@ import {
   skill,
   stageRun,
 } from '@/core/db/schema';
-import type { ResultDoc } from '@/core/pipeline/result-doc';
+import { IngestOutputSchema } from '@/core/pipeline/result-doc';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createIssueService } from '@/core/services/issue';
 import type { PipelineRunService } from './pipeline-run-service';
@@ -245,14 +245,10 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     let tokensOut: number | undefined;
     let modelIdentifier: string | undefined;
 
-    type IngestOutput =
-      | { valid: true; doc: ResultDoc }
-      | { valid: false; reason: string; raw?: Record<string, unknown>; errors?: unknown[] };
-
     let resultDoc: Record<string, unknown> | undefined;
 
     try {
-      const parsed = JSON.parse(ingestOutput) as IngestOutput;
+      const parsed = IngestOutputSchema.parse(JSON.parse(ingestOutput));
 
       if (!parsed.valid && parsed.raw) {
         // Invalid doc — write raw for audit trail
@@ -274,8 +270,15 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         modelIdentifier = doc.meta?.model;
         resultDoc = doc as unknown as Record<string, unknown>;
       }
-    } catch {
-      // ingestOutput not JSON — treat as pass
+    } catch (err) {
+      const errorMessage = `Ingest output failed validation — cannot safely determine verdict. Raw output: ${ingestOutput?.slice(0, 200)}. Error: ${err instanceof Error ? err.message : String(err)}`;
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        driver: driverBinary,
+        trigger: TRIGGER_TYPE.automated,
+        errorMessage,
+      });
+      await handleStageFailed(run, stage, sRun);
+      return;
     }
 
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.completed, {
