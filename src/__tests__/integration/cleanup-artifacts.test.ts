@@ -283,7 +283,7 @@ describe('cleanup-service — artifacts reaping (R-ARTIFACTS W4)', () => {
       .returning();
     cleanup.push({ table: 'issuePullRequest', id: pr.id });
 
-    await service.onPrClosed(101, { merged: false });
+    await service.onPrClosed(101, 'fluxaos/cleanup-art-pr', { merged: false });
 
     // Assertion: removeArtifactsDir was NOT called during onPrClosed.
     expect(artifactsFakes.removeArtifactsDir).not.toHaveBeenCalled();
