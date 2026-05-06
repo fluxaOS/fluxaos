@@ -218,6 +218,10 @@ export async function createDaemon(): Promise<Daemon> {
   const cleanupScheduler = createCleanupScheduler({
     cleanupService,
     logger: consoleLogger,
+    sweepIntervalMin: fluxaosConfig.cleanupSweepIntervalMin,
+    staleDays: fluxaosConfig.cleanupStaleDays,
+    sessionRetentionDays: fluxaosConfig.cleanupSessionRetentionDays,
+    artifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,
   });
 
   await orchestrator.recoverOnStartup();
