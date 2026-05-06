@@ -1,6 +1,7 @@
 // src/app/[org]/[user]/[project]/settings/system/page.tsx
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
@@ -10,8 +11,22 @@ import { trpc } from '@/lib/trpc/client';
 import { type ConfigEntryRecord, configEntryDescriptor } from './descriptor';
 
 export default function SystemSettingsPage() {
+  const params = useParams<{ project: string }>();
   const utils = trpc.useUtils();
-  const listQuery = trpc.config.list.useQuery();
+
+  const projectSlug = params.project ?? '';
+  const currentProjectQuery = trpc.project.getBySlug.useQuery(
+    { slug: projectSlug },
+    { enabled: !!projectSlug }
+  );
+  const projectId = currentProjectQuery.data?.id ?? null;
+
+  const listQuery = trpc.config.list.useQuery(
+    // projectId is guaranteed non-null when enabled fires; the cast is safe
+    // because tRPC requires a concrete input shape at call site.
+    { projectId: projectId as string },
+    { enabled: !!projectId }
+  );
   const updateMutation = trpc.config.update.useMutation();
   const createMutation = trpc.config.create.useMutation();
   const deleteMutation = trpc.config.delete.useMutation();
@@ -29,6 +44,7 @@ export default function SystemSettingsPage() {
     patch: Partial<ConfigEntryRecord>,
     expectedVersion: number
   ) => {
+    if (!projectId) return;
     // RecordEditor sends back fields including readonly previousValue and
     // version — strip those server-side via Zod (they're not in the
     // update input schema), but be explicit here for clarity.
@@ -40,15 +56,17 @@ export default function SystemSettingsPage() {
       version: expectedVersion,
       ...(allowed as Record<string, unknown>),
     });
-    await utils.config.list.invalidate();
+    await utils.config.list.invalidate({ projectId });
   };
 
   const onDelete = async (id: string, expectedVersion: number) => {
+    if (!projectId) return;
     await deleteMutation.mutateAsync({ id, version: expectedVersion });
-    await utils.config.list.invalidate();
+    await utils.config.list.invalidate({ projectId });
   };
 
   const onCreate = async () => {
+    if (!projectId) return;
     setCreateError(null);
     let parsedValue: unknown;
     try {
@@ -64,12 +82,13 @@ export default function SystemSettingsPage() {
         scope: newScope.trim(),
         key: newKey.trim(),
         value: parsedValue,
+        projectId: projectId ?? undefined,
       });
       setNewKey('');
       setNewScope('global');
       setNewValue('{\n  \n}');
       setShowCreate(false);
-      await utils.config.list.invalidate();
+      await utils.config.list.invalidate({ projectId });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
     }
@@ -164,7 +183,8 @@ export default function SystemSettingsPage() {
         onSave={onSave}
         onDelete={onDelete}
         onRefresh={async () => {
-          await utils.config.list.invalidate();
+          if (!projectId) return;
+          await utils.config.list.invalidate({ projectId });
         }}
         canEdit={() => canEdit}
         canDelete={() => canDelete}
