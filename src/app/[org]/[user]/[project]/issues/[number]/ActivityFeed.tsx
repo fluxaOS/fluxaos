@@ -19,13 +19,6 @@ interface Catalogs {
   priorities: CatalogItem[];
 }
 
-// Supabase Realtime delivers DB-column-shaped payloads (snake_case),
-// not Drizzle camelCase. Accept both shapes and look up either at runtime.
-interface IssueEventRow {
-  issue_id?: string;
-  issueId?: string;
-}
-
 // ─── Comment card with edit / delete ────────────────────────────────────────
 
 function CommentCard({
@@ -212,7 +205,7 @@ export function ActivityFeed({
   useEffect(() => {
     if (!issueId) return;
     const realtime = registry.get<RealtimeProvider>('realtime');
-    const unsubscribe = realtime.subscribeToTable<IssueEventRow>(
+    const unsubscribe = realtime.subscribeToTable<unknown>(
       `activity-feed-${issueId}`,
       'issue_event',
       '*',
