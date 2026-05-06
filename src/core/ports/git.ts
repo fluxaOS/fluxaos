@@ -57,6 +57,9 @@ export interface PullRequest {
 }
 
 export interface GitProvider {
+  /** Returns the provider's canonical name (e.g. `'github'`). */
+  providerName(): string;
+
   createBranch(repo: string, branch: string, fromRef?: string): Promise<void>;
 
   createPullRequest(params: CreatePRParams): Promise<PullRequest>;

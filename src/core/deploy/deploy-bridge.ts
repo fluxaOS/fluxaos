@@ -37,6 +37,7 @@ import {
   project,
   stageRun,
 } from '@/core/db/schema';
+import { SYSTEM_ACTOR } from '@/core/constants';
 import { UncommittedChangesError } from '@/core/errors/git';
 import type { GitOpsPort, GitProvider, PullRequest } from '@/core/ports/git';
 import type { GitProviderFactory } from '@/core/ports/git-factory';
@@ -303,7 +304,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
             repo: repoSlug,
             branchName: env.branchName,
             isPrimary: true,
-            createdBy: 'fluxaos',
+            createdBy: SYSTEM_ACTOR,
           })
           .returning({ id: issueBranch.id });
 
@@ -312,7 +313,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
           .values({
             issueId: issueRow.id,
             repo: repoSlug,
-            provider: 'github',
+            provider: gitProvider.providerName(),
             prNumber: pr.number,
             prUrl: pr.url,
             title: pr.title,

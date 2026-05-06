@@ -201,7 +201,12 @@ export function createGitHubAdapter(
     throw new NotImplementedError('mergePullRequest');
   }
 
+  function providerName(): string {
+    return 'github';
+  }
+
   return {
+    providerName,
     createBranch,
     createPullRequest,
     getPullRequest,

@@ -23,6 +23,7 @@ export function createForgejoAdapter(): GitProvider {
   const reject = (method: string) =>
     Promise.reject(new ForgejoNotImplementedError(method));
   return {
+    providerName: () => 'forgejo',
     createBranch: () => reject('createBranch'),
     createPullRequest: (_: CreatePRParams) => reject('createPullRequest'),
     getPullRequest: () => reject('getPullRequest'),

@@ -267,6 +267,7 @@ function makeFakeGitProvider(result?: PullRequest): FakeGitProviderHarness {
     throw new Error('not used in tests');
   };
   const provider: GitProvider = {
+    providerName: () => 'github',
     createBranch: stub as unknown as GitProvider['createBranch'],
     createPullRequest:
       createPullRequest as unknown as GitProvider['createPullRequest'],
