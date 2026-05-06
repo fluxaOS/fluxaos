@@ -117,10 +117,16 @@ export function createWorktreeIsolationProvider(
       repoPath,
       repoIdentity,
       branchName,
-      baseBranch = 'main',
+      baseBranch,
       copyFiles = [],
       artifactsPath: artifactsPathParam,
     } = params;
+
+    if (!baseBranch) {
+      throw new Error(
+        `[worktree-isolation] baseBranch is required — project.defaultBranch must be set`
+      );
+    }
 
     const worktreePath = getWorktreePath({
       repoPath,
