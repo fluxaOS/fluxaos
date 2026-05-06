@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { project } from '@/core/db/schema';
+import { NotFoundError } from '@/core/errors/domain';
 import { createConfigService } from '@/core/services/config';
 import { inputId, publicProcedure, router } from '../trpc';
 
@@ -75,12 +76,26 @@ export const configRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      return createConfigService(ctx.db).update(id, version, data);
+      try {
+        return await createConfigService(ctx.db).update(id, version, data);
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+        }
+        throw err;
+      }
     }),
 
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      return createConfigService(ctx.db).delete(input.id, input.version);
+      try {
+        return await createConfigService(ctx.db).delete(input.id, input.version);
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+        }
+        throw err;
+      }
     }),
 });
