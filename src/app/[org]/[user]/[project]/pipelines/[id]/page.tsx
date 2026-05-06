@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Check, RotateCcw, XOctagon } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { use, useState } from 'react';
 import { Card } from '@/components/card';
 import { VerdictBadge } from '@/components/gates/VerdictBadge';
@@ -19,13 +19,12 @@ function useBasePath() {
 }
 
 function useProjectId() {
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
+  const params = useParams<{ project: string }>();
+  const projectQuery = trpc.project.getBySlug.useQuery(
+    { slug: params.project },
+    { enabled: !!params.project }
   );
-  return projectsQuery.data?.[0]?.id ?? null;
+  return projectQuery.data?.id ?? null;
 }
 
 export default function RunDetailPage({
@@ -95,7 +94,9 @@ export default function RunDetailPage({
             {(run.status === 'running' || run.status === 'pending') && (
               <button
                 type="button"
-                onClick={() => cancelRun.mutate({ id: run.id })}
+                onClick={() =>
+                  cancelRun.mutate({ id: run.id, projectId: projectId! })
+                }
                 disabled={cancelRun.isPending}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-400 border border-red-400/20 bg-red-400/10 hover:bg-red-400/20 transition-colors disabled:opacity-50"
               >

@@ -208,7 +208,7 @@ export function RunDetailModal({
     if (!runId) return;
     setCancelling(true);
     try {
-      await cancelRunMutation.mutateAsync({ id: runId });
+      await cancelRunMutation.mutateAsync({ id: runId, projectId });
     } finally {
       setCancelling(false);
     }

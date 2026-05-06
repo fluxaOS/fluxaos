@@ -331,8 +331,17 @@ export const pipelineRouter = router({
 
     /** Cancel a pipeline run. */
     cancel: publicProcedure
-      .input(inputId())
+      .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
+        const owningProjectId = await getProjectIdForRun(ctx.db, input.id);
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         const svc = createPipelineRunService(ctx.db);
         // Cancel all non-terminal stage runs
         const stages = await svc.getStageRuns(input.id);
@@ -414,7 +423,9 @@ export const pipelineRouter = router({
           ctx.db,
           input.stageRunId
         );
-        if (owningProjectId !== input.projectId) return [];
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
         await assertProjectOwnership(
           ctx.db,
           input.projectId,
@@ -585,7 +596,9 @@ export const pipelineRouter = router({
           ctx.db,
           input.stageRunId
         );
-        if (owningProjectId !== input.projectId) return [];
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
         await assertProjectOwnership(
           ctx.db,
           input.projectId,
