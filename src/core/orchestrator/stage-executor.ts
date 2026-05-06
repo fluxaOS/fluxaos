@@ -10,7 +10,6 @@ import type { FluxaosConfig } from '@/config/env';
 import type { GateMode } from '@/core/constants';
 import {
   ACTOR,
-  CONFIG_KEY,
   DEFAULT_GATE_MODE,
   EVENT_TYPE,
   GATE_MODE,
@@ -36,8 +35,8 @@ import {
 } from '@/core/db/schema';
 import { IngestOutputSchema } from '@/core/pipeline/result-doc';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
-import { createIssueService } from '@/core/services/issue';
 import type { PipelineRunService } from './pipeline-run-service';
+import { blockIssueOnRun } from './run-helpers';
 
 export interface StageExecutorDeps {
   db: Database;
@@ -328,37 +327,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     if (!targetStageName) {
       const reason = `Routing field for verdict '${verdict}' is null or empty on stage '${stage.name}'`;
       await finishRun(run, PIPELINE_RUN_STATUS.blocked);
-      if (run.issueId) {
-        const issueService = createIssueService(db);
-        const [issueRow] = await db
-          .select()
-          .from(issue)
-          .where(eq(issue.id, run.issueId));
-        if (issueRow) {
-          const blockedStatusId = await issueService.getStatusIdByConfigKey(
-            issueRow.projectId,
-            CONFIG_KEY.issueStatusOnBlocked
-          );
-          await issueService.updateStatus(
-            run.issueId,
-            blockedStatusId,
-            ACTOR.orchestrator,
-            issueRow.version
-          );
-          await runService.appendIssueEvent(
-            run.issueId,
-            ISSUE_EVENT_TYPE.status_changed,
-            { reason },
-            ACTOR.orchestrator
-          );
-        }
-        await runService.appendIssueEvent(
-          run.issueId,
-          ISSUE_EVENT_TYPE.pipeline_failed,
-          { reason },
-          ACTOR.orchestrator
-        );
-      }
+      await blockIssueOnRun(db, run.issueId, { reason, appendPipelineFailed: true });
       return;
     }
 
@@ -368,33 +337,11 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     }
 
     if (targetStageName === PIPELINE_SENTINEL.blocked) {
-      if (run.issueId) {
-        const issueService = createIssueService(db);
-        const [issueRow] = await db
-          .select()
-          .from(issue)
-          .where(eq(issue.id, run.issueId));
-        if (issueRow) {
-          const blockedStatusId = await issueService.getStatusIdByConfigKey(
-            issueRow.projectId,
-            CONFIG_KEY.issueStatusOnBlocked
-          );
-          const question = signalMeta?.question as string | undefined;
-          await issueService.updateStatus(
-            run.issueId,
-            blockedStatusId,
-            ACTOR.orchestrator,
-            issueRow.version,
-            question
-          );
-          await runService.appendIssueEvent(
-            run.issueId,
-            ISSUE_EVENT_TYPE.status_changed,
-            { reason: signalReason ?? 'blocked', question },
-            ACTOR.orchestrator
-          );
-        }
-      }
+      const question = signalMeta?.question as string | undefined;
+      await blockIssueOnRun(db, run.issueId, {
+        reason: signalReason ?? 'blocked',
+        question,
+      });
       await finishRun(run, PIPELINE_RUN_STATUS.blocked);
       return;
     }
@@ -413,37 +360,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     if (!nextStage) {
       const reason = `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`;
       await finishRun(run, PIPELINE_RUN_STATUS.blocked);
-      if (run.issueId) {
-        const issueService = createIssueService(db);
-        const [issueRow] = await db
-          .select()
-          .from(issue)
-          .where(eq(issue.id, run.issueId));
-        if (issueRow) {
-          const blockedStatusId = await issueService.getStatusIdByConfigKey(
-            issueRow.projectId,
-            CONFIG_KEY.issueStatusOnBlocked
-          );
-          await issueService.updateStatus(
-            run.issueId,
-            blockedStatusId,
-            ACTOR.orchestrator,
-            issueRow.version
-          );
-          await runService.appendIssueEvent(
-            run.issueId,
-            ISSUE_EVENT_TYPE.status_changed,
-            { reason },
-            ACTOR.orchestrator
-          );
-        }
-        await runService.appendIssueEvent(
-          run.issueId,
-          ISSUE_EVENT_TYPE.pipeline_failed,
-          { reason },
-          ACTOR.orchestrator
-        );
-      }
+      await blockIssueOnRun(db, run.issueId, { reason, appendPipelineFailed: true });
       return;
     }
 
