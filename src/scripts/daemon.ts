@@ -110,6 +110,10 @@ export interface Daemon {
 
 const DRAIN_POLL_INTERVAL_MS = 500;
 
+// Single-tenant assumption: drain count covers ALL running stage_runs globally.
+// A stuck run from another tenant's daemon would permanently block graceful
+// shutdown. In a multi-tenant deployment this would filter by daemonInstanceId
+// or boot time to drain only this instance's runs. (FLX-148)
 async function drainRunningStageRuns(
   db: Database,
   graceMs: number

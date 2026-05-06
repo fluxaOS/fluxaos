@@ -261,6 +261,9 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
   }
 
   async function listActiveAcrossProjects(): Promise<IsolationRow[]> {
+    // Single-tenant assumption: sweeps active isolation envs for ALL tenants.
+    // In a multi-tenant deployment this would need an orgId filter so one
+    // tenant's cleanup policy cannot delete another tenant's worktrees. (FLX-148)
     return db
       .select()
       .from(isolationEnvironment)
