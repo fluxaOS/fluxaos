@@ -168,7 +168,8 @@ export function RunDetailModal({
       '*',
       () => {
         runQuery.refetch();
-      }
+      },
+      `pipeline_run_id=eq.${runId}`
     );
 
     const unsubscribePipeline = realtime.subscribeToTable<unknown>(
@@ -177,7 +178,8 @@ export function RunDetailModal({
       'UPDATE',
       () => {
         runQuery.refetch();
-      }
+      },
+      `id=eq.${runId}`
     );
 
     return () => {

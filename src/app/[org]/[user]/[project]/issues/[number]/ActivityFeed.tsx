@@ -4,10 +4,7 @@ import { MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/card';
 import { registry } from '@/config/registry';
-import type {
-  RealtimeProvider,
-  RealtimeTableEvent,
-} from '@/core/ports/realtime';
+import type { RealtimeProvider } from '@/core/ports/realtime';
 import { trpc } from '@/lib/trpc/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -212,8 +209,6 @@ export function ActivityFeed({
   });
 
   // Realtime: refetch events when any issue_event row changes for THIS issue.
-  // The RealtimeProvider port on main does not accept a filter param, so we
-  // filter client-side by matching issueId in the payload.
   useEffect(() => {
     if (!issueId) return;
     const realtime = registry.get<RealtimeProvider>('realtime');
@@ -221,16 +216,10 @@ export function ActivityFeed({
       `activity-feed-${issueId}`,
       'issue_event',
       '*',
-      (payload: RealtimeTableEvent<IssueEventRow>) => {
-        const rowIssueId =
-          payload.new?.issue_id ??
-          payload.new?.issueId ??
-          payload.old?.issue_id ??
-          payload.old?.issueId;
-        if (rowIssueId === issueId) {
-          eventsQuery.refetch();
-        }
-      }
+      () => {
+        eventsQuery.refetch();
+      },
+      `issue_id=eq.${issueId}`
     );
     return () => {
       unsubscribe();
