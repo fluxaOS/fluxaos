@@ -499,12 +499,10 @@ export function createIssueService(db: DbOrTx) {
       id: string,
       fields: UpdateFieldsInput,
       version: number,
-      userId?: string,
-      projectId?: string
+      projectId: string,
+      userId?: string
     ): Promise<IssueSelect> {
-      const whereClause = projectId
-        ? and(eq(issue.id, id), eq(issue.projectId, projectId))
-        : eq(issue.id, id);
+      const whereClause = and(eq(issue.id, id), eq(issue.projectId, projectId));
       const current = await db
         .select()
         .from(issue)
@@ -582,12 +580,10 @@ export function createIssueService(db: DbOrTx) {
       id: string,
       toStateId: string,
       version: number,
-      userId?: string,
-      projectId?: string
+      projectId: string,
+      userId?: string
     ): Promise<IssueSelect> {
-      const whereClause = projectId
-        ? and(eq(issue.id, id), eq(issue.projectId, projectId))
-        : eq(issue.id, id);
+      const whereClause = and(eq(issue.id, id), eq(issue.projectId, projectId));
       const current = await db
         .select()
         .from(issue)

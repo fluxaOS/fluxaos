@@ -313,8 +313,8 @@ describe('R-EPIC — parent/child hierarchy', () => {
       child.id,
       issueStateIdClosed,
       child.version,
-      'test',
-      projectId
+      projectId,
+      'test'
     );
 
     const parentAfter = await svc.getById(parent.id, projectId);

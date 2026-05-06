@@ -326,8 +326,8 @@ describe('issue service', () => {
       issueId,
       stateInProgressId,
       issueVersion,
-      'test-user',
-      projectId
+      projectId,
+      'test-user'
     );
     issueVersion = transitioned.version;
 
@@ -349,8 +349,8 @@ describe('issue service', () => {
       issueId,
       stateOpenId,
       issueVersion,
-      'test-user',
-      projectId
+      projectId,
+      'test-user'
     );
     issueVersion = transitioned.version;
     expect(transitioned.stateId).toBe(stateOpenId);
@@ -361,8 +361,8 @@ describe('issue service', () => {
       issueId,
       { title: 'Updated Title' },
       issueVersion,
-      'test-user',
-      projectId
+      projectId,
+      'test-user'
     );
     issueVersion = updated.version;
 
@@ -384,8 +384,8 @@ describe('issue service', () => {
         issueId,
         { title: 'Should Fail' },
         999,
-        'test-user',
-        projectId
+        projectId,
+        'test-user'
       )
     ).rejects.toThrow('VERSION_CONFLICT');
   });
