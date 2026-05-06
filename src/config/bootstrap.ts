@@ -19,6 +19,7 @@ import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import type { DatabaseProvider } from '@/core/ports';
+import type { FluxaosConfig } from './env';
 import { registry } from './registry';
 
 function requireEnv(name: string): string {
@@ -38,8 +39,13 @@ let bootstrapped = false;
 
 /**
  * Initialize all adapters. Safe to call multiple times — only runs once.
+ *
+ * @param config - Optional FluxaosConfig from which workspace/artifacts root
+ *   overrides are read. When omitted (e.g. web-server bootstrap where the
+ *   cleanup vars are not set), the isolation provider falls back to the
+ *   in-project directory layout.
  */
-export function bootstrap(): void {
+export function bootstrap(config?: FluxaosConfig): void {
   if (bootstrapped) return;
   bootstrapped = true;
 
@@ -86,9 +92,15 @@ export function bootstrap(): void {
 
   // Isolation — worktree-per-run workspace provider. Depends on the
   // database adapter being resolvable (factory evaluates lazily).
+  // workspaceRoot / artifactsRoot are threaded in from FluxaosConfig so the
+  // adapter never reads process.env directly.
   registry.register('isolation', () => {
     const dbProvider = registry.get<DatabaseProvider>('database');
-    return createWorktreeIsolationProvider({ db: dbProvider.getConnection() });
+    return createWorktreeIsolationProvider({
+      db: dbProvider.getConnection(),
+      workspaceRoot: config?.workspaceRoot,
+      artifactsRoot: config?.artifactsRoot,
+    });
   });
 
   // Git — GitHub adapter (legacy single-forge resolver). Requires

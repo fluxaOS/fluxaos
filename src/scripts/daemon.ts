@@ -144,7 +144,7 @@ export async function createDaemon(): Promise<Daemon> {
   loadDaemonEnvFiles();
   const env = parseEnv();
   const fluxaosConfig = loadFluxaosConfig();
-  bootstrap();
+  bootstrap(fluxaosConfig);
 
   consoleLogger.info({
     event: 'daemon.booting',
@@ -217,7 +217,11 @@ export async function createDaemon(): Promise<Daemon> {
       listArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
-      getArtifactsBase,
+      getArtifactsBase: (repoPath: string) =>
+        getArtifactsBase(repoPath, {
+          artifactsRoot: fluxaosConfig.artifactsRoot,
+          workspaceRoot: fluxaosConfig.workspaceRoot,
+        }),
     },
     cleanupStaleDays: fluxaosConfig.cleanupStaleDays,
     cleanupArtifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,
