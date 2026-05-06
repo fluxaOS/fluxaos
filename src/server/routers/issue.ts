@@ -5,13 +5,39 @@
  * All IDs are UUIDs. No hardcoded enums. Version required on all mutations
  * that modify existing data. Routers are thin — logic lives in services.
  */
+import { TRPCError } from '@trpc/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
+import type { Database } from '@/core/db/connection';
+import { project } from '@/core/db/schema';
 import {
   createIssueCommentService,
   createIssueEventService,
   createIssueService,
 } from '@/core/services';
+import type { Viewer } from '../trpc';
 import { inputId, publicProcedure, router } from '../trpc';
+
+/**
+ * Assert that the viewer is allowed to access resources in the given project.
+ * Throws NOT_FOUND (not FORBIDDEN) to avoid leaking project existence to
+ * unauthorized callers. Authenticated viewers must own the project; anonymous
+ * viewers (fluxaUserId === null) are allowed through (LAN auth bypass).
+ */
+async function assertProjectViewership(
+  db: Database,
+  projectId: string,
+  viewer: Viewer
+): Promise<void> {
+  const [proj] = await db
+    .select({ userId: project.userId })
+    .from(project)
+    .where(eq(project.id, projectId));
+  if (!proj) throw new TRPCError({ code: 'NOT_FOUND' });
+  if (viewer.fluxaUserId !== null && proj.userId !== viewer.fluxaUserId) {
+    throw new TRPCError({ code: 'NOT_FOUND' });
+  }
+}
 
 export const issueRouter = router({
   // ─── Core issue operations ──────────────────────────────────────────────────
@@ -28,7 +54,8 @@ export const issueRouter = router({
         search: z.string().optional(),
       })
     )
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
       const { projectId, ...filters } = input;
       return createIssueService(ctx.db).listByProject(projectId, filters);
     }),
@@ -40,13 +67,28 @@ export const issueRouter = router({
         number: z.number().int().positive(),
       })
     )
-    .query(({ ctx, input }) =>
-      createIssueService(ctx.db).getByNumber(input.projectId, input.number)
-    ),
+    .query(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
+      return createIssueService(ctx.db).getByNumber(
+        input.projectId,
+        input.number
+      );
+    }),
 
   getById: publicProcedure
-    .input(inputId())
-    .query(({ ctx, input }) => createIssueService(ctx.db).getById(input.id)),
+    .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
+
+      const result = await createIssueService(ctx.db).getById(
+        input.id,
+        input.projectId
+      );
+      if (!result) {
+        throw new TRPCError({ code: 'NOT_FOUND' });
+      }
+      return result;
+    }),
 
   create: publicProcedure
     .input(
@@ -62,7 +104,10 @@ export const issueRouter = router({
         parentIssueId: z.string().uuid().optional(),
       })
     )
-    .mutation(({ ctx, input }) => createIssueService(ctx.db).create(input)),
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
+      return createIssueService(ctx.db).create(input);
+    }),
 
   // ─── Parent-child relationships (R-EPIC) ────────────────────────────────────
 
@@ -81,6 +126,7 @@ export const issueRouter = router({
   openChildCountsByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
       const map = await createIssueService(ctx.db).openChildCountsByProject(
         input.projectId
       );
@@ -91,6 +137,7 @@ export const issueRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        projectId: z.string().uuid(),
         version: z.number().int(),
         title: z.string().min(1).optional(),
         bodyMd: z.string().optional(),
@@ -101,12 +148,15 @@ export const issueRouter = router({
         userId: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      const { id, version, userId, ...fields } = input;
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
+
+      const { id, projectId, version, userId, ...fields } = input;
       return createIssueService(ctx.db).updateFields(
         id,
         fields,
         version,
+        projectId,
         userId
       );
     }),
@@ -115,23 +165,31 @@ export const issueRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        projectId: z.string().uuid(),
         toStateId: z.string().uuid(),
         version: z.number().int(),
         userId: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) =>
-      createIssueService(ctx.db).transition(
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
+
+      return createIssueService(ctx.db).transition(
         input.id,
         input.toStateId,
         input.version,
+        input.projectId,
         input.userId
-      )
-    ),
+      );
+    }),
 
   delete: publicProcedure
-    .input(inputId())
-    .mutation(({ ctx, input }) => createIssueService(ctx.db).delete(input.id)),
+    .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
+
+      return createIssueService(ctx.db).delete(input.id, input.projectId);
+    }),
 
   transitions: publicProcedure
     .input(inputId())

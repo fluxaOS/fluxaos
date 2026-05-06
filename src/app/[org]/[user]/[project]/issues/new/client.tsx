@@ -34,7 +34,7 @@ export function IssueCreateClient({
     projectId,
   });
   const parentQuery = trpc.issue.getById.useQuery(
-    { id: parentIssueId ?? '' },
+    { id: parentIssueId ?? '', projectId },
     { enabled: !!parentIssueId }
   );
 

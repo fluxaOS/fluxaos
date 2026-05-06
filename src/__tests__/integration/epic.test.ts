@@ -261,7 +261,7 @@ describe('R-EPIC — parent/child hierarchy', () => {
     );
 
     // Reload parent and assert closed.
-    const parentAfter = await svc.getById(parent.id);
+    const parentAfter = await svc.getById(parent.id, projectId);
     expect(parentAfter?.isClosed).toBe(true);
     expect(parentAfter?.closedAt).not.toBeNull();
     expect(parentAfter?.stateId).toBe(issueStateIdClosed);
@@ -309,9 +309,15 @@ describe('R-EPIC — parent/child hierarchy', () => {
     });
 
     // transition() uses the transition graph: open → closed exists per beforeAll.
-    await svc.transition(child.id, issueStateIdClosed, child.version, 'test');
+    await svc.transition(
+      child.id,
+      issueStateIdClosed,
+      child.version,
+      projectId,
+      'test'
+    );
 
-    const parentAfter = await svc.getById(parent.id);
+    const parentAfter = await svc.getById(parent.id, projectId);
     expect(parentAfter?.isClosed).toBe(true);
   });
 
@@ -388,8 +394,8 @@ describe('R-EPIC — parent/child hierarchy', () => {
       'test'
     );
 
-    const parentAfter = await svc.getById(parent.id);
-    const grandparentAfter = await svc.getById(grandparent.id);
+    const parentAfter = await svc.getById(parent.id, projectId);
+    const grandparentAfter = await svc.getById(grandparent.id, projectId);
     expect(parentAfter?.isClosed).toBe(true);
     expect(grandparentAfter?.isClosed).toBe(true);
   });
@@ -404,10 +410,10 @@ describe('R-EPIC — parent/child hierarchy', () => {
       priorityId: issuePriorityId,
     });
 
-    let loaded = await svc.getById(parent.id);
+    let loaded = await svc.getById(parent.id, projectId);
     expect(loaded?.hasOpenChildren).toBe(false);
 
-    const child = await svc.create({
+    const _child = await svc.create({
       projectId,
       title: 'enriched-getById-child',
       typeId: issueTypeId,
@@ -415,7 +421,7 @@ describe('R-EPIC — parent/child hierarchy', () => {
       parentIssueId: parent.id,
     });
 
-    loaded = await svc.getById(parent.id);
+    loaded = await svc.getById(parent.id, projectId);
     expect(loaded?.hasOpenChildren).toBe(true);
   });
 });

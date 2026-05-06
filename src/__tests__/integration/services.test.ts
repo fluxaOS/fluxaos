@@ -326,6 +326,7 @@ describe('issue service', () => {
       issueId,
       stateInProgressId,
       issueVersion,
+      projectId,
       'test-user'
     );
     issueVersion = transitioned.version;
@@ -348,6 +349,7 @@ describe('issue service', () => {
       issueId,
       stateOpenId,
       issueVersion,
+      projectId,
       'test-user'
     );
     issueVersion = transitioned.version;
@@ -359,6 +361,7 @@ describe('issue service', () => {
       issueId,
       { title: 'Updated Title' },
       issueVersion,
+      projectId,
       'test-user'
     );
     issueVersion = updated.version;
@@ -377,7 +380,13 @@ describe('issue service', () => {
 
   it('updateFields — wrong version throws VERSION_CONFLICT', async () => {
     await expect(
-      issueSvc.updateFields(issueId, { title: 'Should Fail' }, 999, 'test-user')
+      issueSvc.updateFields(
+        issueId,
+        { title: 'Should Fail' },
+        999,
+        projectId,
+        'test-user'
+      )
     ).rejects.toThrow('VERSION_CONFLICT');
   });
 
@@ -399,12 +408,28 @@ describe('issue service', () => {
     expect(reopened.stateId).toBe(stateOpenId); // lowest sortOrder non-terminal
   });
 
+  it('getById — returns null for issue looked up under wrong project (cross-tenant rejection)', async () => {
+    // Create a second project in the same org to act as the "wrong" project.
+    const projSvc = createProjectService(db);
+    const proj2 = await projSvc.create({
+      orgId: _orgId,
+      userId: _userId,
+      name: 'Test Project 2',
+      slug: `test-proj2-${RUN}`,
+    });
+
+    // issueId belongs to projectId (project 1). Looking it up under proj2 must
+    // return null — not the real issue — so a cross-tenant viewer gets nothing.
+    const result = await issueSvc.getById(issueId, proj2.id);
+    expect(result).toBeNull();
+  });
+
   it('delete — hard delete removes the issue', async () => {
     // Delete second issue (number 2) — look it up by number
     const second = await issueSvc.getByNumber(projectId, 2);
     if (second) {
-      await issueSvc.delete(second.id);
-      const found = await issueSvc.getById(second.id);
+      await issueSvc.delete(second.id, projectId);
+      const found = await issueSvc.getById(second.id, projectId);
       expect(found).toBeNull();
     }
   });

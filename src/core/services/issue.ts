@@ -470,9 +470,13 @@ export function createIssueService(db: DbOrTx) {
     },
 
     async getById(
-      id: string
+      id: string,
+      projectId: string
     ): Promise<(IssueSelect & { hasOpenChildren: boolean }) | null> {
-      const [row] = await db.select().from(issue).where(eq(issue.id, id));
+      const [row] = await db
+        .select()
+        .from(issue)
+        .where(and(eq(issue.id, id), eq(issue.projectId, projectId)));
       if (!row) return null;
       const [{ openCount }] = (await db.execute(
         sql`SELECT COUNT(*)::int AS "openCount" FROM issue WHERE parent_issue_id = ${id} AND is_closed = false`
@@ -495,12 +499,14 @@ export function createIssueService(db: DbOrTx) {
       id: string,
       fields: UpdateFieldsInput,
       version: number,
+      projectId: string,
       userId?: string
     ): Promise<IssueSelect> {
+      const whereClause = and(eq(issue.id, id), eq(issue.projectId, projectId));
       const current = await db
         .select()
         .from(issue)
-        .where(eq(issue.id, id))
+        .where(whereClause)
         .then(([r]) => r ?? null);
 
       if (!current) {
@@ -574,12 +580,14 @@ export function createIssueService(db: DbOrTx) {
       id: string,
       toStateId: string,
       version: number,
+      projectId: string,
       userId?: string
     ): Promise<IssueSelect> {
+      const whereClause = and(eq(issue.id, id), eq(issue.projectId, projectId));
       const current = await db
         .select()
         .from(issue)
-        .where(eq(issue.id, id))
+        .where(whereClause)
         .then(([r]) => r ?? null);
 
       if (!current) {
@@ -774,8 +782,10 @@ export function createIssueService(db: DbOrTx) {
       return resolveStateByConfigKey(projectId, configKey);
     },
 
-    async delete(id: string): Promise<void> {
-      await db.delete(issue).where(eq(issue.id, id));
+    async delete(id: string, projectId: string): Promise<void> {
+      await db
+        .delete(issue)
+        .where(and(eq(issue.id, id), eq(issue.projectId, projectId)));
     },
 
     async getChildren(parentId: string): Promise<IssueSelect[]> {

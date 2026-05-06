@@ -23,15 +23,17 @@ import { trpc } from '@/lib/trpc/client';
 export function RelationshipsCard({
   issueId,
   parentIssueId,
+  projectId,
   basePath,
 }: {
   issueId: string;
   parentIssueId: string | null;
+  projectId: string;
   basePath: string;
 }) {
   const childrenQuery = trpc.issue.getChildren.useQuery({ parentId: issueId });
   const parentQuery = trpc.issue.getById.useQuery(
-    { id: parentIssueId ?? '' },
+    { id: parentIssueId ?? '', projectId },
     { enabled: !!parentIssueId }
   );
 
