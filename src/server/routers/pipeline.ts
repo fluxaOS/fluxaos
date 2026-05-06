@@ -3,6 +3,13 @@ import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import type { Database } from '@/core/db/connection';
 import {
+  EVENT_TYPE,
+  GATE_VERDICT,
+  PIPELINE_RUN_STATUS,
+  STAGE_RUN_STATUS,
+  STAGE_RUN_TERMINAL,
+} from '@/core/constants';
+import {
   pipeline,
   pipelineRun,
   project,
@@ -225,7 +232,7 @@ export const pipelineRouter = router({
         // stage, not the pipeline's stages[0]. Daemon's handleNewRun
         // reuses the pending row rather than creating a duplicate.
         const sr = await svc.createStageRun(run.id, input.stageId);
-        await svc.appendEvent(sr.id, 'launched', {
+        await svc.appendEvent(sr.id, EVENT_TYPE.launched, {
           reason: 'manually triggered by user — awaiting daemon pickup',
         });
 
@@ -346,19 +353,15 @@ export const pipelineRouter = router({
         // Cancel all non-terminal stage runs
         const stages = await svc.getStageRuns(input.id);
         for (const s of stages) {
-          if (
-            !['completed', 'failed', 'timed_out', 'cancelled'].includes(
-              s.status
-            )
-          ) {
+          if (!STAGE_RUN_TERMINAL.has(s.status)) {
             terminateStageProcess(s.pid);
-            await svc.completeStageRun(s.id, 'cancelled', {});
-            await svc.appendEvent(s.id, 'cancelled', {
+            await svc.completeStageRun(s.id, STAGE_RUN_STATUS.cancelled, {});
+            await svc.appendEvent(s.id, EVENT_TYPE.cancelled, {
               reason: 'cancelled by user',
             });
           }
         }
-        await svc.completeRun(input.id, 'cancelled');
+        await svc.completeRun(input.id, PIPELINE_RUN_STATUS.cancelled);
         return { cancelled: true };
       }),
 
@@ -402,11 +405,11 @@ export const pipelineRouter = router({
           });
         }
         terminateStageProcess(row.pid);
-        await svc.completeStageRun(row.id, 'cancelled', {});
-        await svc.appendEvent(input.stageRunId, 'cancelled', {
+        await svc.completeStageRun(row.id, STAGE_RUN_STATUS.cancelled, {});
+        await svc.appendEvent(input.stageRunId, EVENT_TYPE.cancelled, {
           reason: 'cancelled by user',
         });
-        await svc.completeRun(row.pipelineRunId, 'cancelled');
+        await svc.completeRun(row.pipelineRunId, PIPELINE_RUN_STATUS.cancelled);
         return { cancelled: true };
       }),
 
@@ -458,9 +461,12 @@ export const pipelineRouter = router({
 
         const svc = createPipelineRunService(ctx.db);
         // Mark the pending stage as launching so the orchestrator picks it up
-        await svc.updateStageRunStatus(input.stageRunId, 'launching');
-        await svc.appendEvent(input.stageRunId, 'gate_checked', {
-          verdict: 'proceed',
+        await svc.updateStageRunStatus(
+          input.stageRunId,
+          STAGE_RUN_STATUS.launching
+        );
+        await svc.appendEvent(input.stageRunId, EVENT_TYPE.gate_checked, {
+          verdict: GATE_VERDICT.proceed,
           reason: 'manually approved',
         });
         return { approved: true };
@@ -490,11 +496,14 @@ export const pipelineRouter = router({
         );
 
         const svc = createPipelineRunService(ctx.db);
-        const status = input.verdict === 'abort' ? 'cancelled' : 'failed';
+        const status =
+          input.verdict === 'abort'
+            ? STAGE_RUN_STATUS.cancelled
+            : STAGE_RUN_STATUS.failed;
         await svc.completeStageRun(input.stageRunId, status, {});
         await svc.appendEvent(
           input.stageRunId,
-          input.verdict === 'abort' ? 'cancelled' : 'failed',
+          input.verdict === 'abort' ? EVENT_TYPE.cancelled : EVENT_TYPE.failed,
           {
             reason: `manually rejected: ${input.verdict}`,
           }
@@ -576,8 +585,11 @@ export const pipelineRouter = router({
         );
 
         const svc = createPipelineRunService(ctx.db);
-        await svc.updateStageRunStatus(input.stageRunId, 'launching');
-        await svc.appendEvent(input.stageRunId, 'launched', {
+        await svc.updateStageRunStatus(
+          input.stageRunId,
+          STAGE_RUN_STATUS.launching
+        );
+        await svc.appendEvent(input.stageRunId, EVENT_TYPE.launched, {
           reason: 'manually executed by user',
         });
         return { executed: true };
@@ -644,13 +656,17 @@ export const pipelineRouter = router({
 
         const total = allRuns.length;
         const completed = allRuns.filter(
-          (r) => r.status === 'completed'
+          (r) => r.status === PIPELINE_RUN_STATUS.completed
         ).length;
-        const failed = allRuns.filter((r) => r.status === 'failed').length;
+        const failed = allRuns.filter(
+          (r) => r.status === PIPELINE_RUN_STATUS.failed
+        ).length;
         const cancelled = allRuns.filter(
-          (r) => r.status === 'cancelled'
+          (r) => r.status === PIPELINE_RUN_STATUS.cancelled
         ).length;
-        const running = allRuns.filter((r) => r.status === 'running').length;
+        const running = allRuns.filter(
+          (r) => r.status === PIPELINE_RUN_STATUS.running
+        ).length;
         const totalCost = allRuns.reduce(
           (s, r) => s + Number(r.totalCostUsd ?? 0),
           0
