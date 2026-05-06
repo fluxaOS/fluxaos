@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGitOps } from '@/adapters/git/git-ops';
+import { fsMaterializerAdapter } from '@/adapters/fs';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
@@ -106,6 +107,7 @@ describe('stage-runner issue events', () => {
       isolation: isolationProvider(workingPath, artifactsPath),
       gitOps: createGitOps(),
       stdoutParser: registry.get<StdoutParser>('stdoutParser'),
+      wsMaterializer: fsMaterializerAdapter,
       runId: run.id,
       stageRunId: stageRun.id,
       trigger: 'manual',

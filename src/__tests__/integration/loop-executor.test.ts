@@ -58,6 +58,7 @@ function makeBaseInput(): LoopExecutorInput {
     stageGraphRunner: mockRunner as StageGraphRunner,
     initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
     ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
+    readFile: () => null,
   };
 }
 

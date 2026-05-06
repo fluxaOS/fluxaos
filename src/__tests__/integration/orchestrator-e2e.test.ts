@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fsMaterializerAdapter } from '@/adapters/fs';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
 import * as schema from '@/core/db/schema';
@@ -159,6 +160,7 @@ describe('skill materializer', () => {
         instructionsFile: 'CLAUDE.md',
         contextFile: 'context.md',
       },
+      fs: fsMaterializerAdapter,
       persona: {
         soul: 'You are a helpful assistant.',
         identity: 'Test Identity',
@@ -196,7 +198,7 @@ describe('skill materializer', () => {
 
   it('cleans up workspace after cleanup call', async () => {
     expect(existsSync(workspacePath)).toBe(true);
-    await cleanup(workspacePath);
+    await cleanup(workspacePath, fsMaterializerAdapter);
     expect(existsSync(workspacePath)).toBe(false);
   });
 });

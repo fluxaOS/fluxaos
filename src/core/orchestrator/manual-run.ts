@@ -22,6 +22,7 @@ import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { StdoutParser } from '@/core/ports/stdout-parser';
+import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
@@ -37,6 +38,7 @@ export async function executeManualRun(
   isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
   stdoutParser: StdoutParser,
+  wsMaterializer: WorkspaceMaterializerPort,
   runId: string,
   stageRunId: string,
   gitOps?: GitOpsPort
@@ -51,6 +53,7 @@ export async function executeManualRun(
       runService,
       isolation,
       stdoutParser,
+      wsMaterializer,
       gitOps: gitOps ?? createNoopGitOps(),
       runId,
       stageRunId,

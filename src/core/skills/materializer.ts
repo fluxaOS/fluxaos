@@ -8,12 +8,12 @@
  * The driver reads these files as it normally would.
  * After execution, the workspace is cleaned up.
  *
- * Zero vendor imports. Operates on plain objects, writes to filesystem.
+ * Zero vendor imports. Filesystem operations are delegated to the injected
+ * WorkspaceMaterializerPort — core logic is pure string building.
  */
 
-import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 
 export interface PersonaInput {
   soul?: string | null;
@@ -44,6 +44,8 @@ export interface MaterializeOptions {
   skill: SkillInput;
   issue: IssueInput;
   projectName?: string;
+  /** Filesystem operations injected by the caller. */
+  fs: WorkspaceMaterializerPort;
   /**
    * Target directory for instructions + context files. When provided,
    * materialize() writes into this directory (typically an isolation-provider
@@ -58,24 +60,23 @@ export interface MaterializeOptions {
   into?: string;
 }
 
-const WORKSPACE_ROOT = join(tmpdir(), 'fluxaos-runs');
-
 /**
  * Materialize skill + persona + issue context to an isolated workspace.
  * Returns the workspace path for the driver to use.
  *
- * With `into`: writes to the caller-supplied directory (does NOT mkdir it;
- * isolation provider already created it). Without: mints a fresh tmp dir
- * under `${tmpdir}/fluxaos-runs/${stageRunId}` (legacy behavior).
+ * With `into`: writes to the caller-supplied directory (mkdir is still called
+ * but is idempotent). Without: mints a fresh tmp dir under
+ * `${tmpdir}/fluxaos-runs/${stageRunId}` (legacy behavior).
  */
 export async function materialize(
   options: MaterializeOptions
 ): Promise<string> {
-  const workspacePath =
-    options.into ?? join(WORKSPACE_ROOT, options.stageRunId);
+  const { fs } = options;
+  const workspaceRoot = join(fs.tmpdir(), 'fluxaos-runs');
+  const workspacePath = options.into ?? join(workspaceRoot, options.stageRunId);
 
   // Create workspace directory
-  await mkdir(workspacePath, { recursive: true });
+  await fs.mkdir(workspacePath);
 
   // 1. Write instructions file — persona + skill instructions combined.
   //    Filename comes from driver.contextLayout.instructionsFile (DB-owned).
@@ -90,7 +91,7 @@ export async function materialize(
     );
   }
   if (parts.length > 0) {
-    await atomicWrite(
+    await fs.writeFile(
       join(workspacePath, options.contextLayout.instructionsFile),
       parts.join('\n\n')
     );
@@ -98,7 +99,7 @@ export async function materialize(
 
   // 2. Write context file with issue metadata
   const contextMd = buildContextContent(options.issue, options.projectName);
-  await atomicWrite(
+  await fs.writeFile(
     join(workspacePath, options.contextLayout.contextFile),
     contextMd
   );
@@ -114,8 +115,11 @@ export async function materialize(
  * in `IsolationProvider.release()`; calling this helper on a worktree path
  * would rm the worktree out from under git.
  */
-export async function cleanup(workspacePath: string): Promise<void> {
-  await rm(workspacePath, { recursive: true, force: true });
+export async function cleanup(
+  workspacePath: string,
+  fs: WorkspaceMaterializerPort
+): Promise<void> {
+  await fs.rmdir(workspacePath);
 }
 
 function buildPersonaContent(persona?: PersonaInput | null): string | null {
@@ -169,13 +173,3 @@ function buildContextContent(issue: IssueInput, projectName?: string): string {
   return lines.join('\n');
 }
 
-/**
- * Atomic write: write to temp file then rename.
- * Prevents driver from reading partially-written files.
- */
-async function atomicWrite(filePath: string, content: string): Promise<void> {
-  const tmpPath = `${filePath}.tmp`;
-  await writeFile(tmpPath, content, 'utf-8');
-  const { rename } = await import('node:fs/promises');
-  await rename(tmpPath, filePath);
-}

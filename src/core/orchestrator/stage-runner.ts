@@ -31,6 +31,7 @@ import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
+import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 import {
   cleanup as cleanupMaterializedWorkspace,
   materialize,
@@ -59,6 +60,8 @@ export interface StageRunContext {
   gitOps: GitOpsPort;
   /** Output line parser — injected so core never imports from adapters. */
   stdoutParser: StdoutParser;
+  /** Workspace filesystem operations — injected so core never imports node:fs. */
+  wsMaterializer: WorkspaceMaterializerPort;
   runId: string;
   stageRunId: string;
   trigger: TriggerType;
@@ -246,6 +249,7 @@ export async function executeStageRun(
   const workspacePath = await materialize({
     stageRunId: sRun.id,
     contextLayout,
+    fs: ctx.wsMaterializer,
     persona: personaRow
       ? {
           soul: personaRow.soul,
@@ -617,7 +621,9 @@ export async function executeStageRun(
 
     throw err; // Re-throw so caller can handle pipeline-level failure
   } finally {
-    await cleanupMaterializedWorkspace(workspacePath).catch(logError);
+    await cleanupMaterializedWorkspace(workspacePath, ctx.wsMaterializer).catch(
+      logError
+    );
   }
 }
 
