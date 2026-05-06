@@ -419,7 +419,16 @@ export function createEventOrchestrator(
     }
 
     if (!targetStageName) {
-      await completePipelineRun(run);
+      const reason = `Routing field for verdict '${verdict}' is null or blank on stage '${stage.name}'`;
+      if (run.issueId) {
+        await runService.appendIssueEvent(
+          run.issueId,
+          ISSUE_EVENT_TYPE.pipeline_failed,
+          { reason },
+          'orchestrator'
+        );
+      }
+      await finishRun(run, PIPELINE_RUN_STATUS.blocked);
       return;
     }
 
@@ -471,9 +480,17 @@ export function createEventOrchestrator(
       );
 
     if (!nextStage) {
-      throw new Error(
-        `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`
-      );
+      const reason = `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`;
+      if (run.issueId) {
+        await runService.appendIssueEvent(
+          run.issueId,
+          ISSUE_EVENT_TYPE.pipeline_failed,
+          { reason },
+          'orchestrator'
+        );
+      }
+      await finishRun(run, PIPELINE_RUN_STATUS.blocked);
+      return;
     }
 
     await launchStage(run, nextStage);
