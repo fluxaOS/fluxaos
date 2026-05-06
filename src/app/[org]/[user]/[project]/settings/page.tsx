@@ -23,7 +23,7 @@ export default function PipelineSettingsPage() {
   const projectId = projectRow?.id;
   const defaultPipelineId = projectRow?.defaultPipelineId ?? null;
 
-  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
+  const pipelinesQuery = trpc.pipeline.list.useQuery(
     { projectId: projectId! },
     { enabled: !!projectId }
   );

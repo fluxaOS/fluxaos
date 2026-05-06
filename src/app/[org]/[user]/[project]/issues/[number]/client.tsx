@@ -85,7 +85,7 @@ export function IssueDetailClient({
   });
 
   // Pipeline: get project's pipelines + stages (always visible)
-  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
+  const pipelinesQuery = trpc.pipeline.list.useQuery(
     { projectId },
     { enabled: !!projectId }
   );

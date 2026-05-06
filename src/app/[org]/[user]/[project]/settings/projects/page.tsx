@@ -42,7 +42,7 @@ export default function ProjectsSettingsPage() {
   const seedProjectId = currentProject?.id ?? projects[0]?.id ?? null;
 
   // Pipelines are scoped to the current project — only load once we have it.
-  const pipelinesQuery = trpc.pipeline.listByProject.useQuery(
+  const pipelinesQuery = trpc.pipeline.list.useQuery(
     { projectId: seedProjectId! },
     { enabled: !!seedProjectId }
   );
