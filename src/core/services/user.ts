@@ -13,10 +13,6 @@ export function createUserService(db: Database) {
   return {
     ...crud,
 
-    async list(): Promise<UserSelect[]> {
-      return db.select().from(user).orderBy(user.name);
-    },
-
     async listByOrg(orgId: string): Promise<UserSelect[]> {
       return db
         .select()

@@ -7,8 +7,19 @@ import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 const tierEnum = z.enum(TIER_VALUES as readonly [string, ...string[]]);
 
 export const organizationRouter = router({
+  /**
+   * Returns the orgs visible to the current viewer.
+   * - Authenticated viewer: only the org(s) their user row belongs to.
+   * - LAN-bypass (homelab admin, no user row): all orgs.
+   * This replaces the banned unscoped crud-factory `list()`.
+   */
   list: publicProcedure.query(({ ctx }) => {
-    return createOrganizationService(ctx.db).list();
+    const svc = createOrganizationService(ctx.db);
+    if (ctx.viewer.fluxaUserId) {
+      return svc.listByUserId(ctx.viewer.fluxaUserId);
+    }
+    // LAN bypass or unauthenticated — fall back to all orgs (homelab only).
+    return svc.listAll();
   }),
 
   getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {

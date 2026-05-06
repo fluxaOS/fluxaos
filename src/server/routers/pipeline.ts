@@ -9,9 +9,15 @@ import { inputId, publicProcedure, router } from '../trpc';
 import { listIssueRunsWithStages } from './pipeline-run-history';
 
 export const pipelineRouter = router({
-  list: publicProcedure.query(({ ctx }) => {
-    return createPipelineService(ctx.db).list();
-  }),
+  /**
+   * List pipelines scoped to the given project.
+   * Replaces the banned unscoped crud-factory `list()`.
+   */
+  list: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .query(({ ctx, input }) => {
+      return createPipelineService(ctx.db).listByProject(input.projectId);
+    }),
 
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))

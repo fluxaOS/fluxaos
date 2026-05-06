@@ -4,9 +4,15 @@ import { createPipelineService, createProjectService } from '@/core/services';
 import { inputId, publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
-  list: publicProcedure.query(({ ctx }) => {
-    return createProjectService(ctx.db).list();
-  }),
+  /**
+   * List projects scoped to the given org.
+   * Replaces the banned unscoped crud-factory `list()`.
+   */
+  list: publicProcedure
+    .input(z.object({ orgId: z.string().uuid() }))
+    .query(({ ctx, input }) => {
+      return createProjectService(ctx.db).listByOrg(input.orgId);
+    }),
 
   listByOrg: publicProcedure
     .input(z.object({ orgId: z.string().uuid() }))

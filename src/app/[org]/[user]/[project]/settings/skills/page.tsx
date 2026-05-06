@@ -14,7 +14,9 @@ import { SkillRevisionHistory } from './SkillRevisionHistory';
 
 export default function SkillsSettingsPage() {
   const utils = trpc.useUtils();
-  const listQuery = trpc.skill.list.useQuery();
+  // Pass no projectId to list global skills (scope='global'). Project-scoped
+  // skills are accessible via skill.listByProject when a projectId is known.
+  const listQuery = trpc.skill.list.useQuery({});
   const updateMutation = trpc.skill.update.useMutation();
   const deleteMutation = trpc.skill.delete.useMutation();
   const createMutation = trpc.skill.create.useMutation();

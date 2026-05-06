@@ -6,9 +6,19 @@ import { createPersonaService } from '@/core/services';
 import { publicProcedure, router } from '../trpc';
 
 export const personaRouter = router({
-  list: publicProcedure.query(({ ctx }) => {
-    return createPersonaService(ctx.db).list();
-  }),
+  /**
+   * List personas scoped to the given project (or global if projectId is
+   * omitted — global personas have scope='global' and null projectId).
+   * Replaces the banned unscoped crud-factory `list()`.
+   */
+  list: publicProcedure
+    .input(z.object({ projectId: z.string().uuid().optional() }))
+    .query(({ ctx, input }) => {
+      const svc = createPersonaService(ctx.db);
+      return input.projectId
+        ? svc.listByProject(input.projectId)
+        : svc.listGlobal();
+    }),
 
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))

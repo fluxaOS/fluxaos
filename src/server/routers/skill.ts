@@ -16,9 +16,19 @@ type SkillInsert = typeof skill.$inferInsert;
 const scope = z.enum(['global', 'project']);
 
 export const skillRouter = router({
-  list: publicProcedure.query(({ ctx }) => {
-    return createSkillService(ctx.db).list();
-  }),
+  /**
+   * List skills scoped to the given project (or global if projectId is
+   * omitted — global skills have scope='global' and null projectId).
+   * Replaces the banned unscoped crud-factory `list()`.
+   */
+  list: publicProcedure
+    .input(z.object({ projectId: z.string().uuid().optional() }))
+    .query(({ ctx, input }) => {
+      const svc = createSkillService(ctx.db);
+      return input.projectId
+        ? svc.listByProject(input.projectId)
+        : svc.listGlobal();
+    }),
 
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
