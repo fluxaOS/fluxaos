@@ -1,7 +1,7 @@
 // playwright.config.ts
 import { defineConfig } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://192.168.54.101:3000';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://192.168.54.101:3004';
 
 export default defineConfig({
   testDir: './e2e',

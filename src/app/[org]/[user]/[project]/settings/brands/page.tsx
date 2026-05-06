@@ -66,7 +66,10 @@ export default function BrandSettingsPage() {
     raw: string,
     setError: (e: string | null) => void
   ): unknown => {
-    if (!raw.trim()) { setError(null); return null; }
+    if (!raw.trim()) {
+      setError(null);
+      return null;
+    }
     try {
       const parsed = JSON.parse(raw);
       setError(null);
@@ -194,9 +197,14 @@ export default function BrandSettingsPage() {
                   placeholder='{ "primary": "#6366f1" }'
                   className={`w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white font-mono resize-none ${colorsError ? 'border-red-500/60' : 'border-slate-700/60'}`}
                   value={newColors}
-                  onChange={(e) => { setNewColors(e.target.value); setColorsError(null); }}
+                  onChange={(e) => {
+                    setNewColors(e.target.value);
+                    setColorsError(null);
+                  }}
                 />
-                {colorsError ? <p className="mt-1 text-xs text-red-400">{colorsError}</p> : null}
+                {colorsError ? (
+                  <p className="mt-1 text-xs text-red-400">{colorsError}</p>
+                ) : null}
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-400 block mb-1">
@@ -208,9 +216,14 @@ export default function BrandSettingsPage() {
                   placeholder='{ "heading": "Inter" }'
                   className={`w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-white font-mono resize-none ${fontsError ? 'border-red-500/60' : 'border-slate-700/60'}`}
                   value={newFonts}
-                  onChange={(e) => { setNewFonts(e.target.value); setFontsError(null); }}
+                  onChange={(e) => {
+                    setNewFonts(e.target.value);
+                    setFontsError(null);
+                  }}
                 />
-                {fontsError ? <p className="mt-1 text-xs text-red-400">{fontsError}</p> : null}
+                {fontsError ? (
+                  <p className="mt-1 text-xs text-red-400">{fontsError}</p>
+                ) : null}
               </div>
             </div>
             <div>

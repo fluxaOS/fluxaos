@@ -28,7 +28,9 @@ function StatusDot({ state }: { state: DaemonState }) {
     unknown: 'Unknown',
   };
   return (
-    <span className={`flex items-center gap-1.5 text-xs font-medium ${colors[state]}`}>
+    <span
+      className={`flex items-center gap-1.5 text-xs font-medium ${colors[state]}`}
+    >
       <CircleDot size={12} />
       {labels[state]}
     </span>

@@ -45,16 +45,10 @@ const STATE_PLAIN_GREP = "'research'|'implement'|'review'|'deploy'|'complete'";
 //
 // FLX-78 + FLX-79 retired 2026-04-27 — list intentionally empty. Any new
 // vendor-name or stage/state literal in src/core/ fails the build.
+// FLX-108 retired 2026-05-05 — playbook-auditor.ts deleted; DB is source of
+// truth for pipelines, no YAML playbooks remain.
 type Allow = { file: string; line: number; reason: string; ticket: string };
-const ALLOWLIST: Allow[] = [
-  {
-    file: 'src/core/pipeline/playbook-auditor.ts',
-    line: 7,
-    reason:
-      "TERMINAL_STATE = 'complete' is the typed canonical declaration of the routing sentinel, not an inline stage-key literal",
-    ticket: 'FLX-108',
-  },
-];
+const ALLOWLIST: Allow[] = [];
 
 interface Hit {
   file: string;

@@ -72,12 +72,14 @@ export const pipelineRouter = router({
           sortOrder: z.number().int(),
           personaId: z.string().uuid().optional(),
           driver: z.string().optional(),
-          skillId: z.string().uuid().optional(),
           driverId: z.string().uuid().optional(),
           timeoutSec: z.number().int().optional(),
           maxRetries: z.number().int().optional(),
           gateMode: z.string().optional(),
           gateRules: z.unknown().optional(),
+          onPass: z.string().nullable().optional(),
+          onFail: z.string().nullable().optional(),
+          fallback: z.string().nullable().optional(),
         })
       )
       .mutation(({ ctx, input }) => {
@@ -92,12 +94,14 @@ export const pipelineRouter = router({
           sortOrder: z.number().int().optional(),
           personaId: z.string().uuid().optional(),
           driver: z.string().optional(),
-          skillId: z.string().uuid().nullable().optional(),
           driverId: z.string().uuid().nullable().optional(),
           timeoutSec: z.number().int().optional(),
           maxRetries: z.number().int().optional(),
           gateMode: z.string().optional(),
           gateRules: z.unknown().optional(),
+          onPass: z.string().nullable().optional(),
+          onFail: z.string().nullable().optional(),
+          fallback: z.string().nullable().optional(),
         })
       )
       .mutation(({ ctx, input }) => {

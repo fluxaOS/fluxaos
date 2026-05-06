@@ -60,24 +60,9 @@ describe('FLX-94 pre-launch stage failures', () => {
       },
       async cancel() {},
     };
-    const orchestrator = createEventOrchestrator(
-      db,
-      executor,
-      realtime,
-      {
-        async acquire() {
-          throw new Error('isolation should not be reached');
-        },
-        async release() {},
-        async findActiveByRun() {
-          return null;
-        },
-        async listActiveByProject() {
-          return [];
-        },
-      },
-      { async onTerminal() {} }
-    );
+    const orchestrator = createEventOrchestrator(db, realtime, {
+      async onTerminal() {},
+    });
 
     try {
       orchestrator.start();

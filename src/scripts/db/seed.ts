@@ -22,6 +22,7 @@ import {
   issueType,
   model,
   organization,
+  persona,
   pipeline,
   pipelineStage,
   project,
@@ -120,17 +121,7 @@ async function seed() {
         name: 'Standard Dev',
         description: 'Research → Implement → Review → Deploy',
         isDefault: true,
-        playbookPath: 'standard-dev',
-        playbookScope: 'bundled',
       })
-      .returning();
-  }
-
-  if (pipe && !pipe.playbookPath) {
-    [pipe] = await db
-      .update(pipeline)
-      .set({ playbookPath: 'standard-dev', playbookScope: 'bundled' })
-      .where(eq(pipeline.id, pipe.id))
       .returning();
   }
   console.log(`  pipeline: ${pipe.name} (${pipe.id})`);
@@ -161,21 +152,51 @@ async function seed() {
   };
 
   const stagesDef = [
-    { name: 'research', sortOrder: 1, gateMode: 'auto', gateRules: {} },
+    {
+      name: 'research',
+      sortOrder: 1,
+      gateMode: 'auto',
+      gateRules: {},
+      onPass: 'implement',
+      onFail: 'research',
+      fallback: '__blocked__',
+    },
     {
       name: 'implement',
       sortOrder: 2,
       gateMode: 'rules',
       gateRules: implementGateRules,
+      onPass: 'review',
+      onFail: 'implement',
+      fallback: '__blocked__',
     },
-    { name: 'review', sortOrder: 3, gateMode: 'auto', gateRules: {} },
+    {
+      name: 'review',
+      sortOrder: 3,
+      gateMode: 'auto',
+      gateRules: {},
+      onPass: '__complete__',
+      onFail: 'rework',
+      fallback: '__blocked__',
+    },
     {
       name: 'rework',
       sortOrder: 4,
       gateMode: 'rules',
       gateRules: implementGateRules,
+      onPass: 'review',
+      onFail: '__blocked__',
+      fallback: '__blocked__',
     },
-    { name: 'deploy', sortOrder: 5, gateMode: 'manual', gateRules: {} },
+    {
+      name: 'deploy',
+      sortOrder: 5,
+      gateMode: 'manual',
+      gateRules: {},
+      onPass: '__complete__',
+      onFail: '__blocked__',
+      fallback: '__blocked__',
+    },
   ];
 
   for (const stage of stagesDef) {
@@ -196,6 +217,9 @@ async function seed() {
       timeoutSec: 300,
       maxRetries: 1,
       gateRules: stage.gateRules,
+      onPass: stage.onPass,
+      onFail: stage.onFail,
+      fallback: stage.fallback,
     };
 
     if (existingStage) {
@@ -470,7 +494,6 @@ Exit:
     },
   ];
 
-  const skillMap = new Map<string, string>();
   for (const def of skillsDef) {
     const promptTemplate = PIPELINE_PROMPT + ROLE_PROMPTS[def.name];
 
@@ -496,23 +519,18 @@ Exit:
     } else {
       [row] = await db.insert(skill).values(values).returning();
     }
-    skillMap.set(def.name, row.id);
     console.log(`  skill: ${row.name} (${row.id})`);
   }
 
-  // ── 5d. Update pipeline stages with driver + skill FKs ───────────────
+  // ── 5d. Update pipeline stages with driver FK ────────────────────────
   if (allStages.length > 0) {
     for (const stage of allStages) {
-      const skillId = skillMap.get(stage.name) ?? null;
       await db
         .update(pipelineStage)
-        .set({
-          driverId: claudeDriver.id,
-          ...(skillId ? { skillId } : {}),
-        })
+        .set({ driverId: claudeDriver.id })
         .where(eq(pipelineStage.id, stage.id));
     }
-    console.log('  updated pipeline stages with driver/skill FKs');
+    console.log('  updated pipeline stages with driver FK');
   }
 
   // ── 5e. Provider + Model + Routing ─────────────────────────────────────
@@ -913,6 +931,112 @@ Exit:
   } else {
     console.log(`  issues: ${existingIssues.length} existing`);
   }
+
+  // ── Personas: seed one per stage and assign ──────────────────────────
+  const personaDefs = [
+    {
+      stageName: 'research',
+      personaName: 'Research Analyst',
+      soul: `You are a thorough research analyst. Your job is to deeply understand a problem before anyone writes a single line of code.
+
+When you receive an issue:
+1. Read the issue title and description carefully
+2. Explore the relevant codebase areas to understand the current state
+3. Identify the root cause or the core implementation challenge
+4. Document your findings clearly: what the problem is, which files are affected, what approach makes sense, what the risks are
+5. Write your findings to the artifacts directory
+
+You do NOT write code. You do NOT create branches. You do NOT modify any files except your artifacts output.`,
+    },
+    {
+      stageName: 'implement',
+      personaName: 'Software Engineer',
+      soul: `You are a careful, quality-focused software engineer. You implement solutions that are clean, minimal, and correct.
+
+When you receive an issue:
+1. Read the research findings from the previous stage (check the artifacts directory)
+2. Implement the solution following the project's conventions and architecture
+3. Write only what is necessary — no gold-plating, no extra abstractions
+4. Run the project's test suite to verify your changes
+5. Commit your changes with a clear commit message referencing the issue
+
+You follow the project's CLAUDE.md and AGENT_BEHAVIOR.md rules exactly.`,
+    },
+    {
+      stageName: 'review',
+      personaName: 'Code Reviewer',
+      soul: `You are a meticulous code reviewer. You review for correctness, simplicity, and adherence to project conventions.
+
+When you receive an issue:
+1. Read the implementation diff and understand what changed
+2. Check: Does it solve the stated problem? Does it introduce new bugs? Does it follow project conventions?
+3. Check: Is it minimal? Would a simpler approach work?
+4. Check: Are there any security issues, hardcoded values, or architectural violations?
+
+If the implementation looks good: verdict pass. If there are issues: verdict fail. If you cannot assess: verdict blocked.`,
+    },
+    {
+      stageName: 'rework',
+      personaName: 'Software Engineer',
+      soul: `You are a careful, quality-focused software engineer addressing review feedback.
+
+When you receive an issue:
+1. Read the review feedback carefully
+2. Address each concern raised by the reviewer
+3. Make targeted, minimal changes — do not refactor beyond what the review requested
+4. Re-run tests to confirm nothing broke
+5. Commit your changes`,
+    },
+    {
+      stageName: 'deploy',
+      personaName: 'Release Engineer',
+      soul: `You are a careful release engineer. You verify that a change is safe to ship and perform the deployment.
+
+When you receive an issue:
+1. Verify the implementation is on a clean branch with tests passing
+2. Create a pull request if one doesn't exist
+3. Confirm the PR is mergeable (no conflicts, CI passing)
+4. Merge the PR and clean up the branch`,
+    },
+  ];
+
+  for (const pd of personaDefs) {
+    // Upsert persona by name within this project
+    let [personaRow] = await db
+      .select()
+      .from(persona)
+      .where(
+        and(eq(persona.name, pd.personaName), eq(persona.projectId, proj.id))
+      );
+
+    if (!personaRow) {
+      [personaRow] = await db
+        .insert(persona)
+        .values({
+          projectId: proj.id,
+          name: pd.personaName,
+          soul: pd.soul,
+          scope: 'project',
+        })
+        .returning();
+    } else {
+      [personaRow] = await db
+        .update(persona)
+        .set({ soul: pd.soul })
+        .where(eq(persona.id, personaRow.id))
+        .returning();
+    }
+
+    // Assign to matching stage
+    const matchingStage = allStages.find((s) => s.name === pd.stageName);
+    if (matchingStage && personaRow) {
+      await db
+        .update(pipelineStage)
+        .set({ personaId: personaRow.id })
+        .where(eq(pipelineStage.id, matchingStage.id));
+    }
+  }
+  console.log('  seeded personas and assigned to stages');
 
   console.log('\nSeed complete.');
   process.exit(0);

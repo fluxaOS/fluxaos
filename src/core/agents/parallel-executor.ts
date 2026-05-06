@@ -1,7 +1,12 @@
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
-import type { ParallelGroup } from '@/core/pipeline/playbook';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
+
+export type ParallelAggregation =
+  | 'all-pass'
+  | 'any-pass'
+  | 'majority-pass'
+  | 'none';
 
 export interface ParallelChild {
   id: string;
@@ -22,7 +27,7 @@ export interface ParallelExecutorInput {
   pipelineRunId: string;
   stageId: string;
   children: ParallelChild[];
-  aggregation: ParallelGroup['aggregation'];
+  aggregation: ParallelAggregation;
   checkpointer?: BaseCheckpointSaver;
   initResultDocScript: string;
   ingestResultDocScript: string;
@@ -113,7 +118,7 @@ async function runChild(
 
 function aggregate(
   childResults: ChildResult[],
-  aggregation: ParallelGroup['aggregation']
+  aggregation: ParallelAggregation
 ): 'pass' | 'fail' {
   const passCount = childResults.filter((r) => r.verdict === 'pass').length;
   const total = childResults.length;
@@ -127,6 +132,8 @@ function aggregate(
       return passCount > total / 2 ? 'pass' : 'fail';
     case 'none':
       return 'pass';
+    default:
+      return 'fail';
   }
 }
 

@@ -150,13 +150,10 @@ export async function executeStageRun(
     );
   }
 
-  // Skill (optional)
+  // Skill (optional) — stored on stageRun, not pipelineStage
   let skillRow: typeof skill.$inferSelect | null = null;
-  if (stage.skillId) {
-    const [s] = await db
-      .select()
-      .from(skill)
-      .where(eq(skill.id, stage.skillId));
+  if (sRun.skillId) {
+    const [s] = await db.select().from(skill).where(eq(skill.id, sRun.skillId));
     skillRow = s ?? null;
   }
 

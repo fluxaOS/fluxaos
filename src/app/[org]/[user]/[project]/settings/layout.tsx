@@ -15,6 +15,7 @@ const TABS: readonly TabSpec[] = [
   { slug: '', label: 'Pipelines' },
   { slug: 'projects', label: 'Projects' },
   { slug: 'skills', label: 'Skills' },
+  { slug: 'personas', label: 'Personas' },
   { slug: 'drivers', label: 'Drivers' },
   { slug: 'providers', label: 'Providers' },
   { slug: 'routing', label: 'Routing' },

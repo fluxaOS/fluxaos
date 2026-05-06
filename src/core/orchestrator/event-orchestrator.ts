@@ -29,22 +29,19 @@ import type { Database } from '@/core/db/connection';
 import {
   driver,
   issue,
+  persona,
   pipeline,
   type pipelineRun,
   pipelineStage,
+  project,
   skill,
   stageRun,
 } from '@/core/db/schema';
-import { createGateService } from '@/core/gates/service';
 import type { Unsubscribe } from '@/core/ports/auth';
-import type { GitOpsPort } from '@/core/ports/git';
-import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
-import type { StageExecutor } from '@/core/ports/stage-executor';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
-import { executeStageRun } from './stage-runner';
 
 export interface EventOrchestratorConfig {
   maxConcurrentRuns: number;
@@ -63,17 +60,13 @@ export interface EventOrchestrator {
 
 export function createEventOrchestrator(
   db: Database,
-  executor: StageExecutor,
   realtime: RealtimeProvider,
-  isolation: IsolationProvider,
   terminalHook: PipelineTerminalHook,
   config: Partial<EventOrchestratorConfig> = {},
-  fluxaosConfig?: FluxaosConfig,
-  gitOps?: GitOpsPort
+  fluxaosConfig?: FluxaosConfig
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
-  const gateService = createGateService(db);
 
   /**
    * Mark a pipeline_run terminal AND trigger the T16 hook (deploy on
@@ -222,566 +215,185 @@ export function createEventOrchestrator(
       return;
     }
 
-    // ── Playbook execution path ──────────────────────────────────────
-    // Branch on playbookPath on the pipeline row. Old pipelines (null) fall through.
-    {
-      const [pipelineRow] = await db
-        .select({
-          playbookPath: pipeline.playbookPath,
-          projectId: pipeline.projectId,
-        })
-        .from(pipeline)
-        .where(eq(pipeline.id, run.pipelineId));
+    // ── DB-driven execution path ─────────────────────────────────────
+    const [pipelineRow] = await db
+      .select({ projectId: pipeline.projectId })
+      .from(pipeline)
+      .where(eq(pipeline.id, run.pipelineId));
 
-      if (pipelineRow?.playbookPath) {
-        const { isParallelGroup, isLoopNode } = await import(
-          '@/core/pipeline/playbook'
-        );
-        const { resolvePlaybook } = await import(
-          '@/core/pipeline/playbook-discovery'
-        );
-        const { auditResultDoc } = await import(
-          '@/core/pipeline/playbook-auditor'
-        );
-        const { executePaperwork } = await import(
-          '@/core/pipeline/paperwork-executor'
-        );
-        const { runStageGraph } = await import(
-          '@/adapters/langgraph/langgraph-stage-runner'
-        );
-        const { getCheckpointer } = await import(
-          '@/adapters/langgraph/checkpoint-store'
-        );
-        const { composePrompt } = await import(
-          '@/core/pipeline/prompt-composer'
-        );
-        const { readFileSync, existsSync } = await import('node:fs');
-        const { join } = await import('node:path');
-
-        const bundledDir =
-          fluxaosConfig?.bundledPipelinesDir ?? 'src/core/pipeline/bundled';
-        const discovered = await resolvePlaybook(pipelineRow.playbookPath, {
-          bundledDir,
-        });
-
-        if (discovered) {
-          const playbookStage = discovered.playbook.stages.find(
-            (s) => s.id === stage.name
-          );
-
-          const [driverRow] = stage.driverId
-            ? await db
-                .select()
-                .from(driver)
-                .where(eq(driver.id, stage.driverId))
-            : [null];
-
-          const artifactsBase =
-            run.artifactsPath ??
-            `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
-          const resultDocPath = `${artifactsBase}/result.json`;
-
-          // Load skill prompt: DB record takes precedence; bundled file is the fallback.
-          const skillName =
-            playbookStage?.type === 'sequential' ||
-            playbookStage?.type === 'loop'
-              ? playbookStage.skill
-              : stage.name;
-          const [skillRow] = await db
-            .select({ promptTemplate: skill.promptTemplate })
-            .from(skill)
-            .where(eq(skill.name, skillName))
-            .limit(1);
-          const skillFilePath = join(bundledDir, 'skills', `${skillName}.md`);
-          const skillPrompt =
-            skillRow?.promptTemplate ||
-            (existsSync(skillFilePath)
-              ? readFileSync(skillFilePath, 'utf-8')
-              : '');
-
-          const composedPrompt = composePrompt(
-            discovered.playbook.prompt,
-            skillPrompt,
-            {
-              RESULT_DOC_PATH: resultDocPath,
-              ARTIFACTS_DIR: artifactsBase,
-            }
-          );
-
-          if (!driverRow?.binary) {
-            const parallelNote =
-              playbookStage && isParallelGroup(playbookStage)
-                ? ` (parallel group — all children share the parent stage driver; ensure stage.driverId is set)`
-                : '';
-            console.error(
-              `[orchestrator] playbook stage has no driver binary configured (stageRunId: ${sRun.id})${parallelNote}`
-            );
-            await finishRun(run, PIPELINE_RUN_STATUS.failed);
-            return;
-          }
-
-          const transport = driverRow.promptTransport ?? 'argv';
-          const driverBinary = driverRow.binary;
-          const driverArgs: string[] = [
-            ...((driverRow.defaultArgs as string[] | null) ?? []),
-          ];
-
-          if (transport === 'argv') {
-            driverArgs.push(composedPrompt);
-          }
-          // stdin and file transports deferred — only argv is wired now
-
-          await runService.updateStageRunStatus(
-            sRun.id,
-            STAGE_RUN_STATUS.running
-          );
-
-          let ingestOutput: string;
-          let graphError: string | undefined;
-
-          if (playbookStage && isParallelGroup(playbookStage)) {
-            const childStageRuns = await Promise.all(
-              playbookStage.children.map(() =>
-                runService.createStageRun(run.id, stage.id)
-              )
-            );
-
-            // Pre-fetch all child skill prompts (DB first, bundled fallback).
-            const childSkillPrompts = await Promise.all(
-              playbookStage.children.map(async (child) => {
-                const [childSkillRow] = await db
-                  .select({ promptTemplate: skill.promptTemplate })
-                  .from(skill)
-                  .where(eq(skill.name, child.skill))
-                  .limit(1);
-                if (childSkillRow?.promptTemplate) {
-                  return childSkillRow.promptTemplate;
-                }
-                const childSkillFilePath = join(
-                  bundledDir,
-                  'skills',
-                  `${child.skill}.md`
-                );
-                return existsSync(childSkillFilePath)
-                  ? readFileSync(childSkillFilePath, 'utf-8')
-                  : '';
-              })
-            );
-
-            const { runParallelExecutor } = await import(
-              '@/core/agents/parallel-executor'
-            );
-            const parallelCheckpointer = await getCheckpointer();
-            const parallelResult = await runParallelExecutor({
-              groupStageRunId: sRun.id,
-              pipelineRunId: run.id,
-              stageId: stage.name,
-              children: playbookStage.children.map((child, i) => {
-                const childSRun = childStageRuns[i];
-                const childArtifactsBase = `${artifactsBase}/${child.id}`;
-                const childResultDocPath = `${childArtifactsBase}/result.json`;
-                const childSkillPrompt = childSkillPrompts[i];
-                const childPrompt = composePrompt(
-                  discovered.playbook.prompt,
-                  childSkillPrompt,
-                  {
-                    RESULT_DOC_PATH: childResultDocPath,
-                    ARTIFACTS_DIR: childArtifactsBase,
-                  }
-                );
-                const childDriverArgs: string[] = [
-                  ...((driverRow.defaultArgs as string[] | null) ?? []),
-                ];
-                if (transport === 'argv') {
-                  childDriverArgs.push(childPrompt);
-                }
-                return {
-                  id: child.id,
-                  skill: child.skill,
-                  stageRunId: childSRun.id,
-                  resultDocPath: childResultDocPath,
-                  artifactsDir: childArtifactsBase,
-                  prompt: childPrompt,
-                  driverCommand: driverBinary,
-                  driverArgs: childDriverArgs,
-                  env: {
-                    RESULT_DOC_PATH: childResultDocPath,
-                    ARTIFACTS_DIR: childArtifactsBase,
-                  },
-                  initResultDocScript:
-                    fluxaosConfig?.initResultDocScript ??
-                    'src/scripts/pipeline/init-result-doc.ts',
-                  ingestResultDocScript:
-                    fluxaosConfig?.ingestResultDocScript ??
-                    'src/scripts/pipeline/ingest-result-doc.ts',
-                };
-              }),
-              aggregation: playbookStage.aggregation,
-              checkpointer: parallelCheckpointer,
-            });
-
-            await Promise.all(
-              parallelResult.childResults.map((cr) =>
-                runService.completeStageRun(
-                  cr.stageRunId,
-                  cr.error || cr.verdict === 'fail'
-                    ? STAGE_RUN_STATUS.failed
-                    : STAGE_RUN_STATUS.completed,
-                  {}
-                )
-              )
-            );
-
-            ingestOutput = parallelResult.ingestOutput;
-            graphError = parallelResult.error;
-          } else if (playbookStage && isLoopNode(playbookStage)) {
-            const { runLoopExecutor } = await import(
-              '@/core/agents/loop-executor'
-            );
-            const loopCheckpointer = await getCheckpointer();
-            const loopResult = await runLoopExecutor({
-              stageRunId: sRun.id,
-              resultDocPath,
-              artifactsDir: artifactsBase,
-              prompt: composedPrompt,
-              driverCommand: driverBinary,
-              driverArgs,
-              until: playbookStage.until,
-              maxIterations: playbookStage.maxIterations,
-              env: {
-                RESULT_DOC_PATH: resultDocPath,
-                ARTIFACTS_DIR: artifactsBase,
-              },
-              checkpointer: loopCheckpointer,
-              initResultDocScript:
-                fluxaosConfig?.initResultDocScript ??
-                'src/scripts/pipeline/init-result-doc.ts',
-              ingestResultDocScript:
-                fluxaosConfig?.ingestResultDocScript ??
-                'src/scripts/pipeline/ingest-result-doc.ts',
-            });
-
-            ingestOutput = loopResult.lastIngestOutput;
-            graphError = loopResult.error;
-
-            // Map loop outcome to audit targetState before the shared audit path
-            if (!loopResult.error) {
-              const loopTargetState = loopResult.completed
-                ? playbookStage.onComplete
-                : playbookStage.onExhausted;
-              const loopIsTerminal = !discovered.playbook.stages.some(
-                (s) => s.id === loopTargetState
-              );
-
-              if (run.issueId) {
-                await executePaperwork({
-                  issueId: run.issueId,
-                  projectId: pipelineRow.projectId,
-                  db,
-                  audit: {
-                    action: 'transition',
-                    targetState: loopTargetState,
-                  },
-                });
-              }
-
-              const loopStageStatus =
-                loopTargetState === 'blocked'
-                  ? STAGE_RUN_STATUS.failed
-                  : STAGE_RUN_STATUS.completed;
-              await runService.completeStageRun(sRun.id, loopStageStatus, {});
-
-              if (loopIsTerminal) {
-                const pipelineStatus =
-                  loopTargetState === 'blocked'
-                    ? PIPELINE_RUN_STATUS.blocked
-                    : PIPELINE_RUN_STATUS.completed;
-                if (pipelineStatus === PIPELINE_RUN_STATUS.completed) {
-                  await completePipelineRun(run);
-                } else {
-                  await finishRun(run, pipelineStatus);
-                }
-              } else {
-                const nextStage = await db
-                  .select()
-                  .from(pipelineStage)
-                  .where(
-                    and(
-                      eq(pipelineStage.pipelineId, run.pipelineId),
-                      eq(pipelineStage.name, loopTargetState)
-                    )
-                  )
-                  .then((rows) => rows[0] ?? null);
-
-                if (nextStage) {
-                  await launchStage(run, nextStage);
-                } else {
-                  await finishRun(run, PIPELINE_RUN_STATUS.failed);
-                }
-              }
-
-              return; // skip legacy signal routing
-            }
-
-            // error path falls through to shared error handling below
-          } else {
-            const checkpointer = await getCheckpointer();
-            const graphResult = await runStageGraph(
-              {
-                stageRunId: sRun.id,
-                resultDocPath,
-                artifactsDir: artifactsBase,
-                prompt: composedPrompt,
-                driverCommand: driverBinary,
-                driverArgs,
-                env: {
-                  RESULT_DOC_PATH: resultDocPath,
-                  ARTIFACTS_DIR: artifactsBase,
-                },
-                initResultDocScript:
-                  fluxaosConfig?.initResultDocScript ??
-                  'src/scripts/pipeline/init-result-doc.ts',
-                ingestResultDocScript:
-                  fluxaosConfig?.ingestResultDocScript ??
-                  'src/scripts/pipeline/ingest-result-doc.ts',
-              },
-              checkpointer
-            );
-            ingestOutput = graphResult.ingestOutput;
-            graphError = graphResult.error;
-          }
-
-          if (graphError) {
-            await runService.completeStageRun(
-              sRun.id,
-              STAGE_RUN_STATUS.failed,
-              {}
-            );
-            await finishRun(run, PIPELINE_RUN_STATUS.failed);
-            return;
-          }
-
-          let ingestResult: { valid: boolean; doc?: Record<string, unknown> };
-          try {
-            ingestResult = JSON.parse(ingestOutput);
-          } catch {
-            ingestResult = { valid: false };
-          }
-
-          const { isValidResultDoc } = await import(
-            '@/core/pipeline/result-doc'
-          );
-          const resultDoc =
-            ingestResult.valid &&
-            ingestResult.doc &&
-            isValidResultDoc(ingestResult.doc)
-              ? ingestResult.doc
-              : null;
-
-          const audit = auditResultDoc(
-            discovered.playbook,
-            stage.name,
-            resultDoc
-          );
-          const isTerminal = !discovered.playbook.stages.some(
-            (s) => s.id === audit.targetState
-          );
-
-          if (run.issueId) {
-            await executePaperwork({
-              issueId: run.issueId,
-              projectId: pipelineRow.projectId,
-              db,
-              audit,
-            });
-          }
-
-          const stageStatus =
-            audit.targetState === 'blocked'
-              ? STAGE_RUN_STATUS.failed
-              : STAGE_RUN_STATUS.completed;
-          await runService.completeStageRun(sRun.id, stageStatus, {});
-
-          // ── Meta-routing sentinel ────────────────────────────────────
-          // When a triage stage emits meta.targetPipeline and its onPass is
-          // '__meta_route__', we switch the pipeline's playbookPath to the
-          // target and launch the first stage of the new playbook.
-          if (
-            audit.targetState === '__meta_route__' &&
-            audit.meta?.targetPipeline
-          ) {
-            const targetPlaybookName = audit.meta.targetPipeline;
-            const targetDiscovered = await resolvePlaybook(targetPlaybookName, {
-              bundledDir,
-            });
-            if (targetDiscovered) {
-              await db
-                .update(pipeline)
-                .set({ playbookPath: targetPlaybookName })
-                .where(eq(pipeline.id, run.pipelineId));
-
-              const firstStage = targetDiscovered.playbook.stages[0];
-              if (firstStage) {
-                const nextStage = await db
-                  .select()
-                  .from(pipelineStage)
-                  .where(
-                    and(
-                      eq(pipelineStage.pipelineId, run.pipelineId),
-                      eq(pipelineStage.name, firstStage.id)
-                    )
-                  )
-                  .then((rows) => rows[0] ?? null);
-
-                if (nextStage) {
-                  await launchStage(run, nextStage);
-                } else {
-                  await finishRun(run, PIPELINE_RUN_STATUS.failed);
-                }
-              } else {
-                await finishRun(run, PIPELINE_RUN_STATUS.failed);
-              }
-            } else {
-              console.error(
-                `[orchestrator] meta-route: target playbook '${targetPlaybookName}' not found (pipelineId: ${run.pipelineId})`
-              );
-              await finishRun(run, PIPELINE_RUN_STATUS.failed);
-            }
-            return; // skip legacy signal routing
-          }
-
-          if (isTerminal) {
-            const pipelineStatus =
-              audit.targetState === 'blocked'
-                ? PIPELINE_RUN_STATUS.blocked
-                : PIPELINE_RUN_STATUS.completed;
-            if (pipelineStatus === PIPELINE_RUN_STATUS.completed) {
-              await completePipelineRun(run);
-            } else {
-              await finishRun(run, pipelineStatus);
-            }
-          } else {
-            const nextStage = await db
-              .select()
-              .from(pipelineStage)
-              .where(
-                and(
-                  eq(pipelineStage.pipelineId, run.pipelineId),
-                  eq(pipelineStage.name, audit.targetState)
-                )
-              )
-              .then((rows) => rows[0] ?? null);
-
-            if (nextStage) {
-              await launchStage(run, nextStage);
-            } else {
-              await finishRun(run, PIPELINE_RUN_STATUS.failed);
-            }
-          }
-
-          return; // skip legacy signal routing
-        }
-      }
+    if (!pipelineRow) {
+      throw new Error(`Pipeline not found: ${run.pipelineId}`);
     }
-    // ── End playbook path — fall through to legacy executeStageRun ────────────
 
-    // Execute the stage via shared stage-runner
-    try {
-      const result = await executeStageRun({
-        db,
-        executor,
-        runService,
-        isolation,
-        gitOps: gitOps ?? createNoopGitOps(),
-        runId: run.id,
-        stageRunId: sRun.id,
-        trigger: TRIGGER_TYPE.automated,
-        targetRepoPath: fluxaosConfig?.targetRepoPath,
-      });
+    const [driverRow] = stage.driverId
+      ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
+      : [null];
 
-      const latestRun = await runService.getRun(run.id);
-      const [latestStageRun] = await db
-        .select({ status: stageRun.status })
-        .from(stageRun)
-        .where(eq(stageRun.id, sRun.id));
-      if (latestRun?.status === PIPELINE_RUN_STATUS.cancelled) {
-        await terminalHook.onTerminal({
-          runId: latestRun.id,
-          projectId: await resolveProjectIdForRun(db, latestRun),
-          status: PIPELINE_RUN_STATUS.cancelled,
-        });
-        return;
-      }
-      if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
-        await finishRun(run, PIPELINE_RUN_STATUS.cancelled);
-        return;
-      }
-
-      // Post-execution gate evaluation — always write a result row
-      const gateResult = await gateService.evaluateStageGate(
-        stage.id,
-        sRun.id,
-        {
-          exit_code: result.exitCode,
-          cost_usd: 0,
-          tokens_in: 0,
-          tokens_out: 0,
-          provider: result.providerName,
-          model: result.modelIdentifier,
-          driver: result.driverName,
-          skill_signal: result.skillSignal,
-        }
-      );
-
-      await runService.appendEvent(sRun.id, EVENT_TYPE.gate_checked, {
-        verdict: gateResult.verdict,
-        passed: gateResult.passed,
-        reason: gateResult.reason,
-      });
-
-      if (result.exitCode !== 0) {
-        // Failed — check retry budget
-        await handleStageFailed(run, stage, sRun);
-      } else {
-        // Use skill signal verdict if present (hold/rework/abort), otherwise gate verdict
-        const effectiveVerdict = result.skillSignal ?? gateResult.verdict;
-        await applyVerdict(
-          run,
-          stage,
-          sRun,
-          effectiveVerdict,
-          result.skillSignalReason,
-          result.skillMetadata
-        );
-      }
-    } catch (err) {
-      // Stage execution threw (timeout, signal, etc.). User cancellation may
-      // have raced the subprocess error, so re-read terminal state first.
-      const latestRun = await runService.getRun(run.id);
-      const [latestStageRun] = await db
-        .select({ status: stageRun.status })
-        .from(stageRun)
-        .where(eq(stageRun.id, sRun.id));
-      if (latestRun?.status === PIPELINE_RUN_STATUS.cancelled) {
-        await terminalHook.onTerminal({
-          runId: latestRun.id,
-          projectId: await resolveProjectIdForRun(db, latestRun),
-          status: PIPELINE_RUN_STATUS.cancelled,
-        });
-        return;
-      }
-      if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
-        await finishRun(run, PIPELINE_RUN_STATUS.cancelled);
-        return;
-      }
-
+    if (!driverRow?.binary) {
+      const msg = stage.driverId
+        ? `stage driver has no binary configured (driverId: ${stage.driverId})`
+        : `stage has no driver configured`;
+      console.error(`[orchestrator] ${msg} (stageRunId: ${sRun.id})`);
       await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
-        driver: stage.driver ?? undefined,
+        errorMessage: msg,
+      });
+      await finishRun(run, PIPELINE_RUN_STATUS.failed);
+      return;
+    }
+
+    const artifactsBase =
+      run.artifactsPath ??
+      `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
+    const resultDocPath = `${artifactsBase}/result.json`;
+
+    // Load persona soul — every stage must have a persona configured
+    if (!stage.personaId) {
+      throw new Error(
+        `Stage '${stage.name}' has no personaId configured — every stage must have a persona assigned`
+      );
+    }
+    const [personaRow] = await db
+      .select({ soul: persona.soul })
+      .from(persona)
+      .where(eq(persona.id, stage.personaId));
+    if (!personaRow) {
+      throw new Error(`Persona not found: ${stage.personaId}`);
+    }
+    if (!personaRow.soul) {
+      throw new Error(`Persona soul is empty for persona: ${stage.personaId}`);
+    }
+    const personaSoul = personaRow.soul;
+
+    // Load all skills from DB as tool-manual references
+    const skillRows = await db
+      .select({
+        name: skill.name,
+        description: skill.description,
+        promptTemplate: skill.promptTemplate,
+      })
+      .from(skill);
+
+    const skills = skillRows.filter(
+      (s): s is typeof s & { promptTemplate: string } =>
+        s.promptTemplate !== null && s.promptTemplate !== ''
+    );
+
+    // Load issue and project context
+    const [issueRow] = run.issueId
+      ? await db
+          .select({ title: issue.title, description: issue.bodyMd })
+          .from(issue)
+          .where(eq(issue.id, run.issueId))
+      : [null];
+
+    const [projectRow] = await db
+      .select({ name: project.name })
+      .from(project)
+      .where(eq(project.id, pipelineRow.projectId));
+
+    const { composePrompt } = await import('@/core/pipeline/prompt-composer');
+    const composedPrompt = composePrompt(personaSoul, skills, {
+      title: issueRow?.title ?? 'Untitled issue',
+      description: issueRow?.description ?? null,
+      stageName: stage.name,
+      projectName: projectRow?.name ?? 'Unknown project',
+      resultDocPath,
+      artifactsDir: artifactsBase,
+    });
+
+    const transport = driverRow.promptTransport ?? 'argv';
+    const driverBinary = driverRow.binary;
+    const driverArgs: string[] = [
+      ...((driverRow.defaultArgs as string[] | null) ?? []),
+    ];
+
+    if (transport === 'argv') {
+      driverArgs.push(composedPrompt);
+    }
+
+    await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.running);
+
+    const { runStageGraph } = await import(
+      '@/adapters/langgraph/langgraph-stage-runner'
+    );
+    const { getCheckpointer } = await import(
+      '@/adapters/langgraph/checkpoint-store'
+    );
+    const checkpointer = await getCheckpointer();
+
+    let ingestOutput: string;
+    let graphError: string | undefined;
+
+    try {
+      const result = await runStageGraph(
+        {
+          stageRunId: sRun.id,
+          resultDocPath,
+          artifactsDir: artifactsBase,
+          prompt: composedPrompt,
+          driverCommand: driverBinary,
+          driverArgs,
+          env: {
+            RESULT_DOC_PATH: resultDocPath,
+            ARTIFACTS_DIR: artifactsBase,
+          },
+          initResultDocScript:
+            fluxaosConfig?.initResultDocScript ??
+            'src/scripts/pipeline/init-result-doc.ts',
+          ingestResultDocScript:
+            fluxaosConfig?.ingestResultDocScript ??
+            'src/scripts/pipeline/ingest-result-doc.ts',
+        },
+        checkpointer
+      );
+      ingestOutput = result.ingestOutput;
+      graphError = result.error;
+    } catch (err) {
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        driver: driverBinary,
         trigger: TRIGGER_TYPE.automated,
         errorMessage: err instanceof Error ? err.message : String(err),
       });
       await handleStageFailed(run, stage, sRun);
+      return;
     }
+
+    if (graphError) {
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        driver: driverBinary,
+        trigger: TRIGGER_TYPE.automated,
+        errorMessage: graphError,
+      });
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    // Parse ingest output to extract verdict and signal info
+    let verdict: string = GATE_VERDICT.proceed;
+    let signalReason: string | null = null;
+    let signalMeta: Record<string, unknown> | null = null;
+
+    try {
+      const parsed = JSON.parse(ingestOutput) as {
+        verdict?: string;
+        signal_reason?: string;
+        signal_meta?: Record<string, unknown>;
+      };
+      if (parsed.verdict === 'pass') verdict = GATE_VERDICT.proceed;
+      else if (parsed.verdict === 'fail') verdict = GATE_VERDICT.rework;
+      else if (parsed.verdict === 'blocked') verdict = GATE_VERDICT.hold;
+      signalReason = parsed.signal_reason ?? null;
+      signalMeta = parsed.signal_meta ?? null;
+    } catch {
+      // ingestOutput not JSON — treat as pass
+    }
+
+    await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.completed, {
+      driver: driverBinary,
+      trigger: TRIGGER_TYPE.automated,
+    });
+
+    await applyVerdict(run, stage, sRun, verdict, signalReason, signalMeta);
   }
 
   // ─── Verdict Application ────────────────────────────────────────────
@@ -794,148 +406,77 @@ export function createEventOrchestrator(
     signalReason?: string | null,
     signalMeta?: Record<string, unknown> | null
   ): Promise<void> {
+    // Map verdict to routing column
+    let targetStageName: string | null = null;
+
     if (verdict === GATE_VERDICT.proceed) {
-      const nextStage = await runService.getNextStage(
-        run.pipelineId,
-        stage.sortOrder
-      );
+      targetStageName = stage.onPass ?? null;
+    } else if (verdict === GATE_VERDICT.rework) {
+      targetStageName = stage.onFail ?? null;
+    } else {
+      // hold, abort, or anything else → fallback
+      targetStageName = stage.fallback ?? null;
+    }
 
-      if (nextStage) {
-        await launchStage(run, nextStage);
-      } else {
-        await completePipelineRun(run);
-      }
-    } else if (verdict === GATE_VERDICT.hold) {
-      await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.pending);
+    if (!targetStageName) {
+      await completePipelineRun(run);
+      return;
+    }
 
+    if (targetStageName === '__complete__') {
+      await completePipelineRun(run);
+      return;
+    }
+
+    if (targetStageName === '__blocked__') {
       if (run.issueId) {
         const issueService = createIssueService(db);
         const [issueRow] = await db
           .select()
           .from(issue)
           .where(eq(issue.id, run.issueId));
-
         if (issueRow) {
-          if (signalReason === 'already_complete') {
-            const targetStateKey = signalMeta?.targetState as
-              | string
-              | undefined;
-            if (targetStateKey) {
-              const targetState = await issueService.getStateByKey(
-                issueRow.projectId,
-                targetStateKey
-              );
-              await issueService.stateOverride(
-                run.issueId,
-                targetState.id,
-                issueRow.version,
-                'orchestrator'
-              );
-              await runService.appendIssueEvent(
-                run.issueId,
-                ISSUE_EVENT_TYPE.state_changed,
-                { reason: 'already_complete', targetState: targetStateKey },
-                'orchestrator'
-              );
-            }
-          } else {
-            // needs_human or unknown reason — block the issue
-            const blockedStatusId = await issueService.getStatusIdByConfigKey(
-              issueRow.projectId,
-              'issues.status.on_blocked_key'
-            );
-            const question = signalMeta?.question as string | undefined;
-            await issueService.updateStatus(
-              run.issueId,
-              blockedStatusId,
-              'orchestrator',
-              question
-            );
-            await runService.appendIssueEvent(
-              run.issueId,
-              ISSUE_EVENT_TYPE.status_changed,
-              { reason: signalReason ?? 'needs_human', question },
-              'orchestrator'
-            );
-          }
+          const blockedStatusId = await issueService.getStatusIdByConfigKey(
+            issueRow.projectId,
+            'issues.status.on_blocked_key'
+          );
+          const question = signalMeta?.question as string | undefined;
+          await issueService.updateStatus(
+            run.issueId,
+            blockedStatusId,
+            'orchestrator',
+            question
+          );
+          await runService.appendIssueEvent(
+            run.issueId,
+            ISSUE_EVENT_TYPE.status_changed,
+            { reason: signalReason ?? 'blocked', question },
+            'orchestrator'
+          );
         }
       }
-    } else if (verdict === GATE_VERDICT.rework) {
-      await handleReworkVerdict(run, stage, sRun);
-    } else if (verdict === GATE_VERDICT.abort) {
-      await finishRun(run, PIPELINE_RUN_STATUS.failed);
-      if (run.issueId) {
-        await runService.appendIssueEvent(
-          run.issueId,
-          ISSUE_EVENT_TYPE.pipeline_failed,
-          {
-            pipelineRunId: run.id,
-            reason: 'Gate verdict: abort',
-            failedStage: stage.name,
-          },
-          'orchestrator'
-        );
-      }
-    }
-  }
-
-  async function handleReworkVerdict(
-    run: typeof pipelineRun.$inferSelect,
-    stage: typeof pipelineStage.$inferSelect,
-    sRun: typeof stageRun.$inferSelect
-  ): Promise<void> {
-    if (!run.issueId) {
-      await handleStageFailed(run, stage, sRun);
+      await finishRun(run, PIPELINE_RUN_STATUS.blocked);
       return;
     }
 
-    const issueService = createIssueService(db);
-    const [issueRow] = await db
-      .select()
-      .from(issue)
-      .where(eq(issue.id, run.issueId));
-    if (!issueRow) {
-      await handleStageFailed(run, stage, sRun);
-      return;
-    }
-
-    const targetState = await issueService.getStateByConfigKey(
-      issueRow.projectId,
-      'issues.state.on_rework_key'
-    );
-    await issueService.stateOverride(
-      run.issueId,
-      targetState.id,
-      issueRow.version,
-      'orchestrator'
-    );
-    await runService.appendIssueEvent(
-      run.issueId,
-      ISSUE_EVENT_TYPE.state_changed,
-      {
-        reason: 'gate_rework',
-        targetState: targetState.key,
-        stageRunId: sRun.id,
-      },
-      'orchestrator'
-    );
-
-    const [reworkStage] = await db
+    // Find next stage by name in this pipeline
+    const [nextStage] = await db
       .select()
       .from(pipelineStage)
       .where(
         and(
           eq(pipelineStage.pipelineId, run.pipelineId),
-          eq(pipelineStage.name, targetState.key)
+          eq(pipelineStage.name, targetStageName)
         )
       );
 
-    if (!reworkStage || reworkStage.id === stage.id) {
-      await handleStageFailed(run, stage, sRun);
-      return;
+    if (!nextStage) {
+      throw new Error(
+        `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`
+      );
     }
 
-    await launchStage(run, reworkStage);
+    await launchStage(run, nextStage);
   }
 
   async function handleStageFailed(
@@ -1070,28 +611,4 @@ async function resolveProjectIdForRun(
     .from(pipeline)
     .where(eq(pipeline.id, run.pipelineId));
   return pipe?.projectId ?? null;
-}
-
-/**
- * Stub GitOpsPort used when no real gitOps is injected (test scenarios that
- * don't exercise the deploy path). Real runs must always inject a concrete
- * implementation via createEventOrchestrator's gitOps parameter.
- */
-function createNoopGitOps(): GitOpsPort {
-  const notImpl = (name: string) => () => {
-    throw new Error(
-      `GitOpsPort.${name} called but no gitOps was injected into createEventOrchestrator`
-    );
-  };
-  return {
-    commitAll: notImpl('commitAll') as GitOpsPort['commitAll'],
-    getHeadSha: notImpl('getHeadSha') as GitOpsPort['getHeadSha'],
-    push: notImpl('push') as GitOpsPort['push'],
-    resolveRepoIdentity: notImpl(
-      'resolveRepoIdentity'
-    ) as GitOpsPort['resolveRepoIdentity'],
-    branchAheadCount: notImpl(
-      'branchAheadCount'
-    ) as GitOpsPort['branchAheadCount'],
-  };
 }

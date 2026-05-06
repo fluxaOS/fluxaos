@@ -1,13 +1,7 @@
 import { and, count, desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { nextRevisionNumber } from '@/core/db/revision';
-import {
-  personaSkill,
-  pipelineStage,
-  skill,
-  skillRevision,
-  stageRun,
-} from '@/core/db/schema';
+import { personaSkill, skill, skillRevision, stageRun } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
 
 type SkillInsert = typeof skill.$inferInsert;
@@ -133,16 +127,14 @@ export function createSkillService(db: DbOrTx) {
     /**
      * Count references to this skill across all FK-holding tables.
      * Used to produce meaningful delete-failure messages.
+     *
+     * FLX-153: pipeline_stage.skill_id was removed — pipelineStages is always 0.
      */
     async countReferences(id: string): Promise<{
       pipelineStages: number;
       stageRuns: number;
       personaSkills: number;
     }> {
-      const [ps] = await db
-        .select({ c: count() })
-        .from(pipelineStage)
-        .where(eq(pipelineStage.skillId, id));
       const [sr] = await db
         .select({ c: count() })
         .from(stageRun)
@@ -152,7 +144,7 @@ export function createSkillService(db: DbOrTx) {
         .from(personaSkill)
         .where(eq(personaSkill.skillId, id));
       return {
-        pipelineStages: Number(ps?.c ?? 0),
+        pipelineStages: 0,
         stageRuns: Number(sr?.c ?? 0),
         personaSkills: Number(psk?.c ?? 0),
       };

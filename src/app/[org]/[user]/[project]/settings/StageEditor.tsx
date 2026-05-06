@@ -14,9 +14,9 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
   });
   const stages = stagesQuery.data ?? [];
 
-  const skillsQuery = trpc.skill.list.useQuery();
+  const personaQuery = trpc.persona.list.useQuery();
   const driverQuery = trpc.driver.list.useQuery();
-  const skills = skillsQuery.data ?? [];
+  const personas = personaQuery.data ?? [];
   const drivers = driverQuery.data ?? [];
 
   const createStage = trpc.pipeline.stages.create.useMutation({
@@ -25,8 +25,11 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
       setNewName('');
       setNewGateMode('auto');
       setNewGateRules(null);
-      setNewSkillId('');
+      setNewPersonaId('');
       setNewDriverId('');
+      setNewOnPass('');
+      setNewOnFail('');
+      setNewFallback('');
       stagesQuery.refetch();
     },
   });
@@ -48,26 +51,35 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
   const [newName, setNewName] = useState('');
   const [newGateMode, setNewGateMode] = useState<string>('auto');
   const [newGateRules, setNewGateRules] = useState<RuleGroup | null>(null);
-  const [newSkillId, setNewSkillId] = useState('');
+  const [newPersonaId, setNewPersonaId] = useState<string>('');
   const [newDriverId, setNewDriverId] = useState('');
+  const [newOnPass, setNewOnPass] = useState<string>('');
+  const [newOnFail, setNewOnFail] = useState<string>('');
+  const [newFallback, setNewFallback] = useState<string>('');
 
   const [editName, setEditName] = useState('');
   const [editSortOrder, setEditSortOrder] = useState(1);
   const [editGateMode, setEditGateMode] = useState<string>('auto');
-  const [editSkillId, setEditSkillId] = useState('');
+  const [editPersonaId, setEditPersonaId] = useState<string>('');
   const [editDriverId, setEditDriverId] = useState('');
   const [editTimeoutSec, setEditTimeoutSec] = useState(300);
   const [editMaxRetries, setEditMaxRetries] = useState(0);
+  const [editOnPass, setEditOnPass] = useState<string>('');
+  const [editOnFail, setEditOnFail] = useState<string>('');
+  const [editFallback, setEditFallback] = useState<string>('');
 
   function startEditing(stage: (typeof stages)[number]) {
     setEditingStageId(stage.id);
     setEditName(stage.name);
     setEditSortOrder(stage.sortOrder);
     setEditGateMode(stage.gateMode ?? 'auto');
-    setEditSkillId(stage.skillId ?? '');
+    setEditPersonaId(stage.personaId ?? '');
     setEditDriverId(stage.driverId ?? '');
     setEditTimeoutSec(stage.timeoutSec ?? 300);
     setEditMaxRetries(stage.maxRetries ?? 0);
+    setEditOnPass(stage.onPass ?? '');
+    setEditOnFail(stage.onFail ?? '');
+    setEditFallback(stage.fallback ?? '');
   }
 
   return (
@@ -81,8 +93,11 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
               <th className="pr-3 py-1 font-medium">#</th>
               <th className="pr-3 py-1 font-medium">Name</th>
               <th className="pr-3 py-1 font-medium">Gate</th>
-              <th className="pr-3 py-1 font-medium">Skill</th>
+              <th className="pr-3 py-1 font-medium">Persona</th>
               <th className="pr-3 py-1 font-medium">Driver</th>
+              <th className="pr-3 py-1 font-medium">On Pass</th>
+              <th className="pr-3 py-1 font-medium">On Fail</th>
+              <th className="pr-3 py-1 font-medium">Fallback</th>
               <th className="pr-3 py-1 font-medium">Timeout</th>
               <th className="pr-3 py-1 font-medium">Retries</th>
               <th className="pr-3 py-1 font-medium">Actions</th>
@@ -140,21 +155,21 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                   <td className="pr-3 py-1">
                     {isEditing ? (
                       <select
-                        aria-label="Skill"
-                        value={editSkillId}
-                        onChange={(e) => setEditSkillId(e.target.value)}
+                        aria-label="Persona"
+                        value={editPersonaId}
+                        onChange={(e) => setEditPersonaId(e.target.value)}
                         className="bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
                       >
-                        <option value="">No skill</option>
-                        {skills.map((sk: (typeof skills)[number]) => (
-                          <option key={sk.id} value={sk.id}>
-                            {sk.name}
+                        <option value="">No persona</option>
+                        {personas.map((p: (typeof personas)[number]) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      (skills.find(
-                        (sk: (typeof skills)[number]) => sk.id === s.skillId
+                      (personas.find(
+                        (p: (typeof personas)[number]) => p.id === s.personaId
                       )?.name ?? '-')
                     )}
                   </td>
@@ -177,6 +192,48 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                       (drivers.find(
                         (d: (typeof drivers)[number]) => d.id === s.driverId
                       )?.name ?? '-')
+                    )}
+                  </td>
+                  <td className="pr-3 py-1">
+                    {isEditing ? (
+                      <input
+                        aria-label="On pass"
+                        type="text"
+                        value={editOnPass}
+                        onChange={(e) => setEditOnPass(e.target.value)}
+                        placeholder="e.g. implement"
+                        className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+                      />
+                    ) : (
+                      (s.onPass ?? '-')
+                    )}
+                  </td>
+                  <td className="pr-3 py-1">
+                    {isEditing ? (
+                      <input
+                        aria-label="On fail"
+                        type="text"
+                        value={editOnFail}
+                        onChange={(e) => setEditOnFail(e.target.value)}
+                        placeholder="e.g. triage"
+                        className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+                      />
+                    ) : (
+                      (s.onFail ?? '-')
+                    )}
+                  </td>
+                  <td className="pr-3 py-1">
+                    {isEditing ? (
+                      <input
+                        aria-label="Fallback"
+                        type="text"
+                        value={editFallback}
+                        onChange={(e) => setEditFallback(e.target.value)}
+                        placeholder="e.g. __complete__"
+                        className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+                      />
+                    ) : (
+                      (s.fallback ?? '-')
                     )}
                   </td>
                   <td className="pr-3 py-1">
@@ -222,10 +279,13 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                               name: editName.trim(),
                               sortOrder: editSortOrder,
                               gateMode: editGateMode,
-                              skillId: editSkillId || null,
+                              personaId: editPersonaId || undefined,
                               driverId: editDriverId || null,
                               timeoutSec: editTimeoutSec,
                               maxRetries: editMaxRetries,
+                              onPass: editOnPass || null,
+                              onFail: editOnFail || null,
+                              fallback: editFallback || null,
                             })
                           }
                           disabled={!editName.trim() || updateStage.isPending}
@@ -288,11 +348,14 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                 sortOrder: stages.length + 1,
                 gateMode: newGateMode,
                 gateRules: newGateMode === 'rules' ? newGateRules : undefined,
-                skillId: newSkillId || undefined,
+                personaId: newPersonaId || undefined,
                 driverId: newDriverId || undefined,
+                onPass: newOnPass || undefined,
+                onFail: newOnFail || undefined,
+                fallback: newFallback || undefined,
               });
             }}
-            className="flex gap-2 items-end"
+            className="flex gap-2 items-end flex-wrap"
           >
             <input
               type="text"
@@ -311,14 +374,14 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
               <option value="hold">hold</option>
             </select>
             <select
-              value={newSkillId}
-              onChange={(e) => setNewSkillId(e.target.value)}
+              value={newPersonaId}
+              onChange={(e) => setNewPersonaId(e.target.value)}
               className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
             >
-              <option value="">No skill</option>
-              {skills.map((s: (typeof skills)[number]) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+              <option value="">No persona</option>
+              {personas.map((p: (typeof personas)[number]) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </select>
@@ -334,6 +397,27 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                 </option>
               ))}
             </select>
+            <input
+              type="text"
+              value={newOnPass}
+              onChange={(e) => setNewOnPass(e.target.value)}
+              placeholder="On Pass (e.g. implement)"
+              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+            />
+            <input
+              type="text"
+              value={newOnFail}
+              onChange={(e) => setNewOnFail(e.target.value)}
+              placeholder="On Fail (e.g. triage)"
+              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+            />
+            <input
+              type="text"
+              value={newFallback}
+              onChange={(e) => setNewFallback(e.target.value)}
+              placeholder="Fallback (e.g. __complete__)"
+              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+            />
             <button
               type="submit"
               disabled={createStage.isPending}

@@ -19,6 +19,8 @@ const BASE_INPUT: LoopExecutorInput = {
   driverArgs: ['claude-code', '--headless'],
   until: 'VERDICT_PASS',
   maxIterations: 3,
+  initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+  ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
 };
 
 const passIngestOutput = JSON.stringify({

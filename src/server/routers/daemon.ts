@@ -9,8 +9,8 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { z } from 'zod/v4';
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod/v4';
 import { protectedMutation, publicProcedure, router } from '../trpc';
 
 const execFileAsync = promisify(execFile);
@@ -30,11 +30,9 @@ function systemctlEnv(): NodeJS.ProcessEnv {
 }
 
 async function systemctl(...args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync(
-    'systemctl',
-    ['--user', ...args],
-    { env: systemctlEnv() }
-  );
+  const { stdout } = await execFileAsync('systemctl', ['--user', ...args], {
+    env: systemctlEnv(),
+  });
   return stdout.trim();
 }
 
