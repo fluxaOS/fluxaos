@@ -246,6 +246,11 @@ function applyOperator(
       if (typeof actual !== 'string' || typeof expected !== 'string') {
         return false;
       }
+      // Guard against patterns that are too long (ReDoS mitigation).
+      // Write-time validation enforces 500 chars; this is the use-time safety net.
+      if (expected.length > 500) {
+        return false;
+      }
       try {
         return new RegExp(expected).test(actual);
       } catch {

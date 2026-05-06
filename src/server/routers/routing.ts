@@ -89,7 +89,21 @@ export const routingRouter = router({
       z.object({
         profileId: z.string().uuid(),
         stageName: z.string().optional(),
-        allowedModelsPattern: z.string().optional(),
+        allowedModelsPattern: z
+          .string()
+          .max(500, 'Pattern must be 500 characters or fewer')
+          .refine(
+            (p) => {
+              try {
+                new RegExp(p);
+                return true;
+              } catch {
+                return false;
+              }
+            },
+            { message: 'Invalid regular expression syntax' }
+          )
+          .optional(),
         preferredDriver: z.string().optional(),
         fallbackDriver: z.string().optional(),
         sortStrategy: z.string().optional(),

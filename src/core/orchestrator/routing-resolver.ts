@@ -108,13 +108,26 @@ export function createRoutingResolver(db: Database): RoutingResolver {
 
       if (rule?.allowedModelsPattern) {
         const pattern = rule.allowedModelsPattern;
-        candidates = candidates.filter((c) => {
-          try {
-            return new RegExp(pattern).test(c.modelIdentifier);
-          } catch {
-            return c.modelIdentifier.includes(pattern);
-          }
-        });
+        // Guard against patterns that are too long or invalid (ReDoS mitigation).
+        // Write-time validation enforces 500 chars; this is the use-time safety net.
+        if (pattern.length > 500) {
+          console.warn(
+            `[routing-resolver] allowedModelsPattern exceeds 500 chars in rule ${rule.id} — treating as no-match`
+          );
+          return null;
+        }
+        let compiled: RegExp | null = null;
+        try {
+          compiled = new RegExp(pattern);
+        } catch {
+          // Invalid regex stored in DB — treat as no-match (fail-safe).
+          // Write-time validation in the routing router prevents this in practice.
+          console.warn(
+            `[routing-resolver] Invalid allowedModelsPattern in rule ${rule.id}: ${pattern}`
+          );
+          return null;
+        }
+        candidates = candidates.filter((c) => compiled!.test(c.modelIdentifier));
       }
 
       if (rule?.maxCostUsd) {
