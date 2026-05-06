@@ -1,5 +1,5 @@
-import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
+import { NotFoundError } from '@/core/errors/domain';
 import type { Database } from '@/core/db/connection';
 import { configEntry } from '@/core/db/schema';
 import { createVersionedCrudService } from './crud-factory';
@@ -69,11 +69,7 @@ export function createConfigService(db: Database) {
           .select()
           .from(configEntry)
           .where(eq(configEntry.id, id));
-        if (!current)
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: `Config entry not found: ${id}`,
-          });
+        if (!current) throw new NotFoundError(`Config entry not found: ${id}`);
 
         const patch: Partial<ConfigEntryInsert> = {
           ...data,
@@ -103,11 +99,7 @@ export function createConfigService(db: Database) {
         .returning();
       if (!row) {
         const existing = await versioned.getById(id);
-        if (!existing)
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: `Config entry not found: ${id}`,
-          });
+        if (!existing) throw new NotFoundError(`Config entry not found: ${id}`);
         throw new Error('Optimistic concurrency conflict');
       }
       return row;
