@@ -96,34 +96,35 @@ export async function executeManualRun(
         .where(eq(issue.id, result.issueId));
 
       if (issueRow) {
-        if (result.skillSignalReason === 'already_complete') {
-          const targetStateKey = result.skillMetadata?.targetState as
-            | string
-            | undefined;
-          if (targetStateKey) {
-            const targetState = await issueService.getStateByKey(
-              issueRow.projectId,
-              targetStateKey
+        const targetStateKey = result.skillMetadata?.targetState as
+          | string
+          | undefined;
+
+        if (targetStateKey) {
+          // Skill declared a targetState — override the issue state unconditionally.
+          // The reason string is informational only; routing decision belongs to the skill.
+          const targetState = await issueService.getStateByKey(
+            issueRow.projectId,
+            targetStateKey
+          );
+          await db.transaction(async (tx) => {
+            const txIssueService = createIssueService(tx);
+            const txRunService = createPipelineRunService(tx);
+            await txIssueService.stateOverride(
+              result.issueId!,
+              targetState.id,
+              issueRow.version,
+              'orchestrator'
             );
-            await db.transaction(async (tx) => {
-              const txIssueService = createIssueService(tx);
-              const txRunService = createPipelineRunService(tx);
-              await txIssueService.stateOverride(
-                result.issueId!,
-                targetState.id,
-                issueRow.version,
-                'orchestrator'
-              );
-              await txRunService.appendIssueEvent(
-                result.issueId!,
-                ISSUE_EVENT_TYPE.state_changed,
-                { reason: 'already_complete', targetState: targetStateKey },
-                'manual-run'
-              );
-            });
-          }
+            await txRunService.appendIssueEvent(
+              result.issueId!,
+              ISSUE_EVENT_TYPE.state_changed,
+              { reason: result.skillSignalReason ?? 'hold', targetState: targetStateKey },
+              'manual-run'
+            );
+          });
         } else {
-          // needs_human or unknown reason — block the issue
+          // No targetState declared — block the issue and surface the reason.
           const blockedStatusId = await issueService.getStatusIdByConfigKey(
             issueRow.projectId,
             'issues.status.on_blocked_key'
