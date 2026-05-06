@@ -414,79 +414,79 @@ export async function executeStageRun(
     //                soft-pass on clean exit.
     //   - exit !=0:  skill crashed / aborted — failure stands.
     const cleanExit = result.exitCode === 0;
-      const status = cleanExit
-        ? STAGE_RUN_STATUS.completed
-        : STAGE_RUN_STATUS.failed;
-      const synthSignal = cleanExit ? 'proceed' : null;
-      const reason = cleanExit
-        ? 'no_signal_clean_exit'
-        : 'no skill signal emitted';
+    const status = cleanExit
+      ? STAGE_RUN_STATUS.completed
+      : STAGE_RUN_STATUS.failed;
+    const synthSignal = cleanExit ? 'proceed' : null;
+    const reason = cleanExit
+      ? 'no_signal_clean_exit'
+      : 'no skill signal emitted';
 
-      // FLX-92: clean-exit-no-signal counts as `proceed` per FLX-81.
-      // Auto-commit any uncommitted worktree changes so the next stage
-      // and the deploy bridge see a clean tree.
-      if (cleanExit) {
-        await autoCommitProceedingStage({
-          workingPath: env.workingPath,
-          stageName: stage.name,
-          stageRunId: sRun.id,
-          runService,
-          gitOps: ctx.gitOps,
-        });
-      }
-
-      await runService.completeStageRun(sRun.id, status, {
-        provider: routing?.providerName,
-        model: routing?.modelIdentifier,
-        driver: driverRow.name,
-        trigger: ctx.trigger,
-        skillSignal: synthSignal ?? undefined,
-        errorMessage: cleanExit ? undefined : 'no skill signal emitted',
-      });
-
-      await runService.appendEvent(
-        sRun.id,
-        cleanExit ? EVENT_TYPE.completed : EVENT_TYPE.error,
-        {
-          message: cleanExit
-            ? 'no flux:signal emitted but skill exited 0 — synthesizing proceed (FLX-81)'
-            : 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
-          exitCode: result.exitCode,
-        }
-      );
-
-      // Issue event
-      if (run.issueId) {
-        await runService.appendIssueEvent(
-          run.issueId,
-          cleanExit
-            ? ISSUE_EVENT_TYPE.stage_completed
-            : ISSUE_EVENT_TYPE.stage_failed,
-          {
-            stageRunId: sRun.id,
-            stageName: stage.name,
-            reason,
-            exitCode: result.exitCode,
-          },
-          'stage-runner'
-        );
-      }
-
-      // Env is pipeline-scoped now — T16's pipeline-terminal hook owns release.
-
-      return {
-        exitCode: result.exitCode,
-        durationMs: result.durationMs,
+    // FLX-92: clean-exit-no-signal counts as `proceed` per FLX-81.
+    // Auto-commit any uncommitted worktree changes so the next stage
+    // and the deploy bridge see a clean tree.
+    if (cleanExit) {
+      await autoCommitProceedingStage({
+        workingPath: env.workingPath,
         stageName: stage.name,
-        driverName: driverRow.name,
-        providerName: routing?.providerName ?? null,
-        modelIdentifier: routing?.modelIdentifier ?? null,
-        issueId: run.issueId,
-        stageId: stage.id,
-        skillSignal: synthSignal,
-        skillSignalReason: cleanExit ? 'no_signal_clean_exit' : null,
-        skillMetadata: null,
-      };
+        stageRunId: sRun.id,
+        runService,
+        gitOps: ctx.gitOps,
+      });
+    }
+
+    await runService.completeStageRun(sRun.id, status, {
+      provider: routing?.providerName,
+      model: routing?.modelIdentifier,
+      driver: driverRow.name,
+      trigger: ctx.trigger,
+      skillSignal: synthSignal ?? undefined,
+      errorMessage: cleanExit ? undefined : 'no skill signal emitted',
+    });
+
+    await runService.appendEvent(
+      sRun.id,
+      cleanExit ? EVENT_TYPE.completed : EVENT_TYPE.error,
+      {
+        message: cleanExit
+          ? 'no flux:signal emitted but skill exited 0 — synthesizing proceed (FLX-81)'
+          : 'no skill signal emitted — skills must output a {"flux:signal": ...} line',
+        exitCode: result.exitCode,
+      }
+    );
+
+    // Issue event
+    if (run.issueId) {
+      await runService.appendIssueEvent(
+        run.issueId,
+        cleanExit
+          ? ISSUE_EVENT_TYPE.stage_completed
+          : ISSUE_EVENT_TYPE.stage_failed,
+        {
+          stageRunId: sRun.id,
+          stageName: stage.name,
+          reason,
+          exitCode: result.exitCode,
+        },
+        'stage-runner'
+      );
+    }
+
+    // Env is pipeline-scoped now — T16's pipeline-terminal hook owns release.
+
+    return {
+      exitCode: result.exitCode,
+      durationMs: result.durationMs,
+      stageName: stage.name,
+      driverName: driverRow.name,
+      providerName: routing?.providerName ?? null,
+      modelIdentifier: routing?.modelIdentifier ?? null,
+      issueId: run.issueId,
+      stageId: stage.id,
+      skillSignal: synthSignal,
+      skillSignalReason: cleanExit ? 'no_signal_clean_exit' : null,
+      skillMetadata: null,
+    };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
     const [latestStageRun] = await db
