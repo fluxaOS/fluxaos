@@ -745,15 +745,30 @@ export function createIssueService(db: DbOrTx) {
       id: string,
       statusId: string,
       actor: string,
-      reason?: string
+      reason?: string,
+      version?: number
     ): Promise<IssueSelect> {
+      const where =
+        version !== undefined
+          ? and(eq(issue.id, id), eq(issue.version, version))
+          : eq(issue.id, id);
+
       const [updated] = await db
         .update(issue)
-        .set({ statusId, updatedAt: new Date() })
-        .where(eq(issue.id, id))
+        .set({
+          statusId,
+          ...(version !== undefined ? { version: version + 1 } : {}),
+          updatedAt: new Date(),
+        })
+        .where(where)
         .returning();
 
       if (!updated) {
+        if (version !== undefined) {
+          throw new Error(
+            `VERSION_CONFLICT: Issue ${id} was modified concurrently (expected version ${version}). Reload and retry.`
+          );
+        }
         throw new Error(`Issue ${id} not found.`);
       }
 

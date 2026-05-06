@@ -37,8 +37,8 @@ export interface PipelineRunService {
   /** Get a pipeline run by ID. */
   getRun(id: string): Promise<PipelineRunRow | null>;
 
-  /** Get all running pipeline runs. */
-  getRunningRuns(): Promise<PipelineRunRow[]>;
+  /** Get the count of currently running pipeline runs. */
+  getRunningRuns(): Promise<number>;
 
   /** Update pipeline run status. */
   updateRunStatus(id: string, status: PipelineRunStatus): Promise<void>;
@@ -141,10 +141,11 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
     },
 
     async getRunningRuns() {
-      return db
-        .select()
+      const [{ count }] = await db
+        .select({ count: sql<number>`COUNT(*)::int` })
         .from(pipelineRun)
         .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.running));
+      return count;
     },
 
     async updateRunStatus(id, status) {
@@ -353,22 +354,24 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
     },
 
     async failStageAndRun(stageRunId, runId) {
-      await db
-        .update(stageRun)
-        .set({
-          status: STAGE_RUN_STATUS.failed,
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(stageRun.id, stageRunId));
-      await db
-        .update(pipelineRun)
-        .set({
-          status: PIPELINE_RUN_STATUS.failed,
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(pipelineRun.id, runId));
+      await (db as Database).transaction(async (tx) => {
+        await tx
+          .update(stageRun)
+          .set({
+            status: STAGE_RUN_STATUS.failed,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(stageRun.id, stageRunId));
+        await tx
+          .update(pipelineRun)
+          .set({
+            status: PIPELINE_RUN_STATUS.failed,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(pipelineRun.id, runId));
+      });
     },
 
     async recordPid(stageRunId, pid) {
