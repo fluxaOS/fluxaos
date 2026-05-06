@@ -33,7 +33,7 @@ import {
   user,
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
-import { PIPELINE_SENTINEL } from '@/core/pipeline/sentinels';
+import { PIPELINE_SENTINEL } from '@/core/constants';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {

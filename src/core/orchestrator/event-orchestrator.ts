@@ -22,10 +22,10 @@ import {
   GATE_VERDICT,
   ISSUE_EVENT_TYPE,
   PIPELINE_RUN_STATUS,
+  PIPELINE_SENTINEL,
   STAGE_RUN_STATUS,
   TRIGGER_TYPE,
 } from '@/core/constants';
-import { PIPELINE_SENTINEL } from '@/core/pipeline/sentinels';
 import type { Database } from '@/core/db/connection';
 import {
   driver,
