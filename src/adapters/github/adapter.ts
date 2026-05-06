@@ -201,8 +201,8 @@ export function createGitHubAdapter(
     throw new NotImplementedError('mergePullRequest');
   }
 
-  function providerName(): string {
-    return 'github';
+  function providerName() {
+    return 'github' as const;
   }
 
   return {
