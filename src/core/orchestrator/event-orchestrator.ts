@@ -419,7 +419,38 @@ export function createEventOrchestrator(
     }
 
     if (!targetStageName) {
-      await completePipelineRun(run);
+      const reason = `Routing field for verdict '${verdict}' is null or empty on stage '${stage.name}'`;
+      await finishRun(run, PIPELINE_RUN_STATUS.blocked);
+      if (run.issueId) {
+        const issueService = createIssueService(db);
+        const [issueRow] = await db
+          .select()
+          .from(issue)
+          .where(eq(issue.id, run.issueId));
+        if (issueRow) {
+          const blockedStatusId = await issueService.getStatusIdByConfigKey(
+            issueRow.projectId,
+            'issues.status.on_blocked_key'
+          );
+          await issueService.updateStatus(
+            run.issueId,
+            blockedStatusId,
+            'orchestrator'
+          );
+          await runService.appendIssueEvent(
+            run.issueId,
+            ISSUE_EVENT_TYPE.status_changed,
+            { reason },
+            'orchestrator'
+          );
+        }
+        await runService.appendIssueEvent(
+          run.issueId,
+          ISSUE_EVENT_TYPE.pipeline_failed,
+          { reason },
+          'orchestrator'
+        );
+      }
       return;
     }
 
@@ -471,9 +502,39 @@ export function createEventOrchestrator(
       );
 
     if (!nextStage) {
-      throw new Error(
-        `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`
-      );
+      const reason = `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`;
+      await finishRun(run, PIPELINE_RUN_STATUS.blocked);
+      if (run.issueId) {
+        const issueService = createIssueService(db);
+        const [issueRow] = await db
+          .select()
+          .from(issue)
+          .where(eq(issue.id, run.issueId));
+        if (issueRow) {
+          const blockedStatusId = await issueService.getStatusIdByConfigKey(
+            issueRow.projectId,
+            'issues.status.on_blocked_key'
+          );
+          await issueService.updateStatus(
+            run.issueId,
+            blockedStatusId,
+            'orchestrator'
+          );
+          await runService.appendIssueEvent(
+            run.issueId,
+            ISSUE_EVENT_TYPE.status_changed,
+            { reason },
+            'orchestrator'
+          );
+        }
+        await runService.appendIssueEvent(
+          run.issueId,
+          ISSUE_EVENT_TYPE.pipeline_failed,
+          { reason },
+          'orchestrator'
+        );
+      }
+      return;
     }
 
     await launchStage(run, nextStage);
