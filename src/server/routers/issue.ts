@@ -6,7 +6,9 @@
  * that modify existing data. Routers are thin — logic lives in services.
  */
 import { TRPCError } from '@trpc/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
+import { project } from '@/core/db/schema';
 import {
   createIssueCommentService,
   createIssueEventService,
@@ -48,6 +50,19 @@ export const issueRouter = router({
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      // Verify viewer owns this project
+      const [proj] = await ctx.db
+        .select({ userId: project.userId })
+        .from(project)
+        .where(eq(project.id, input.projectId));
+      if (!proj) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (
+        ctx.viewer.fluxaUserId !== null &&
+        proj.userId !== ctx.viewer.fluxaUserId
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND' });
+      }
+
       const result = await createIssueService(ctx.db).getById(
         input.id,
         input.projectId
@@ -112,7 +127,20 @@ export const issueRouter = router({
         userId: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // Verify viewer owns this project
+      const [proj] = await ctx.db
+        .select({ userId: project.userId })
+        .from(project)
+        .where(eq(project.id, input.projectId));
+      if (!proj) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (
+        ctx.viewer.fluxaUserId !== null &&
+        proj.userId !== ctx.viewer.fluxaUserId
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND' });
+      }
+
       const { id, projectId, version, userId, ...fields } = input;
       return createIssueService(ctx.db).updateFields(
         id,
@@ -133,21 +161,47 @@ export const issueRouter = router({
         userId: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) =>
-      createIssueService(ctx.db).transition(
+    .mutation(async ({ ctx, input }) => {
+      // Verify viewer owns this project
+      const [proj] = await ctx.db
+        .select({ userId: project.userId })
+        .from(project)
+        .where(eq(project.id, input.projectId));
+      if (!proj) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (
+        ctx.viewer.fluxaUserId !== null &&
+        proj.userId !== ctx.viewer.fluxaUserId
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND' });
+      }
+
+      return createIssueService(ctx.db).transition(
         input.id,
         input.toStateId,
         input.version,
         input.userId,
         input.projectId
-      )
-    ),
+      );
+    }),
 
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
-    .mutation(({ ctx, input }) =>
-      createIssueService(ctx.db).delete(input.id, input.projectId)
-    ),
+    .mutation(async ({ ctx, input }) => {
+      // Verify viewer owns this project
+      const [proj] = await ctx.db
+        .select({ userId: project.userId })
+        .from(project)
+        .where(eq(project.id, input.projectId));
+      if (!proj) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (
+        ctx.viewer.fluxaUserId !== null &&
+        proj.userId !== ctx.viewer.fluxaUserId
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND' });
+      }
+
+      return createIssueService(ctx.db).delete(input.id, input.projectId);
+    }),
 
   transitions: publicProcedure
     .input(inputId())

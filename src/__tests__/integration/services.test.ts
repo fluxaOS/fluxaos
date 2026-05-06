@@ -326,7 +326,8 @@ describe('issue service', () => {
       issueId,
       stateInProgressId,
       issueVersion,
-      'test-user'
+      'test-user',
+      projectId
     );
     issueVersion = transitioned.version;
 
@@ -348,7 +349,8 @@ describe('issue service', () => {
       issueId,
       stateOpenId,
       issueVersion,
-      'test-user'
+      'test-user',
+      projectId
     );
     issueVersion = transitioned.version;
     expect(transitioned.stateId).toBe(stateOpenId);
@@ -359,7 +361,8 @@ describe('issue service', () => {
       issueId,
       { title: 'Updated Title' },
       issueVersion,
-      'test-user'
+      'test-user',
+      projectId
     );
     issueVersion = updated.version;
 
@@ -377,7 +380,13 @@ describe('issue service', () => {
 
   it('updateFields — wrong version throws VERSION_CONFLICT', async () => {
     await expect(
-      issueSvc.updateFields(issueId, { title: 'Should Fail' }, 999, 'test-user')
+      issueSvc.updateFields(
+        issueId,
+        { title: 'Should Fail' },
+        999,
+        'test-user',
+        projectId
+      )
     ).rejects.toThrow('VERSION_CONFLICT');
   });
 
@@ -397,6 +406,22 @@ describe('issue service', () => {
     expect(reopened.isClosed).toBe(false);
     expect(reopened.closedAt).toBeNull();
     expect(reopened.stateId).toBe(stateOpenId); // lowest sortOrder non-terminal
+  });
+
+  it('getById — returns null for issue looked up under wrong project (cross-tenant rejection)', async () => {
+    // Create a second project in the same org to act as the "wrong" project.
+    const projSvc = createProjectService(db);
+    const proj2 = await projSvc.create({
+      orgId: _orgId,
+      userId: _userId,
+      name: 'Test Project 2',
+      slug: `test-proj2-${RUN}`,
+    });
+
+    // issueId belongs to projectId (project 1). Looking it up under proj2 must
+    // return null — not the real issue — so a cross-tenant viewer gets nothing.
+    const result = await issueSvc.getById(issueId, proj2.id);
+    expect(result).toBeNull();
   });
 
   it('delete — hard delete removes the issue', async () => {

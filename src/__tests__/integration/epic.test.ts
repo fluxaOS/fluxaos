@@ -309,7 +309,13 @@ describe('R-EPIC — parent/child hierarchy', () => {
     });
 
     // transition() uses the transition graph: open → closed exists per beforeAll.
-    await svc.transition(child.id, issueStateIdClosed, child.version, 'test');
+    await svc.transition(
+      child.id,
+      issueStateIdClosed,
+      child.version,
+      'test',
+      projectId
+    );
 
     const parentAfter = await svc.getById(parent.id, projectId);
     expect(parentAfter?.isClosed).toBe(true);
