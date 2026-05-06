@@ -120,3 +120,12 @@ export const TRIGGER_TYPE = {
 } as const;
 
 export type TriggerType = (typeof TRIGGER_TYPE)[keyof typeof TRIGGER_TYPE];
+
+// ── Pipeline Routing Sentinels ─────────────────────────────
+/** Special stage-name values stored in onPass/onFail/fallback columns. */
+export const PIPELINE_SENTINEL = {
+  /** Pipeline finished successfully. */
+  complete: '__complete__',
+  /** Pipeline is blocked waiting on human input. */
+  blocked: '__blocked__',
+} as const;
