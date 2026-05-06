@@ -18,7 +18,7 @@ import {
  * completion and gate evaluation.
  */
 import type { Database } from '@/core/db/connection';
-import { issue, pipeline, stageRun } from '@/core/db/schema';
+import { issue, stageRun } from '@/core/db/schema';
 import { createGateService } from '@/core/gates/service';
 import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
@@ -27,6 +27,7 @@ import type { StdoutParser } from '@/core/ports/stdout-parser';
 import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
+import { resolveProjectIdForRun } from './run-helpers';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import { executeStageRun } from './stage-runner';
 
@@ -194,29 +195,6 @@ export async function executeManualRun(
   }
 }
 
-async function resolveProjectIdForRun(
-  db: Database,
-  runId: string
-): Promise<string | null> {
-  const { pipelineRun } = await import('@/core/db/schema');
-  const [run] = await db
-    .select()
-    .from(pipelineRun)
-    .where(eq(pipelineRun.id, runId));
-  if (!run) return null;
-  if (run.issueId) {
-    const [issueRow] = await db
-      .select()
-      .from(issue)
-      .where(eq(issue.id, run.issueId));
-    if (issueRow?.projectId) return issueRow.projectId;
-  }
-  const [pipe] = await db
-    .select({ projectId: pipeline.projectId })
-    .from(pipeline)
-    .where(eq(pipeline.id, run.pipelineId));
-  return pipe?.projectId ?? null;
-}
 
 function createNoopGitOps(): GitOpsPort {
   const notImpl = (name: string) => () => {

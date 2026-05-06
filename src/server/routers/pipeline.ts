@@ -17,28 +17,13 @@ import {
   stageRun,
 } from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
+import { resolveProjectIdForRun } from '@/core/orchestrator/run-helpers';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 import { listIssueRunsWithStages } from './pipeline-run-history';
 import { enrichStageRuns } from './_shared/enrich-stage-runs';
-
-/**
- * Resolve the projectId that owns a given pipeline run. Returns null if the
- * run does not exist.
- */
-async function getProjectIdForRun(
-  db: Database,
-  pipelineRunId: string
-): Promise<string | null> {
-  const [row] = await db
-    .select({ projectId: pipeline.projectId })
-    .from(pipelineRun)
-    .innerJoin(pipeline, eq(pipelineRun.pipelineId, pipeline.id))
-    .where(eq(pipelineRun.id, pipelineRunId));
-  return row?.projectId ?? null;
-}
 
 /**
  * Resolve the projectId that owns a given stage run. Returns null if the
@@ -95,7 +80,7 @@ async function assertRunOwnership(
   projectId: string,
   viewerId: string | null
 ): Promise<void> {
-  const owningProjectId = await getProjectIdForRun(db, runId);
+  const owningProjectId = await resolveProjectIdForRun(db, runId);
   if (owningProjectId !== projectId) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
   }
