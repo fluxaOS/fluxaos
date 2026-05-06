@@ -19,7 +19,9 @@ export interface RealtimeProvider {
     channelName: string,
     table: string,
     event: 'INSERT' | 'UPDATE' | '*',
-    callback: (payload: RealtimeTableEvent<T>) => void
+    callback: (payload: RealtimeTableEvent<T>) => void,
+    /** Supabase Realtime server-side filter, e.g. `'id=eq.abc'`. Optional. */
+    filter?: string
   ): Unsubscribe;
 
   broadcast<T>(channel: string, event: string, payload: T): Promise<void>;

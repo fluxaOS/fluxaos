@@ -16,17 +16,11 @@ interface LiveOutputProps {
 
 interface RealtimeEventPayload {
   id: string;
-  stageRunId?: string;
-  stage_run_id?: string;
   type: string;
   payload: unknown;
   timestamp: string;
   createdAt?: string;
   created_at?: string;
-}
-
-function getRealtimeStageRunId(row: RealtimeEventPayload): string | undefined {
-  return row.stageRunId ?? row.stage_run_id;
 }
 
 // Driver-emitted lifecycle subtypes that swamp the verbose transcript with
@@ -208,8 +202,6 @@ export function LiveOutput({
       'INSERT',
       (payload) => {
         const row = payload.new as RealtimeEventPayload;
-        if (getRealtimeStageRunId(row) !== stageRunId) return;
-
         utils.pipeline.runs.events.setData(
           { stageRunId, projectId },
           (current) => {
@@ -228,7 +220,8 @@ export function LiveOutput({
             ];
           }
         );
-      }
+      },
+      `stage_run_id=eq.${stageRunId}`
     );
 
     return () => {

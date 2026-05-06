@@ -40,13 +40,16 @@ export class SupabaseRealtimeProvider implements RealtimeProvider {
     channelName: string,
     table: string,
     event: 'INSERT' | 'UPDATE' | '*',
-    callback: (payload: RealtimeTableEvent<T>) => void
+    callback: (payload: RealtimeTableEvent<T>) => void,
+    filter?: string
   ): Unsubscribe {
+    const pgConfig: Record<string, unknown> = { event, schema: 'public', table };
+    if (filter) pgConfig.filter = filter;
     const ch: RealtimeChannel = this.client
       .channel(channelName)
       .on(
         'postgres_changes' as never,
-        { event, schema: 'public', table } as never,
+        pgConfig as never,
         (payload: {
           eventType: 'INSERT' | 'UPDATE' | 'DELETE';
           new: T;
