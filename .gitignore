@@ -80,6 +80,9 @@ __pycache__/
 *.log
 *.py[cod]
 .agents/
+.claude/
+!.claude/skills/
+!.claude/skills/**
 .coverage
 .DS_Store
 .fhc-config.json
@@ -103,5 +106,3 @@ worktrees/
 WORKTREES.md
 .worktree-state/
 # END fhc-managed
-!.claude/skills/
-!.claude/skills/**
