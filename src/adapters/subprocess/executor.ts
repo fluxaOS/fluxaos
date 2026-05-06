@@ -19,6 +19,52 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = DEFAULT_STAGE_TIMEOUT_SEC * 1000;
 
+/**
+ * Env var prefixes that are safe to pass to AI subprocesses.
+ * These are standard OS/shell vars required for a CLI tool to run.
+ * Application secrets (FLUXAOS_*, ANTHROPIC_API_KEY, SUPABASE_*, etc.)
+ * are intentionally excluded — they must be passed via explicit params.env.
+ */
+const SUBPROCESS_SAFE_ENV_PREFIXES = [
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'TERM',
+  'LANG',
+  'LC_',
+  'TMPDIR',
+  'TEMP',
+  'TMP',
+  'XDG_',
+];
+
+/**
+ * Build a minimal subprocess environment from the current process.env,
+ * keeping only OS/shell vars from the allowlist, then merging explicit
+ * overrides on top. This prevents server secrets from leaking to subprocesses.
+ *
+ * NODE_ENV is always forwarded so Node itself behaves correctly in the child
+ * process. The cast to NodeJS.ProcessEnv satisfies spawn()'s overloads;
+ * all values are guaranteed defined strings at runtime.
+ */
+function buildSubprocessEnv(
+  overrides: Record<string, string>
+): NodeJS.ProcessEnv {
+  const safe: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (
+      v !== undefined &&
+      (k === 'NODE_ENV' ||
+        SUBPROCESS_SAFE_ENV_PREFIXES.some((prefix) => k.startsWith(prefix)))
+    ) {
+      safe[k] = v;
+    }
+  }
+  return { ...safe, ...overrides } as NodeJS.ProcessEnv;
+}
+
 export class SubprocessExecutor implements StageExecutor {
   private processes = new Map<string, ChildProcess>();
 
@@ -32,7 +78,7 @@ export class SubprocessExecutor implements StageExecutor {
 
     const child = spawn(params.command, params.args, {
       cwd: params.cwd,
-      env: { ...process.env, ...params.env },
+      env: buildSubprocessEnv(params.env ?? {}),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

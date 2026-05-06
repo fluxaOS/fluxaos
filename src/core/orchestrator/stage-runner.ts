@@ -311,6 +311,18 @@ export async function executeStageRun(
           : [targetWorkspacePath],
     });
 
+    // Resolve provider API key from providerApiKeyRef (e.g. "env:ANTHROPIC_API_KEY")
+    // and inject it explicitly so the subprocess executor's allowlist can strip
+    // the full process.env without losing the provider credential.
+    const resolvedProviderEnv: Record<string, string> = {};
+    if (routing.providerApiKeyRef?.startsWith('env:')) {
+      const envVarName = routing.providerApiKeyRef.slice(4);
+      const keyValue = process.env[envVarName];
+      if (keyValue) {
+        resolvedProviderEnv[envVarName] = keyValue;
+      }
+    }
+
     // Mark running
     await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.running);
 
@@ -347,7 +359,7 @@ export async function executeStageRun(
       command: cmd.binary,
       args: cmd.args,
       cwd: workspacePath,
-      env: cmd.env,
+      env: { ...resolvedProviderEnv, ...cmd.env },
       timeoutMs: (stage.timeoutSec ?? DEFAULT_STAGE_TIMEOUT_SEC) * 1000,
       onStart: (_processId, pid) => {
         if (!pid) return;
