@@ -175,9 +175,16 @@ export function createStageExecutor(deps: StageExecutorDeps) {
 
     const transport = driverRow.promptTransport ?? 'argv';
     const driverBinary = driverRow.binary;
-    const driverArgs: string[] = [
-      ...((driverRow.defaultArgs as string[] | null) ?? []),
-    ];
+    const rawDefaultArgs = driverRow.defaultArgs;
+    if (
+      !Array.isArray(rawDefaultArgs) ||
+      !rawDefaultArgs.every((a) => typeof a === 'string')
+    ) {
+      throw new Error(
+        `Driver '${driverRow.name}' defaultArgs must be a string array, got ${JSON.stringify(rawDefaultArgs)}`
+      );
+    }
+    const driverArgs: string[] = [...(rawDefaultArgs as string[])];
 
     if (transport === 'argv') {
       driverArgs.push(composedPrompt);

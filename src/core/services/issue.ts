@@ -106,7 +106,12 @@ export function createIssueService(db: DbOrTx) {
       );
     }
 
-    const statusKey = config.value as string;
+    if (typeof config.value !== 'string') {
+      throw new Error(
+        `Config key '${CONFIG_KEY.issueStatusOnCreate}' must be a string value, got ${typeof config.value}`
+      );
+    }
+    const statusKey = config.value;
 
     // 2. Resolve key → statusId
     const [status] = await db
@@ -210,7 +215,12 @@ export function createIssueService(db: DbOrTx) {
       );
     }
 
-    const statusKey = config.value as string;
+    if (typeof config.value !== 'string') {
+      throw new Error(
+        `Config key '${configKey}' must be a string value, got ${typeof config.value}`
+      );
+    }
+    const statusKey = config.value;
     const [status] = await db
       .select()
       .from(issueStatus)
@@ -250,7 +260,12 @@ export function createIssueService(db: DbOrTx) {
       );
     }
 
-    const stateKey = config.value as string;
+    if (typeof config.value !== 'string') {
+      throw new Error(
+        `Config key '${configKey}' must be a string value, got ${typeof config.value}`
+      );
+    }
+    const stateKey = config.value;
     return findStateByKey(projectId, stateKey);
   }
 
