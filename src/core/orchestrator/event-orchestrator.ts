@@ -102,6 +102,9 @@ export function createEventOrchestrator(
     if (isRunning) return;
     isRunning = true;
 
+    // Single-tenant assumption: processes all pipeline_run INSERTs globally.
+    // In a multi-tenant deployment this subscription would need to be scoped
+    // per tenant — one event storm from one tenant could starve others. (FLX-148)
     unsubscribeInsert = realtime.subscribeToTable(
       'orchestrator-insert',
       'pipeline_run',
@@ -613,6 +616,10 @@ export function createEventOrchestrator(
   // ─── Crash Recovery ─────────────────────────────────────────────────
 
   async function recoverOnStartup(): Promise<void> {
+    // Single-tenant assumption: recovers ALL globally-running stage runs.
+    // In a multi-tenant deployment this could kill stage runs from another
+    // tenant's daemon. A daemonInstanceId column on stage_run would scope
+    // recovery to runs this daemon launched. (FLX-148)
     const staleRuns = await db
       .select()
       .from(stageRun)

@@ -7,7 +7,19 @@
  * with the org tier resolved from `organization.subscription_tier`. Under
  * the homelab LAN auth bypass (FLUXAOS_LAN_AUTH_BYPASS=1) the viewer
  * falls back to admin + enterprise so journey tests and homelab dev keep
- * working.
+ * working without requiring Supabase Auth.
+ *
+ * No IP-based check is applied to the bypass. Without a trusted reverse proxy
+ * stripping client-supplied headers, x-forwarded-for is spoofable and
+ * Next.js injects the LAN IP (e.g. 192.168.54.101) rather than 127.0.0.1 for
+ * browser/Playwright connections. The env flag is the sole gate; the operator
+ * contract is: do not set FLUXAOS_LAN_AUTH_BYPASS on any internet-reachable
+ * host. See middleware.ts for the same rationale applied to page-layer auth.
+ *
+ * Single-tenant assumption: this deployment model assumes exactly one tenant.
+ * TRPCContext carries no orgId/projectId — every procedure is responsible for
+ * scoping queries using client-supplied input. See FLX-149 for the future
+ * tenantProcedure middleware that would enforce server-derived scoping.
  */
 import { initTRPC, TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
@@ -43,8 +55,9 @@ const LAN_BYPASS_TIER: Tier = 'enterprise';
 
 async function resolveViewer(db: Database): Promise<Viewer> {
   // Homelab LAN auth bypass: middleware skips the /login redirect, so no
-  // session cookie exists. Treat the request as admin + enterprise to keep
-  // journey tests and the single-user homelab flow working.
+  // session cookie exists. The env flag is the sole gate — see file header
+  // for why an IP-based check is not applied. Treats as admin + enterprise
+  // to keep journey tests and the single-user homelab flow working.
   if (process.env.FLUXAOS_LAN_AUTH_BYPASS === '1') {
     return {
       authUserId: null,

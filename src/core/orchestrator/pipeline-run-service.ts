@@ -143,6 +143,9 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
     },
 
     async getRunningRuns() {
+      // Single-tenant assumption: counts running runs across all tenants.
+      // In a multi-tenant deployment this would need an orgId filter so one
+      // tenant cannot exhaust another's concurrency budget. (FLX-148)
       const [{ count }] = await db
         .select({ count: sql<number>`COUNT(*)::int` })
         .from(pipelineRun)
