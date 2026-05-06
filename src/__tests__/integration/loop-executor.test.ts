@@ -1,27 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { LoopExecutorInput } from '@/core/agents/loop-executor';
-
-vi.mock('@/adapters/langgraph/langgraph-stage-runner', () => ({
-  runStageGraph: vi.fn(),
-}));
-
-import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
 import { runLoopExecutor } from '@/core/agents/loop-executor';
 
-const mockRunStageGraph = vi.mocked(runStageGraph);
-
-const BASE_INPUT: LoopExecutorInput = {
-  stageRunId: 'srun-001',
-  resultDocPath: '/tmp/test-result.json',
-  artifactsDir: '/tmp/test-artifacts',
-  prompt: 'Do the work.',
-  driverCommand: 'npx',
-  driverArgs: ['claude-code', '--headless'],
-  until: 'VERDICT_PASS',
-  maxIterations: 3,
-  initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
-  ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
-};
+function makeRunner(impl: StageGraphRunner['run']): StageGraphRunner {
+  return { run: vi.fn(impl) };
+}
 
 const passIngestOutput = JSON.stringify({
   valid: true,
@@ -59,65 +43,82 @@ const failIngestOutput = JSON.stringify({
   },
 });
 
+let mockRunner: { run: ReturnType<typeof vi.fn> };
+
+function makeBaseInput(): LoopExecutorInput {
+  return {
+    stageRunId: 'srun-001',
+    resultDocPath: '/tmp/test-result.json',
+    artifactsDir: '/tmp/test-artifacts',
+    prompt: 'Do the work.',
+    driverCommand: 'npx',
+    driverArgs: ['claude-code', '--headless'],
+    until: 'VERDICT_PASS',
+    maxIterations: 3,
+    stageGraphRunner: mockRunner as StageGraphRunner,
+    initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+    ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
+  };
+}
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  mockRunner = { run: vi.fn() };
 });
 
 describe('runLoopExecutor', () => {
   it('exits completed:true on first iteration when until:VERDICT_PASS and agent writes pass', async () => {
-    mockRunStageGraph.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
+    mockRunner.run.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
 
-    const result = await runLoopExecutor(BASE_INPUT);
+    const result = await runLoopExecutor(makeBaseInput());
 
     expect(result.completed).toBe(true);
     expect(result.iterations).toBe(1);
     expect(result.error).toBeUndefined();
-    expect(mockRunStageGraph).toHaveBeenCalledTimes(1);
+    expect(mockRunner.run).toHaveBeenCalledTimes(1);
   });
 
-  it('passes original stageRunId to runStageGraph (DB row must exist)', async () => {
-    mockRunStageGraph.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
+  it('passes original stageRunId to runner (DB row must exist)', async () => {
+    mockRunner.run.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
 
-    await runLoopExecutor(BASE_INPUT);
+    await runLoopExecutor(makeBaseInput());
 
-    expect(mockRunStageGraph).toHaveBeenCalledWith(
+    expect(mockRunner.run).toHaveBeenCalledWith(
       expect.objectContaining({ stageRunId: 'srun-001' }),
-      undefined,
       'srun-001_iter1'
     );
   });
 
   it('loops until condition met on a later iteration', async () => {
-    mockRunStageGraph
+    mockRunner.run
       .mockResolvedValueOnce({ ingestOutput: failIngestOutput })
       .mockResolvedValueOnce({ ingestOutput: failIngestOutput })
       .mockResolvedValueOnce({ ingestOutput: passIngestOutput });
 
-    const result = await runLoopExecutor(BASE_INPUT);
+    const result = await runLoopExecutor(makeBaseInput());
 
     expect(result.completed).toBe(true);
     expect(result.iterations).toBe(3);
-    expect(mockRunStageGraph).toHaveBeenCalledTimes(3);
+    expect(mockRunner.run).toHaveBeenCalledTimes(3);
   });
 
   it('returns completed:false when maxIterations exhausted without condition met', async () => {
-    mockRunStageGraph.mockResolvedValue({ ingestOutput: failIngestOutput });
+    mockRunner.run.mockResolvedValue({ ingestOutput: failIngestOutput });
 
-    const result = await runLoopExecutor({ ...BASE_INPUT, maxIterations: 3 });
+    const result = await runLoopExecutor({ ...makeBaseInput(), maxIterations: 3 });
 
     expect(result.completed).toBe(false);
     expect(result.iterations).toBe(3);
     expect(result.error).toBeUndefined();
-    expect(mockRunStageGraph).toHaveBeenCalledTimes(3);
+    expect(mockRunner.run).toHaveBeenCalledTimes(3);
   });
 
   it('returns completed:false with error when graph returns error', async () => {
-    mockRunStageGraph.mockResolvedValueOnce({
+    mockRunner.run.mockResolvedValueOnce({
       ingestOutput: '',
       error: 'prepare failed: ENOENT',
     });
 
-    const result = await runLoopExecutor(BASE_INPUT);
+    const result = await runLoopExecutor(makeBaseInput());
 
     expect(result.completed).toBe(false);
     expect(result.error).toBe('prepare failed: ENOENT');
@@ -125,19 +126,19 @@ describe('runLoopExecutor', () => {
   });
 
   it('returns completed:false with error when graph throws', async () => {
-    mockRunStageGraph.mockRejectedValueOnce(new Error('subprocess crash'));
+    mockRunner.run.mockRejectedValueOnce(new Error('subprocess crash'));
 
-    const result = await runLoopExecutor(BASE_INPUT);
+    const result = await runLoopExecutor(makeBaseInput());
 
     expect(result.completed).toBe(false);
     expect(result.error).toContain('subprocess crash');
   });
 
   it('VERDICT_FAIL condition exits when agent writes fail', async () => {
-    mockRunStageGraph.mockResolvedValueOnce({ ingestOutput: failIngestOutput });
+    mockRunner.run.mockResolvedValueOnce({ ingestOutput: failIngestOutput });
 
     const result = await runLoopExecutor({
-      ...BASE_INPUT,
+      ...makeBaseInput(),
       until: 'VERDICT_FAIL',
     });
 
@@ -146,24 +147,24 @@ describe('runLoopExecutor', () => {
   });
 
   it('ALWAYS condition runs all maxIterations and exits completed:true', async () => {
-    mockRunStageGraph.mockResolvedValue({ ingestOutput: passIngestOutput });
+    mockRunner.run.mockResolvedValue({ ingestOutput: passIngestOutput });
 
     const result = await runLoopExecutor({
-      ...BASE_INPUT,
+      ...makeBaseInput(),
       until: 'ALWAYS',
       maxIterations: 2,
     });
 
     expect(result.completed).toBe(true);
     expect(result.iterations).toBe(2);
-    expect(mockRunStageGraph).toHaveBeenCalledTimes(2);
+    expect(mockRunner.run).toHaveBeenCalledTimes(2);
   });
 
   it('ISSUE_OUT_OF_ACTIVE_STATE is equivalent to VERDICT_PASS', async () => {
-    mockRunStageGraph.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
+    mockRunner.run.mockResolvedValueOnce({ ingestOutput: passIngestOutput });
 
     const result = await runLoopExecutor({
-      ...BASE_INPUT,
+      ...makeBaseInput(),
       until: 'ISSUE_OUT_OF_ACTIVE_STATE',
     });
 

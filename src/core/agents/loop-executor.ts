@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import type { BaseCheckpointSaver } from '@langchain/langgraph';
-import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { ResultDoc } from '@/core/pipeline/result-doc';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
 
@@ -14,7 +13,7 @@ export interface LoopExecutorInput {
   until: string;
   maxIterations: number;
   env?: Record<string, string>;
-  checkpointer?: BaseCheckpointSaver;
+  stageGraphRunner: StageGraphRunner;
   initResultDocScript: string;
   ingestResultDocScript: string;
 }
@@ -64,7 +63,7 @@ export async function runLoopExecutor(
 
     let graphResult: { ingestOutput: string; error?: string };
     try {
-      graphResult = await runStageGraph(
+      graphResult = await input.stageGraphRunner.run(
         {
           stageRunId: input.stageRunId,
           resultDocPath: input.resultDocPath,
@@ -76,7 +75,6 @@ export async function runLoopExecutor(
           initResultDocScript: input.initResultDocScript,
           ingestResultDocScript: input.ingestResultDocScript,
         },
-        input.checkpointer,
         iterThreadId
       );
     } catch (err) {

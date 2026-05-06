@@ -39,6 +39,7 @@ import {
 } from '@/core/db/schema';
 import type { Unsubscribe } from '@/core/ports/auth';
 import type { RealtimeProvider } from '@/core/ports/realtime';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
@@ -63,7 +64,8 @@ export function createEventOrchestrator(
   realtime: RealtimeProvider,
   terminalHook: PipelineTerminalHook,
   config: Partial<EventOrchestratorConfig> = {},
-  fluxaosConfig?: FluxaosConfig
+  fluxaosConfig?: FluxaosConfig,
+  stageGraphRunner?: StageGraphRunner
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
@@ -313,39 +315,38 @@ export function createEventOrchestrator(
 
     await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.running);
 
-    const { runStageGraph } = await import(
-      '@/adapters/langgraph/langgraph-stage-runner'
-    );
-    const { getCheckpointer } = await import(
-      '@/adapters/langgraph/checkpoint-store'
-    );
-    const checkpointer = await getCheckpointer();
+    if (!stageGraphRunner) {
+      const msg = 'stageGraphRunner not injected — cannot execute stage';
+      console.error(`[orchestrator] ${msg} (stageRunId: ${sRun.id})`);
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        errorMessage: msg,
+      });
+      await finishRun(run, PIPELINE_RUN_STATUS.failed);
+      return;
+    }
 
     let ingestOutput: string;
     let graphError: string | undefined;
 
     try {
-      const result = await runStageGraph(
-        {
-          stageRunId: sRun.id,
-          resultDocPath,
-          artifactsDir: artifactsBase,
-          prompt: composedPrompt,
-          driverCommand: driverBinary,
-          driverArgs,
-          env: {
-            RESULT_DOC_PATH: resultDocPath,
-            ARTIFACTS_DIR: artifactsBase,
-          },
-          initResultDocScript:
-            fluxaosConfig?.initResultDocScript ??
-            'src/scripts/pipeline/init-result-doc.ts',
-          ingestResultDocScript:
-            fluxaosConfig?.ingestResultDocScript ??
-            'src/scripts/pipeline/ingest-result-doc.ts',
+      const result = await stageGraphRunner.run({
+        stageRunId: sRun.id,
+        resultDocPath,
+        artifactsDir: artifactsBase,
+        prompt: composedPrompt,
+        driverCommand: driverBinary,
+        driverArgs,
+        env: {
+          RESULT_DOC_PATH: resultDocPath,
+          ARTIFACTS_DIR: artifactsBase,
         },
-        checkpointer
-      );
+        initResultDocScript:
+          fluxaosConfig?.initResultDocScript ??
+          'src/scripts/pipeline/init-result-doc.ts',
+        ingestResultDocScript:
+          fluxaosConfig?.ingestResultDocScript ??
+          'src/scripts/pipeline/ingest-result-doc.ts',
+      });
       ingestOutput = result.ingestOutput;
       graphError = result.error;
     } catch (err) {

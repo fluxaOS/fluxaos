@@ -52,6 +52,7 @@ import type { DatabaseProvider } from '@/core/ports';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageExecutor } from '@/core/ports/stage-executor';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createIssueService } from '@/core/services/issue';
 
 const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
@@ -190,12 +191,15 @@ export async function createDaemon(): Promise<Daemon> {
     },
   });
 
+  const stageGraphRunner = registry.get<StageGraphRunner>('stageGraphRunner');
+
   const orchestrator = createEventOrchestrator(
     db,
     realtime,
     terminalHook,
     {},
-    fluxaosConfig
+    fluxaosConfig,
+    stageGraphRunner
   );
 
   const cleanupService = createCleanupService({

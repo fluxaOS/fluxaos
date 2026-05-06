@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { ParallelExecutorInput } from '@/core/agents/parallel-executor';
-
-vi.mock('@/adapters/langgraph/langgraph-stage-runner', () => ({
-  runStageGraph: vi.fn(),
-}));
-
-import { runStageGraph } from '@/adapters/langgraph/langgraph-stage-runner';
 import { runParallelExecutor } from '@/core/agents/parallel-executor';
 
-const mockRunStageGraph = vi.mocked(runStageGraph);
+function makeRunner(): { run: ReturnType<typeof vi.fn> } {
+  return { run: vi.fn() };
+}
 
 function makeIngest(verdict: 'pass' | 'fail'): string {
   return JSON.stringify({
@@ -30,53 +27,58 @@ function makeIngest(verdict: 'pass' | 'fail'): string {
   });
 }
 
-const BASE_INPUT: ParallelExecutorInput = {
-  groupStageRunId: 'group-srun-001',
-  pipelineRunId: 'prun-001',
-  stageId: 'parallel-review',
-  children: [
-    {
-      id: 'child-a',
-      skill: 'review',
-      stageRunId: 'srun-child-a',
-      resultDocPath: '/tmp/child-a/result.json',
-      artifactsDir: '/tmp/child-a',
-      prompt: 'Review the code.',
-      driverCommand: 'npx',
-      driverArgs: ['claude-code', '--headless'],
-      initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
-      ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
-    },
-    {
-      id: 'child-b',
-      skill: 'review',
-      stageRunId: 'srun-child-b',
-      resultDocPath: '/tmp/child-b/result.json',
-      artifactsDir: '/tmp/child-b',
-      prompt: 'Review the code.',
-      driverCommand: 'npx',
-      driverArgs: ['claude-code', '--headless'],
-      initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
-      ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
-    },
-  ],
-  aggregation: 'all-pass',
-  initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
-  ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
-};
+let mockRunner: { run: ReturnType<typeof vi.fn> };
+
+function makeBaseInput(): ParallelExecutorInput {
+  return {
+    groupStageRunId: 'group-srun-001',
+    pipelineRunId: 'prun-001',
+    stageId: 'parallel-review',
+    children: [
+      {
+        id: 'child-a',
+        skill: 'review',
+        stageRunId: 'srun-child-a',
+        resultDocPath: '/tmp/child-a/result.json',
+        artifactsDir: '/tmp/child-a',
+        prompt: 'Review the code.',
+        driverCommand: 'npx',
+        driverArgs: ['claude-code', '--headless'],
+        initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+        ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
+      },
+      {
+        id: 'child-b',
+        skill: 'review',
+        stageRunId: 'srun-child-b',
+        resultDocPath: '/tmp/child-b/result.json',
+        artifactsDir: '/tmp/child-b',
+        prompt: 'Review the code.',
+        driverCommand: 'npx',
+        driverArgs: ['claude-code', '--headless'],
+        initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+        ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
+      },
+    ],
+    aggregation: 'all-pass',
+    stageGraphRunner: mockRunner as unknown as StageGraphRunner,
+    initResultDocScript: 'src/scripts/pipeline/init-result-doc.ts',
+    ingestResultDocScript: 'src/scripts/pipeline/ingest-result-doc.ts',
+  };
+}
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  mockRunner = makeRunner();
 });
 
 describe('runParallelExecutor', () => {
   describe('aggregation: all-pass', () => {
     it('returns pass when all children pass', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       expect(result.verdict).toBe('pass');
       expect(result.childResults).toHaveLength(2);
@@ -85,21 +87,21 @@ describe('runParallelExecutor', () => {
     });
 
     it('returns fail when any child fails', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       expect(result.verdict).toBe('fail');
     });
 
     it('returns fail when all children fail', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       expect(result.verdict).toBe('fail');
     });
@@ -107,12 +109,12 @@ describe('runParallelExecutor', () => {
 
   describe('aggregation: any-pass', () => {
     it('returns pass when at least one child passes', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
       const result = await runParallelExecutor({
-        ...BASE_INPUT,
+        ...makeBaseInput(),
         aggregation: 'any-pass',
       });
 
@@ -120,12 +122,12 @@ describe('runParallelExecutor', () => {
     });
 
     it('returns fail when all children fail', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') });
 
       const result = await runParallelExecutor({
-        ...BASE_INPUT,
+        ...makeBaseInput(),
         aggregation: 'any-pass',
       });
 
@@ -135,16 +137,17 @@ describe('runParallelExecutor', () => {
 
   describe('aggregation: majority-pass', () => {
     it('returns pass when more than half pass (2 of 3)', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') });
 
+      const base = makeBaseInput();
       const result = await runParallelExecutor({
-        ...BASE_INPUT,
+        ...base,
         aggregation: 'majority-pass',
         children: [
-          ...BASE_INPUT.children,
+          ...base.children,
           {
             id: 'child-c',
             skill: 'review',
@@ -164,12 +167,12 @@ describe('runParallelExecutor', () => {
     });
 
     it('returns fail when exactly half pass (1 of 2)', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') });
 
       const result = await runParallelExecutor({
-        ...BASE_INPUT,
+        ...makeBaseInput(),
         aggregation: 'majority-pass',
       });
 
@@ -179,12 +182,12 @@ describe('runParallelExecutor', () => {
 
   describe('aggregation: none', () => {
     it('always returns pass regardless of child verdicts', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') });
 
       const result = await runParallelExecutor({
-        ...BASE_INPUT,
+        ...makeBaseInput(),
         aggregation: 'none',
       });
 
@@ -194,33 +197,33 @@ describe('runParallelExecutor', () => {
 
   describe('error handling', () => {
     it('treats a child with graph error as fail verdict', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: '', error: 'subprocess failed' })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       expect(result.childResults[0].verdict).toBe('fail');
       expect(result.childResults[0].error).toBe('subprocess failed');
     });
 
     it('treats a child that throws as fail verdict', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockRejectedValueOnce(new Error('crash'))
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       expect(result.childResults[0].verdict).toBe('fail');
       expect(result.childResults[0].error).toContain('crash');
     });
 
     it('exposes verdict: fail on childResults when child returns fail verdict with no error', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('fail') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       expect(result.childResults[0].verdict).toBe('fail');
       expect(result.childResults[0].error).toBeUndefined();
@@ -228,27 +231,27 @@ describe('runParallelExecutor', () => {
     });
 
     it('runs all children even when some fail (Promise.allSettled)', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockRejectedValueOnce(new Error('crash'))
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
       const result = await runParallelExecutor({
-        ...BASE_INPUT,
+        ...makeBaseInput(),
         aggregation: 'any-pass',
       });
 
-      expect(mockRunStageGraph).toHaveBeenCalledTimes(2);
+      expect(mockRunner.run).toHaveBeenCalledTimes(2);
       expect(result.verdict).toBe('pass');
     });
   });
 
   describe('ingestOutput', () => {
     it('produces valid JSON with verdict and summary', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
-      const result = await runParallelExecutor(BASE_INPUT);
+      const result = await runParallelExecutor(makeBaseInput());
 
       const parsed = JSON.parse(result.ingestOutput) as {
         valid: boolean;
@@ -261,15 +264,15 @@ describe('runParallelExecutor', () => {
     });
 
     it('uses distinct threadIds per child to prevent LangGraph checkpoint collision', async () => {
-      mockRunStageGraph
+      mockRunner.run
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') })
         .mockResolvedValueOnce({ ingestOutput: makeIngest('pass') });
 
-      await runParallelExecutor(BASE_INPUT);
+      await runParallelExecutor(makeBaseInput());
 
-      const calls = mockRunStageGraph.mock.calls;
-      const threadIdA = calls[0][2];
-      const threadIdB = calls[1][2];
+      const calls = mockRunner.run.mock.calls;
+      const threadIdA = calls[0][1];
+      const threadIdB = calls[1][1];
       expect(threadIdA).not.toBe(threadIdB);
       expect(threadIdA).toContain('srun-child-a');
       expect(threadIdB).toContain('srun-child-b');

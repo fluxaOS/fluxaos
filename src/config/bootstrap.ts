@@ -12,6 +12,7 @@ import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { createWorktreeIsolationProvider } from '@/adapters/git';
 import { createGitProviderFactory } from '@/adapters/git-router/factory';
 import { createGitHubAdapter } from '@/adapters/github';
+import { LangGraphStageGraphRunner } from '@/adapters/langgraph/stage-graph-runner-adapter';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
 import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
 import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
@@ -76,6 +77,11 @@ export function bootstrap(): void {
   // Stdout Parser — subprocess output line parser
   registry.register('stdoutParser', () => {
     return new SubprocessStdoutParser();
+  });
+
+  // Stage Graph Runner — LangGraph implementation of StageGraphRunner port
+  registry.register('stageGraphRunner', () => {
+    return new LangGraphStageGraphRunner();
   });
 
   // Isolation — worktree-per-run workspace provider. Depends on the
