@@ -151,7 +151,9 @@ export function createGitHubAdapter(
       });
       sha = refResp.data.object.sha;
     } catch (err) {
-      wrapOctokitError(err);
+      wrapOctokitError(err); // always throws — return type is `never`
+      // Unreachable; satisfies the definite-assignment check without `!`.
+      throw err;
     }
 
     try {
@@ -159,7 +161,7 @@ export function createGitHubAdapter(
         owner,
         repo: name,
         ref: `refs/heads/${branch}`,
-        sha: sha!,
+        sha,
       });
     } catch (err) {
       if (err instanceof RequestError && err.status === 422) {
