@@ -2,9 +2,10 @@ import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { project } from '@/core/db/schema';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { NotFoundError } from '@/core/errors/domain';
 import { createConfigService } from '@/core/services/config';
-import { inputId, publicProcedure, router } from '../trpc';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const configRouter = router({
   list: publicProcedure
@@ -43,7 +44,7 @@ export const configRouter = router({
     return row;
   }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         scope: z.string().min(1).default('global'),
@@ -63,7 +64,7 @@ export const configRouter = router({
       });
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -86,7 +87,7 @@ export const configRouter = router({
       }
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       try {

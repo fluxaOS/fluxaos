@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createProviderService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 export const providerRouter = router({
   list: publicProcedure
@@ -14,7 +15,7 @@ export const providerRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => createProviderService(ctx.db).getById(input.id)),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         orgId: z.string().uuid(),
@@ -26,7 +27,7 @@ export const providerRouter = router({
     )
     .mutation(({ ctx, input }) => createProviderService(ctx.db).create(input)),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -52,7 +53,7 @@ export const providerRouter = router({
       return row;
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.transaction(async (tx) => {
@@ -83,7 +84,7 @@ export const providerRouter = router({
       createProviderService(ctx.db).models.listByProvider(input.providerId)
     ),
 
-  createModel: publicProcedure
+  createModel: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         providerId: z.string().uuid(),
@@ -98,7 +99,7 @@ export const providerRouter = router({
       createProviderService(ctx.db).models.create(input)
     ),
 
-  deleteModel: publicProcedure
+  deleteModel: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid() }))
     .mutation(({ ctx, input }) =>
       createProviderService(ctx.db).models.remove(input.id)

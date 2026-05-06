@@ -19,7 +19,8 @@ import {
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
-import { inputId, publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 import { listIssueRunsWithStages } from './pipeline-run-history';
 
 /**
@@ -103,7 +104,7 @@ export const pipelineRouter = router({
     return createPipelineService(ctx.db).getById(input.id);
   }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         projectId: z.string().uuid(),
@@ -116,7 +117,7 @@ export const pipelineRouter = router({
       return createPipelineService(ctx.db).create(input);
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -130,7 +131,7 @@ export const pipelineRouter = router({
       return createPipelineService(ctx.db).update(id, data);
     }),
 
-  delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+  delete: protectedMutation(DELETE_ROLES).input(inputId()).mutation(({ ctx, input }) => {
     return createPipelineService(ctx.db).remove(input.id);
   }),
 
@@ -144,7 +145,7 @@ export const pipelineRouter = router({
         );
       }),
 
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           pipelineId: z.string().uuid(),
@@ -166,7 +167,7 @@ export const pipelineRouter = router({
         return createPipelineService(ctx.db).stages.create(input);
       }),
 
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           id: z.string().uuid(),
@@ -189,7 +190,7 @@ export const pipelineRouter = router({
         return createPipelineService(ctx.db).stages.update(id, data);
       }),
 
-    delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+    delete: protectedMutation(DELETE_ROLES).input(inputId()).mutation(({ ctx, input }) => {
       return createPipelineService(ctx.db).stages.remove(input.id);
     }),
   }),
@@ -206,7 +207,7 @@ export const pipelineRouter = router({
      * running, the pipeline_run sits at `pending` — that's the correct
      * signal the daemon is down.
      */
-    trigger: publicProcedure
+    trigger: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           pipelineId: z.string().uuid(),
@@ -337,7 +338,7 @@ export const pipelineRouter = router({
       ),
 
     /** Cancel a pipeline run. */
-    cancel: publicProcedure
+    cancel: protectedMutation(EDIT_ROLES)
       .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
         const owningProjectId = await getProjectIdForRun(ctx.db, input.id);
@@ -366,7 +367,7 @@ export const pipelineRouter = router({
       }),
 
     /** Cancel a specific stage run. */
-    cancelStage: publicProcedure
+    cancelStage: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           stageRunId: z.string().uuid(),
@@ -438,7 +439,7 @@ export const pipelineRouter = router({
       }),
 
     /** Approve a held stage — release it for execution. */
-    approveStage: publicProcedure
+    approveStage: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           stageRunId: z.string().uuid(),
@@ -473,7 +474,7 @@ export const pipelineRouter = router({
       }),
 
     /** Reject a held stage — rework or abort. */
-    rejectStage: publicProcedure
+    rejectStage: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           stageRunId: z.string().uuid(),
@@ -563,7 +564,7 @@ export const pipelineRouter = router({
       }),
 
     /** Execute a specific stage run — mark it as launching for the orchestrator. */
-    executeStage: publicProcedure
+    executeStage: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           stageRunId: z.string().uuid(),

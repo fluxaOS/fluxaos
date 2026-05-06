@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createCronService } from '@/core/services/cron';
-import { inputId, publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // Liberal cron expression check — five or six space-separated fields.
@@ -29,7 +30,7 @@ export const cronRouter = router({
     return row;
   }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         projectId: z.string().uuid(),
@@ -50,7 +51,7 @@ export const cronRouter = router({
       return createCronService(ctx.db).create(input);
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -68,7 +69,7 @@ export const cronRouter = router({
       return createCronService(ctx.db).update(id, version, data);
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       return createCronService(ctx.db).delete(input.id, input.version);

@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createPipelineService, createProjectService } from '@/core/services';
-import { inputId, publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
   /**
@@ -36,7 +37,7 @@ export const projectRouter = router({
       return createProjectService(ctx.db).getFirstBySlug(input.slug);
     }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         orgId: z.string().uuid(),
@@ -50,7 +51,7 @@ export const projectRouter = router({
       return createProjectService(ctx.db).create(input);
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -67,7 +68,7 @@ export const projectRouter = router({
       return createProjectService(ctx.db).update(id, data);
     }),
 
-  delete: publicProcedure.input(inputId()).mutation(({ ctx, input }) => {
+  delete: protectedMutation(DELETE_ROLES).input(inputId()).mutation(({ ctx, input }) => {
     return createProjectService(ctx.db).remove(input.id);
   }),
 
@@ -78,7 +79,7 @@ export const projectRouter = router({
    * enforces the project-scope invariant so a crafted UI can't point
    * a project at a pipeline from a different project.
    */
-  setDefaultPipeline: publicProcedure
+  setDefaultPipeline: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         projectId: z.string().uuid(),
