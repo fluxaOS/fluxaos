@@ -11,13 +11,15 @@
 
 import { type Tier, tierAllowsFeature } from './tiers';
 
-export enum Feature {
+export const Feature = {
   /** FLX-11 — sensitive-field preview gate (Preview button on prompt templates) */
-  PREVIEW_GATE = 'preview_gate',
+  PREVIEW_GATE: 'preview_gate',
 
   /** FLX-13 / FLX-91 — per-row revision history + revert */
-  REVISION_HISTORY = 'revision_history',
-}
+  REVISION_HISTORY: 'revision_history',
+} as const;
+
+export type Feature = (typeof Feature)[keyof typeof Feature];
 
 /** Server primitive — true if the viewer's tier includes the feature. */
 export function hasFeature(tier: Tier, feature: Feature): boolean {
