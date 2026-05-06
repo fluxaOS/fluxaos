@@ -437,7 +437,6 @@ export function createEventOrchestrator(
             run.issueId,
             blockedStatusId,
             'orchestrator',
-            undefined,
             issueRow.version
           );
           await runService.appendIssueEvent(
@@ -479,8 +478,8 @@ export function createEventOrchestrator(
             run.issueId,
             blockedStatusId,
             'orchestrator',
-            question,
-            issueRow.version
+            issueRow.version,
+            question
           );
           await runService.appendIssueEvent(
             run.issueId,
@@ -523,7 +522,6 @@ export function createEventOrchestrator(
             run.issueId,
             blockedStatusId,
             'orchestrator',
-            undefined,
             issueRow.version
           );
           await runService.appendIssueEvent(

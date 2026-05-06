@@ -24,6 +24,7 @@ import {
   STAGE_RUN_TERMINAL,
 } from './types';
 
+// Services that open transactions must receive the root Database, not a transaction handle.
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 
 type PipelineRunRow = typeof pipelineRun.$inferSelect;
@@ -354,6 +355,10 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
     },
 
     async failStageAndRun(stageRunId, runId) {
+      // Cast is justified: failStageAndRun is only called from event-orchestrator
+      // which always holds a root Database, never a tx handle. The DbOrTx union
+      // on the factory is for other methods that legitimately compose inside callers'
+      // transactions (e.g. appendIssueEvent in manual-run.ts).
       await (db as Database).transaction(async (tx) => {
         await tx
           .update(stageRun)
