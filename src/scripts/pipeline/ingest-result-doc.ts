@@ -14,6 +14,11 @@ async function main() {
 
   const resultDocPath = args[resultDocIdx + 1];
 
+  if (!resultDocPath) {
+    console.error('Error: --result-doc flag requires a path argument');
+    process.exit(1);
+  }
+
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(resultDocPath, 'utf-8'));
