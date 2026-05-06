@@ -299,7 +299,13 @@ export function createIssueService(db: DbOrTx) {
    * Recurses naturally: close() → stateOverride() → maybeAutoCloseParent()
    * for the grandparent, and so on up the tree.
    */
-  async function maybeAutoCloseParent(childId: string): Promise<void> {
+  async function maybeAutoCloseParent(childId: string, depth = 0): Promise<void> {
+    if (depth > 50) {
+      console.warn(
+        `[epic] maybeAutoCloseParent: depth limit reached for childId=${childId}, possible circular parent reference`
+      );
+      return;
+    }
     const [child] = await db.select().from(issue).where(eq(issue.id, childId));
     if (!child?.parentIssueId) return;
 
@@ -347,7 +353,7 @@ export function createIssueService(db: DbOrTx) {
 
         // Grandparent propagation — the parent we just closed may itself
         // have a parent. Run the same check one level up.
-        await maybeAutoCloseParent(parentId);
+        await maybeAutoCloseParent(parentId, depth + 1);
         return 'closed';
       } catch (err) {
         console.error('[epic] auto-close failed:', err);
