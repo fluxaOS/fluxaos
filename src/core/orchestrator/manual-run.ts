@@ -130,6 +130,7 @@ export async function executeManualRun(
               result.issueId!,
               blockedStatusId,
               'orchestrator',
+              issueRow.version,
               question
             );
             await txRunService.appendIssueEvent(

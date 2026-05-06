@@ -24,6 +24,7 @@ import {
   STAGE_RUN_TERMINAL,
 } from './types';
 
+// Services that open transactions must receive the root Database, not a transaction handle.
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 
 type PipelineRunRow = typeof pipelineRun.$inferSelect;
@@ -37,8 +38,8 @@ export interface PipelineRunService {
   /** Get a pipeline run by ID. */
   getRun(id: string): Promise<PipelineRunRow | null>;
 
-  /** Get all running pipeline runs. */
-  getRunningRuns(): Promise<PipelineRunRow[]>;
+  /** Get the count of currently running pipeline runs. */
+  getRunningRuns(): Promise<number>;
 
   /** Update pipeline run status. */
   updateRunStatus(id: string, status: PipelineRunStatus): Promise<void>;
@@ -141,10 +142,11 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
     },
 
     async getRunningRuns() {
-      return db
-        .select()
+      const [{ count }] = await db
+        .select({ count: sql<number>`COUNT(*)::int` })
         .from(pipelineRun)
         .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.running));
+      return count;
     },
 
     async updateRunStatus(id, status) {
@@ -353,22 +355,28 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
     },
 
     async failStageAndRun(stageRunId, runId) {
-      await db
-        .update(stageRun)
-        .set({
-          status: STAGE_RUN_STATUS.failed,
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(stageRun.id, stageRunId));
-      await db
-        .update(pipelineRun)
-        .set({
-          status: PIPELINE_RUN_STATUS.failed,
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(pipelineRun.id, runId));
+      // Cast is justified: failStageAndRun is only called from event-orchestrator
+      // which always holds a root Database, never a tx handle. The DbOrTx union
+      // on the factory is for other methods that legitimately compose inside callers'
+      // transactions (e.g. appendIssueEvent in manual-run.ts).
+      await (db as Database).transaction(async (tx) => {
+        await tx
+          .update(stageRun)
+          .set({
+            status: STAGE_RUN_STATUS.failed,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(stageRun.id, stageRunId));
+        await tx
+          .update(pipelineRun)
+          .set({
+            status: PIPELINE_RUN_STATUS.failed,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(pipelineRun.id, runId));
+      });
     },
 
     async recordPid(stageRunId, pid) {

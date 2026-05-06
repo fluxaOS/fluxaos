@@ -146,8 +146,8 @@ export function createEventOrchestrator(
     if (!run || run.status !== PIPELINE_RUN_STATUS.pending) return;
 
     // Check concurrency limit
-    const running = await runService.getRunningRuns();
-    if (running.length >= cfg.maxConcurrentRuns) return;
+    const runningCount = await runService.getRunningRuns();
+    if (runningCount >= cfg.maxConcurrentRuns) return;
 
     // Get stages
     const stages = await runService.getStages(run.pipelineId);
@@ -436,7 +436,8 @@ export function createEventOrchestrator(
           await issueService.updateStatus(
             run.issueId,
             blockedStatusId,
-            'orchestrator'
+            'orchestrator',
+            issueRow.version
           );
           await runService.appendIssueEvent(
             run.issueId,
@@ -477,6 +478,7 @@ export function createEventOrchestrator(
             run.issueId,
             blockedStatusId,
             'orchestrator',
+            issueRow.version,
             question
           );
           await runService.appendIssueEvent(
@@ -519,7 +521,8 @@ export function createEventOrchestrator(
           await issueService.updateStatus(
             run.issueId,
             blockedStatusId,
-            'orchestrator'
+            'orchestrator',
+            issueRow.version
           );
           await runService.appendIssueEvent(
             run.issueId,
