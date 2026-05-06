@@ -12,6 +12,7 @@
 import { eq } from 'drizzle-orm';
 import type { TriggerType } from '@/core/constants';
 import {
+  ACTOR,
   DEFAULT_STAGE_TIMEOUT_SEC,
   EVENT_TYPE,
   ISSUE_EVENT_TYPE,
@@ -334,7 +335,7 @@ export async function executeStageRun(
           driver: driverRow.name,
           attempt: sRun.attempt,
         },
-        'stage-runner'
+        ACTOR.stageRunner
       );
     }
 
@@ -468,7 +469,7 @@ export async function executeStageRun(
           reason,
           exitCode: result.exitCode,
         },
-        'stage-runner'
+        ACTOR.stageRunner
       );
     }
 

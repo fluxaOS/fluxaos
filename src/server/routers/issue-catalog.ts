@@ -7,6 +7,7 @@
  * Health verifies all required catalogs and config entries exist.
  */
 import { z } from 'zod/v4';
+import { CONFIG_KEY } from '@/core/constants';
 import { createIssueCatalogService } from '@/core/services';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
@@ -263,11 +264,11 @@ export const issueCatalogRouter = router({
       const { configEntry } = await import('@/core/db/schema');
       const { eq, and } = await import('drizzle-orm');
       const requiredKeys = [
-        'issues.status.on_create_key',
-        'issues.status.on_enqueued_key',
-        'issues.status.on_running_key',
-        'issues.status.on_blocked_key',
-        'issues.status.on_completed_key',
+        CONFIG_KEY.issueStatusOnCreate,
+        CONFIG_KEY.issueStatusOnEnqueued,
+        CONFIG_KEY.issueStatusOnRunning,
+        CONFIG_KEY.issueStatusOnBlocked,
+        CONFIG_KEY.issueStatusOnCompleted,
       ];
       for (const key of requiredKeys) {
         const [entry] = await ctx.db

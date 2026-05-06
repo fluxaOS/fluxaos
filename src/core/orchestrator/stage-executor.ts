@@ -9,6 +9,8 @@ import { and, eq } from 'drizzle-orm';
 import type { FluxaosConfig } from '@/config/env';
 import type { GateMode } from '@/core/constants';
 import {
+  ACTOR,
+  CONFIG_KEY,
   DEFAULT_GATE_MODE,
   EVENT_TYPE,
   GATE_MODE,
@@ -79,7 +81,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
             verdict: GATE_VERDICT.hold,
             reason: `gate mode: ${gateMode}`,
           },
-          'orchestrator'
+          ACTOR.orchestrator
         );
       }
       return;
@@ -327,26 +329,26 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         if (issueRow) {
           const blockedStatusId = await issueService.getStatusIdByConfigKey(
             issueRow.projectId,
-            'issues.status.on_blocked_key'
+            CONFIG_KEY.issueStatusOnBlocked
           );
           await issueService.updateStatus(
             run.issueId,
             blockedStatusId,
-            'orchestrator',
+            ACTOR.orchestrator,
             issueRow.version
           );
           await runService.appendIssueEvent(
             run.issueId,
             ISSUE_EVENT_TYPE.status_changed,
             { reason },
-            'orchestrator'
+            ACTOR.orchestrator
           );
         }
         await runService.appendIssueEvent(
           run.issueId,
           ISSUE_EVENT_TYPE.pipeline_failed,
           { reason },
-          'orchestrator'
+          ACTOR.orchestrator
         );
       }
       return;
@@ -367,13 +369,13 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         if (issueRow) {
           const blockedStatusId = await issueService.getStatusIdByConfigKey(
             issueRow.projectId,
-            'issues.status.on_blocked_key'
+            CONFIG_KEY.issueStatusOnBlocked
           );
           const question = signalMeta?.question as string | undefined;
           await issueService.updateStatus(
             run.issueId,
             blockedStatusId,
-            'orchestrator',
+            ACTOR.orchestrator,
             issueRow.version,
             question
           );
@@ -381,7 +383,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
             run.issueId,
             ISSUE_EVENT_TYPE.status_changed,
             { reason: signalReason ?? 'blocked', question },
-            'orchestrator'
+            ACTOR.orchestrator
           );
         }
       }
@@ -412,26 +414,26 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         if (issueRow) {
           const blockedStatusId = await issueService.getStatusIdByConfigKey(
             issueRow.projectId,
-            'issues.status.on_blocked_key'
+            CONFIG_KEY.issueStatusOnBlocked
           );
           await issueService.updateStatus(
             run.issueId,
             blockedStatusId,
-            'orchestrator',
+            ACTOR.orchestrator,
             issueRow.version
           );
           await runService.appendIssueEvent(
             run.issueId,
             ISSUE_EVENT_TYPE.status_changed,
             { reason },
-            'orchestrator'
+            ACTOR.orchestrator
           );
         }
         await runService.appendIssueEvent(
           run.issueId,
           ISSUE_EVENT_TYPE.pipeline_failed,
           { reason },
-          'orchestrator'
+          ACTOR.orchestrator
         );
       }
       return;
@@ -459,7 +461,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
             reason: `Stage failed after ${sRun.attempt} attempt(s)`,
             failedStage: stage.name,
           },
-          'orchestrator'
+          ACTOR.orchestrator
         );
       }
     }
@@ -474,7 +476,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         run.issueId,
         ISSUE_EVENT_TYPE.pipeline_completed,
         { pipelineRunId: run.id },
-        'orchestrator'
+        ACTOR.orchestrator
       );
     }
   }
