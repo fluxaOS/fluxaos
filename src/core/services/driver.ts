@@ -1,5 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
+import { NotFoundError } from '@/core/errors/domain';
 import { nextRevisionNumber } from '@/core/db/revision';
 import {
   driver,
@@ -250,7 +251,7 @@ export function createDriverService(db: Database) {
             .select({ version: driver.version })
             .from(driver)
             .where(eq(driver.id, id));
-          if (!exists) throw new Error(`Driver not found: ${id}`);
+          if (!exists) throw new NotFoundError(`Driver not found: ${id}`);
           throw new Error('Optimistic concurrency conflict');
         }
         return row;
