@@ -291,7 +291,13 @@ export const pipelineRouter = router({
     /** List pipeline runs for a pipeline. */
     list: publicProcedure
       .input(z.object({ pipelineId: z.string().uuid() }))
-      .query(({ ctx, input }) => {
+      .query(async ({ ctx, input }) => {
+        const [row] = await ctx.db
+          .select({ projectId: pipeline.projectId })
+          .from(pipeline)
+          .where(eq(pipeline.id, input.pipelineId));
+        if (!row) return [];
+        await assertProjectOwnership(ctx.db, row.projectId, ctx.viewer.fluxaUserId);
         return ctx.db
           .select()
           .from(pipelineRun)
@@ -303,6 +309,7 @@ export const pipelineRouter = router({
     listByProject: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
+        await assertProjectOwnership(ctx.db, input.projectId, ctx.viewer.fluxaUserId);
         const pipelines = await ctx.db
           .select({ id: pipeline.id, name: pipeline.name })
           .from(pipeline)
@@ -514,8 +521,9 @@ export const pipelineRouter = router({
 
     /** Get the current pipeline state for an issue — latest run + current stage. */
     issueState: publicProcedure
-      .input(z.object({ issueId: z.string().uuid() }))
+      .input(z.object({ issueId: z.string().uuid(), projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
+        await assertProjectOwnership(ctx.db, input.projectId, ctx.viewer.fluxaUserId);
         const { pipelineStage } = await import('@/core/db/schema');
 
         // Find latest pipeline run for this issue
