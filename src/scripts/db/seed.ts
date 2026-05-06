@@ -33,6 +33,7 @@ import {
   user,
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
+import { PIPELINE_SENTINEL } from '@/core/pipeline/sentinels';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {
@@ -159,7 +160,7 @@ async function seed() {
       gateRules: {},
       onPass: 'implement',
       onFail: 'research',
-      fallback: '__blocked__',
+      fallback: PIPELINE_SENTINEL.blocked,
     },
     {
       name: 'implement',
@@ -168,16 +169,16 @@ async function seed() {
       gateRules: implementGateRules,
       onPass: 'review',
       onFail: 'implement',
-      fallback: '__blocked__',
+      fallback: PIPELINE_SENTINEL.blocked,
     },
     {
       name: 'review',
       sortOrder: 3,
       gateMode: 'auto',
       gateRules: {},
-      onPass: '__complete__',
+      onPass: PIPELINE_SENTINEL.complete,
       onFail: 'rework',
-      fallback: '__blocked__',
+      fallback: PIPELINE_SENTINEL.blocked,
     },
     {
       name: 'rework',
@@ -185,17 +186,17 @@ async function seed() {
       gateMode: 'rules',
       gateRules: implementGateRules,
       onPass: 'review',
-      onFail: '__blocked__',
-      fallback: '__blocked__',
+      onFail: PIPELINE_SENTINEL.blocked,
+      fallback: PIPELINE_SENTINEL.blocked,
     },
     {
       name: 'deploy',
       sortOrder: 5,
       gateMode: 'manual',
       gateRules: {},
-      onPass: '__complete__',
-      onFail: '__blocked__',
-      fallback: '__blocked__',
+      onPass: PIPELINE_SENTINEL.complete,
+      onFail: PIPELINE_SENTINEL.blocked,
+      fallback: PIPELINE_SENTINEL.blocked,
     },
   ];
 

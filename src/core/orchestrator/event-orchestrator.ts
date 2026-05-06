@@ -25,6 +25,7 @@ import {
   STAGE_RUN_STATUS,
   TRIGGER_TYPE,
 } from '@/core/constants';
+import { PIPELINE_SENTINEL } from '@/core/pipeline/sentinels';
 import type { Database } from '@/core/db/connection';
 import {
   driver,
@@ -482,12 +483,12 @@ export function createEventOrchestrator(
       return;
     }
 
-    if (targetStageName === '__complete__') {
+    if (targetStageName === PIPELINE_SENTINEL.complete) {
       await completePipelineRun(run);
       return;
     }
 
-    if (targetStageName === '__blocked__') {
+    if (targetStageName === PIPELINE_SENTINEL.blocked) {
       if (run.issueId) {
         const issueService = createIssueService(db);
         const [issueRow] = await db
