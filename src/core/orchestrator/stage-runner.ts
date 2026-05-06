@@ -384,25 +384,15 @@ export async function executeStageRun(
 
     // ── Completion with signal handling ──────────────────────────────
 
-    const [latestStageRun] = await db
-      .select({ status: stageRun.status })
-      .from(stageRun)
-      .where(eq(stageRun.id, sRun.id));
-    if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
-      return {
-        exitCode: result.exitCode,
-        durationMs: result.durationMs,
-        stageName: stage.name,
-        driverName: driverRow.name,
-        providerName: routing?.providerName ?? null,
-        modelIdentifier: routing?.modelIdentifier ?? null,
-        issueId: run.issueId,
-        stageId: stage.id,
-        skillSignal: 'abort',
-        skillSignalReason: 'cancelled',
-        skillMetadata: null,
-      };
-    }
+    const cancelledResult = await buildCancelledResult(db, sRun.id, result.exitCode, result.durationMs, {
+      stageName: stage.name,
+      driverName: driverRow.name,
+      providerName: routing?.providerName ?? null,
+      modelIdentifier: routing?.modelIdentifier ?? null,
+      issueId: run.issueId,
+      stageId: stage.id,
+    });
+    if (cancelledResult) return cancelledResult;
 
     // No signal emitted. Behavior depends on exit_code:
     //   - exit 0:    skill exited cleanly without emitting flux:signal.
@@ -490,25 +480,15 @@ export async function executeStageRun(
     };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
-    const [latestStageRun] = await db
-      .select({ status: stageRun.status })
-      .from(stageRun)
-      .where(eq(stageRun.id, sRun.id));
-    if (latestStageRun?.status === STAGE_RUN_STATUS.cancelled) {
-      return {
-        exitCode: 130,
-        durationMs: Date.now() - executionStartedAt,
-        stageName: stage.name,
-        driverName: driverRow.name,
-        providerName: routing?.providerName ?? null,
-        modelIdentifier: routing?.modelIdentifier ?? null,
-        issueId: run.issueId,
-        stageId: stage.id,
-        skillSignal: 'abort',
-        skillSignalReason: 'cancelled',
-        skillMetadata: null,
-      };
-    }
+    const cancelledResult = await buildCancelledResult(db, sRun.id, 130, Date.now() - executionStartedAt, {
+      stageName: stage.name,
+      driverName: driverRow.name,
+      providerName: routing?.providerName ?? null,
+      modelIdentifier: routing?.modelIdentifier ?? null,
+      issueId: run.issueId,
+      stageId: stage.id,
+    });
+    if (cancelledResult) return cancelledResult;
 
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
       driver: driverRow.name,
@@ -530,6 +510,50 @@ export async function executeStageRun(
 
 function logError(err: unknown): void {
   console.error('[stage-runner]', err);
+}
+
+/**
+ * FLX-182: Check whether the stage run was cancelled and, if so, build the
+ * standardised cancelled result. Returns the result when the run's current
+ * status is `cancelled`, or `null` when it is not.
+ *
+ * Called from both the success path and the catch block of executeStageRun so
+ * the DB select + result shape are not duplicated.
+ */
+async function buildCancelledResult(
+  db: Database,
+  stageRunId: string,
+  exitCode: number,
+  durationMs: number,
+  context: {
+    stageName: string;
+    driverName: string;
+    providerName: string | null;
+    modelIdentifier: string | null;
+    issueId: string | null;
+    stageId: string;
+  }
+): Promise<StageRunResult | null> {
+  const [latestStageRun] = await db
+    .select({ status: stageRun.status })
+    .from(stageRun)
+    .where(eq(stageRun.id, stageRunId));
+  if (latestStageRun?.status !== STAGE_RUN_STATUS.cancelled) {
+    return null;
+  }
+  return {
+    exitCode,
+    durationMs,
+    stageName: context.stageName,
+    driverName: context.driverName,
+    providerName: context.providerName,
+    modelIdentifier: context.modelIdentifier,
+    issueId: context.issueId,
+    stageId: context.stageId,
+    skillSignal: 'abort',
+    skillSignalReason: 'cancelled',
+    skillMetadata: null,
+  };
 }
 
 /**

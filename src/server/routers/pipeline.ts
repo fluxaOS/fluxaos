@@ -131,12 +131,6 @@ export const pipelineRouter = router({
       return createPipelineService(ctx.db).listByProject(input.projectId);
     }),
 
-  listByProject: publicProcedure
-    .input(z.object({ projectId: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createPipelineService(ctx.db).listByProject(input.projectId);
-    }),
-
   getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
     return createPipelineService(ctx.db).getById(input.id);
   }),
