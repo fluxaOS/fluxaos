@@ -6,8 +6,15 @@
  * Supabase-authenticated user mapped to the corresponding row in `user`,
  * with the org tier resolved from `organization.subscription_tier`. Under
  * the homelab LAN auth bypass (FLUXAOS_LAN_AUTH_BYPASS=1) the viewer
- * falls back to admin + enterprise for loopback-only requests, so journey
- * tests and homelab dev keep working without requiring Supabase Auth.
+ * falls back to admin + enterprise so journey tests and homelab dev keep
+ * working without requiring Supabase Auth.
+ *
+ * No IP-based check is applied to the bypass. Without a trusted reverse proxy
+ * stripping client-supplied headers, x-forwarded-for is spoofable and
+ * Next.js injects the LAN IP (e.g. 192.168.54.101) rather than 127.0.0.1 for
+ * browser/Playwright connections. The env flag is the sole gate; the operator
+ * contract is: do not set FLUXAOS_LAN_AUTH_BYPASS on any internet-reachable
+ * host. See middleware.ts for the same rationale applied to page-layer auth.
  *
  * Single-tenant assumption: this deployment model assumes exactly one tenant.
  * TRPCContext carries no orgId/projectId — every procedure is responsible for
@@ -46,24 +53,12 @@ export interface TRPCContext {
 const LAN_BYPASS_ROLE: Role = 'admin';
 const LAN_BYPASS_TIER: Tier = 'enterprise';
 
-const LOOPBACK_ADDRS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
-
-function isLoopback(req: Request): boolean {
-  // x-forwarded-for is set by the Next.js dev server and reverse proxies.
-  // Fall back to x-real-ip. If neither is present, the request originates
-  // from the same process (e.g., server-side tRPC calls) — treat as loopback.
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip');
-  if (!ip) return true;
-  return LOOPBACK_ADDRS.has(ip);
-}
-
-async function resolveViewer(db: Database, req: Request): Promise<Viewer> {
+async function resolveViewer(db: Database): Promise<Viewer> {
   // Homelab LAN auth bypass: middleware skips the /login redirect, so no
-  // session cookie exists. Scoped to loopback-only requests so the bypass
-  // cannot be triggered from a remote network address. Treats as admin +
-  // enterprise to keep journey tests and the single-user homelab flow working.
-  if (process.env.FLUXAOS_LAN_AUTH_BYPASS === '1' && isLoopback(req)) {
+  // session cookie exists. The env flag is the sole gate — see file header
+  // for why an IP-based check is not applied. Treats as admin + enterprise
+  // to keep journey tests and the single-user homelab flow working.
+  if (process.env.FLUXAOS_LAN_AUTH_BYPASS === '1') {
     return {
       authUserId: null,
       fluxaUserId: null,
@@ -120,11 +115,11 @@ async function resolveViewer(db: Database, req: Request): Promise<Viewer> {
   };
 }
 
-export async function createTRPCContext(req: Request): Promise<TRPCContext> {
+export async function createTRPCContext(): Promise<TRPCContext> {
   bootstrap();
   const dbProvider = registry.get<DatabaseProvider>('database');
   const db = dbProvider.getConnection();
-  const viewer = await resolveViewer(db, req);
+  const viewer = await resolveViewer(db);
   return { db, viewer };
 }
 
