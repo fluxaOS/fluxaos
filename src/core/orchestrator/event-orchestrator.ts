@@ -34,6 +34,23 @@ import { createPipelineRunService } from './pipeline-run-service';
 import { createStageExecutor } from './stage-executor';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 
+/**
+ * Shape of a pipeline_run row as delivered by Supabase Realtime.
+ * Realtime sends DB column names (snake_case), not Drizzle field names.
+ */
+interface PipelineRunRealtimeRow {
+  id: string;
+  pipeline_id: string;
+  issue_id: string | null;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  total_cost_usd: string | null;
+  artifacts_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EventOrchestratorConfig {
   maxConcurrentRuns: number;
 }
@@ -94,24 +111,24 @@ export function createEventOrchestrator(
     // Single-tenant assumption: processes all pipeline_run INSERTs globally.
     // In a multi-tenant deployment this subscription would need to be scoped
     // per tenant — one event storm from one tenant could starve others. (FLX-148)
-    unsubscribeInsert = realtime.subscribeToTable(
+    unsubscribeInsert = realtime.subscribeToTable<PipelineRunRealtimeRow>(
       'orchestrator-insert',
       'pipeline_run',
       'INSERT',
       (payload) => {
-        const row = payload.new as typeof pipelineRun.$inferSelect;
+        const row = payload.new;
         if (row.status === PIPELINE_RUN_STATUS.pending) {
           handleNewRun(row.id).catch(logError('handleNewRun'));
         }
       }
     );
 
-    unsubscribeUpdate = realtime.subscribeToTable(
+    unsubscribeUpdate = realtime.subscribeToTable<PipelineRunRealtimeRow>(
       'orchestrator-update',
       'pipeline_run',
       'UPDATE',
       (payload) => {
-        const row = payload.new as typeof pipelineRun.$inferSelect;
+        const row = payload.new;
         if (row.status === PIPELINE_RUN_STATUS.pending) {
           handleNewRun(row.id).catch(logError('handleNewRun'));
         }
