@@ -1,12 +1,79 @@
 import { TRPCError } from '@trpc/server';
 import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { pipelineRun, stageGateResult, stageRun } from '@/core/db/schema';
+import type { Database } from '@/core/db/connection';
+import {
+  pipeline,
+  pipelineRun,
+  project,
+  stageGateResult,
+  stageRun,
+} from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
 import { inputId, publicProcedure, router } from '../trpc';
 import { listIssueRunsWithStages } from './pipeline-run-history';
+
+/**
+ * Resolve the projectId that owns a given pipeline run. Returns null if the
+ * run does not exist.
+ */
+async function getProjectIdForRun(
+  db: Database,
+  pipelineRunId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ projectId: pipeline.projectId })
+    .from(pipelineRun)
+    .innerJoin(pipeline, eq(pipelineRun.pipelineId, pipeline.id))
+    .where(eq(pipelineRun.id, pipelineRunId));
+  return row?.projectId ?? null;
+}
+
+/**
+ * Resolve the projectId that owns a given stage run. Returns null if the
+ * stage run does not exist.
+ */
+async function getProjectIdForStageRun(
+  db: Database,
+  stageRunId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ projectId: pipeline.projectId })
+    .from(stageRun)
+    .innerJoin(pipelineRun, eq(stageRun.pipelineRunId, pipelineRun.id))
+    .innerJoin(pipeline, eq(pipelineRun.pipelineId, pipeline.id))
+    .where(eq(stageRun.id, stageRunId));
+  return row?.projectId ?? null;
+}
+
+/**
+ * Verify that a projectId is owned by the viewer. Returns the ownerId of the
+ * project, or throws NOT_FOUND if the project doesn't exist.
+ *
+ * When fluxaUserId is null (LAN auth bypass), the check is skipped.
+ */
+async function assertProjectOwnership(
+  db: Database,
+  projectId: string,
+  fluxaUserId: string | null
+): Promise<void> {
+  if (fluxaUserId === null) return; // LAN auth bypass
+  const [proj] = await db
+    .select({ userId: project.userId })
+    .from(project)
+    .where(eq(project.id, projectId));
+  if (!proj) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
+  }
+  if (proj.userId !== fluxaUserId) {
+    throw new TRPCError({
+      code: 'NOT_FOUND',
+      message: 'Not found',
+    });
+  }
+}
 
 export const pipelineRouter = router({
   /**
@@ -166,40 +233,52 @@ export const pipelineRouter = router({
       }),
 
     /** Get a pipeline run by ID with enriched stage runs (stage name, events). */
-    get: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
-      const { pipelineStage } = await import('@/core/db/schema');
-      const svc = createPipelineRunService(ctx.db);
-      const run = await svc.getRun(input.id);
-      if (!run) return null;
+    get: publicProcedure
+      .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { pipelineStage } = await import('@/core/db/schema');
+        const svc = createPipelineRunService(ctx.db);
+        const run = await svc.getRun(input.id);
+        if (!run) return null;
 
-      const rawStageRuns = await svc.getStageRuns(input.id);
+        // Ownership check: verify this run belongs to the declared project,
+        // and that project belongs to the viewer.
+        const owningProjectId = await getProjectIdForRun(ctx.db, input.id);
+        if (owningProjectId !== input.projectId) return null;
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
 
-      // Enrich each stage run with stage definition + events
-      const enrichedStageRuns = await Promise.all(
-        rawStageRuns.map(async (sr) => {
-          const [stageDef] = await ctx.db
-            .select()
-            .from(pipelineStage)
-            .where(eq(pipelineStage.id, sr.pipelineStageId));
+        const rawStageRuns = await svc.getStageRuns(input.id);
 
-          const events = await svc.listEvents(sr.id);
+        // Enrich each stage run with stage definition + events
+        const enrichedStageRuns = await Promise.all(
+          rawStageRuns.map(async (sr) => {
+            const [stageDef] = await ctx.db
+              .select()
+              .from(pipelineStage)
+              .where(eq(pipelineStage.id, sr.pipelineStageId));
 
-          return {
-            ...sr,
-            pipelineStage: stageDef
-              ? {
-                  name: stageDef.name,
-                  sortOrder: stageDef.sortOrder,
-                  gateMode: stageDef.gateMode,
-                }
-              : null,
-            events,
-          };
-        })
-      );
+            const events = await svc.listEvents(sr.id);
 
-      return { ...run, stageRuns: enrichedStageRuns };
-    }),
+            return {
+              ...sr,
+              pipelineStage: stageDef
+                ? {
+                    name: stageDef.name,
+                    sortOrder: stageDef.sortOrder,
+                    gateMode: stageDef.gateMode,
+                  }
+                : null,
+              events,
+            };
+          })
+        );
+
+        return { ...run, stageRuns: enrichedStageRuns };
+      }),
 
     /** List pipeline runs for a pipeline. */
     list: publicProcedure
@@ -216,7 +295,6 @@ export const pipelineRouter = router({
     listByProject: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-        const { pipeline } = await import('@/core/db/schema');
         const pipelines = await ctx.db
           .select({ id: pipeline.id, name: pipeline.name })
           .from(pipeline)
@@ -277,8 +355,28 @@ export const pipelineRouter = router({
 
     /** Cancel a specific stage run. */
     cancelStage: publicProcedure
-      .input(z.object({ stageRunId: z.string().uuid() }))
+      .input(
+        z.object({
+          stageRunId: z.string().uuid(),
+          projectId: z.string().uuid(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
+        // Ownership check: verify the stage run belongs to the declared
+        // project before performing any state mutation.
+        const owningProjectId = await getProjectIdForStageRun(
+          ctx.db,
+          input.stageRunId
+        );
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
+
         const svc = createPipelineRunService(ctx.db);
         const [row] = await ctx.db
           .select({
@@ -305,15 +403,48 @@ export const pipelineRouter = router({
 
     /** Get events for a stage run. */
     events: publicProcedure
-      .input(z.object({ stageRunId: z.string().uuid() }))
-      .query(({ ctx, input }) => {
+      .input(
+        z.object({
+          stageRunId: z.string().uuid(),
+          projectId: z.string().uuid(),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const owningProjectId = await getProjectIdForStageRun(
+          ctx.db,
+          input.stageRunId
+        );
+        if (owningProjectId !== input.projectId) return [];
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         return createPipelineRunService(ctx.db).listEvents(input.stageRunId);
       }),
 
     /** Approve a held stage — release it for execution. */
     approveStage: publicProcedure
-      .input(z.object({ stageRunId: z.string().uuid() }))
+      .input(
+        z.object({
+          stageRunId: z.string().uuid(),
+          projectId: z.string().uuid(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
+        const owningProjectId = await getProjectIdForStageRun(
+          ctx.db,
+          input.stageRunId
+        );
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
+
         const svc = createPipelineRunService(ctx.db);
         // Mark the pending stage as launching so the orchestrator picks it up
         await svc.updateStageRunStatus(input.stageRunId, 'launching');
@@ -329,10 +460,24 @@ export const pipelineRouter = router({
       .input(
         z.object({
           stageRunId: z.string().uuid(),
+          projectId: z.string().uuid(),
           verdict: z.enum(['rework', 'abort']),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const owningProjectId = await getProjectIdForStageRun(
+          ctx.db,
+          input.stageRunId
+        );
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
+
         const svc = createPipelineRunService(ctx.db);
         const status = input.verdict === 'abort' ? 'cancelled' : 'failed';
         await svc.completeStageRun(input.stageRunId, status, {});
@@ -399,8 +544,26 @@ export const pipelineRouter = router({
 
     /** Execute a specific stage run — mark it as launching for the orchestrator. */
     executeStage: publicProcedure
-      .input(z.object({ stageRunId: z.string().uuid() }))
+      .input(
+        z.object({
+          stageRunId: z.string().uuid(),
+          projectId: z.string().uuid(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
+        const owningProjectId = await getProjectIdForStageRun(
+          ctx.db,
+          input.stageRunId
+        );
+        if (owningProjectId !== input.projectId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+        }
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
+
         const svc = createPipelineRunService(ctx.db);
         await svc.updateStageRunStatus(input.stageRunId, 'launching');
         await svc.appendEvent(input.stageRunId, 'launched', {
@@ -411,8 +574,23 @@ export const pipelineRouter = router({
 
     /** Get gate results for a stage run. */
     gateResults: publicProcedure
-      .input(z.object({ stageRunId: z.string().uuid() }))
-      .query(({ ctx, input }) => {
+      .input(
+        z.object({
+          stageRunId: z.string().uuid(),
+          projectId: z.string().uuid(),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const owningProjectId = await getProjectIdForStageRun(
+          ctx.db,
+          input.stageRunId
+        );
+        if (owningProjectId !== input.projectId) return [];
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         return ctx.db
           .select()
           .from(stageGateResult)
@@ -424,7 +602,6 @@ export const pipelineRouter = router({
     kpis: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-        const { pipeline } = await import('@/core/db/schema');
         const pipelines = await ctx.db
           .select({ id: pipeline.id })
           .from(pipeline)

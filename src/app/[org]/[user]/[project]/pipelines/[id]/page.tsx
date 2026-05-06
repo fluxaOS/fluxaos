@@ -18,6 +18,16 @@ function useBasePath() {
     : '/';
 }
 
+function useProjectId() {
+  const orgsQuery = trpc.organization.list.useQuery();
+  const orgId = orgsQuery.data?.[0]?.id;
+  const projectsQuery = trpc.project.listByOrg.useQuery(
+    { orgId: orgId! },
+    { enabled: !!orgId }
+  );
+  return projectsQuery.data?.[0]?.id ?? null;
+}
+
 export default function RunDetailPage({
   params,
 }: {
@@ -25,11 +35,13 @@ export default function RunDetailPage({
 }) {
   const { id } = use(params);
   const basePath = useBasePath();
+  const projectId = useProjectId();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const runQuery = trpc.pipeline.runs.get.useQuery(
-    { id },
+    { id, projectId: projectId! },
     {
+      enabled: !!projectId,
       refetchInterval: (query) => {
         const status = query.state.data?.status;
         return status === 'running' || status === 'pending' ? 2000 : false;
@@ -51,7 +63,7 @@ export default function RunDetailPage({
 
   const run = runQuery.data;
 
-  if (runQuery.isLoading) {
+  if (!projectId || runQuery.isLoading) {
     return <div className="text-slate-500 py-8 text-center">Loading…</div>;
   }
 
@@ -118,6 +130,7 @@ export default function RunDetailPage({
 
       <RunDetailModal
         runId={selectedRunId}
+        projectId={projectId}
         onClose={() => {
           setSelectedRunId(null);
           runQuery.refetch();
@@ -133,12 +146,22 @@ export default function RunDetailPage({
               key={sr.id}
               stageRun={sr}
               isLast={idx === stageRuns.length - 1}
-              onApprove={() => approveStage.mutate({ stageRunId: sr.id })}
+              onApprove={() =>
+                approveStage.mutate({ stageRunId: sr.id, projectId })
+              }
               onRework={() =>
-                rejectStage.mutate({ stageRunId: sr.id, verdict: 'rework' })
+                rejectStage.mutate({
+                  stageRunId: sr.id,
+                  projectId,
+                  verdict: 'rework',
+                })
               }
               onAbort={() =>
-                rejectStage.mutate({ stageRunId: sr.id, verdict: 'abort' })
+                rejectStage.mutate({
+                  stageRunId: sr.id,
+                  projectId,
+                  verdict: 'abort',
+                })
               }
               isActing={approveStage.isPending || rejectStage.isPending}
             />
