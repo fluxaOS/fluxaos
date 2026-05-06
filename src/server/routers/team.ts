@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createTeamService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 export const teamRouter = router({
   /**
@@ -24,7 +25,7 @@ export const teamRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => createTeamService(ctx.db).getById(input.id)),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         projectId: z.string().uuid(),
@@ -34,7 +35,7 @@ export const teamRouter = router({
     )
     .mutation(({ ctx, input }) => createTeamService(ctx.db).create(input)),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -58,7 +59,7 @@ export const teamRouter = router({
       return row;
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.transaction(async (tx) => {

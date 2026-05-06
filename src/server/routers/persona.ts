@@ -2,8 +2,9 @@ import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { personaSkill, skill } from '@/core/db/schema';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createPersonaService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 export const personaRouter = router({
   /**
@@ -36,7 +37,7 @@ export const personaRouter = router({
       return createPersonaService(ctx.db).getById(input.id);
     }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         scope: z.enum(['global', 'project']),
@@ -53,7 +54,7 @@ export const personaRouter = router({
       return createPersonaService(ctx.db).create(input);
     }),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -80,7 +81,7 @@ export const personaRouter = router({
       return row;
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.transaction(async (tx) => {
@@ -125,7 +126,7 @@ export const personaRouter = router({
     }),
 
   /** Attach a skill to a persona. */
-  attachSkill: publicProcedure
+  attachSkill: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         personaId: z.string().uuid(),
@@ -146,7 +147,7 @@ export const personaRouter = router({
     }),
 
   /** Detach a skill from a persona. */
-  detachSkill: publicProcedure
+  detachSkill: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         personaId: z.string().uuid(),

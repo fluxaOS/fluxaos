@@ -61,6 +61,12 @@ SIZE_EXEMPT_FILES=(
   # makeRoom) share fixtures and invariants. Splitting fragments the
   # release-flow contract between triggers.
   "src/core/cleanup/cleanup-service.ts"
+  # Pipeline router: owns pipeline CRUD, stage CRUD, and all run-lifecycle
+  # mutations (trigger, cancel, approve, reject, execute) in one cohesive
+  # surface. Splitting separates tightly coupled run-lifecycle helpers
+  # (getProjectIdForRun, assertProjectOwnership) from the procedures that
+  # depend on them. Pre-existing oversize; DEF-008 candidate for future split.
+  "src/server/routers/pipeline.ts"
 )
 
 is_size_exempt() {

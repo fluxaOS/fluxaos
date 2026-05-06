@@ -8,7 +8,8 @@
  */
 import { z } from 'zod/v4';
 import { createIssueCatalogService } from '@/core/services';
-import { inputId, publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 // ─── Reusable input schemas ──────────────────────────────────────────────────
 
@@ -74,18 +75,18 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).types.listAll(input.projectId)
       ),
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(typeInput)
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).types.create(input)
       ),
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(typeInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).types.update(id, data);
       }),
-    deactivate: publicProcedure
+    deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).types.deactivate(input.id)
@@ -104,18 +105,18 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).states.listAll(input.projectId)
       ),
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(stateInput)
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).states.create(input)
       ),
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(stateInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).states.update(id, data);
       }),
-    deactivate: publicProcedure
+    deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).states.deactivate(input.id)
@@ -134,18 +135,18 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).statuses.listAll(input.projectId)
       ),
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(statusInput)
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).statuses.create(input)
       ),
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(statusInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).statuses.update(id, data);
       }),
-    deactivate: publicProcedure
+    deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).statuses.deactivate(input.id)
@@ -164,18 +165,18 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).priorities.listAll(input.projectId)
       ),
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(priorityInput)
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).priorities.create(input)
       ),
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(priorityInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).priorities.update(id, data);
       }),
-    deactivate: publicProcedure
+    deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).priorities.deactivate(input.id)
@@ -194,18 +195,18 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).labels.listAll(input.projectId)
       ),
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(labelInput)
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).labels.create(input)
       ),
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(labelInput.partial()))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
         return createIssueCatalogService(ctx.db).labels.update(id, data);
       }),
-    deactivate: publicProcedure
+    deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).labels.deactivate(input.id)
@@ -219,7 +220,7 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).transitions.list(input.projectId)
       ),
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           projectId: z.string().uuid(),
@@ -232,7 +233,7 @@ export const issueCatalogRouter = router({
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).transitions.create(input)
       ),
-    delete: publicProcedure
+    delete: protectedMutation(DELETE_ROLES)
       .input(inputId())
       .mutation(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).transitions.delete(input.id)

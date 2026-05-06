@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { createBrandService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 const jsonObject = z.record(z.string(), z.unknown());
 
@@ -25,7 +26,7 @@ export const brandRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => createBrandService(ctx.db).getById(input.id)),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         orgId: z.string().uuid(),
@@ -40,7 +41,7 @@ export const brandRouter = router({
     )
     .mutation(({ ctx, input }) => createBrandService(ctx.db).create(input)),
 
-  update: publicProcedure
+  update: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -69,7 +70,7 @@ export const brandRouter = router({
       return row;
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.transaction(async (tx) => {
