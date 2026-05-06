@@ -340,17 +340,6 @@ export async function executeStageRun(
 
     // Spawn subprocess
     let lineNumber = 0;
-    // lastSignal: signal-based routing removed (FLX-112). Variable kept for
-    // downstream completion logic; always null in the result-doc model.
-    const lastSignal = null as {
-      verdict: string;
-      summary?: string;
-      reason?: string;
-      costUsd?: number;
-      tokensIn?: number;
-      tokensOut?: number;
-      meta?: Record<string, unknown>;
-    } | null;
     const lineParser = stdoutParser.getParser(driverRow.outputFormat as string);
 
     const result = await executor.execute({
@@ -424,8 +413,7 @@ export async function executeStageRun(
     //                FLX-81 (2026-04-27): originally hard-failed; now
     //                soft-pass on clean exit.
     //   - exit !=0:  skill crashed / aborted — failure stands.
-    if (!lastSignal) {
-      const cleanExit = result.exitCode === 0;
+    const cleanExit = result.exitCode === 0;
       const status = cleanExit
         ? STAGE_RUN_STATUS.completed
         : STAGE_RUN_STATUS.failed;
@@ -499,94 +487,6 @@ export async function executeStageRun(
         skillSignalReason: cleanExit ? 'no_signal_clean_exit' : null,
         skillMetadata: null,
       };
-    }
-
-    // Signal was emitted — use it
-    const finalStatus =
-      result.exitCode === 0
-        ? STAGE_RUN_STATUS.completed
-        : STAGE_RUN_STATUS.failed;
-
-    // Build skill metadata from signal
-    const skillMetadata: Record<string, unknown> = {};
-    if (lastSignal.summary) skillMetadata.summary = lastSignal.summary;
-    if (lastSignal.meta) Object.assign(skillMetadata, lastSignal.meta);
-
-    // FLX-92: auto-commit any worktree changes the worker left
-    // uncommitted, but only when verdict is `proceed` and exit was
-    // clean. `hold` / `rework` / `abort` deliberately leave the tree
-    // dirty so a human (or a follow-up stage) can inspect or retry.
-    if (lastSignal.verdict === 'proceed' && result.exitCode === 0) {
-      await autoCommitProceedingStage({
-        workingPath: env.workingPath,
-        stageName: stage.name,
-        stageRunId: sRun.id,
-        runService,
-        gitOps: ctx.gitOps,
-      });
-    }
-
-    await runService.completeStageRun(sRun.id, finalStatus, {
-      provider: routing?.providerName,
-      model: routing?.modelIdentifier,
-      driver: driverRow.name,
-      costUsd: lastSignal.costUsd?.toFixed(6),
-      tokensIn: lastSignal.tokensIn,
-      tokensOut: lastSignal.tokensOut,
-      skillSignal: lastSignal.verdict,
-      skillMetadata:
-        Object.keys(skillMetadata).length > 0 ? skillMetadata : undefined,
-      trigger: ctx.trigger,
-      errorMessage:
-        result.exitCode !== 0 ? `exit code ${result.exitCode}` : undefined,
-    });
-
-    // Completion event
-    const eventType =
-      result.exitCode === 0 ? EVENT_TYPE.completed : EVENT_TYPE.error;
-    await runService.appendEvent(sRun.id, eventType, {
-      exitCode: result.exitCode,
-      duration: result.durationMs,
-      skillSignal: lastSignal.verdict,
-      summary: lastSignal.summary,
-    });
-
-    // Issue events
-    if (run.issueId) {
-      const issueEventType =
-        result.exitCode === 0
-          ? ISSUE_EVENT_TYPE.stage_completed
-          : ISSUE_EVENT_TYPE.stage_failed;
-      await runService.appendIssueEvent(
-        run.issueId,
-        issueEventType,
-        {
-          stageRunId: sRun.id,
-          stageName: stage.name,
-          exitCode: result.exitCode,
-          skillSignal: lastSignal.verdict,
-          summary: lastSignal.summary,
-        },
-        'stage-runner'
-      );
-    }
-
-    // Env is pipeline-scoped — T16's pipeline-terminal hook owns release.
-
-    return {
-      exitCode: result.exitCode,
-      durationMs: result.durationMs,
-      stageName: stage.name,
-      driverName: driverRow.name,
-      providerName: routing?.providerName ?? null,
-      modelIdentifier: routing?.modelIdentifier ?? null,
-      issueId: run.issueId,
-      stageId: stage.id,
-      skillSignal: lastSignal.verdict,
-      skillSignalReason: lastSignal.reason ?? null,
-      skillMetadata:
-        Object.keys(skillMetadata).length > 0 ? skillMetadata : null,
-    };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
     const [latestStageRun] = await db
