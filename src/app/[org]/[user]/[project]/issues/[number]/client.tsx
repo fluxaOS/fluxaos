@@ -100,7 +100,7 @@ export function IssueDetailClient({
 
   // Pipeline run state for this issue (if a run exists)
   const pipelineStateQuery = trpc.pipeline.runs.issueState.useQuery(
-    { issueId: issue?.id ?? '' },
+    { issueId: issue?.id ?? '', projectId },
     { enabled: !!issue?.id }
   );
   const pipelineState = pipelineStateQuery.data;

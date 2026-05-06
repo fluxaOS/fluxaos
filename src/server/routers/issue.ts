@@ -9,7 +9,7 @@ import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import type { Database } from '@/core/db/connection';
-import { project } from '@/core/db/schema';
+import { issue, issueComment, project } from '@/core/db/schema';
 import {
   createIssueCommentService,
   createIssueEventService,
@@ -17,6 +17,37 @@ import {
 } from '@/core/services';
 import type { Viewer } from '../trpc';
 import { inputId, publicProcedure, router } from '../trpc';
+
+/**
+ * Resolve the projectId for a given issue. Returns null if the issue does not
+ * exist.
+ */
+async function getProjectIdForIssue(
+  db: Database,
+  issueId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ projectId: issue.projectId })
+    .from(issue)
+    .where(eq(issue.id, issueId));
+  return row?.projectId ?? null;
+}
+
+/**
+ * Resolve the projectId for a given comment (via its parent issue). Returns
+ * null if the comment does not exist.
+ */
+async function getProjectIdForComment(
+  db: Database,
+  commentId: string
+): Promise<string | null> {
+  const [commentRow] = await db
+    .select({ issueId: issueComment.issueId })
+    .from(issueComment)
+    .where(eq(issueComment.id, commentId));
+  if (!commentRow) return null;
+  return getProjectIdForIssue(db, commentRow.issueId);
+}
 
 /**
  * Assert that the viewer is allowed to access resources in the given project.
@@ -113,15 +144,23 @@ export const issueRouter = router({
 
   getChildren: publicProcedure
     .input(z.object({ parentId: z.string().uuid() }))
-    .query(({ ctx, input }) =>
-      createIssueService(ctx.db).getChildren(input.parentId)
-    ),
+    .query(async ({ ctx, input }) => {
+      const projectId = await getProjectIdForIssue(ctx.db, input.parentId);
+      if (projectId) {
+        await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+      }
+      return createIssueService(ctx.db).getChildren(input.parentId);
+    }),
 
   hasOpenChildren: publicProcedure
     .input(inputId())
-    .query(({ ctx, input }) =>
-      createIssueService(ctx.db).hasOpenChildren(input.id)
-    ),
+    .query(async ({ ctx, input }) => {
+      const projectId = await getProjectIdForIssue(ctx.db, input.id);
+      if (projectId) {
+        await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+      }
+      return createIssueService(ctx.db).hasOpenChildren(input.id);
+    }),
 
   openChildCountsByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
@@ -193,18 +232,26 @@ export const issueRouter = router({
 
   transitions: publicProcedure
     .input(inputId())
-    .query(({ ctx, input }) =>
-      createIssueService(ctx.db).getValidTransitions(input.id)
-    ),
+    .query(async ({ ctx, input }) => {
+      const projectId = await getProjectIdForIssue(ctx.db, input.id);
+      if (projectId) {
+        await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+      }
+      return createIssueService(ctx.db).getValidTransitions(input.id);
+    }),
 
   // ─── Comment sub-router ─────────────────────────────────────────────────────
 
   comment: router({
     list: publicProcedure
       .input(z.object({ issueId: z.string().uuid() }))
-      .query(({ ctx, input }) =>
-        createIssueCommentService(ctx.db).list(input.issueId)
-      ),
+      .query(async ({ ctx, input }) => {
+        const projectId = await getProjectIdForIssue(ctx.db, input.issueId);
+        if (projectId) {
+          await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+        }
+        return createIssueCommentService(ctx.db).list(input.issueId);
+      }),
 
     create: publicProcedure
       .input(
@@ -214,12 +261,16 @@ export const issueRouter = router({
           author: z.string().min(1),
         })
       )
-      .mutation(({ ctx, input }) =>
-        createIssueCommentService(ctx.db).create(input.issueId, {
+      .mutation(async ({ ctx, input }) => {
+        const projectId = await getProjectIdForIssue(ctx.db, input.issueId);
+        if (projectId) {
+          await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+        }
+        return createIssueCommentService(ctx.db).create(input.issueId, {
           bodyMd: input.bodyMd,
           author: input.author,
-        })
-      ),
+        });
+      }),
 
     update: publicProcedure
       .input(
@@ -230,13 +281,17 @@ export const issueRouter = router({
           version: z.number().int(),
         })
       )
-      .mutation(({ ctx, input }) =>
-        createIssueCommentService(ctx.db).update(input.commentId, {
+      .mutation(async ({ ctx, input }) => {
+        const projectId = await getProjectIdForComment(ctx.db, input.commentId);
+        if (projectId) {
+          await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+        }
+        return createIssueCommentService(ctx.db).update(input.commentId, {
           bodyMd: input.bodyMd,
           editedBy: input.editedBy,
           version: input.version,
-        })
-      ),
+        });
+      }),
 
     delete: publicProcedure
       .input(
@@ -246,12 +301,16 @@ export const issueRouter = router({
           version: z.number().int(),
         })
       )
-      .mutation(({ ctx, input }) =>
-        createIssueCommentService(ctx.db).softDelete(input.commentId, {
+      .mutation(async ({ ctx, input }) => {
+        const projectId = await getProjectIdForComment(ctx.db, input.commentId);
+        if (projectId) {
+          await assertProjectViewership(ctx.db, projectId, ctx.viewer);
+        }
+        return createIssueCommentService(ctx.db).softDelete(input.commentId, {
           deletedBy: input.deletedBy,
           version: input.version,
-        })
-      ),
+        });
+      }),
   }),
 
   // ─── Event sub-router ───────────────────────────────────────────────────────
