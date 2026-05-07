@@ -188,9 +188,9 @@ interface StageRunData {
   pipelineStage: {
     name: string;
     sortOrder: number;
-    gateMode: string | null;
+    gateMode?: string | null;
   } | null;
-  events: Array<{
+  events?: Array<{
     id: string;
     type: string;
     payload?: unknown;
@@ -221,7 +221,7 @@ function StageRunCard({
   const isGatePending = stageRun.status === 'pending';
 
   // Extract gate verdict from events (gate_checked event has verdict in payload)
-  const gateEvent = stageRun.events.find((evt) => evt.type === 'gate_checked');
+  const gateEvent = stageRun.events?.find((evt) => evt.type === 'gate_checked');
   const gateVerdict =
     gateEvent &&
     typeof gateEvent.payload === 'object' &&
@@ -330,10 +330,10 @@ function StageRunCard({
           )}
 
           {/* Events / Transcript */}
-          {stageRun.events.length > 0 && (
+          {(stageRun.events?.length ?? 0) > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-700/20">
               <div className="max-h-48 overflow-y-auto space-y-1 font-mono text-xs">
-                {stageRun.events.map((evt) => (
+                {stageRun.events?.map((evt) => (
                   <div key={evt.id} className="flex gap-2">
                     <span className="text-slate-600 whitespace-nowrap">
                       {new Date(evt.timestamp).toLocaleTimeString()}
