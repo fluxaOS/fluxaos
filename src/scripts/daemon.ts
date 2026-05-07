@@ -46,6 +46,10 @@ import {
   createEventOrchestrator,
   type EventOrchestrator,
 } from '@/core/orchestrator/event-orchestrator';
+import {
+  createIssueWatcher,
+  type IssueWatcher,
+} from '@/core/orchestrator/issue-watcher';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { createPipelineTerminalHook } from '@/core/orchestrator/pipeline-terminal-hook';
 import type { DatabaseProvider } from '@/core/ports';
@@ -102,6 +106,7 @@ export function parseEnv(): DaemonEnv {
 
 export interface Daemon {
   orchestrator: EventOrchestrator;
+  issueWatcher: IssueWatcher;
   cleanupScheduler: CleanupScheduler;
   env: DaemonEnv;
   /** Graceful shutdown. Safe to call multiple times. */
@@ -236,11 +241,16 @@ export async function createDaemon(): Promise<Daemon> {
     artifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,
   });
 
+  const issueWatcher = createIssueWatcher(db, realtime, consoleLogger);
+
   await orchestrator.recoverOnStartup();
   consoleLogger.info({ event: 'daemon.recovery_complete' });
 
   orchestrator.start();
   consoleLogger.info({ event: 'daemon.orchestrator_started' });
+
+  issueWatcher.start();
+  consoleLogger.info({ event: 'daemon.issue_watcher_started' });
 
   cleanupScheduler.start();
   consoleLogger.info({
@@ -282,6 +292,8 @@ export async function createDaemon(): Promise<Daemon> {
     if (shuttingDown) return;
     shuttingDown = true;
     consoleLogger.info({ event: 'daemon.shutdown_initiated', reason });
+    issueWatcher.stop();
+    consoleLogger.info({ event: 'daemon.issue_watcher_stopped' });
     orchestrator.stop();
     consoleLogger.info({ event: 'daemon.orchestrator_stopped' });
     cleanupScheduler.stop();
@@ -299,7 +311,7 @@ export async function createDaemon(): Promise<Daemon> {
     });
   }
 
-  return { orchestrator, cleanupScheduler, env, shutdown };
+  return { orchestrator, issueWatcher, cleanupScheduler, env, shutdown };
 }
 
 async function main(): Promise<void> {

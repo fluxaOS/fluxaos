@@ -128,6 +128,17 @@ async function seed() {
   }
   console.log(`  pipeline: ${pipe.name} (${pipe.id})`);
 
+  // Wire project.defaultPipelineId → Standard Dev pipeline so IssueWatcher
+  // can auto-dispatch when a new issue is filed.
+  if (!proj.defaultPipelineId || proj.defaultPipelineId !== pipe.id) {
+    [proj] = await db
+      .update(project)
+      .set({ defaultPipelineId: pipe.id })
+      .where(eq(project.id, proj.id))
+      .returning();
+    console.log(`  project.defaultPipelineId → ${pipe.id}`);
+  }
+
   // ── 5. Pipeline stages (no unique constraint — converge by name) ────────
   // Real dogfooding uses the full workflow: research -> implement -> review,
   // with review able to route to rework, then deploy after approval.
