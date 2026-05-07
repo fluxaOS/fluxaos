@@ -5,6 +5,7 @@ import {
   EVENT_TYPE,
   GATE_VERDICT,
   PIPELINE_RUN_STATUS,
+  PIPELINE_SENTINEL,
   STAGE_RUN_STATUS,
   STAGE_RUN_TERMINAL,
 } from '@/core/constants';
@@ -12,6 +13,7 @@ import type { Database } from '@/core/db/connection';
 import {
   pipeline,
   pipelineRun,
+  pipelineStage,
   project,
   stageGateResult,
   stageRun,
@@ -85,6 +87,60 @@ async function assertRunOwnership(
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
   }
   await assertProjectOwnership(db, projectId, viewerId);
+}
+
+/**
+ * Validate that each non-null routing field (onPass, onFail, fallback) is
+ * either a pipeline sentinel or the exact name of a sibling stage.
+ *
+ * @param db           Database connection
+ * @param pipelineId   The pipeline the stage belongs to
+ * @param routing      The routing fields to validate
+ * @param excludeId    For updates: the stage's own ID — self-routes are invalid
+ */
+async function assertRoutingFieldsValid(
+  db: Database,
+  pipelineId: string,
+  routing: {
+    onPass?: string | null;
+    onFail?: string | null;
+    fallback?: string | null;
+  },
+  excludeId?: string
+): Promise<void> {
+  const { onPass, onFail, fallback } = routing;
+  const hasAny =
+    (onPass != null && onPass !== '') ||
+    (onFail != null && onFail !== '') ||
+    (fallback != null && fallback !== '');
+  if (!hasAny) return;
+
+  const siblingRows = await db
+    .select({ id: pipelineStage.id, name: pipelineStage.name })
+    .from(pipelineStage)
+    .where(eq(pipelineStage.pipelineId, pipelineId));
+
+  const validNames = new Set<string>([
+    PIPELINE_SENTINEL.complete,
+    PIPELINE_SENTINEL.blocked,
+    ...siblingRows.filter((r) => r.id !== excludeId).map((r) => r.name),
+  ]);
+
+  const fields: Array<[string, string | null | undefined]> = [
+    ['onPass', onPass],
+    ['onFail', onFail],
+    ['fallback', fallback],
+  ];
+
+  for (const [fieldName, value] of fields) {
+    if (value == null || value === '') continue;
+    if (!validNames.has(value)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `${fieldName} must be a stage name in this pipeline, '${PIPELINE_SENTINEL.complete}', or '${PIPELINE_SENTINEL.blocked}'`,
+      });
+    }
+  }
 }
 
 /**
@@ -181,7 +237,12 @@ export const pipelineRouter = router({
           fallback: z.string().nullable().optional(),
         })
       )
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await assertRoutingFieldsValid(ctx.db, input.pipelineId, {
+          onPass: input.onPass,
+          onFail: input.onFail,
+          fallback: input.fallback,
+        });
         return createPipelineService(ctx.db).stages.create(input);
       }),
 
@@ -203,8 +264,26 @@ export const pipelineRouter = router({
           fallback: z.string().nullable().optional(),
         })
       )
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
+        // Resolve the pipelineId for the stage being updated so we can
+        // validate routing fields against sibling stage names.
+        const [stageRow] = await ctx.db
+          .select({ pipelineId: pipelineStage.pipelineId })
+          .from(pipelineStage)
+          .where(eq(pipelineStage.id, id));
+        if (!stageRow) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Stage not found',
+          });
+        }
+        await assertRoutingFieldsValid(
+          ctx.db,
+          stageRow.pipelineId,
+          { onPass: data.onPass, onFail: data.onFail, fallback: data.fallback },
+          id // exclude self so a stage can't route to itself
+        );
         return createPipelineService(ctx.db).stages.update(id, data);
       }),
 

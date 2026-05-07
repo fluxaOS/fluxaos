@@ -3,8 +3,44 @@
 import { useState } from 'react';
 import { RuleBuilder } from '@/components/gates/RuleBuilder';
 import { RuleTestPanel } from '@/components/gates/RuleTestPanel';
+import { PIPELINE_SENTINEL } from '@/core/constants';
 import type { GateMode, RuleGroup } from '@/core/gates/types';
 import { trpc } from '@/lib/trpc/client';
+
+/** Options for onPass/onFail/fallback selects: sentinels + sibling stage names */
+function RoutingSelect({
+  ariaLabel,
+  value,
+  onChange,
+  stageOptions,
+}: {
+  ariaLabel: string;
+  value: string;
+  onChange: (v: string) => void;
+  stageOptions: string[];
+}) {
+  return (
+    <select
+      aria-label={ariaLabel}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-36 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+    >
+      <option value="">— none —</option>
+      <option value={PIPELINE_SENTINEL.complete}>
+        {PIPELINE_SENTINEL.complete}
+      </option>
+      <option value={PIPELINE_SENTINEL.blocked}>
+        {PIPELINE_SENTINEL.blocked}
+      </option>
+      {stageOptions.map((name) => (
+        <option key={name} value={name}>
+          {name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export function StageEditor({ pipelineId }: { pipelineId: string }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -21,9 +57,13 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
   const personas = personaQuery.data ?? [];
   const drivers = driverQuery.data ?? [];
 
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
   const createStage = trpc.pipeline.stages.create.useMutation({
     onSuccess: () => {
       setShowAdd(false);
+      setCreateError(null);
       setNewName('');
       setNewGateMode('auto');
       setNewGateRules(null);
@@ -34,12 +74,19 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
       setNewFallback('');
       stagesQuery.refetch();
     },
+    onError: (err) => {
+      setCreateError(err.message);
+    },
   });
 
   const updateStage = trpc.pipeline.stages.update.useMutation({
     onSuccess: () => {
       setEditingStageId(null);
+      setUpdateError(null);
       stagesQuery.refetch();
+    },
+    onError: (err) => {
+      setUpdateError(err.message);
     },
   });
 
@@ -198,13 +245,13 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                   </td>
                   <td className="pr-3 py-1">
                     {isEditing ? (
-                      <input
-                        aria-label="On pass"
-                        type="text"
+                      <RoutingSelect
+                        ariaLabel="On pass"
                         value={editOnPass}
-                        onChange={(e) => setEditOnPass(e.target.value)}
-                        placeholder="e.g. implement"
-                        className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+                        onChange={setEditOnPass}
+                        stageOptions={stages
+                          .filter((other) => other.id !== s.id)
+                          .map((other) => other.name)}
                       />
                     ) : (
                       (s.onPass ?? '-')
@@ -212,13 +259,13 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                   </td>
                   <td className="pr-3 py-1">
                     {isEditing ? (
-                      <input
-                        aria-label="On fail"
-                        type="text"
+                      <RoutingSelect
+                        ariaLabel="On fail"
                         value={editOnFail}
-                        onChange={(e) => setEditOnFail(e.target.value)}
-                        placeholder="e.g. triage"
-                        className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+                        onChange={setEditOnFail}
+                        stageOptions={stages
+                          .filter((other) => other.id !== s.id)
+                          .map((other) => other.name)}
                       />
                     ) : (
                       (s.onFail ?? '-')
@@ -226,13 +273,13 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                   </td>
                   <td className="pr-3 py-1">
                     {isEditing ? (
-                      <input
-                        aria-label="Fallback"
-                        type="text"
+                      <RoutingSelect
+                        ariaLabel="Fallback"
                         value={editFallback}
-                        onChange={(e) => setEditFallback(e.target.value)}
-                        placeholder="e.g. __complete__"
-                        className="w-28 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-xs text-foreground"
+                        onChange={setEditFallback}
+                        stageOptions={stages
+                          .filter((other) => other.id !== s.id)
+                          .map((other) => other.name)}
                       />
                     ) : (
                       (s.fallback ?? '-')
@@ -272,36 +319,44 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                   </td>
                   <td className="pr-3 py-1">
                     {isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateStage.mutate({
-                              id: s.id,
-                              name: editName.trim(),
-                              sortOrder: editSortOrder,
-                              gateMode: editGateMode,
-                              personaId: editPersonaId || undefined,
-                              driverId: editDriverId || null,
-                              timeoutSec: editTimeoutSec,
-                              maxRetries: editMaxRetries,
-                              onPass: editOnPass || null,
-                              onFail: editOnFail || null,
-                              fallback: editFallback || null,
-                            })
-                          }
-                          disabled={!editName.trim() || updateStage.isPending}
-                          className="text-xs text-soft-violet hover:text-soft-violet-hover disabled:opacity-50"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingStageId(null)}
-                          className="text-xs text-muted hover:text-foreground"
-                        >
-                          Cancel
-                        </button>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateStage.mutate({
+                                id: s.id,
+                                name: editName.trim(),
+                                sortOrder: editSortOrder,
+                                gateMode: editGateMode,
+                                personaId: editPersonaId || undefined,
+                                driverId: editDriverId || null,
+                                timeoutSec: editTimeoutSec,
+                                maxRetries: editMaxRetries,
+                                onPass: editOnPass || null,
+                                onFail: editOnFail || null,
+                                fallback: editFallback || null,
+                              })
+                            }
+                            disabled={!editName.trim() || updateStage.isPending}
+                            className="text-xs text-soft-violet hover:text-soft-violet-hover disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStageId(null);
+                              setUpdateError(null);
+                            }}
+                            className="text-xs text-muted hover:text-foreground"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {updateError && (
+                          <p className="text-xs text-red-400">{updateError}</p>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -399,26 +454,23 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                 </option>
               ))}
             </select>
-            <input
-              type="text"
+            <RoutingSelect
+              ariaLabel="On Pass"
               value={newOnPass}
-              onChange={(e) => setNewOnPass(e.target.value)}
-              placeholder="On Pass (e.g. implement)"
-              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+              onChange={setNewOnPass}
+              stageOptions={stages.map((s) => s.name)}
             />
-            <input
-              type="text"
+            <RoutingSelect
+              ariaLabel="On Fail"
               value={newOnFail}
-              onChange={(e) => setNewOnFail(e.target.value)}
-              placeholder="On Fail (e.g. triage)"
-              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+              onChange={setNewOnFail}
+              stageOptions={stages.map((s) => s.name)}
             />
-            <input
-              type="text"
+            <RoutingSelect
+              ariaLabel="Fallback"
               value={newFallback}
-              onChange={(e) => setNewFallback(e.target.value)}
-              placeholder="Fallback (e.g. __complete__)"
-              className="bg-slate-900 border border-slate-700/60 rounded-lg px-2 py-1 text-xs text-foreground"
+              onChange={setNewFallback}
+              stageOptions={stages.map((s) => s.name)}
             />
             <button
               type="submit"
@@ -429,12 +481,18 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
             </button>
             <button
               type="button"
-              onClick={() => setShowAdd(false)}
+              onClick={() => {
+                setShowAdd(false);
+                setCreateError(null);
+              }}
               className="px-2 py-1 text-muted text-xs"
             >
               Cancel
             </button>
           </form>
+          {createError && (
+            <p className="text-xs text-red-400 mt-1">{createError}</p>
+          )}
           {newGateMode === 'rules' && (
             <div className="space-y-3 mt-3">
               <RuleBuilder rules={newGateRules} onChange={setNewGateRules} />
