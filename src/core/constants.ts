@@ -51,6 +51,16 @@ export const STAGE_RUN_TERMINAL: ReadonlySet<string> = new Set([
   STAGE_RUN_STATUS.cancelled,
 ]);
 
+// ── Deploy Run Statuses (FLX-197) ──────────────────────────
+export const DEPLOY_RUN_STATUS = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+  skipped: 'skipped',
+} as const;
+
+export type DeployRunStatus =
+  (typeof DEPLOY_RUN_STATUS)[keyof typeof DEPLOY_RUN_STATUS];
+
 // ── Event Types (written to `event` table) ─────────────────
 export const EVENT_TYPE = {
   launched: 'launched',
@@ -73,6 +83,9 @@ export const ISSUE_EVENT_TYPE = {
   stage_failed: 'stage_failed',
   pipeline_completed: 'pipeline_completed',
   pipeline_failed: 'pipeline_failed',
+  deploy_succeeded: 'deploy_succeeded',
+  deploy_failed: 'deploy_failed',
+  deploy_skipped: 'deploy_skipped',
   gate_hold: 'gate_hold',
   state_changed: 'state_changed',
   status_changed: 'status_changed',

@@ -22,6 +22,8 @@ import {
 import type { Database } from '@/core/db/connection';
 import { type pipelineRun, pipelineStage, stageRun } from '@/core/db/schema';
 import type { Unsubscribe } from '@/core/ports/auth';
+import type { GitOpsPort } from '@/core/ports/git';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createPipelineRunService } from './pipeline-run-service';
@@ -61,10 +63,16 @@ export interface EventOrchestrator {
   readonly running: boolean;
 }
 
+export interface EventOrchestratorDeps {
+  isolation: IsolationProvider;
+  gitOps: GitOpsPort;
+}
+
 export function createEventOrchestrator(
   db: Database,
   realtime: RealtimeProvider,
   terminalHook: PipelineTerminalHook,
+  deps: EventOrchestratorDeps,
   config: Partial<EventOrchestratorConfig> = {},
   fluxaosConfig?: FluxaosConfig,
   stageGraphRunner?: StageGraphRunner
@@ -76,6 +84,8 @@ export function createEventOrchestrator(
     runService,
     fluxaosConfig,
     stageGraphRunner,
+    isolation: deps.isolation,
+    gitOps: deps.gitOps,
     finishRun,
   });
 

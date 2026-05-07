@@ -295,7 +295,7 @@ afterAll(async () => {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
   await provider.close();
-});
+}, 30000);
 
 describe('DeployBridge', () => {
   let fixture: Fixture;
@@ -317,6 +317,7 @@ describe('DeployBridge', () => {
         repo: 'deploy-test-fixture',
       },
       branchName: `fluxaos/deploy-${RUN}-happy`,
+      baseBranch: 'main',
     });
 
     // Dirty the worktree so commitAll has something to commit.
@@ -395,6 +396,20 @@ describe('DeployBridge', () => {
       .from(schema.isolationEnvironment)
       .where(eq(schema.isolationEnvironment.id, env.id));
     expect(envAfter.status).toBe('inactive');
+
+    // FLX-197: deploy_run row written with status=succeeded.
+    const deployRows = await db
+      .select()
+      .from(schema.deployRun)
+      .where(eq(schema.deployRun.pipelineRunId, fixture.runId));
+    expect(deployRows).toHaveLength(1);
+    expect(deployRows[0].status).toBe('succeeded');
+    expect(deployRows[0].prRowId).toBe(result.prRowId);
+    expect(deployRows[0].branchRowId).toBe(result.branchRowId);
+    expect(deployRows[0].commitSha).toBe(result.commitSha);
+    expect(deployRows[0].errorStage).toBeNull();
+    expect(deployRows[0].errorMessage).toBeNull();
+    expect(deployRows[0].completedAt).not.toBeNull();
   }, 60000);
 
   it('no-changes path: clean worktree returns skipped=no-changes without calling GitProvider', async () => {
@@ -409,6 +424,7 @@ describe('DeployBridge', () => {
         repo: 'deploy-test-fixture',
       },
       branchName: `fluxaos/deploy-${RUN}-clean`,
+      baseBranch: 'main',
     });
 
     // Intentionally leave worktree untouched.
@@ -445,6 +461,15 @@ describe('DeployBridge', () => {
       .from(schema.isolationEnvironment)
       .where(eq(schema.isolationEnvironment.id, env.id));
     expect(envAfter.status).toBe('active');
+
+    // FLX-197: deploy_run row written with status=skipped.
+    const deployRows = await db
+      .select()
+      .from(schema.deployRun)
+      .where(eq(schema.deployRun.pipelineRunId, fixture2.runId));
+    expect(deployRows).toHaveLength(1);
+    expect(deployRows[0].status).toBe('skipped');
+    expect(deployRows[0].skippedReason).toBe('no-changes');
   }, 45000);
 
   it('no-issue path: pipeline_run without an issueId returns skipped=no-issue', async () => {
@@ -467,5 +492,14 @@ describe('DeployBridge', () => {
     const result = await bridge.deploy(fixture3.runId);
     expect(result).toEqual({ skipped: 'no-issue' });
     expect(fake.createPullRequest).not.toHaveBeenCalled();
+
+    // FLX-197: deploy_run row written with status=skipped, reason=no-issue.
+    const deployRows = await db
+      .select()
+      .from(schema.deployRun)
+      .where(eq(schema.deployRun.pipelineRunId, fixture3.runId));
+    expect(deployRows).toHaveLength(1);
+    expect(deployRows[0].status).toBe('skipped');
+    expect(deployRows[0].skippedReason).toBe('no-issue');
   }, 30000);
 });

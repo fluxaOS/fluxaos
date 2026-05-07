@@ -67,6 +67,12 @@ SIZE_EXEMPT_FILES=(
   # (getProjectIdForRun, assertProjectOwnership) from the procedures that
   # depend on them. Pre-existing oversize; DEF-008 candidate for future split.
   "src/server/routers/pipeline.ts"
+  # Deploy bridge integration test: real git repo + DB fixture + deploy assertions
+  # share one lifecycle; splitting would hide setup/cleanup invariants.
+  "src/__tests__/integration/deploy-bridge.test.ts"
+  # FLX-197 isolation integration test: real event-orchestrator + worktree path
+  # needs the full fixture in one file to keep auto-dispatch assertions readable.
+  "src/__tests__/integration/event-orchestrator-isolation.test.ts"
 )
 
 is_size_exempt() {

@@ -20,6 +20,8 @@ import {
 } from '@/core/db/schema';
 import { createEventOrchestrator } from '@/core/orchestrator/event-orchestrator';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
+import type { GitOpsPort } from '@/core/ports/git';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import type {
   RealtimeProvider,
   RealtimeTableEvent,
@@ -60,9 +62,39 @@ describe('FLX-94 pre-launch stage failures', () => {
       },
       async cancel() {},
     };
-    const orchestrator = createEventOrchestrator(db, realtime, {
-      async onTerminal() {},
-    });
+    const isolation: IsolationProvider = {
+      async acquire() {
+        throw new Error('isolation should not be acquired without target repo');
+      },
+      async release() {},
+      async findActiveByRun() {
+        return null;
+      },
+      async listActiveByProject() {
+        return [];
+      },
+    };
+    const gitOps: GitOpsPort = {
+      async commitAll() {
+        return { noChanges: true };
+      },
+      async getHeadSha() {
+        return 'deadbeef';
+      },
+      async push() {},
+      resolveRepoIdentity() {
+        return { owner: 'fluxaos', repo: 'fixture' };
+      },
+      async branchAheadCount() {
+        return 0;
+      },
+    };
+    const orchestrator = createEventOrchestrator(
+      db,
+      realtime,
+      { async onTerminal() {} },
+      { isolation, gitOps }
+    );
 
     try {
       orchestrator.start();
