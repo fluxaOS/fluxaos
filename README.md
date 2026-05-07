@@ -59,7 +59,7 @@ open http://localhost:3000
 # until the run reaches `completed` and a PR appears on your target repo.
 ```
 
-For an end-to-end smoke test, see `e2e/r-smoke.spec.ts` — the alpha-acceptance journey that drives the full flow against a disposable sandbox repo.
+For an end-to-end smoke test, see `e2e/r-smoke.spec.ts` — the alpha-acceptance journey that drives the full flow against a disposable sandbox repo. The canonical full-lifecycle journey is `e2e/full-issue-lifecycle.spec.ts` — files an issue via the UI and watches the pipeline run to `completed`; this spec must pass before any UI-touching PR merges.
 
 ## Production Docker
 
