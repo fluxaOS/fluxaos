@@ -15,7 +15,9 @@
 import fs from 'fs';
 import { load as yamlLoad } from 'js-yaml';
 
-const changedFiles = (process.env.CHANGED_FILES || '').split('\n').filter(Boolean);
+const changedFiles = (process.env.CHANGED_FILES || '')
+  .split('\n')
+  .filter(Boolean);
 const prDiff = process.env.PR_DIFF || '';
 const anthropicKey = process.env.ANTHROPIC_API_KEY;
 const githubToken = process.env.GITHUB_TOKEN;
@@ -24,7 +26,7 @@ const prNumber = process.env.PR_NUMBER;
 const mapFile = process.env.MAP_FILE || '.github/doc-drift-map.yml';
 const skipLlm = process.env.SKIP_LLM === 'true';
 const prTitle = process.env.PR_TITLE || '';
-const prLabels = (process.env.PR_LABELS || '').split(',').map(l => l.trim());
+const prLabels = (process.env.PR_LABELS || '').split(',').map((l) => l.trim());
 
 // ── Escape hatch ───────────────────────────────────────────────────────────
 
@@ -32,7 +34,9 @@ const hasSkipLabel = prLabels.includes('skip-doc-drift');
 const hasSkipTitle = prTitle.includes('[skip-doc-drift]');
 
 if (hasSkipLabel || hasSkipTitle) {
-  console.log('ℹ️  skip-doc-drift flag set — bypassing doc-drift check entirely.');
+  console.log(
+    'ℹ️  skip-doc-drift flag set — bypassing doc-drift check entirely.'
+  );
   process.exit(0);
 }
 
@@ -42,17 +46,20 @@ const map = yamlLoad(fs.readFileSync(mapFile, 'utf-8'));
 const violations = [];
 
 for (const entry of map.critical) {
-  const sourceChanged = changedFiles.some(f => f === entry.match || f.startsWith(entry.match + '/'));
+  const sourceChanged = changedFiles.some(
+    (f) => f === entry.match || f.startsWith(entry.match + '/')
+  );
   if (!sourceChanged) continue;
 
-  const anyDocChanged = entry.docs.some(doc => changedFiles.includes(doc));
+  const anyDocChanged = entry.docs.some((doc) => changedFiles.includes(doc));
   if (!anyDocChanged) {
     violations.push({ source: entry.match, docs: entry.docs });
   }
 }
 
 if (violations.length > 0) {
-  let msg = '❌ **Doc drift detected** — the following source files changed without updating their mapped doc pages:\n\n';
+  let msg =
+    '❌ **Doc drift detected** — the following source files changed without updating their mapped doc pages:\n\n';
   for (const v of violations) {
     msg += `**\`${v.source}\`** changed but none of these doc pages were updated:\n`;
     for (const d of v.docs) {
@@ -60,7 +67,8 @@ if (violations.length > 0) {
     }
     msg += '\n';
   }
-  msg += '_Update at least one mapped doc page, or add the `skip-doc-drift` PR label if no user-visible behavior changed._';
+  msg +=
+    '_Update at least one mapped doc page, or add the `skip-doc-drift` PR label if no user-visible behavior changed._';
   console.error(msg.replace(/\*\*/g, '').replace(/`/g, ''));
   await postComment(msg);
   process.exit(1);
@@ -86,12 +94,24 @@ if (!prDiff) {
 }
 
 const docPages = [
-  'concepts/index', 'concepts/skills', 'concepts/drivers', 'concepts/pipelines',
-  'concepts/gates', 'concepts/signals', 'concepts/state-vs-status',
-  'guides/01-first-setup', 'guides/02-build-a-pipeline', 'guides/03-add-an-issue',
-  'guides/04-run-a-pipeline', 'guides/05-read-the-results',
-  'reference/env-vars', 'reference/signal-types', 'reference/gate-rules',
-  'reference/issue-states', 'reference/playbook-schema', 'reference/daemon',
+  'concepts/index',
+  'concepts/skills',
+  'concepts/drivers',
+  'concepts/pipelines',
+  'concepts/gates',
+  'concepts/signals',
+  'concepts/state-vs-status',
+  'guides/01-first-setup',
+  'guides/02-build-a-pipeline',
+  'guides/03-add-an-issue',
+  'guides/04-run-a-pipeline',
+  'guides/05-read-the-results',
+  'reference/env-vars',
+  'reference/signal-types',
+  'reference/gate-rules',
+  'reference/issue-states',
+  'reference/playbook-schema',
+  'reference/daemon',
 ];
 
 const prompt = `You are reviewing a code diff for a product called fluxaOS — an AI orchestration OS that runs pipelines of AI-powered stages against software issues.
@@ -101,7 +121,7 @@ Determine whether any user-visible behavior changed in this diff. "User-visible"
 If user-visible behavior changed, identify which doc pages from the list below likely need updating.
 
 Doc pages:
-${docPages.map(p => `- ${p}`).join('\n')}
+${docPages.map((p) => `- ${p}`).join('\n')}
 
 Reply with ONLY a JSON object (no markdown, no explanation):
 {"changed": boolean, "pages": string[], "reason": string}
@@ -134,7 +154,7 @@ try {
   const result = JSON.parse(text);
 
   if (result.changed && result.pages.length > 0) {
-    nudgeComment = `💡 **Doc nudge** — Claude thinks this PR may affect user-visible behavior:\n\n> ${result.reason}\n\nConsider updating:\n${result.pages.map(p => `- \`${p}\``).join('\n')}\n\n_This is advisory only and does not block the PR. Add the \`skip-doc-drift\` label to silence this nudge._`;
+    nudgeComment = `💡 **Doc nudge** — Claude thinks this PR may affect user-visible behavior:\n\n> ${result.reason}\n\nConsider updating:\n${result.pages.map((p) => `- \`${p}\``).join('\n')}\n\n_This is advisory only and does not block the PR. Add the \`skip-doc-drift\` label to silence this nudge._`;
     console.log('LLM nudge:', result.reason);
   } else {
     console.log('LLM nudge: no user-visible changes detected.');
@@ -157,14 +177,17 @@ async function postComment(body) {
     return;
   }
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/issues/${prNumber}/comments`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${githubToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ body }),
-    });
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/issues/${prNumber}/comments`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ body }),
+      }
+    );
     if (!res.ok) {
       console.warn(`GitHub comment failed: ${res.status} ${await res.text()}`);
     }
