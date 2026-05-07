@@ -81,8 +81,6 @@ __pycache__/
 *.py[cod]
 .agents/
 .claude/
-!.claude/skills/
-!.claude/skills/**
 .coverage
 .DS_Store
 .fhc-config.json
