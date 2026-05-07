@@ -1,13 +1,13 @@
 ---
 sidebar_position: 5
-title: Playbook Schema
+title: Historical Playbook Schema
 ---
 
-# Playbook Schema
+# Historical Playbook Schema
 
-A playbook is a YAML file that defines a pipeline as a graph of stages. Playbooks are an alternative to database-configured pipelines — they're useful for bundling standard workflows with fluxaOS.
+> Historical reference only. Active fluxaOS pipeline execution is DB-owned/config-driven; bundled YAML playbooks and `FLUXAOS_BUNDLED_PIPELINES_DIR` are not an operator surface in the current engine. This page is intentionally removed from the docs sidebar so old PRs/handoffs can still resolve links without teaching new operators the wrong model.
 
-Playbooks live in the bundled pipelines directory (`FLUXAOS_BUNDLED_PIPELINES_DIR`, default: `src/core/pipeline/bundled/`).
+A playbook was a YAML file that defined a pipeline as a graph of stages. The current product stores pipeline stages, skills, drivers, gates, and routing in the database instead.
 
 ## Top-level fields
 
