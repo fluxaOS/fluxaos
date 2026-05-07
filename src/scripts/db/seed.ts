@@ -12,6 +12,7 @@ import { and, eq } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { PIPELINE_SENTINEL } from '@/core/constants';
 import {
+  brand,
   configEntry,
   driver,
   issue,
@@ -501,14 +502,14 @@ Exit:
     let [row] = await db
       .select()
       .from(skill)
-      .where(and(eq(skill.projectId, proj.id), eq(skill.name, def.name)));
+      .where(and(eq(skill.scope, 'global'), eq(skill.name, def.name)));
 
     const values = {
       name: def.name,
       description: def.description,
       promptTemplate,
-      scope: 'project',
-      projectId: proj.id,
+      scope: 'global',
+      projectId: null,
     };
 
     if (row) {
@@ -1038,6 +1039,30 @@ When you receive an issue:
     }
   }
   console.log('  seeded personas and assigned to stages');
+
+  // ── Brands: seed one org-scoped brand ─────────────────────────────────
+  // Required by brand-screenshot.spec.ts: the spec looks for an <li> whose
+  // subtitle is 'organization' (rendered when projectId is null).
+  const [existingBrand] = await db
+    .select()
+    .from(brand)
+    .where(and(eq(brand.orgId, org.id), eq(brand.name, 'Default Brand')));
+
+  if (!existingBrand) {
+    await db.insert(brand).values({
+      orgId: org.id,
+      projectId: null,
+      name: 'Default Brand',
+      toneOfVoice: 'Professional and clear',
+      styleGuide: 'Follow the fluxaOS voice and tone guidelines.',
+      colors: { primary: '#6366f1', accent: '#8b5cf6' },
+      fonts: { heading: 'Inter', body: 'Inter' },
+      logoUrl: null,
+    });
+    console.log('  brand: Default Brand (org-scoped)');
+  } else {
+    console.log('  brand: Default Brand already exists');
+  }
 
   console.log('\nSeed complete.');
   process.exit(0);

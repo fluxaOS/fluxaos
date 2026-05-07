@@ -26,11 +26,12 @@ async function transition(
   baseUrl: string,
   issueId: string,
   toStateId: string,
-  version: number
+  version: number,
+  projectId: string
 ): Promise<void> {
   const resp = await page.request.post(
     `${baseUrl}/api/trpc/issue.transition?batch=1`,
-    { data: { '0': { id: issueId, toStateId, version } } }
+    { data: { '0': { id: issueId, projectId, toStateId, version } } }
   );
   if (!resp.ok()) {
     const body = await resp.text();
@@ -171,7 +172,14 @@ test.describe('@r-epic @journey', () => {
 
       for (const key of walk) {
         const toId = stateByKey.get(key)!;
-        await transition(page, baseUrl, childRow0.id, toId, childVersion);
+        await transition(
+          page,
+          baseUrl,
+          childRow0.id,
+          toId,
+          childVersion,
+          parentRow.project_id
+        );
         childVersion += 1;
       }
 
