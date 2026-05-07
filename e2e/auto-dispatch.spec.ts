@@ -22,9 +22,9 @@ import { expect, projectPath, test } from './helpers/setup';
 // Auto-dispatch only fires when the daemon is running (IssueWatcher lives in
 // the daemon process). We require it.
 const SKIP_REASON =
-  !process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS &&
+  !process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS ||
   !process.env.ANTHROPIC_API_KEY
-    ? 'requires daemon-capable environment (set ANTHROPIC_API_KEY or FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS)'
+    ? 'requires daemon-capable environment (FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS and ANTHROPIC_API_KEY)'
     : null;
 
 test.describe('@flx-193 @journey @auto-dispatch', () => {
