@@ -19,17 +19,15 @@ Stages communicate their outcome to the orchestrator via two mechanisms: a **res
 
 For `pass` and `fail` verdicts, gate rules are evaluated first. A gate rule failure can override the routing (e.g., `abort` overrides `onPass`). For `blocked`, routing goes directly to `fallback` — gate rules are not evaluated.
 
-In a YAML playbook stage:
+Routing edges are DB fields on each configured pipeline stage (`pipeline_stage.on_pass`, `pipeline_stage.on_fail`, and `pipeline_stage.fallback`). A typical seeded stage row behaves like this:
 
-```yaml
-- id: implement
-  skill: implement
-  onPass: review       # where to go on pass verdict (after gates pass)
-  onFail: rework       # where to go on fail verdict (or gate failure)
-  fallback: blocked    # where to go on blocked verdict
-```
+| Stage | Pass route | Fail/rework route | Blocked route |
+|-------|------------|-------------------|---------------|
+| `implement` | `review` | `rework` or retry, depending on the configured gate verdict | issue status `Blocked` |
+| `review` | `deploy` | `rework` | issue status `Blocked` |
+| `rework` | `review` | retry/hold, depending on rules | issue status `Blocked` |
 
-The special stage ID `complete` marks the pipeline as finished. The special stage ID `blocked` marks the pipeline as blocked (issue status → Blocked).
+The configured terminal target marks the pipeline as finished. Blocked verdicts pause the issue for operator action; they are not represented by a file-backed stage definition.
 
 ## flux:signal stdout protocol
 

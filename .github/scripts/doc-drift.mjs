@@ -110,13 +110,12 @@ const docPages = [
   'reference/signal-types',
   'reference/gate-rules',
   'reference/issue-states',
-  'reference/playbook-schema',
   'reference/daemon',
 ];
 
 const prompt = `You are reviewing a code diff for a product called fluxaOS — an AI orchestration OS that runs pipelines of AI-powered stages against software issues.
 
-Determine whether any user-visible behavior changed in this diff. "User-visible" means: changes to how users configure skills, drivers, pipelines, or gates; changes to issue state/status transitions; changes to environment variables; changes to signal/verdict types; changes to the playbook YAML schema; changes to daemon behavior.
+Determine whether any user-visible behavior changed in this diff. "User-visible" means: changes to how users configure skills, drivers, pipelines, or gates; changes to issue state/status transitions; changes to environment variables; changes to signal/verdict types; changes to database-backed pipeline routing; changes to daemon behavior.
 
 If user-visible behavior changed, identify which doc pages from the list below likely need updating.
 
