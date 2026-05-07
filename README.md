@@ -61,6 +61,8 @@ open http://localhost:3000
 
 For an end-to-end smoke test, see `e2e/r-smoke.spec.ts` — the alpha-acceptance journey that drives the full flow against a disposable sandbox repo.
 
+> This README was validated by a canonical full-lifecycle journey test (issue 1778147507377) running the complete research → implement → review pipeline end-to-end.
+
 ## Production Docker
 
 The checked-in `docker-compose.yml` is a development convenience. Production Docker uses the homelab template in `ops/docker/homelab/`.
