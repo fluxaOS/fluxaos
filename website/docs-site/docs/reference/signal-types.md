@@ -67,3 +67,13 @@ Gate verdicts are produced by the gate engine after evaluating rules. They can o
 | `abort` | Stop the pipeline immediately; mark the run failed |
 
 See [Gate Rules](./gate-rules) for how gate verdicts are produced.
+
+## Issue event types for deploy outcomes
+
+Post-pipeline deploy is not a stage verdict and does not mutate stage or pipeline status. When the deploy bridge runs after a terminal pipeline, it records its own outcome and can emit issue events with these types:
+
+| Event type | Meaning |
+|------------|---------|
+| `deploy_succeeded` | Deploy completed and recorded branch/PR/commit metadata |
+| `deploy_skipped` | Deploy was intentionally skipped, for example `no-changes` or `no-issue` |
+| `deploy_failed` | Deploy failed after pipeline execution reached its terminal state |

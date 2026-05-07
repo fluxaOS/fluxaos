@@ -42,3 +42,15 @@ Status changes automatically as the daemon picks up and executes runs. You do no
 An issue can be in `Implement` state with `Running` status (a stage is executing), or `Implement` state with `Blocked` status (the stage ran but got stuck). The state tells you *where* in the pipeline the issue is; the status tells you *what's happening to it right now*.
 
 When something goes wrong, check **both fields**: state tells you which stage to look at, status tells you whether the daemon is actively working on it.
+
+## Deploy outcome is separate from pipeline truth
+
+A completed pipeline means every required stage reached its terminal success condition. Post-pipeline deploy is tracked separately in `deploy_run` with one row per `pipeline_run`.
+
+| Deploy status | Meaning |
+|---------------|---------|
+| `succeeded` | Deploy bridge committed/pushed work and opened or recorded the PR |
+| `skipped` | Deploy was intentionally skipped, such as `no-changes` or `no-issue` |
+| `failed` | Deploy failed after the pipeline had already reached terminal state |
+
+Deploy failures do **not** rewrite `stage_run.status` or `pipeline_run.status`. Those rows remain the source of truth for pipeline execution; `deploy_run` is the source of truth for post-pipeline deploy outcome.
