@@ -2,9 +2,13 @@
   "name": "fluxaos",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "fluxaos": "./scripts/cli/fluxaos.mjs"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "cli": "tsx src/cli/index.ts",
     "build:daemon": "node scripts/build-daemon.mjs",
     "build:prod": "npm run build && npm run build:daemon",
     "start": "next start",

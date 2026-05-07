@@ -26,11 +26,13 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 | `tsx src/scripts/db/nuke.ts` | Drop all user data, keep schema |
 | `npm run pipeline:init-result-doc` | Initialize a result doc for a stage run (debug/test) |
 | `npm run pipeline:ingest-result-doc` | Ingest a result doc into the DB (debug/test) |
+| `npm run cli -- <command>` | `fluxaos` CLI (thin tRPC HTTP wrapper). Requires `FLUXAOS_API_URL` set + `FLUXAOS_LAN_AUTH_BYPASS=1` on the server. See `src/cli/index.ts` for commands. |
 
 ## Architecture
 
 ```
 src/
+  cli/          # `fluxaos` CLI — thin tRPC HTTP wrapper, no business logic
   core/         # Domain logic — services, ports, DB schema, gates, pipeline, orchestrator
   server/       # tRPC routers (root.ts, trpc.ts, routers/)
   adapters/     # Vendor integrations (supabase, bullmq, subprocess)
