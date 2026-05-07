@@ -139,7 +139,7 @@ export function Nav() {
       {/* Version */}
       <div className="px-6 py-4">
         <span className="text-[11px] font-mono text-slate-700">
-          v0.1.0-alpha
+          {process.env.NEXT_PUBLIC_GIT_SHA?.slice(0, 7) ?? 'dev'}
         </span>
       </div>
     </nav>
