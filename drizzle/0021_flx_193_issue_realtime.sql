@@ -7,3 +7,5 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE issue;
   END IF;
 END $$;
+
+ALTER TABLE issue REPLICA IDENTITY FULL;

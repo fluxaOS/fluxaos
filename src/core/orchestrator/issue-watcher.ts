@@ -259,7 +259,22 @@ export function createIssueWatcher(
           )
         );
 
-      if (!config || typeof config.value !== 'string') return null;
+      if (!config) {
+        logger.warn({
+          event: 'issue_watcher.resolve_status_error',
+          projectId,
+          error: 'config_entry row not found',
+        });
+        return null;
+      }
+      if (typeof config.value !== 'string') {
+        logger.warn({
+          event: 'issue_watcher.resolve_status_error',
+          projectId,
+          error: `config.value is not a string: ${typeof config.value} = ${JSON.stringify(config.value)}`,
+        });
+        return null;
+      }
 
       // config.value is stored as a JSON string (e.g. `"open"`), strip quotes.
       const statusKey = config.value.replace(/^"|"$/g, '');
@@ -274,8 +289,21 @@ export function createIssueWatcher(
           )
         );
 
+      if (!status) {
+        logger.warn({
+          event: 'issue_watcher.resolve_status_error',
+          projectId,
+          error: `issue_status row not found for key '${statusKey}'`,
+        });
+      }
+
       return status?.id ?? null;
-    } catch {
+    } catch (err) {
+      logger.warn({
+        event: 'issue_watcher.resolve_status_error',
+        projectId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
   }
