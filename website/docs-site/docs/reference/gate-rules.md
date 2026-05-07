@@ -22,7 +22,7 @@ Each rule has five fields:
 
 ## Available fields
 
-Gate rules evaluate against a context object built for DB-configured pipeline stages.
+Gate rules evaluate against the stage-run context produced by the database-backed pipeline executor.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -72,20 +72,20 @@ When multiple rules fail, the gate engine takes the **worst** `onFail` action ac
 
 ## Example
 
-Hold if the implementation stage takes longer than 2 hours, and warn if it uses more than 100k input tokens:
+Hold if the stage process exits non-zero, and warn if it ran on a non-preferred provider:
 
 ```yaml
 rules:
-  - field: timing.duration_sec
-    operator: less_than
-    value: 7200
+  - field: exit_code
+    operator: equals
+    value: 0
     severity: block
     onFail: hold
-    label: "2 hour cap"
-  - field: tokens.input
-    operator: less_than
-    value: 100000
+    label: "Stage process exited successfully"
+  - field: provider
+    operator: equals
+    value: anthropic
     severity: warn
     onFail: proceed
-    label: "Token budget warning"
+    label: "Preferred provider warning"
 ```

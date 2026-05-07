@@ -22,10 +22,6 @@ critical:
       - website/docs-site/docs/reference/issue-states.md
       - website/docs-site/docs/reference/gate-rules.md
 
-  - match: src/core/pipeline/playbook.ts
-    docs:
-      - website/docs-site/docs/reference/playbook-schema.md
-
   - match: src/config/env.ts
     docs:
       - website/docs-site/docs/reference/env-vars.md

@@ -19,7 +19,7 @@ Stages communicate their outcome to the orchestrator via two mechanisms: a **res
 
 For `pass` and `fail` verdicts, gate rules are evaluated first. A gate rule failure can override the routing (e.g., `abort` overrides `onPass`). For `blocked`, routing goes directly to `fallback` — gate rules are not evaluated.
 
-Routing edges are DB fields on each configured pipeline stage. A typical seeded stage row behaves like this:
+Routing edges are DB fields on each configured pipeline stage (`pipeline_stage.on_pass`, `pipeline_stage.on_fail`, and `pipeline_stage.fallback`). A typical seeded stage row behaves like this:
 
 | Stage | Pass route | Fail/rework route | Blocked route |
 |-------|------------|-------------------|---------------|

@@ -20,7 +20,7 @@ Pipelines are config-driven. Operators define them in the UI/database: create a 
 | Gate rules | Conditions that determine proceed / hold / rework / abort |
 | Timeout | Seconds before the stage is force-killed |
 
-**Pipeline storage:** Active pipelines are database records. The old file-backed path was removed; do not document new operator flows against file-backed pipeline definitions.
+**Pipeline source of truth:** Pipelines are database-backed. The orchestrator reads stages and routing from the `pipeline_stage` table (`onPass`, `onFail`, and `fallback`), not from YAML playbook files. The old file-backed path was removed; do not document new operator flows against file-backed pipeline definitions.
 
 **Where to configure:** Settings → Pipeline Settings → New Pipeline
 

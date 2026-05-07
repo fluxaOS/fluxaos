@@ -1,5 +1,7 @@
 # User Docs + Doc-Drift Prevention Implementation Plan
 
+> **Historical note (FLX-153 follow-up):** This implementation plan predates the DB-first pipeline migration and contains stale YAML-playbook references (`reference/playbook-schema.md`, `src/core/pipeline/playbook.ts`, and `FLUXAOS_BUNDLED_PIPELINES_DIR`). Do not treat those references as current product behavior; live docs now describe database-backed pipelines and `pipeline_stage.onPass` / `onFail` / `fallback` routing.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Docusaurus docs site at `website/docs-site/` served at `docs.fluxaos.io`, populate it with 18 pages covering the full user lifecycle (concepts, guides, reference), and add a GitHub Action that hard-gates critical doc paths and posts LLM-powered soft nudges on every code PR.
