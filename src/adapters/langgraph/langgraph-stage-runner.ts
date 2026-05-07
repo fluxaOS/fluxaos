@@ -38,9 +38,8 @@ async function prepareNode(
     mkdirSync(state.artifactsDir, { recursive: true });
 
     await execFileAsync(
-      'npx',
+      'node',
       [
-        'tsx',
         state.initResultDocScript,
         '--stage-run-id',
         state.stageRunId,
@@ -85,9 +84,8 @@ async function ingestNode(
 ): Promise<Partial<typeof StageState.State>> {
   try {
     const { stdout } = await execFileAsync(
-      'npx',
+      'node',
       [
-        'tsx',
         state.ingestResultDocScript,
         '--stage-run-id',
         state.stageRunId,

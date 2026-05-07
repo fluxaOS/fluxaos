@@ -48,6 +48,11 @@ await build({
   entryPoints: {
     daemon: resolve(root, 'src/scripts/daemon.ts'),
     'migrate-prod': resolve(root, 'src/scripts/db/migrate-prod.ts'),
+    'init-result-doc': resolve(root, 'src/scripts/pipeline/init-result-doc.ts'),
+    'ingest-result-doc': resolve(
+      root,
+      'src/scripts/pipeline/ingest-result-doc.ts'
+    ),
   },
   outdir,
   bundle: true,
