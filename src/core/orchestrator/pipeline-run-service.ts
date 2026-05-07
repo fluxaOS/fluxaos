@@ -37,6 +37,9 @@ export interface PipelineRunService {
   /** Get the count of currently running pipeline runs. */
   getRunningRuns(): Promise<number>;
 
+  /** Get pending pipeline runs ordered by createdAt ASC (FIFO). */
+  getPendingRuns(): Promise<Array<{ id: string }>>;
+
   /** Update pipeline run status. */
   updateRunStatus(id: string, status: PipelineRunStatus): Promise<void>;
 
@@ -138,6 +141,16 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
         .from(pipelineRun)
         .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.running));
       return count;
+    },
+
+    async getPendingRuns() {
+      // Single-tenant assumption: fetches pending runs across all tenants.
+      // In a multi-tenant deployment this would need an orgId filter. (FLX-148)
+      return db
+        .select({ id: pipelineRun.id })
+        .from(pipelineRun)
+        .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.pending))
+        .orderBy(asc(pipelineRun.createdAt));
     },
 
     async updateRunStatus(id, status) {
