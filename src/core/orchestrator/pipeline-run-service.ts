@@ -40,6 +40,18 @@ export interface PipelineRunService {
   /** Get pending pipeline runs ordered by createdAt ASC (FIFO). */
   getPendingRuns(): Promise<Array<{ id: string }>>;
 
+  /**
+   * Atomically claim a concurrency slot for a pending run.
+   *
+   * Wraps the read-count + write-status sequence in a single transaction
+   * guarded by a Postgres advisory lock so two concurrent callers cannot
+   * both pass the limit check and both flip distinct runs to running.
+   * Returns true if the slot was acquired and the run is now `running`,
+   * false if the run was no longer pending or the limit was already at
+   * or above maxConcurrent.
+   */
+  tryAcquireRunningSlot(runId: string, maxConcurrent: number): Promise<boolean>;
+
   /** Update pipeline run status. */
   updateRunStatus(id: string, status: PipelineRunStatus): Promise<void>;
 
@@ -151,6 +163,41 @@ export function createPipelineRunService(db: DbOrTx): PipelineRunService {
         .from(pipelineRun)
         .where(eq(pipelineRun.status, PIPELINE_RUN_STATUS.pending))
         .orderBy(asc(pipelineRun.createdAt));
+    },
+
+    async tryAcquireRunningSlot(runId, maxConcurrent) {
+      // Atomic CAS for pipeline-run concurrency. Two layers:
+      //
+      //   1. Postgres advisory lock (xact-scoped) serializes all callers
+      //      through one global mutex. Auto-released at COMMIT/ROLLBACK.
+      //   2. Conditional UPDATE checks (status='pending' AND count<max)
+      //      and flips status='running' atomically; row count > 0 means
+      //      this caller won the slot.
+      //
+      // Without (1), READ COMMITTED isolation lets two concurrent
+      // transactions both observe a stale count subquery and both
+      // acquire — exactly the FLX-199 race. The advisory lock forces
+      // strict ordering so the count read inside each transaction
+      // reflects every committed flip from prior winners.
+      //
+      // Single-tenant assumption: one global lock keyspace. Multi-tenant
+      // deployments would key this lock by orgId. (FLX-148)
+      return (db as Database).transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(8731442001)`);
+        const result = await tx.execute<{ id: string }>(sql`
+          UPDATE pipeline_run
+             SET status = 'running',
+                 started_at = NOW(),
+                 updated_at = NOW()
+           WHERE id = ${runId}
+             AND status = 'pending'
+             AND (
+               SELECT COUNT(*)::int FROM pipeline_run WHERE status = 'running'
+             ) < ${maxConcurrent}
+         RETURNING id
+        `);
+        return result.length === 1;
+      });
     },
 
     async updateRunStatus(id, status) {

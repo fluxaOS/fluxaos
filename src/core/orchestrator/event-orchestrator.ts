@@ -192,26 +192,25 @@ export function createEventOrchestrator(
       const run = await runService.getRun(runId);
       if (!run || run.status !== PIPELINE_RUN_STATUS.pending) return;
 
-      // Check concurrency limit. When at capacity, the run stays pending
-      // and will be picked up by the next drainPending() call (triggered
-      // when a running run reaches terminal state).
-      const runningCount = await runService.getRunningRuns();
-      if (runningCount >= cfg.maxConcurrentRuns) {
-        console.log(
-          `[orchestrator] concurrency limit reached (${runningCount}/${cfg.maxConcurrentRuns}), run ${runId} queued`
-        );
-        return;
-      }
-
-      // Get stages
       const stages = await runService.getStages(run.pipelineId);
       if (stages.length === 0) {
         await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.failed);
         return;
       }
 
-      // Mark running
-      await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.running);
+      // Atomically claim a concurrency slot and flip the run from
+      // pending → running. Returns false when the limit is at capacity
+      // or another caller already raced this run forward. (FLX-199)
+      const acquired = await runService.tryAcquireRunningSlot(
+        runId,
+        cfg.maxConcurrentRuns
+      );
+      if (!acquired) {
+        console.log(
+          `[orchestrator] concurrency limit reached or run no longer pending, run ${runId} queued`
+        );
+        return;
+      }
 
       // Respect a user-specified stage: the tRPC trigger path creates a
       // stage_run at status='pending' (pipeline-run-service default) with
@@ -243,6 +242,10 @@ export function createEventOrchestrator(
    *
    * Called after finishRun() (slot freed) and after recoverOnStartup()
    * (existing pending runs may predate the Realtime subscription).
+   *
+   * Concurrency enforcement is delegated to handleNewRun via
+   * tryAcquireRunningSlot, so two concurrent drainPending() invocations
+   * cannot together exceed maxConcurrentRuns. (FLX-199)
    */
   async function drainPending(): Promise<void> {
     const pending = await runService.getPendingRuns();
@@ -252,15 +255,8 @@ export function createEventOrchestrator(
       `[orchestrator:drain] ${pending.length} pending run(s) in queue`
     );
 
-    for (let i = 0; i < pending.length; i++) {
-      const runningCount = await runService.getRunningRuns();
-      if (runningCount >= cfg.maxConcurrentRuns) {
-        console.log(
-          `[orchestrator:drain] concurrency limit reached (${runningCount}/${cfg.maxConcurrentRuns}), ${pending.length - i} run(s) remain queued`
-        );
-        break;
-      }
-      await handleNewRun(pending[i].id);
+    for (const { id } of pending) {
+      await handleNewRun(id);
     }
   }
 
