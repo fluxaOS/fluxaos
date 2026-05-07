@@ -10,13 +10,14 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import type { Database } from '@/core/db/connection';
 import { issue, issueComment, project } from '@/core/db/schema';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import {
   createIssueCommentService,
   createIssueEventService,
   createIssueService,
 } from '@/core/services';
 import type { Viewer } from '../trpc';
-import { inputId, publicProcedure, router } from '../trpc';
+import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 /**
  * Resolve the projectId for a given issue. Returns null if the issue does not
@@ -121,7 +122,7 @@ export const issueRouter = router({
       return result;
     }),
 
-  create: publicProcedure
+  create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         projectId: z.string().uuid(),
@@ -172,7 +173,7 @@ export const issueRouter = router({
       return Object.fromEntries(map);
     }),
 
-  updateFields: publicProcedure
+  updateFields: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -200,7 +201,7 @@ export const issueRouter = router({
       );
     }),
 
-  transition: publicProcedure
+  transition: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -222,7 +223,7 @@ export const issueRouter = router({
       );
     }),
 
-  delete: publicProcedure
+  delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await assertProjectViewership(ctx.db, input.projectId, ctx.viewer);
@@ -253,7 +254,7 @@ export const issueRouter = router({
         return createIssueCommentService(ctx.db).list(input.issueId);
       }),
 
-    create: publicProcedure
+    create: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           issueId: z.string().uuid(),
@@ -272,7 +273,7 @@ export const issueRouter = router({
         });
       }),
 
-    update: publicProcedure
+    update: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
           commentId: z.string().uuid(),
@@ -293,7 +294,7 @@ export const issueRouter = router({
         });
       }),
 
-    delete: publicProcedure
+    delete: protectedMutation(DELETE_ROLES)
       .input(
         z.object({
           commentId: z.string().uuid(),
