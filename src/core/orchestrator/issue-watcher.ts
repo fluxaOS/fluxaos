@@ -12,6 +12,11 @@
  * EventOrchestrator Realtime subscription picks it up automatically.
  */
 import { and, eq, notInArray } from 'drizzle-orm';
+import {
+  CONFIG_KEY,
+  PIPELINE_RUN_STATUS,
+  PIPELINE_RUN_TERMINAL,
+} from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
   configEntry,
@@ -38,9 +43,6 @@ interface IssueRealtimeRow {
   state_id: string;
   is_closed: boolean;
 }
-
-/** Terminal pipeline_run statuses — runs in these states are done. */
-const TERMINAL_RUN_STATUSES = ['completed', 'failed', 'cancelled'];
 
 export interface IssueWatcher {
   start(): void;
@@ -174,7 +176,7 @@ export function createIssueWatcher(
       .where(
         and(
           eq(pipelineRun.issueId, issueId),
-          notInArray(pipelineRun.status, TERMINAL_RUN_STATUSES)
+          notInArray(pipelineRun.status, [...PIPELINE_RUN_TERMINAL])
         )
       );
 
@@ -212,7 +214,7 @@ export function createIssueWatcher(
       .values({
         pipelineId,
         issueId,
-        status: 'pending',
+        status: PIPELINE_RUN_STATUS.pending,
       })
       .returning();
 
@@ -247,15 +249,13 @@ export function createIssueWatcher(
     projectId: string
   ): Promise<string | null> {
     try {
-      const CONFIG_KEY = 'issues.status.on_create_key';
-
       const [config] = await db
         .select({ value: configEntry.value })
         .from(configEntry)
         .where(
           and(
             eq(configEntry.projectId, projectId),
-            eq(configEntry.key, CONFIG_KEY)
+            eq(configEntry.key, CONFIG_KEY.issueStatusOnCreate)
           )
         );
 
