@@ -72,6 +72,15 @@ export function createPipelineTerminalHook(
           { runId, skipped: result.skipped, event: 'deploy.invoked' },
           'deploy.invoked'
         );
+        if (result.skipped) {
+          await releaseTerminalEnv({
+            runId,
+            projectId,
+            releaseEvent: 'terminal-hook.env-released-after-deploy-skipped',
+            releaseMessage:
+              'pipeline-terminal-hook: env released after deploy skipped',
+          });
+        }
       } catch (err) {
         logger.error(
           {

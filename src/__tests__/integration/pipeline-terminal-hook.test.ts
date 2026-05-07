@@ -108,9 +108,9 @@ function makeFakeDb(): FakeDb {
 }
 
 describe('pipeline-terminal-hook', () => {
-  it('completed status → invokes deployBridge.deploy and does NOT release env', async () => {
+  it('completed + deploy skipped → releases env after deploy records skipped outcome', async () => {
     const { bridge, deploy } = makeFakeDeployBridge();
-    const { isolation, release } = makeFakeIsolation();
+    const { isolation, release, findActiveByRun } = makeFakeIsolation();
     const logger = makeLogger();
     const { db } = makeFakeDb();
 
@@ -129,10 +129,16 @@ describe('pipeline-terminal-hook', () => {
 
     expect(deploy).toHaveBeenCalledTimes(1);
     expect(deploy).toHaveBeenCalledWith('run-1');
-    expect(release).not.toHaveBeenCalled();
+    expect(findActiveByRun).toHaveBeenCalledWith('proj-1', 'run-1');
+    expect(release).toHaveBeenCalledWith('env-1', { force: false });
     expect(logger.records.some((r) => r.obj.event === 'deploy.invoked')).toBe(
       true
     );
+    expect(
+      logger.records.some(
+        (r) => r.obj.event === 'terminal-hook.env-released-after-deploy-skipped'
+      )
+    ).toBe(true);
   });
 
   it('completed + deploy throws → writes deploy_run failed row, releases env, does NOT mutate stage/pipeline rows', async () => {
