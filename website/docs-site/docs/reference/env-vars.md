@@ -23,6 +23,8 @@ Set these in `.env` (committed, non-secret defaults) or `.env.local` (gitignored
 | `FLUXAOS_BUNDLED_PIPELINES_DIR` | path | `src/core/pipeline/bundled` | Path to bundled YAML playbook files. |
 | `FLUXAOS_WORKSPACE_ROOT` | path | `<repo>/.fluxaos-worktrees/` | Where worktrees are created. Auto-added to target repo `.gitignore`. |
 | `FLUXAOS_ARTIFACTS_ROOT` | path | `<repo>/.fluxaos-artifacts/` | Where per-run artifact directories live. Auto-added to target repo `.gitignore`. |
+| `FLUXAOS_INIT_RESULT_DOC_SCRIPT` | path | `.next/daemon/init-result-doc.mjs` | Path to the init-result-doc script invoked via `node`. Defaults to the bundled `.mjs` built into `.next/daemon/`. |
+| `FLUXAOS_INGEST_RESULT_DOC_SCRIPT` | path | `.next/daemon/ingest-result-doc.mjs` | Path to the ingest-result-doc script invoked via `node`. Defaults to the bundled `.mjs` built into `.next/daemon/`. |
 
 ## Cleanup scheduler
 

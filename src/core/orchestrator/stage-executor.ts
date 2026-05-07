@@ -219,10 +219,10 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         },
         initResultDocScript:
           fluxaosConfig?.initResultDocScript ??
-          'src/scripts/pipeline/init-result-doc.ts',
+          '.next/daemon/init-result-doc.mjs',
         ingestResultDocScript:
           fluxaosConfig?.ingestResultDocScript ??
-          'src/scripts/pipeline/ingest-result-doc.ts',
+          '.next/daemon/ingest-result-doc.mjs',
       });
       ingestOutput = result.ingestOutput;
       graphError = result.error;

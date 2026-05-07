@@ -27,9 +27,9 @@ export interface FluxaosConfig {
   cleanupSessionRetentionDays: number;
   /** Minimum age (in days) before a terminal pipeline_run artifacts dir is reaped. Required — no default. */
   cleanupArtifactsRetentionDays: number;
-  /** Path to the init-result-doc script passed to tsx. Defaults to the in-repo relative path. */
+  /** Path to the init-result-doc script invoked via node. Defaults to the bundled .mjs in .next/daemon/. */
   initResultDocScript: string;
-  /** Path to the ingest-result-doc script passed to tsx. Defaults to the in-repo relative path. */
+  /** Path to the ingest-result-doc script invoked via node. Defaults to the bundled .mjs in .next/daemon/. */
   ingestResultDocScript: string;
 }
 
@@ -69,9 +69,9 @@ export function loadFluxaosConfig(): FluxaosConfig {
     ),
     initResultDocScript:
       process.env.FLUXAOS_INIT_RESULT_DOC_SCRIPT ??
-      'src/scripts/pipeline/init-result-doc.ts',
+      '.next/daemon/init-result-doc.mjs',
     ingestResultDocScript:
       process.env.FLUXAOS_INGEST_RESULT_DOC_SCRIPT ??
-      'src/scripts/pipeline/ingest-result-doc.ts',
+      '.next/daemon/ingest-result-doc.mjs',
   };
 }
