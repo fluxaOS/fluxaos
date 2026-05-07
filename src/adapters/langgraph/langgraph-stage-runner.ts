@@ -23,6 +23,7 @@ const StageState = Annotation.Root({
   driverCommand: Annotation<string>(),
   driverArgs: Annotation<string[]>(),
   env: Annotation<Record<string, string> | undefined>(),
+  cwd: Annotation<string | undefined>(),
   initResultDocScript: Annotation<string>(),
   ingestResultDocScript: Annotation<string>(),
   prepared: Annotation<boolean>(),
@@ -69,6 +70,7 @@ async function executeNode(
 
     await execFileAsync(state.driverCommand, state.driverArgs, {
       env: agentEnv,
+      cwd: state.cwd,
       timeout: DEFAULT_STAGE_TIMEOUT_SEC * 1000,
     });
 

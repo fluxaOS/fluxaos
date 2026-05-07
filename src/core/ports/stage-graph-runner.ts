@@ -6,6 +6,12 @@ export interface StageGraphInput {
   driverCommand: string;
   driverArgs: string[];
   env?: Record<string, string>;
+  /**
+   * Working directory for the driver subprocess. Required for stages that
+   * mutate a worktree — without it the driver runs in the daemon's cwd and
+   * any file edits land in the wrong place.
+   */
+  cwd?: string;
   initResultDocScript: string;
   ingestResultDocScript: string;
 }

@@ -6,21 +6,25 @@
  * Fires when a pipeline_run flips to a terminal status. Two branches:
  *
  *   completed → invoke deployBridge.deploy(runId). Wrap in try/catch. On
- *               failure, log `deploy.failed`, allow the caller to mark DB
- *               failure state, then release the env.
+ *               failure, write a deploy_run row (status=failed) and release
+ *               the env. Pipeline/stage rows stay completed — they describe
+ *               pipeline execution, not the post-pipeline deploy outcome
+ *               (FLX-197).
  *
  *   failed    → call isolation.release(envId, { force: false }). If the
  *               worktree has uncommitted changes, swallow the error and
  *               leave the env for debugging.
  *
  * Zero vendor imports. DI-clean: takes DeployBridge + IsolationProvider +
- * logger. Safe to call from event-orchestrator.ts and manual-run.ts —
+ * logger + db. Safe to call from event-orchestrator.ts and manual-run.ts —
  * behaviour is idempotent (already-released envs are no-ops) and the deploy
  * bridge short-circuits when the run has no issue or the worktree is clean.
  */
 
-import { PIPELINE_RUN_STATUS } from '@/core/constants';
-import type { DeployBridge } from '@/core/deploy';
+import { DEPLOY_RUN_STATUS, PIPELINE_RUN_STATUS } from '@/core/constants';
+import type { Database } from '@/core/db/connection';
+import { deployRun } from '@/core/db/schema';
+import { type DeployBridge, DeployBridgeError } from '@/core/deploy';
 import { UncommittedChangesError } from '@/core/errors/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 
@@ -31,14 +35,10 @@ export interface PipelineTerminalHookLogger {
 }
 
 export interface PipelineTerminalHookDeps {
+  db: Database;
   deployBridge: DeployBridge;
   isolation: IsolationProvider;
   logger: PipelineTerminalHookLogger;
-  onDeployFailure?: (input: {
-    runId: string;
-    projectId: string | null;
-    error: unknown;
-  }) => Promise<void>;
 }
 
 export interface PipelineTerminalHook {
@@ -56,7 +56,7 @@ export interface PipelineTerminalHook {
 export function createPipelineTerminalHook(
   deps: PipelineTerminalHookDeps
 ): PipelineTerminalHook {
-  const { deployBridge, isolation, logger, onDeployFailure } = deps;
+  const { db, deployBridge, isolation, logger } = deps;
 
   async function onTerminal(input: {
     runId: string;
@@ -81,7 +81,10 @@ export function createPipelineTerminalHook(
           },
           'deploy.failed'
         );
-        await onDeployFailure?.({ runId, projectId, error: err });
+        // FLX-197: deploy is post-pipeline. Record the failure on its own
+        // row — never mutate stage_run/pipeline_run, those describe pipeline
+        // execution which already succeeded.
+        await recordDeployFailure(runId, err);
         await releaseTerminalEnv({
           runId,
           projectId,
@@ -103,6 +106,36 @@ export function createPipelineTerminalHook(
       releaseMessage:
         'pipeline-terminal-hook: env released on non-completed terminal',
     });
+  }
+
+  async function recordDeployFailure(
+    runId: string,
+    err: unknown
+  ): Promise<void> {
+    const errorStage = err instanceof DeployBridgeError ? err.stage : null;
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    try {
+      await db.insert(deployRun).values({
+        pipelineRunId: runId,
+        status: DEPLOY_RUN_STATUS.failed,
+        errorStage,
+        errorMessage,
+        completedAt: new Date(),
+      });
+    } catch (insertErr) {
+      // Recording-the-record failure: log and move on. The original deploy
+      // failure is already logged above; we don't want this to crash the
+      // terminal hook (env still needs releasing).
+      logger.error(
+        {
+          runId,
+          event: 'deploy.failed_record_insert_error',
+          error:
+            insertErr instanceof Error ? insertErr.message : String(insertErr),
+        },
+        'deploy.failed_record_insert_error'
+      );
+    }
   }
 
   async function releaseTerminalEnv(input: {

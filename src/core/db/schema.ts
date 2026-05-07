@@ -137,6 +137,34 @@ export const pipelineRun = pgTable('pipeline_run', {
   updatedAt,
 });
 
+// FLX-197: deploy_run records the outcome of post-pipeline deploy attempts
+// independently of pipeline_run/stage_run. A failed deploy must NOT mutate
+// the pipeline/stage rows (those are the truth of pipeline execution); the
+// deploy is a separate post-action whose outcome lives here. One row per
+// pipeline_run, written by deploy-bridge on success/skip and by
+// pipeline-terminal-hook on failure.
+export const deployRun = pgTable(
+  'deploy_run',
+  {
+    id,
+    pipelineRunId: uuid('pipeline_run_id')
+      .notNull()
+      .references(() => pipelineRun.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    skippedReason: text('skipped_reason'),
+    errorStage: text('error_stage'),
+    errorMessage: text('error_message'),
+    prRowId: uuid('pr_row_id').references(() => issuePullRequest.id),
+    branchRowId: uuid('branch_row_id').references(() => issueBranch.id),
+    commitSha: text('commit_sha'),
+    startedAt: timestamp('started_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('deploy_run_pipeline_run_id_idx').on(t.pipelineRunId)]
+);
+
 export const stageRun = pgTable(
   'stage_run',
   {

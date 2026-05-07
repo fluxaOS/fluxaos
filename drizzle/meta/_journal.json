@@ -169,6 +169,13 @@
       "when": 1778059200000,
       "tag": "0022_flx_196_issue_realtime_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1778169600000,
+      "tag": "0023_flx_197_deploy_run",
+      "breakpoints": true
     }
   ]
 }

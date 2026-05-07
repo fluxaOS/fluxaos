@@ -27,9 +27,10 @@
  */
 
 import { and, desc, eq } from 'drizzle-orm';
-import { SYSTEM_ACTOR } from '@/core/constants';
+import { DEPLOY_RUN_STATUS, SYSTEM_ACTOR } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
+  deployRun,
   issue,
   issueBranch,
   issuePullRequest,
@@ -127,6 +128,12 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
         { runId, event: 'deploy.skipped' },
         'deploy.skipped: no issue attached to run'
       );
+      await db.insert(deployRun).values({
+        pipelineRunId: runId,
+        status: DEPLOY_RUN_STATUS.skipped,
+        skippedReason: 'no-issue',
+        completedAt: new Date(),
+      });
       return { skipped: 'no-issue' };
     }
 
@@ -215,6 +222,12 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
           { runId, envId: env.id, event: 'deploy.skipped' },
           'deploy.skipped: worktree clean and branch has no commits ahead of base'
         );
+        await db.insert(deployRun).values({
+          pipelineRunId: runId,
+          status: DEPLOY_RUN_STATUS.skipped,
+          skippedReason: 'no-changes',
+          completedAt: new Date(),
+        });
         return { skipped: 'no-changes' };
       }
       // Branch has commits (from stage-runner auto-commits) — capture
@@ -291,7 +304,7 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
       );
     }
 
-    // 9. Single transaction: insert branch + PR + advance state.
+    // 9. Single transaction: insert branch + PR + deploy_run + advance state.
     //    If this fails after the PR was opened, we log loudly and re-throw —
     //    per alpha scope, the operator reconciles manually.
     let dbResult: { branchRowId: string; prRowId: string };
@@ -324,6 +337,15 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
             isPrimary: true,
           })
           .returning({ id: issuePullRequest.id });
+
+        await tx.insert(deployRun).values({
+          pipelineRunId: runId,
+          status: DEPLOY_RUN_STATUS.succeeded,
+          prRowId: prRow.id,
+          branchRowId: branchRow.id,
+          commitSha,
+          completedAt: new Date(),
+        });
 
         // FLX-79: post-deploy state advance is config-driven, not literal.
         // The seeded value resolves to whatever the operator configured;

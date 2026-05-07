@@ -27,22 +27,34 @@ import {
   issue,
   persona,
   pipeline,
-  type pipelineRun,
+  pipelineRun,
   pipelineStage,
   project,
   skill,
   stageRun,
 } from '@/core/db/schema';
 import { IngestOutputSchema } from '@/core/pipeline/result-doc';
+import type { GitOpsPort } from '@/core/ports/git';
+import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { PipelineRunService } from './pipeline-run-service';
 import { blockIssueOnRun } from './run-helpers';
+import { acquireIsolationEnv } from './stage-runner-env';
 
 export interface StageExecutorDeps {
   db: Database;
   runService: PipelineRunService;
   fluxaosConfig: FluxaosConfig | undefined;
   stageGraphRunner: StageGraphRunner | undefined;
+  /**
+   * Pipeline-scoped worktree provider. The auto-dispatch path acquires an
+   * isolation env on the first stage and reuses it across stages via the
+   * provider's re-entrant acquire. The pipeline-terminal hook (T16) owns
+   * release. Required — no fallback.
+   */
+  isolation: IsolationProvider;
+  /** Local git operations — required to resolve repoIdentity for acquire. */
+  gitOps: GitOpsPort;
   finishRun: (
     run: typeof pipelineRun.$inferSelect,
     status: (typeof PIPELINE_RUN_STATUS)[keyof typeof PIPELINE_RUN_STATUS]
@@ -50,7 +62,15 @@ export interface StageExecutorDeps {
 }
 
 export function createStageExecutor(deps: StageExecutorDeps) {
-  const { db, runService, fluxaosConfig, stageGraphRunner, finishRun } = deps;
+  const {
+    db,
+    runService,
+    fluxaosConfig,
+    stageGraphRunner,
+    isolation,
+    gitOps,
+    finishRun,
+  } = deps;
 
   async function launchStage(
     run: typeof pipelineRun.$inferSelect,
@@ -113,9 +133,62 @@ export function createStageExecutor(deps: StageExecutorDeps) {
       return;
     }
 
-    const artifactsBase =
-      run.artifactsPath ??
-      `${fluxaosConfig?.artifactsRoot ?? '.fluxaos-artifacts'}/${run.id}`;
+    // Acquire (or reuse) the pipeline-scoped worktree. The provider is
+    // re-entrant: on stage 2..N a second acquire for the same (projectId,
+    // runId) returns the existing env, so this block is safe to call once
+    // per stage. T16's pipeline-terminal hook owns release.
+    let issueNumber: number | null = null;
+    if (run.issueId) {
+      const [issueNumRow] = await db
+        .select({ number: issue.number })
+        .from(issue)
+        .where(eq(issue.id, run.issueId));
+      issueNumber = issueNumRow?.number ?? null;
+    }
+
+    let envWorkingPath: string;
+    let envArtifactsPath: string | null;
+    try {
+      const acquired = await acquireIsolationEnv({
+        db,
+        isolation,
+        gitOps,
+        projectId: pipelineRow.projectId,
+        runId: run.id,
+        pipelineId: run.pipelineId,
+        issueId: run.issueId ?? null,
+        issueNumber,
+        targetRepoPath: fluxaosConfig?.targetRepoPath,
+      });
+      envWorkingPath = acquired.env.workingPath;
+      envArtifactsPath = acquired.env.artifactsPath;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        errorMessage,
+      });
+      await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    if (!envArtifactsPath) {
+      const msg = `isolation provider returned no artifactsPath for run ${run.id}`;
+      await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
+        errorMessage: msg,
+      });
+      await finishRun(run, PIPELINE_RUN_STATUS.failed);
+      return;
+    }
+
+    if (!run.artifactsPath) {
+      await db
+        .update(pipelineRun)
+        .set({ artifactsPath: envArtifactsPath, updatedAt: new Date() })
+        .where(eq(pipelineRun.id, run.id))
+        .catch(() => undefined);
+    }
+
+    const artifactsBase = envArtifactsPath;
     const resultDocPath = `${artifactsBase}/result.json`;
 
     // Load persona soul — every stage must have a persona configured
@@ -213,9 +286,11 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         prompt: composedPrompt,
         driverCommand: driverBinary,
         driverArgs,
+        cwd: envWorkingPath,
         env: {
           RESULT_DOC_PATH: resultDocPath,
           ARTIFACTS_DIR: artifactsBase,
+          WORKING_PATH: envWorkingPath,
         },
         initResultDocScript:
           fluxaosConfig?.initResultDocScript ??
