@@ -79,6 +79,14 @@ export function createEventOrchestrator(
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
+
+  /**
+   * Tracks runs currently being processed by handleNewRun.
+   * Prevents concurrent double-processing of the same run when Realtime
+   * delivers duplicate events or drainPending races with an INSERT event.
+   */
+  const inFlight = new Set<string>();
+
   const { launchStage } = createStageExecutor({
     db,
     runService,
@@ -93,6 +101,9 @@ export function createEventOrchestrator(
    * Mark a pipeline_run terminal AND trigger the T16 hook (deploy on
    * completed, env-release on everything else). Centralized so every code
    * path that flips the run's status goes through the same hook.
+   *
+   * After the run reaches terminal state, drainPending() is called so any
+   * pending runs waiting for a concurrency slot are picked up immediately.
    */
   async function finishRun(
     run: typeof pipelineRun.$inferSelect,
@@ -107,6 +118,9 @@ export function createEventOrchestrator(
       projectId,
       status,
     });
+
+    // Vacated concurrency slot — drain the pending queue.
+    drainPending().catch(logError('drainPending'));
   }
 
   let unsubscribeInsert: Unsubscribe | null = null;
@@ -145,6 +159,10 @@ export function createEventOrchestrator(
         }
       }
     );
+
+    // Drain any pending runs that were inserted before the Realtime
+    // subscription was established (e.g., during daemon startup gap).
+    drainPending().catch(logError('drainPending'));
   }
 
   function stop(): void {
@@ -164,42 +182,86 @@ export function createEventOrchestrator(
   // ─── Pipeline Handlers ──────────────────────────────────────────────
 
   async function handleNewRun(runId: string): Promise<void> {
-    const run = await runService.getRun(runId);
-    if (!run || run.status !== PIPELINE_RUN_STATUS.pending) return;
+    // Guard: prevent concurrent double-processing of the same run.
+    // This fires when Realtime delivers duplicate events or when drainPending
+    // races with an INSERT event for the same run.
+    if (inFlight.has(runId)) return;
+    inFlight.add(runId);
 
-    // Check concurrency limit
-    const runningCount = await runService.getRunningRuns();
-    if (runningCount >= cfg.maxConcurrentRuns) return;
+    try {
+      const run = await runService.getRun(runId);
+      if (!run || run.status !== PIPELINE_RUN_STATUS.pending) return;
 
-    // Get stages
-    const stages = await runService.getStages(run.pipelineId);
-    if (stages.length === 0) {
-      await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.failed);
-      return;
-    }
-
-    // Mark running
-    await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.running);
-
-    // Respect a user-specified stage: the tRPC trigger path creates a
-    // stage_run at status='pending' (pipeline-run-service default) with
-    // the stage the operator clicked. Daemon-autonomous runs have no
-    // pre-seeded stage_run and fall back to stages[0]. Reuse the seed
-    // row instead of creating a duplicate stage_run.
-    const existingStageRuns = await runService.getStageRuns(run.id);
-    const pendingSeed = existingStageRuns.find(
-      (sr) => sr.status === STAGE_RUN_STATUS.pending
-    );
-    if (pendingSeed) {
-      const seedStage = stages.find(
-        (s) => s.id === pendingSeed.pipelineStageId
-      );
-      if (seedStage) {
-        await launchStage(run, seedStage, pendingSeed);
+      // Check concurrency limit. When at capacity, the run stays pending
+      // and will be picked up by the next drainPending() call (triggered
+      // when a running run reaches terminal state).
+      const runningCount = await runService.getRunningRuns();
+      if (runningCount >= cfg.maxConcurrentRuns) {
+        console.log(
+          `[orchestrator] concurrency limit reached (${runningCount}/${cfg.maxConcurrentRuns}), run ${runId} queued`
+        );
         return;
       }
+
+      // Get stages
+      const stages = await runService.getStages(run.pipelineId);
+      if (stages.length === 0) {
+        await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.failed);
+        return;
+      }
+
+      // Mark running
+      await runService.updateRunStatus(runId, PIPELINE_RUN_STATUS.running);
+
+      // Respect a user-specified stage: the tRPC trigger path creates a
+      // stage_run at status='pending' (pipeline-run-service default) with
+      // the stage the operator clicked. Daemon-autonomous runs have no
+      // pre-seeded stage_run and fall back to stages[0]. Reuse the seed
+      // row instead of creating a duplicate stage_run.
+      const existingStageRuns = await runService.getStageRuns(run.id);
+      const pendingSeed = existingStageRuns.find(
+        (sr) => sr.status === STAGE_RUN_STATUS.pending
+      );
+      if (pendingSeed) {
+        const seedStage = stages.find(
+          (s) => s.id === pendingSeed.pipelineStageId
+        );
+        if (seedStage) {
+          await launchStage(run, seedStage, pendingSeed);
+          return;
+        }
+      }
+      await launchStage(run, stages[0]);
+    } finally {
+      inFlight.delete(runId);
     }
-    await launchStage(run, stages[0]);
+  }
+
+  /**
+   * Drain the pending queue: pick up pending runs in FIFO order and start
+   * them until the concurrency limit is reached.
+   *
+   * Called after finishRun() (slot freed) and after recoverOnStartup()
+   * (existing pending runs may predate the Realtime subscription).
+   */
+  async function drainPending(): Promise<void> {
+    const pending = await runService.getPendingRuns();
+    if (pending.length === 0) return;
+
+    console.log(
+      `[orchestrator:drain] ${pending.length} pending run(s) in queue`
+    );
+
+    for (let i = 0; i < pending.length; i++) {
+      const runningCount = await runService.getRunningRuns();
+      if (runningCount >= cfg.maxConcurrentRuns) {
+        console.log(
+          `[orchestrator:drain] concurrency limit reached (${runningCount}/${cfg.maxConcurrentRuns}), ${pending.length - i} run(s) remain queued`
+        );
+        break;
+      }
+      await handleNewRun(pending[i].id);
+    }
   }
 
   // ─── Crash Recovery ─────────────────────────────────────────────────
@@ -257,6 +319,11 @@ export function createEventOrchestrator(
         }
       }
     }
+
+    // After crash recovery, drain any pending runs that predate the daemon boot.
+    // These will never receive a Realtime INSERT event since they were inserted
+    // before the subscription was established.
+    await drainPending();
   }
 
   function isProcessAlive(pid: number): boolean {
