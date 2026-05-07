@@ -11,7 +11,7 @@
  * The inserted pipeline_run sits at `status = 'pending'`; the existing
  * EventOrchestrator Realtime subscription picks it up automatically.
  */
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, notInArray } from 'drizzle-orm';
 import {
   CONFIG_KEY,
   PIPELINE_RUN_STATUS,
@@ -87,6 +87,8 @@ export function createIssueWatcher(
         handleIssueEvent(payload.new).catch(logError('update'));
       }
     );
+
+    startupSweep().catch(logError('startup_sweep'));
   }
 
   function stop(): void {
@@ -108,6 +110,70 @@ export function createIssueWatcher(
   }
 
   // ─── Dispatch Logic ───────────────────────────────────────────────────
+
+  /**
+   * On startup, dispatch any open issues that have no active pipeline_run.
+   * Catches issues that were created or updated while the daemon was down —
+   * their Realtime events already fired before the subscription was established.
+   */
+  async function startupSweep(): Promise<void> {
+    // Find all open issues with a non-null project_id.
+    const openIssues = await db
+      .select({
+        id: issue.id,
+        projectId: issue.projectId,
+        number: issue.number,
+        statusId: issue.statusId,
+        stateId: issue.stateId,
+        isClosed: issue.isClosed,
+      })
+      .from(issue)
+      .where(eq(issue.isClosed, false));
+
+    if (openIssues.length === 0) {
+      logger.info({
+        event: 'issue_watcher.startup_sweep_complete',
+        dispatched: 0,
+      });
+      return;
+    }
+
+    // Exclude issues that already have an active (non-terminal) run.
+    const issueIds = openIssues.map((r) => r.id);
+    const activeRunIssueIds = await db
+      .select({ issueId: pipelineRun.issueId })
+      .from(pipelineRun)
+      .where(
+        and(
+          inArray(pipelineRun.issueId, issueIds),
+          notInArray(pipelineRun.status, [...PIPELINE_RUN_TERMINAL])
+        )
+      );
+    const blocked = new Set(
+      activeRunIssueIds
+        .map((r) => r.issueId)
+        .filter((id): id is string => id !== null)
+    );
+
+    let dispatched = 0;
+    for (const row of openIssues) {
+      if (blocked.has(row.id)) continue;
+      // Re-use the same dispatch path as the Realtime handler.
+      // Shape the DB row into IssueRealtimeRow (snake_case columns).
+      const realtimeRow: IssueRealtimeRow = {
+        id: row.id,
+        project_id: row.projectId,
+        number: row.number,
+        status_id: row.statusId,
+        state_id: row.stateId,
+        is_closed: row.isClosed,
+      };
+      await handleIssueEvent(realtimeRow);
+      dispatched++;
+    }
+
+    logger.info({ event: 'issue_watcher.startup_sweep_complete', dispatched });
+  }
 
   async function handleIssueEvent(row: IssueRealtimeRow): Promise<void> {
     const issueId = row.id;
