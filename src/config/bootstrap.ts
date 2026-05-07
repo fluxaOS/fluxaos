@@ -33,7 +33,13 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const REQUIRED_ADAPTERS = ['database', 'auth', 'queue', 'realtime', 'stageGraphRunner'] as const;
+const REQUIRED_ADAPTERS = [
+  'database',
+  'auth',
+  'queue',
+  'realtime',
+  'stageGraphRunner',
+] as const;
 
 let bootstrapped = false;
 

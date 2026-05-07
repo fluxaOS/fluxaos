@@ -10,7 +10,10 @@
  */
 import { type ChildProcess, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_STAGE_TIMEOUT_SEC, KILL_GRACE_PERIOD_MS } from '@/core/constants';
+import {
+  DEFAULT_STAGE_TIMEOUT_SEC,
+  KILL_GRACE_PERIOD_MS,
+} from '@/core/constants';
 import type {
   ExecuteParams,
   ExecuteResult,

@@ -73,10 +73,7 @@ export async function blockIssueOnRun(
   const issueService = createIssueService(db);
   const runService = createPipelineRunService(db);
 
-  const [issueRow] = await db
-    .select()
-    .from(issue)
-    .where(eq(issue.id, issueId));
+  const [issueRow] = await db.select().from(issue).where(eq(issue.id, issueId));
 
   if (!issueRow) return;
 

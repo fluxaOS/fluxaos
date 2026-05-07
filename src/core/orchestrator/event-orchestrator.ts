@@ -20,18 +20,14 @@ import {
   STAGE_RUN_STATUS,
 } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
-import {
-  type pipelineRun,
-  pipelineStage,
-  stageRun,
-} from '@/core/db/schema';
+import { type pipelineRun, pipelineStage, stageRun } from '@/core/db/schema';
 import type { Unsubscribe } from '@/core/ports/auth';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createPipelineRunService } from './pipeline-run-service';
+import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import { resolveProjectIdForRun } from './run-helpers';
 import { createStageExecutor } from './stage-executor';
-import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 
 /**
  * Shape of a pipeline_run row as delivered by Supabase Realtime.
@@ -75,7 +71,13 @@ export function createEventOrchestrator(
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
-  const { launchStage } = createStageExecutor({ db, runService, fluxaosConfig, stageGraphRunner, finishRun });
+  const { launchStage } = createStageExecutor({
+    db,
+    runService,
+    fluxaosConfig,
+    stageGraphRunner,
+    finishRun,
+  });
 
   /**
    * Mark a pipeline_run terminal AND trigger the T16 hook (deploy on
@@ -265,4 +267,3 @@ export function createEventOrchestrator(
     },
   };
 }
-

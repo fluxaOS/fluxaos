@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
-import { createBrandService } from '@/core/services';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { createBrandService } from '@/core/services';
 import { protectedMutation, publicProcedure, router } from '../trpc';
 
 const jsonObject = z.record(z.string(), z.unknown());

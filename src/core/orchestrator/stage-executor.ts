@@ -269,9 +269,12 @@ export function createStageExecutor(deps: StageExecutorDeps) {
 
       if (parsed.valid) {
         const doc = parsed.doc;
-        if (doc.verdict === RESULT_DOC_VERDICT.pass) verdict = GATE_VERDICT.proceed;
-        else if (doc.verdict === RESULT_DOC_VERDICT.fail) verdict = GATE_VERDICT.rework;
-        else if (doc.verdict === RESULT_DOC_VERDICT.blocked) verdict = GATE_VERDICT.hold;
+        if (doc.verdict === RESULT_DOC_VERDICT.pass)
+          verdict = GATE_VERDICT.proceed;
+        else if (doc.verdict === RESULT_DOC_VERDICT.fail)
+          verdict = GATE_VERDICT.rework;
+        else if (doc.verdict === RESULT_DOC_VERDICT.blocked)
+          verdict = GATE_VERDICT.hold;
         signalReason = doc.signal_reason ?? null;
         signalMeta = doc.signal_meta ?? null;
         tokensIn = doc.meta?.input_tokens;
@@ -327,7 +330,10 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     if (!targetStageName) {
       const reason = `Routing field for verdict '${verdict}' is null or empty on stage '${stage.name}'`;
       await finishRun(run, PIPELINE_RUN_STATUS.blocked);
-      await blockIssueOnRun(db, run.issueId, { reason, appendPipelineFailed: true });
+      await blockIssueOnRun(db, run.issueId, {
+        reason,
+        appendPipelineFailed: true,
+      });
       return;
     }
 
@@ -360,7 +366,10 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     if (!nextStage) {
       const reason = `Routing target stage '${targetStageName}' not found in pipeline ${run.pipelineId} (verdict: ${verdict})`;
       await finishRun(run, PIPELINE_RUN_STATUS.blocked);
-      await blockIssueOnRun(db, run.issueId, { reason, appendPipelineFailed: true });
+      await blockIssueOnRun(db, run.issueId, {
+        reason,
+        appendPipelineFailed: true,
+      });
       return;
     }
 

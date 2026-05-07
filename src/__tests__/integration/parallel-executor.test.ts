@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { ParallelExecutorInput } from '@/core/agents/parallel-executor';
 import { runParallelExecutor } from '@/core/agents/parallel-executor';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 
 function makeRunner(): { run: ReturnType<typeof vi.fn> } {
   return { run: vi.fn() };

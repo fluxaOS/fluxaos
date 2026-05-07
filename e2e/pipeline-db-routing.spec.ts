@@ -22,16 +22,16 @@ test.describe('@flx-153 @flx-129 @journey @pipeline-db-routing', () => {
     await page.waitForURL(/\/settings\/personas/, { timeout: 10_000 });
 
     // Personas page must render a heading
-    await expect(
-      page.getByRole('heading', { name: 'Personas' })
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Personas' })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('Personas page: seeded personas are visible', async ({ page }) => {
     await page.goto(projectPath('/settings/personas'));
-    await expect(
-      page.getByRole('heading', { name: 'Personas' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Personas' })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Seed data creates at least Research Analyst, Software Engineer,
     // Code Reviewer, Release Engineer — assert at least one li is visible.
@@ -55,9 +55,9 @@ test.describe('@flx-153 @flx-129 @journey @pipeline-db-routing', () => {
     await pipeline.getByRole('button', { name: 'Stages' }).click();
 
     // Seeded pipeline has a "research" stage — wait for it to appear
-    await expect(
-      pipeline.locator('tr', { hasText: 'research' })
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(pipeline.locator('tr', { hasText: 'research' })).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Click Edit on the research stage row
     const researchRow = pipeline.locator('tr', { hasText: 'research' });
@@ -81,8 +81,8 @@ test.describe('@flx-153 @flx-129 @journey @pipeline-db-routing', () => {
 
     // Assert NO Skill picker is present — this was removed in FLX-153.
     // The form uses Driver (not Skill) for execution config.
-    await expect(
-      pipeline.getByRole('combobox', { name: 'Skill' })
-    ).toHaveCount(0);
+    await expect(pipeline.getByRole('combobox', { name: 'Skill' })).toHaveCount(
+      0
+    );
   });
 });

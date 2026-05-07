@@ -26,8 +26,8 @@ import type { StdoutParser } from '@/core/ports/stdout-parser';
 import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 import { createIssueService } from '@/core/services/issue';
 import { createPipelineRunService } from './pipeline-run-service';
-import { blockIssueOnRun, resolveProjectIdForRun } from './run-helpers';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
+import { blockIssueOnRun, resolveProjectIdForRun } from './run-helpers';
 import { executeStageRun } from './stage-runner';
 
 /**
@@ -121,7 +121,10 @@ export async function executeManualRun(
             await txRunService.appendIssueEvent(
               result.issueId!,
               ISSUE_EVENT_TYPE.state_changed,
-              { reason: result.skillSignalReason ?? 'hold', targetState: targetStateKey },
+              {
+                reason: result.skillSignalReason ?? 'hold',
+                targetState: targetStateKey,
+              },
               ACTOR.manualRun
             );
           });
@@ -181,7 +184,6 @@ export async function executeManualRun(
     }
   }
 }
-
 
 function createNoopGitOps(): GitOpsPort {
   const notImpl = (name: string) => () => {

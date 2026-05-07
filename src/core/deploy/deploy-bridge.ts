@@ -27,6 +27,7 @@
  */
 
 import { and, desc, eq } from 'drizzle-orm';
+import { SYSTEM_ACTOR } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
   issue,
@@ -37,7 +38,6 @@ import {
   project,
   stageRun,
 } from '@/core/db/schema';
-import { SYSTEM_ACTOR } from '@/core/constants';
 import { UncommittedChangesError } from '@/core/errors/git';
 import type { GitOpsPort, GitProvider, PullRequest } from '@/core/ports/git';
 import type { GitProviderFactory } from '@/core/ports/git-factory';

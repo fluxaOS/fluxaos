@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { pipelineStage, stageRun } from '@/core/db/schema';
+import { pipelineStage, type stageRun } from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 
 type RawStageRun = typeof stageRun.$inferSelect;
@@ -39,7 +39,8 @@ export async function enrichStageRuns(
         .from(pipelineStage)
         .where(eq(pipelineStage.id, sr.pipelineStageId));
 
-      const events = includeEvents && svc ? await svc.listEvents(sr.id) : undefined;
+      const events =
+        includeEvents && svc ? await svc.listEvents(sr.id) : undefined;
 
       const pipelineStageResult = stageDef
         ? {

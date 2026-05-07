@@ -1,6 +1,5 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { NotFoundError } from '@/core/errors/domain';
 import { nextRevisionNumber } from '@/core/db/revision';
 import {
   driver,
@@ -8,6 +7,7 @@ import {
   pipelineStage,
   stageRun,
 } from '@/core/db/schema';
+import { NotFoundError } from '@/core/errors/domain';
 
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 type DriverSelect = typeof driver.$inferSelect;

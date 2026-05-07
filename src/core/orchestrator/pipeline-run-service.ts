@@ -18,10 +18,7 @@ import type {
   StageEventType,
   StageRunStatus,
 } from './types';
-import {
-  PIPELINE_RUN_STATUS,
-  STAGE_RUN_STATUS,
-} from './types';
+import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from './types';
 
 // Services that open transactions must receive the root Database, not a transaction handle.
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;

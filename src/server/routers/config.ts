@@ -2,8 +2,8 @@ import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { project } from '@/core/db/schema';
-import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { NotFoundError } from '@/core/errors/domain';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createConfigService } from '@/core/services/config';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
@@ -91,7 +91,10 @@ export const configRouter = router({
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await createConfigService(ctx.db).delete(input.id, input.version);
+        return await createConfigService(ctx.db).delete(
+          input.id,
+          input.version
+        );
       } catch (err) {
         if (err instanceof NotFoundError) {
           throw new TRPCError({ code: 'NOT_FOUND', message: err.message });

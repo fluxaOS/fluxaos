@@ -102,7 +102,15 @@ export interface StageRunResult {
 export async function executeStageRun(
   ctx: StageRunContext
 ): Promise<StageRunResult> {
-  const { db, executor, runService, isolation, stdoutParser, runId, stageRunId } = ctx;
+  const {
+    db,
+    executor,
+    runService,
+    isolation,
+    stdoutParser,
+    runId,
+    stageRunId,
+  } = ctx;
 
   // ── Load all required data ───────────────────────────────────────
 
@@ -396,14 +404,20 @@ export async function executeStageRun(
 
     // ── Completion with signal handling ──────────────────────────────
 
-    const cancelledResult = await buildCancelledResult(db, sRun.id, result.exitCode, result.durationMs, {
-      stageName: stage.name,
-      driverName: driverRow.name,
-      providerName: routing?.providerName ?? null,
-      modelIdentifier: routing?.modelIdentifier ?? null,
-      issueId: run.issueId,
-      stageId: stage.id,
-    });
+    const cancelledResult = await buildCancelledResult(
+      db,
+      sRun.id,
+      result.exitCode,
+      result.durationMs,
+      {
+        stageName: stage.name,
+        driverName: driverRow.name,
+        providerName: routing?.providerName ?? null,
+        modelIdentifier: routing?.modelIdentifier ?? null,
+        issueId: run.issueId,
+        stageId: stage.id,
+      }
+    );
     if (cancelledResult) return cancelledResult;
 
     // No signal emitted. Behavior depends on exit_code:
@@ -492,14 +506,20 @@ export async function executeStageRun(
     };
   } catch (err) {
     // Subprocess error (timeout, signal, etc.)
-    const cancelledResult = await buildCancelledResult(db, sRun.id, 130, Date.now() - executionStartedAt, {
-      stageName: stage.name,
-      driverName: driverRow.name,
-      providerName: routing?.providerName ?? null,
-      modelIdentifier: routing?.modelIdentifier ?? null,
-      issueId: run.issueId,
-      stageId: stage.id,
-    });
+    const cancelledResult = await buildCancelledResult(
+      db,
+      sRun.id,
+      130,
+      Date.now() - executionStartedAt,
+      {
+        stageName: stage.name,
+        driverName: driverRow.name,
+        providerName: routing?.providerName ?? null,
+        modelIdentifier: routing?.modelIdentifier ?? null,
+        issueId: run.issueId,
+        stageId: stage.id,
+      }
+    );
     if (cancelledResult) return cancelledResult;
 
     await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
