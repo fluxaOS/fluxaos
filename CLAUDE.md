@@ -63,6 +63,8 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 **Project-specific verification:** UI work uses Playwright journey tests in `e2e/`. Reference pattern: `e2e/real-anthropic-stage-run.spec.ts`.
 
+**Canonical full-lifecycle journey:** `e2e/full-issue-lifecycle.spec.ts` files an issue via the UI and watches the pipeline run through every stage to `completed` against the running daemon (no test-side env vars, no spawned daemon — same surface as a human at the keyboard). It MUST be run and pass before any UI sign-off is requested or any UI-touching PR is merged. If it fails, work halts: no commit lands, no PR merges, no issue closes — the failure surfaces a real product bug that must be fixed first. (When fhc#3314 verify gate ships, this rule converges with `fhc verify`.)
+
 ## Workflow
 
 - **First run:** `npm i` → set `.env` → `npm run db:migrate` → `npm run db:seed` → `npm run dev -- -p 3004`
