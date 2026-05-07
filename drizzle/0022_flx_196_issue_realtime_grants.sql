@@ -1,0 +1,11 @@
+-- FLX-196: Grant SELECT on issue table to Supabase Realtime roles.
+--
+-- Supabase Realtime's postgres_changes authorization requires SELECT grants
+-- on the target table for the subscribing role (anon/authenticated/service_role),
+-- even when RLS is disabled. Without this grant the Realtime server returns
+-- "Error 401: Unauthorized" and delivers an empty payload (new: {}).
+--
+-- The event, issue_event, pipeline_run, and stage_run tables already have
+-- these grants (applied outside Drizzle at project setup time). This migration
+-- applies the same pattern to issue so IssueWatcher receives full row data.
+GRANT SELECT ON issue TO anon, authenticated, service_role;
