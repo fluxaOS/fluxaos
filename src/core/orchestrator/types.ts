@@ -55,4 +55,3 @@ export interface StageJobPayload {
   /** Timeout in milliseconds. */
   timeoutMs: number;
 }
-

@@ -1,5 +1,5 @@
-import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { isValidResultDoc } from '@/core/pipeline/result-doc';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 
 export type ParallelAggregation =
   | 'all-pass'

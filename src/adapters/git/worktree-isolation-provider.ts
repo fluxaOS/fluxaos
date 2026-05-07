@@ -168,7 +168,8 @@ export function createWorktreeIsolationProvider(
       // the dir, and writing the column. Surfaced via console.warn so
       // operators see the backfill in logs.
       const backfillPath =
-        artifactsPathParam ?? getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
+        artifactsPathParam ??
+        getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
       await ensureArtifactsDir(backfillPath);
       console.warn('isolation.artifactsPath.backfilled', {
         envId: existing.id,
@@ -238,7 +239,8 @@ export function createWorktreeIsolationProvider(
     }
 
     const resolvedArtifactsPath =
-      artifactsPathParam ?? getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
+      artifactsPathParam ??
+      getArtifactsPath(repoPath, runId, { artifactsRoot, workspaceRoot });
     await ensureArtifactsDir(resolvedArtifactsPath);
 
     try {

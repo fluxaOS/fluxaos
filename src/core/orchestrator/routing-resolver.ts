@@ -127,7 +127,9 @@ export function createRoutingResolver(db: Database): RoutingResolver {
           );
           return null;
         }
-        candidates = candidates.filter((c) => compiled!.test(c.modelIdentifier));
+        candidates = candidates.filter((c) =>
+          compiled!.test(c.modelIdentifier)
+        );
       }
 
       if (rule?.maxCostUsd) {

@@ -172,4 +172,3 @@ function buildContextContent(issue: IssueInput, projectName?: string): string {
 
   return lines.join('\n');
 }
-

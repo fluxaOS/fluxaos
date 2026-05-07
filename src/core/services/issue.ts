@@ -64,7 +64,6 @@ interface UpdateFieldsInput {
 export function createIssueService(db: DbOrTx) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-
   async function recordEvent(
     issueId: string,
     actor: string,
@@ -246,7 +245,10 @@ export function createIssueService(db: DbOrTx) {
    * Recurses naturally: close() → stateOverride() → maybeAutoCloseParent()
    * for the grandparent, and so on up the tree.
    */
-  async function maybeAutoCloseParent(childId: string, depth = 0): Promise<void> {
+  async function maybeAutoCloseParent(
+    childId: string,
+    depth = 0
+  ): Promise<void> {
     if (depth > 50) {
       console.warn(
         `[epic] maybeAutoCloseParent: depth limit reached for childId=${childId}, possible circular parent reference`
@@ -289,14 +291,19 @@ export function createIssueService(db: DbOrTx) {
           .returning();
         if (!updated) return 'conflict';
 
-        await recordEvent(parentId, ACTOR.orchestrator, ISSUE_EVENT_TYPE.state_changed, {
-          from_state: parent.stateId,
-          to_state: terminalState.id,
-          user: ACTOR.orchestrator,
-          override: true,
-          reason: 'auto_close_all_children_closed',
-          last_child: childId,
-        });
+        await recordEvent(
+          parentId,
+          ACTOR.orchestrator,
+          ISSUE_EVENT_TYPE.state_changed,
+          {
+            from_state: parent.stateId,
+            to_state: terminalState.id,
+            user: ACTOR.orchestrator,
+            override: true,
+            reason: 'auto_close_all_children_closed',
+            last_child: childId,
+          }
+        );
 
         // Grandparent propagation — the parent we just closed may itself
         // have a parent. Run the same check one level up.
@@ -325,7 +332,10 @@ export function createIssueService(db: DbOrTx) {
     async create(data: CreateIssueInput): Promise<IssueSelect> {
       const [initialState, statusId] = await Promise.all([
         findNonTerminalState(data.projectId),
-        resolveStatusByConfigKey(data.projectId, CONFIG_KEY.issueStatusOnCreate),
+        resolveStatusByConfigKey(
+          data.projectId,
+          CONFIG_KEY.issueStatusOnCreate
+        ),
       ]);
 
       const actor = data.author ?? 'system';
@@ -718,7 +728,10 @@ export function createIssueService(db: DbOrTx) {
         );
       }
 
-      await recordEvent(id, actor, ISSUE_EVENT_TYPE.status_changed, { statusId, reason });
+      await recordEvent(id, actor, ISSUE_EVENT_TYPE.status_changed, {
+        statusId,
+        reason,
+      });
       return updated;
     },
 

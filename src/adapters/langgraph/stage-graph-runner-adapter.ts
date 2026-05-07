@@ -1,4 +1,8 @@
-import type { StageGraphInput, StageGraphResult, StageGraphRunner } from '@/core/ports/stage-graph-runner';
+import type {
+  StageGraphInput,
+  StageGraphResult,
+  StageGraphRunner,
+} from '@/core/ports/stage-graph-runner';
 import { getCheckpointer } from './checkpoint-store';
 import { runStageGraph } from './langgraph-stage-runner';
 

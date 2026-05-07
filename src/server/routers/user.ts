@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
-import { DELETE_ROLES, EDIT_ROLES, ROLE_VALUES } from '@/core/features/roles';
 import { NotFoundError } from '@/core/errors/domain';
+import { DELETE_ROLES, EDIT_ROLES, ROLE_VALUES } from '@/core/features/roles';
 import { createUserService } from '@/core/services/user';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 

@@ -39,7 +39,10 @@ test.describe('@journey @daemon-controls @mission-control', () => {
     await page.waitForTimeout(4_000);
 
     const startBtn = page.getByRole('button', { name: 'Start', exact: true });
-    const restartBtn = page.getByRole('button', { name: 'Restart', exact: true });
+    const restartBtn = page.getByRole('button', {
+      name: 'Restart',
+      exact: true,
+    });
     const drainBtn = page.getByRole('button', { name: 'Drain', exact: true });
     const stopBtn = page.getByRole('button', { name: 'Stop', exact: true });
 

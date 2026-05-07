@@ -16,12 +16,15 @@ test.describe('@flx-126 @journey', () => {
 
     await gotoSettings(page, 'brands');
 
-    await expect(
-      page.getByRole('heading', { name: 'Brands' })
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Brands' })).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Click the first brand row (seeded org-scoped brands show "organization" subtitle)
-    const firstBrand = page.locator('li').filter({ hasText: 'organization' }).first();
+    const firstBrand = page
+      .locator('li')
+      .filter({ hasText: 'organization' })
+      .first();
     await expect(firstBrand).toBeVisible({ timeout: 10_000 });
     await firstBrand.click();
 

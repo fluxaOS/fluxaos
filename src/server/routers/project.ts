@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
-import { createPipelineService, createProjectService } from '@/core/services';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
+import { createPipelineService, createProjectService } from '@/core/services';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
@@ -68,9 +68,11 @@ export const projectRouter = router({
       return createProjectService(ctx.db).update(id, data);
     }),
 
-  delete: protectedMutation(DELETE_ROLES).input(inputId()).mutation(({ ctx, input }) => {
-    return createProjectService(ctx.db).remove(input.id);
-  }),
+  delete: protectedMutation(DELETE_ROLES)
+    .input(inputId())
+    .mutation(({ ctx, input }) => {
+      return createProjectService(ctx.db).remove(input.id);
+    }),
 
   /**
    * Set (or clear) the project's default pipeline. Validates the

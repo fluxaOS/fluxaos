@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import type { LoopExecutorInput } from '@/core/agents/loop-executor';
 import { runLoopExecutor } from '@/core/agents/loop-executor';
+import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 
 function makeRunner(impl: StageGraphRunner['run']): StageGraphRunner {
   return { run: vi.fn(impl) };
@@ -105,7 +105,10 @@ describe('runLoopExecutor', () => {
   it('returns completed:false when maxIterations exhausted without condition met', async () => {
     mockRunner.run.mockResolvedValue({ ingestOutput: failIngestOutput });
 
-    const result = await runLoopExecutor({ ...makeBaseInput(), maxIterations: 3 });
+    const result = await runLoopExecutor({
+      ...makeBaseInput(),
+      maxIterations: 3,
+    });
 
     expect(result.completed).toBe(false);
     expect(result.iterations).toBe(3);

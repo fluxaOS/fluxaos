@@ -16,8 +16,5 @@ export interface StageGraphResult {
 }
 
 export interface StageGraphRunner {
-  run(
-    input: StageGraphInput,
-    threadId?: string
-  ): Promise<StageGraphResult>;
+  run(input: StageGraphInput, threadId?: string): Promise<StageGraphResult>;
 }

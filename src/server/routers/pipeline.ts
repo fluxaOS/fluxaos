@@ -1,7 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import type { Database } from '@/core/db/connection';
 import {
   EVENT_TYPE,
   GATE_VERDICT,
@@ -9,6 +8,7 @@ import {
   STAGE_RUN_STATUS,
   STAGE_RUN_TERMINAL,
 } from '@/core/constants';
+import type { Database } from '@/core/db/connection';
 import {
   pipeline,
   pipelineRun,
@@ -16,14 +16,14 @@ import {
   stageGateResult,
   stageRun,
 } from '@/core/db/schema';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import { resolveProjectIdForRun } from '@/core/orchestrator/run-helpers';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
-import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
-import { listIssueRunsWithStages } from './pipeline-run-history';
 import { enrichStageRuns } from './_shared/enrich-stage-runs';
+import { listIssueRunsWithStages } from './pipeline-run-history';
 
 /**
  * Resolve the projectId that owns a given stage run. Returns null if the
@@ -147,9 +147,11 @@ export const pipelineRouter = router({
       return createPipelineService(ctx.db).update(id, data);
     }),
 
-  delete: protectedMutation(DELETE_ROLES).input(inputId()).mutation(({ ctx, input }) => {
-    return createPipelineService(ctx.db).remove(input.id);
-  }),
+  delete: protectedMutation(DELETE_ROLES)
+    .input(inputId())
+    .mutation(({ ctx, input }) => {
+      return createPipelineService(ctx.db).remove(input.id);
+    }),
 
   // Stages
   stages: router({
@@ -206,9 +208,11 @@ export const pipelineRouter = router({
         return createPipelineService(ctx.db).stages.update(id, data);
       }),
 
-    delete: protectedMutation(DELETE_ROLES).input(inputId()).mutation(({ ctx, input }) => {
-      return createPipelineService(ctx.db).stages.remove(input.id);
-    }),
+    delete: protectedMutation(DELETE_ROLES)
+      .input(inputId())
+      .mutation(({ ctx, input }) => {
+        return createPipelineService(ctx.db).stages.remove(input.id);
+      }),
   }),
 
   // ─── Pipeline Runs ──────────────────────────────────────────────────────
@@ -266,7 +270,12 @@ export const pipelineRouter = router({
 
         // Ownership check: verify this run belongs to the declared project,
         // and that project belongs to the viewer.
-        await assertRunOwnership(ctx.db, input.id, input.projectId, ctx.viewer.fluxaUserId);
+        await assertRunOwnership(
+          ctx.db,
+          input.id,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
 
         const rawStageRuns = await svc.getStageRuns(input.id);
 
@@ -288,7 +297,11 @@ export const pipelineRouter = router({
           .from(pipeline)
           .where(eq(pipeline.id, input.pipelineId));
         if (!row) return [];
-        await assertProjectOwnership(ctx.db, row.projectId, ctx.viewer.fluxaUserId);
+        await assertProjectOwnership(
+          ctx.db,
+          row.projectId,
+          ctx.viewer.fluxaUserId
+        );
         return ctx.db
           .select()
           .from(pipelineRun)
@@ -300,7 +313,11 @@ export const pipelineRouter = router({
     listByProject: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-        await assertProjectOwnership(ctx.db, input.projectId, ctx.viewer.fluxaUserId);
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         const pipelines = await ctx.db
           .select({ id: pipeline.id, name: pipeline.name })
           .from(pipeline)
@@ -339,7 +356,12 @@ export const pipelineRouter = router({
     cancel: protectedMutation(EDIT_ROLES)
       .input(z.object({ id: z.string().uuid(), projectId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
-        await assertRunOwnership(ctx.db, input.id, input.projectId, ctx.viewer.fluxaUserId);
+        await assertRunOwnership(
+          ctx.db,
+          input.id,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         const svc = createPipelineRunService(ctx.db);
         // Cancel all non-terminal stage runs
         const stages = await svc.getStageRuns(input.id);
@@ -367,7 +389,12 @@ export const pipelineRouter = router({
       .mutation(async ({ ctx, input }) => {
         // Ownership check: verify the stage run belongs to the declared
         // project before performing any state mutation.
-        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
+        await assertStageRunOwnership(
+          ctx.db,
+          input.stageRunId,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
 
         const svc = createPipelineRunService(ctx.db);
         const [row] = await ctx.db
@@ -402,7 +429,12 @@ export const pipelineRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
-        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
+        await assertStageRunOwnership(
+          ctx.db,
+          input.stageRunId,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         return createPipelineRunService(ctx.db).listEvents(input.stageRunId);
       }),
 
@@ -415,7 +447,12 @@ export const pipelineRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
+        await assertStageRunOwnership(
+          ctx.db,
+          input.stageRunId,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
 
         const svc = createPipelineRunService(ctx.db);
         // Mark the pending stage as launching so the orchestrator picks it up
@@ -440,7 +477,12 @@ export const pipelineRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
+        await assertStageRunOwnership(
+          ctx.db,
+          input.stageRunId,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
 
         const svc = createPipelineRunService(ctx.db);
         const status =
@@ -460,9 +502,15 @@ export const pipelineRouter = router({
 
     /** Get the current pipeline state for an issue — latest run + current stage. */
     issueState: publicProcedure
-      .input(z.object({ issueId: z.string().uuid(), projectId: z.string().uuid() }))
+      .input(
+        z.object({ issueId: z.string().uuid(), projectId: z.string().uuid() })
+      )
       .query(async ({ ctx, input }) => {
-        await assertProjectOwnership(ctx.db, input.projectId, ctx.viewer.fluxaUserId);
+        await assertProjectOwnership(
+          ctx.db,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         const { pipelineStage } = await import('@/core/db/schema');
 
         // Find latest pipeline run for this issue
@@ -519,7 +567,12 @@ export const pipelineRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
+        await assertStageRunOwnership(
+          ctx.db,
+          input.stageRunId,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
 
         const svc = createPipelineRunService(ctx.db);
         await svc.updateStageRunStatus(
@@ -541,7 +594,12 @@ export const pipelineRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
-        await assertStageRunOwnership(ctx.db, input.stageRunId, input.projectId, ctx.viewer.fluxaUserId);
+        await assertStageRunOwnership(
+          ctx.db,
+          input.stageRunId,
+          input.projectId,
+          ctx.viewer.fluxaUserId
+        );
         return ctx.db
           .select()
           .from(stageGateResult)

@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
-import { NotFoundError } from '@/core/errors/domain';
 import type { Database } from '@/core/db/connection';
 import { user } from '@/core/db/schema';
+import { NotFoundError } from '@/core/errors/domain';
 import { createVersionedCrudService } from './crud-factory';
 
 type UserInsert = typeof user.$inferInsert;

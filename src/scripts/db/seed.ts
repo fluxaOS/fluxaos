@@ -10,6 +10,7 @@
 import 'dotenv/config';
 import { and, eq } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { PIPELINE_SENTINEL } from '@/core/constants';
 import {
   configEntry,
   driver,
@@ -33,7 +34,6 @@ import {
   user,
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
-import { PIPELINE_SENTINEL } from '@/core/constants';
 
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) {

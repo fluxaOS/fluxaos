@@ -43,7 +43,11 @@ export class SupabaseRealtimeProvider implements RealtimeProvider {
     callback: (payload: RealtimeTableEvent<T>) => void,
     filter?: string
   ): Unsubscribe {
-    const pgConfig: Record<string, unknown> = { event, schema: 'public', table };
+    const pgConfig: Record<string, unknown> = {
+      event,
+      schema: 'public',
+      table,
+    };
     if (filter) pgConfig.filter = filter;
     const ch: RealtimeChannel = this.client
       .channel(channelName)

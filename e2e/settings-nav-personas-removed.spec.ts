@@ -12,7 +12,9 @@ test.describe('@flx-129 @journey @settings-nav', () => {
     page,
   }) => {
     await page.goto(projectPath('/settings'));
-    await expect(page.getByRole('navigation', { name: 'Settings tabs' })).toBeVisible({
+    await expect(
+      page.getByRole('navigation', { name: 'Settings tabs' })
+    ).toBeVisible({
       timeout: 15_000,
     });
 
@@ -26,10 +28,12 @@ test.describe('@flx-129 @journey @settings-nav', () => {
     page,
   }) => {
     await page.goto(projectPath('/settings/skills'));
-    await expect(
-      page.getByRole('heading', { name: 'Skills' })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Skills' })).toBeVisible({
+      timeout: 15_000,
+    });
     // Seeded skill row (RecordEditor renders rows as <li>)
-    await expect(page.locator('li', { hasText: 'research' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('li', { hasText: 'research' })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });

@@ -31,21 +31,21 @@ describe('getArtifactsBase + getArtifactsPath against real tmpdirs', () => {
   });
 
   it('uses artifactsRoot when set to an absolute path', () => {
-    expect(getArtifactsBase(repoPath, { artifactsRoot: '/srv/flux/artifacts' })).toBe(
-      '/srv/flux/artifacts'
-    );
+    expect(
+      getArtifactsBase(repoPath, { artifactsRoot: '/srv/flux/artifacts' })
+    ).toBe('/srv/flux/artifacts');
   });
 
   it('throws when artifactsRoot is relative', () => {
-    expect(() => getArtifactsBase(repoPath, { artifactsRoot: 'relative/path' })).toThrow(
-      /FLUXAOS_ARTIFACTS_ROOT must be an absolute path/
-    );
+    expect(() =>
+      getArtifactsBase(repoPath, { artifactsRoot: 'relative/path' })
+    ).toThrow(/FLUXAOS_ARTIFACTS_ROOT must be an absolute path/);
   });
 
   it('falls back to workspaceRoot when artifactsRoot is unset', () => {
-    expect(getArtifactsBase(repoPath, { workspaceRoot: '/srv/flux/workspaces' })).toBe(
-      '/srv/flux/workspaces'
-    );
+    expect(
+      getArtifactsBase(repoPath, { workspaceRoot: '/srv/flux/workspaces' })
+    ).toBe('/srv/flux/workspaces');
   });
 
   it('prefers artifactsRoot over workspaceRoot when both set', () => {
