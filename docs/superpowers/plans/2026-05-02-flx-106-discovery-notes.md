@@ -1,6 +1,8 @@
 # FLX-106 Discovery Notes
 
-Verified signatures for every identifier the plan will use. File:line citations are exact.
+> Historical reference only. These notes supported the superseded FLX-106 playbook/YAML implementation plan. Current pipeline execution is DB-owned/config-driven; do not treat playbook-runner references below as active operator guidance.
+
+Verified signatures for every identifier the plan used. File:line citations were exact at the time.
 No code, no plan edits — citations only.
 
 ---

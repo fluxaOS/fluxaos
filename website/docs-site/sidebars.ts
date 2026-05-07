@@ -39,7 +39,6 @@ const sidebars: SidebarsConfig = {
         'reference/signal-types',
         'reference/gate-rules',
         'reference/issue-states',
-        'reference/playbook-schema',
         'reference/daemon',
       ],
     },

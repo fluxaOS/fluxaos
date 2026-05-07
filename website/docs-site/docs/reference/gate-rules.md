@@ -22,32 +22,17 @@ Each rule has five fields:
 
 ## Available fields
 
-Gate rules evaluate against a context object. The available fields differ depending on whether the stage is part of a **UI-configured pipeline** or a **YAML playbook**.
-
-### UI pipeline stages
+Gate rules evaluate against a context object built for DB-configured pipeline stages.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `exit_code` | integer | Process exit code (0 = success) |
-| `cost_usd` | number | Total cost in USD (currently reported as `0` — result doc parsing not yet wired in UI path) |
+| `cost_usd` | number | Total cost in USD (currently reported as `0` — result doc parsing is not wired into the DB-stage gate context yet) |
 | `tokens_in` | integer | Input token count (currently `0` — same limitation) |
 | `tokens_out` | integer | Output token count (currently `0` — same limitation) |
 | `provider` | string | Provider name reported by the driver |
 | `model` | string | Model identifier reported by the driver |
 | `driver` | string | Driver name |
-
-### YAML playbook stages
-
-Playbook stages evaluate rules against the result document directly using dot-path notation:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `verdict` | string | Result document verdict: `pass`, `fail`, `blocked` |
-| `timing.duration_sec` | number | Stage duration in seconds |
-| `run.attempt` | integer | Attempt number (1 = first try, 2 = first retry, etc.) |
-| `meta.input_tokens` | integer | Input token count |
-| `meta.output_tokens` | integer | Output token count |
-| `meta.cost_usd` | number | Cost in USD |
 
 ## Operators
 

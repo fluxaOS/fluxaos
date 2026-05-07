@@ -6,9 +6,9 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 
 ## What is fluxaOS?
 
-fluxaOS reads its configuration from the database and executes whatever the operator configured — pipeline stages, skills, drivers, gates, routing rules. The engine is agnostic: it doesn't know stage names, provider names, or driver names. It runs whatever's in the seed.
+fluxaOS reads its configuration from the database and executes whatever the operator configured — pipeline stages, skills, drivers, gates, routing rules. The engine is agnostic: it doesn't know stage names, provider names, or driver names. It runs DB-owned configuration, not file-backed pipeline definitions.
 
-The alpha pipeline is three stages: `research` → `implement` → `review`. Each stage runs Claude in an isolated worktree, hands off intermediate findings via per-run artifact directories, and gates the proceed/rework verdict on rules or skill signals. When `review` proceeds, the deploy bridge commits the worktree, pushes the branch, and opens a PR via the GitHub adapter.
+The seeded alpha lifecycle is `research` → `implement` → `review` → `rework` → `deploy`. Those names are configured data, not engine literals: `review` can route to `rework`, `rework` resubmits to `review`, and a proceed verdict from `review` routes to `deploy`. Each stage runs Claude in an isolated worktree, hands off intermediate findings via per-run artifact directories, and gates routing on DB-configured rules or skill signals. When `deploy` proceeds, the deploy bridge commits the worktree, pushes the branch, opens a PR via the GitHub adapter, and records the deploy run outcome.
 
 The daemon owns execution end-to-end. tRPC triggers are publish-only — they write a `pipeline_run` row at status `pending` and wait for the daemon's Realtime subscription to pick it up.
 
