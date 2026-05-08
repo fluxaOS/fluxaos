@@ -69,7 +69,10 @@ export default function RoutingSettingsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Routing Profiles" />
+      <PageHeader
+        title="Routing Profiles"
+        description="Configure onPass, onFail, and fallback routing between pipeline stages"
+      />
 
       {orgId ? (
         <div className="flex justify-end">

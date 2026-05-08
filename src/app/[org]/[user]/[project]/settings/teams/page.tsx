@@ -68,7 +68,10 @@ export default function TeamsSettingsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Teams" />
+      <PageHeader
+        title="Teams"
+        description="Manage teams and their access to projects"
+      />
 
       {projectId ? (
         <div className="flex justify-end">

@@ -41,6 +41,7 @@ export default function PipelineSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Pipeline Settings"
+        description="Configure pipelines, stages, and execution order"
         action={
           projectId ? (
             <button

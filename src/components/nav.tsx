@@ -4,12 +4,19 @@ import {
   Activity,
   BarChart3,
   CircleDot,
+  Clock,
+  Cog,
+  FolderKanban,
   GitBranch,
   LayoutDashboard,
+  Palette,
   Route,
   Server,
   Sparkles,
   Terminal,
+  User,
+  UserCircle,
+  Users,
   Workflow,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -55,6 +62,21 @@ export function Nav() {
       label: 'Providers',
       icon: Server,
     },
+    {
+      href: `${basePath}/settings/personas`,
+      label: 'Personas',
+      icon: UserCircle,
+    },
+    { href: `${basePath}/settings/brands`, label: 'Brands', icon: Palette },
+    { href: `${basePath}/settings/teams`, label: 'Teams', icon: Users },
+    { href: `${basePath}/settings/users`, label: 'Users', icon: User },
+    {
+      href: `${basePath}/settings/projects`,
+      label: 'Projects',
+      icon: FolderKanban,
+    },
+    { href: `${basePath}/settings/system`, label: 'System', icon: Cog },
+    { href: `${basePath}/settings/cron`, label: 'Cron Jobs', icon: Clock },
   ];
 
   return (

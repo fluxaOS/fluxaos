@@ -82,6 +82,7 @@ export function IssueListClient({
     <div className="space-y-5">
       <PageHeader
         title="Issues"
+        description="Track and manage project issues through the pipeline"
         action={
           <Link
             href={`${basePath}/issues/new`}
