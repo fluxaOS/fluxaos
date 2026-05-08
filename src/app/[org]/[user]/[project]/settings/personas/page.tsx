@@ -59,6 +59,7 @@ export default function PersonaSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Personas"
+        description="Define agent identities with custom soul prompts and skill sets"
         action={
           <button
             type="button"

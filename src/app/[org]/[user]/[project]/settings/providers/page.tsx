@@ -74,7 +74,10 @@ export default function ProviderSettingsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Providers" />
+      <PageHeader
+        title="Providers"
+        description="Manage AI provider credentials and connection settings"
+      />
 
       {orgId ? (
         <div className="flex justify-end">
