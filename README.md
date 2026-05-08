@@ -61,6 +61,39 @@ open http://localhost:3000
 
 For an end-to-end smoke test, see `e2e/r-smoke.spec.ts` — the alpha-acceptance journey that drives the full flow against a disposable sandbox repo.
 
+## flux CLI
+
+`./flux` is the operator lifecycle helper at the repo root. It manages the dev server, the UAT Docker service, and the orchestrator daemon without requiring you to remember `docker compose` paths or `systemctl` invocations.
+
+```
+flux server dev start|stop|restart|reset|status [--root <path>] [--port <port>]
+flux server uat start|stop|restart|status|build
+flux daemon list
+flux daemon orchestrator start|stop|restart|status|install|uninstall
+flux orchestrator ...        # alias for flux daemon orchestrator
+```
+
+| Command | What it does |
+|---------|-------------|
+| `flux server dev start` | Starts Next.js on port 3004 (`-H 0.0.0.0`), PID/log under `.flux/` |
+| `flux server dev stop` | Kills the dev server |
+| `flux server dev restart` | Stop + start |
+| `flux server dev reset` | Stop → nuke DB → reseed → start (use after `nuke.ts` or bad state) |
+| `flux server dev status` | Shows PID, port, and endpoint (`dev-flux.jdp21.com = 192.168.54.101:3004`) |
+| `--root <path>` | Serve a different directory (e.g. a worktree) instead of the repo root |
+| `--port <port>` | Override the default port (3004) |
+| `flux server uat start` | `docker compose up -d fluxaos-web` in `/mnt/stacks/docker/fluxaos` |
+| `flux server uat stop` | `docker compose stop fluxaos-web` |
+| `flux server uat restart` | `docker compose restart fluxaos-web` |
+| `flux server uat status` | `docker compose ps fluxaos-web` + endpoint |
+| `flux server uat build` | Runs `/mnt/stacks/docker/fluxaos/build.sh` |
+| `flux daemon list` | Lists registered daemons (`orchestrator fluxaos-daemon`) |
+| `flux daemon orchestrator install` | Copies + patches the systemd user-unit, enables it |
+| `flux daemon orchestrator uninstall` | Disables + removes the unit |
+| `flux daemon orchestrator start\|stop\|restart\|status` | `systemctl --user` pass-through |
+
+Set `FLUX_DRY_RUN=1` to print every shell command without executing it — useful for verifying what a reset or uninstall would do before committing.
+
 ## Production Docker
 
 The checked-in `docker-compose.yml` is a development convenience. Production Docker uses the homelab template in `ops/docker/homelab/`.
@@ -232,19 +265,7 @@ journalctl --user -u fluxaos-daemon -f
 
 ### `flux` operator helper
 
-The repo root includes `./flux` as a small lifecycle helper:
-
-```bash
-./flux server dev start|stop|restart|status
-./flux server prod start|stop|restart|status|build
-./flux daemon list
-./flux daemon orchestrator start|stop|restart|status|install|uninstall
-./flux orchestrator start|stop|restart|status|install|uninstall
-```
-
-`server dev` starts Next.js on port `3004` and stores its PID/log under `.flux/`; status reports `dev-flux.jdp21.com = 192.168.54.101:3004`.
-`server prod` manages the `fluxaos-web` Docker Compose service in `/mnt/stacks/docker/fluxaos`; status reports `flux.jdp21.com = 192.168.54.101:3003`, and `build` delegates to that stack's `build.sh`.
-`orchestrator` is the current daemon name and maps to the `fluxaos-daemon` systemd user unit. `./flux orchestrator ...` is shorthand for `./flux daemon orchestrator ...`.
+The repo root includes `./flux` as a small lifecycle helper. See the [flux CLI](#flux-cli) section for the full command reference.
 
 ## Documentation
 
