@@ -5,7 +5,7 @@ title: Signals
 
 # Signals
 
-A signal is how a stage communicates its outcome to the pipeline. Stages can signal via two mechanisms: a **result document** (a JSON file written to `$RESULT_DOC_PATH`) and a **stdout signal line** (a `flux:signal` JSON line printed to stdout during execution).
+A signal is how a stage communicates its outcome to the pipeline. In the DB-first runtime, the routing signal is the **result document**: a JSON file written to `$RESULT_DOC_PATH` and ingested after the stage subprocess exits.
 
 ## Result document
 
@@ -30,9 +30,9 @@ After the subprocess finishes, the orchestrator reads the result document at `$R
 
 The orchestrator posts `comment` text to the issue, surfaces `blockers` in the UI, and records `artifacts` for download.
 
-## flux:signal stdout protocol
+## Signal metadata
 
-A skill can also emit a `flux:signal` line on stdout at any point during execution. The orchestrator reads this and acts immediately, before the result document is processed.
+Some seeded stage prompts still describe a `flux:signal` shape as shorthand for the stage outcome:
 
 ```json
 {"flux:signal": {"verdict": "hold", "reason": "already_complete", "meta": {"targetState": "review"}}}
@@ -40,9 +40,11 @@ A skill can also emit a `flux:signal` line on stdout at any point during executi
 
 Signal verdicts: `proceed`, `hold`, `rework`, `abort`.
 
-`hold` takes an optional `reason`:
-- `already_complete` — issue is ahead of its current state; `meta.targetState` tells the orchestrator where to jump. **Signal-driven jumps bypass the normal state transition table** — the orchestrator calls `stateOverride()` directly.
-- `needs_human` — ambiguous or blocked; sets issue status to `Blocked` and surfaces it for human review. `meta.question` can carry a message.
+That shape does **not** create an immediate stdout fast path in the DB-first runtime. The orchestrator ingests `$RESULT_DOC_PATH` after the subprocess exits, maps `verdict` (`pass`, `fail`, `blocked`) to pipeline routing, and reads optional `signal_reason` / `signal_meta` fields from the result document when it needs reason-specific behavior.
+
+`signal_reason` can carry hold-style reasons:
+- `already_complete` — issue is ahead of its current state; `signal_meta.targetState` tells the orchestrator where to jump. **Reason-driven jumps bypass the normal state transition table** — the orchestrator calls `stateOverride()` directly.
+- `needs_human` — ambiguous or blocked; sets issue status to `Blocked` and surfaces it for human review. `signal_meta.question` can carry a message.
 
 For the full signal type reference, see [Signal Types](../reference/signal-types).
 

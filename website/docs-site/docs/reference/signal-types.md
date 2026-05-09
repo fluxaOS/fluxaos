@@ -5,7 +5,7 @@ title: Signal Types
 
 # Signal Types
 
-Stages communicate their outcome to the orchestrator via two mechanisms: a **result document** (post-stage) and a **flux:signal stdout line** (during execution). See [Signals concept page](../concepts/signals) for an overview.
+Stages communicate their outcome to the orchestrator through the **result document** ingested after the stage subprocess exits. See [Signals concept page](../concepts/signals) for an overview.
 
 ## Result document verdicts
 
@@ -29,29 +29,31 @@ Routing edges are DB fields on each configured pipeline stage (`pipeline_stage.o
 
 The configured terminal target marks the pipeline as finished. Blocked verdicts pause the issue for operator action; they are not represented by a file-backed stage definition.
 
-## flux:signal stdout protocol
+## Signal metadata
 
-A skill can emit a `flux:signal` line to stdout at any time during execution. The orchestrator reads it and acts before the result document is processed.
+Some seeded prompts still use a `flux:signal` JSON shape as shorthand for the stage outcome:
 
 ```json
 {"flux:signal": {"verdict": "hold", "reason": "already_complete", "meta": {"targetState": "review"}}}
 ```
 
-**Signal verdicts:**
+The DB-first runtime does not route from stdout immediately. The orchestrator reads `$RESULT_DOC_PATH` after the subprocess exits, validates it, then maps result-document verdicts to gate verdicts and routing.
+
+**Legacy signal verdict mapping:**
 
 | Verdict | Orchestrator action |
 |---------|---------------------|
-| `proceed` | Advance to next pipeline stage immediately |
-| `hold` | Pause — see `reason` field |
-| `rework` | Re-run this stage (up to `maxRetries`) |
-| `abort` | Fail the pipeline run immediately |
+| `proceed` | Represent as result-document `verdict: "pass"` |
+| `hold` | Represent as result-document `verdict: "blocked"`; include `signal_reason` / `signal_meta` when needed |
+| `rework` | Represent as result-document `verdict: "fail"` |
+| `abort` | Represent as a failed stage result or gate-level abort |
 
-**`hold` reasons:**
+**`signal_reason` values:**
 
 | Reason | Meaning | Orchestrator action |
 |--------|---------|---------------------|
-| `already_complete` | Issue is ahead of its current state | Transition issue to `meta.targetState` via `stateOverride()` — bypasses the normal transition table |
-| `needs_human` | Ambiguous or blocked | Set issue status to `Blocked`; surface to user. `meta.question` carries the message. |
+| `already_complete` | Issue is ahead of its current state | Transition issue to `signal_meta.targetState` via `stateOverride()` — bypasses the normal transition table |
+| `needs_human` | Ambiguous or blocked | Set issue status to `Blocked`; surface to user. `signal_meta.question` carries the message. |
 
 ## Gate verdicts
 
