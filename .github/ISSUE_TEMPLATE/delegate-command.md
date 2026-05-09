@@ -1,7 +1,7 @@
 ---
 name: Delegate CLI Command
 about: Add delegation for a fhc command so downstream CLIs can use it
-title: '[BUG] `{{CLI}} <COMMAND>` not delegated to fhc'
+title: '[BUG] ` <COMMAND>` not delegated to fhc'
 labels: [type:bug, state:implement]
 ---
 
@@ -10,12 +10,12 @@ labels: [type:bug, state:implement]
 
 ## Summary
 
-`{{CLI}} <COMMAND>` returns "Unknown command" even though `fhc <COMMAND>` works correctly. The command was never added to `DELEGATED_COMMANDS` in the CLI framework registry.
+` <COMMAND>` returns "Unknown command" even though `fhc <COMMAND>` works correctly. The command was never added to `DELEGATED_COMMANDS` in the CLI framework registry.
 
 ## Steps to Reproduce
 
 ```bash
-{{CLI}} <COMMAND> -h
+ <COMMAND> -h
 # Error: Unknown command '<COMMAND>'
 
 fhc <COMMAND> -h
@@ -66,8 +66,8 @@ DELEGATED_COMMANDS = {
 
 ## Acceptance Criteria
 
-- [ ] `{{CLI}} <COMMAND> -h` shows help (not "Unknown command")
-- [ ] `{{CLI}} <COMMAND> <args>` works identically to `fhc <COMMAND> <args>`
-- [ ] `{{CLI}} --help` lists `<COMMAND>` as available
+- [ ] ` <COMMAND> -h` shows help (not "Unknown command")
+- [ ] ` <COMMAND> <args>` works identically to `fhc <COMMAND> <args>`
+- [ ] ` --help` lists `<COMMAND>` as available
 - [ ] Existing `fhc <COMMAND>` unchanged
 - [ ] New test verifies delegation registration
