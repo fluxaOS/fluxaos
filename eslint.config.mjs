@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     'out/**',
     'build/**',
     'next-env.d.ts',
+    // Repository-local isolation and generated output. These directories can
+    // contain stale copies of source/tests; linting them makes verification lie.
+    '.worktrees/**',
+    '.fluxaos-worktrees/**',
+    'website/.next/**',
+    'website/out/**',
+    'website/docs-site/build/**',
+    'website/docs-site/.docusaurus/**',
   ]),
   // Mirror biome.json rule decisions so lint surfaces stay aligned.
   // Codebase uses `any` deliberately at integration test seams and tRPC
