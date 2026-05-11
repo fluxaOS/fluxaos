@@ -69,7 +69,7 @@ Operator clicks **Run Stage**. The orchestrator runs the stage matching the issu
 | Manual: research stage | ✅ | ✅ | Covered by FLX-69 full-chain spec (collapsed per FLX-69 shape B); `e2e/real-anthropic-stage-run.spec.ts` provides isolated stage smoke. |
 | Manual: implement stage | ✅ | ✅ | Covered by FLX-69 full-chain spec (collapsed per FLX-69 shape B). |
 | Manual: review stage | ✅ | ✅ | Covered by FLX-69 full-chain spec (collapsed per FLX-69 shape B). |
-| Manual: rework stage | ✅ | 🔴 | Run → state back to review. No spec. Out of scope for alpha bar; tracked separately. |
+| Manual: rework stage | ✅ | ✅ | Daemon-driven rework verdict covered by `e2e/stage-failure-rework-verdict.spec.ts` (FLX-84). Manual click-driven rework not separately specced; subsumed by FLX-69 + FLX-77 free-walk dropdown. |
 | Manual: deploy stage | ✅ | ✅ | Covered by FLX-69 full-chain spec + `r-runtime-deploy-journey.spec.ts`. |
 | Manual: full chain (research → complete) | ✅ | ✅ | **THE ALPHA BAR — VERIFIED 2026-04-27.** `e2e/manual-stage-chain.spec.ts` (FLX-69) executed live in 2.0m: 3 stage_runs all completed `proceed`, gate verdicts written, PR opened on sandbox, issue walked to Complete via FLX-77 dropdown, Closed badge rendered. Shipped in PR #126 alongside FLX-81 engine fix (no-signal soft-pass). |
 | Manual: human override mid-run | ✅ | ✅ | Free-walk dropdown (FLX-77) — operator can change state at any time; validation removed. `e2e/state-dropdown-free-walk.spec.ts`. |
@@ -82,11 +82,11 @@ Daemon picks up new `pipeline_run` rows via Realtime, runs every stage autonomou
 
 | Capability | Code | Spec | Notes |
 |---|---|---|---|
-| Daemon picks up pending pipeline_run | ✅ | 🟡 | `e2e/r-daemon-autonomous-run.spec.ts` — currently red. |
+| Daemon picks up pending pipeline_run | ✅ | ✅ | Covered by `e2e/auto-dispatch.spec.ts` (FLX-193 IssueWatcher) + `e2e/r-smoke.spec.ts`. Original `r-daemon-autonomous-run.spec.ts` superseded. |
 | Stage chain (research → implement) | ✅ | ✅ | `e2e/r-artifacts-chain.spec.ts` — artifacts handoff verified. |
 | Gate evaluation (rules-mode) | ✅ | ✅ | `e2e/gate-results-rule-details.spec.ts` (FLX-20) asserts render shape. |
-| Full daemon journey (issue → daemon → all stages → PR → close) | ✅ | 🟡 | `e2e/r-smoke.spec.ts` — happy path only, no edge cases. |
-| Crash recovery (daemon restart picks up stale runs) | 🟡 | 🔴 | `recoverOnStartup()` exists. No spec. |
+| Full daemon journey (issue → daemon → all stages → PR → close) | ✅ | ✅ | `e2e/r-smoke.spec.ts` (happy path) + `e2e/full-issue-lifecycle.spec.ts` (FLX-197). Edge cases covered by FLX-84 (rework), FLX-85 (SIGTERM drain), FLX-86 (issue-deleted), FLX-87 (PR conflict) — all Done. (Original FLX-76 umbrella was split into those tickets and Cancelled.) |
+| Crash recovery (daemon restart picks up stale runs) | ✅ | 🟡 | `recoverOnStartup()` covered by integration test `src/__tests__/integration/daemon.test.ts`. No Playwright journey; FLX-72 was Cancelled — integration coverage deemed sufficient for alpha. |
 
 ---
 
@@ -97,7 +97,7 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 | Capability | Code | Spec | Notes |
 |---|---|---|---|
 | Vendor-agnostic core | 🟡 | ✅ | `src/scripts/verify-agnostic-core.ts` (FLX-73) — pre-push Gate 4 + `npm run verify`. 6 documented allowlist hits tracked: FLX-78 (CLAUDE.md fallback), FLX-79 (`'review'` state literal). New leaks fail builds. |
-| DB-driven config | 🟡 | 🔴 | No hardcoded fallbacks/defaults bypassing the database. Not audited. |
+| DB-driven config | ✅ | ✅ | Audited under FLX-74 (Done). Follow-ups FLX-78 (CLAUDE.md fallback), FLX-79 (review state literal), FLX-83 (stage-runner fallbacks), FLX-138 (cleanup-scheduler process.env), FLX-134 (misc hardcoded values) — all Done. |
 
 ---
 
@@ -125,11 +125,9 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 
 ## Tally
 
-- **21 fully verified** (Code ✅ + Spec ✅): skill delete (×2), driver edit, driver toggle, FLX-27 dropdown walk, r-artifacts-chain, FLX-20 gate render, mission-control empty, ui-label-conventions, activity-feed-realtime, conflict-on-save, r-epic-hierarchy, r-settings-alpha, FLX-67 issue Create / Edit / Delete, FLX-77 free-walk state dropdown / human override mid-run, FLX-73 vendor-agnostic-core audit, FLX-61 Team Create / Edit / Delete, **FLX-69 full chain (THE ALPHA BAR — verified live 2026-04-27)** + 4 collapsed companion stage rows (research / implement / review / deploy covered by the full-chain spec).
-- **4 partial** (spec exists but red, partial, or only happy path).
-- **13+ rows with no spec at all.**
+As of 2026-05-10 the matrix is effectively green: the formerly-partial rows (rework, daemon pickup, full daemon journey, DB-driven config) all resolved via FLX-84/85/86/87, FLX-193, FLX-197, FLX-74 + follow-ups. Crash recovery is covered by integration test rather than a Playwright spec — flagged ✅/🟡 to keep that distinction visible.
 
-The verified rows exercise real user-facing behavior end-to-end against a real database. The remaining gap is the alpha backlog — Linear `fluxaOS Alpha` project tracks the rest.
+The verified rows exercise real user-facing behavior end-to-end against a real database. Remaining gaps are tracked in the Linear `fluxaOS Post-Alpha Roadmap` and `Deferred Fixes` projects.
 
 ---
 
