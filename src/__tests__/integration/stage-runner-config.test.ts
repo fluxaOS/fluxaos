@@ -66,14 +66,11 @@ let orgId: string;
 let userId: string;
 let projectId: string;
 let pipelineId: string;
-let previousTargetRepoPath: string | undefined;
 
 beforeAll(async () => {
   bootstrap();
-  previousTargetRepoPath = process.env.FLUXAOS_TARGET_REPO_PATH;
   const targetRepoPath = await mkdtemp(join(tmpdir(), 'fluxaos-target-'));
   tempDirs.push(targetRepoPath);
-  process.env.FLUXAOS_TARGET_REPO_PATH = targetRepoPath;
 
   const org = await createOrganizationService(db).create({
     name: `StageRunnerConfigOrg-${RUN}`,
@@ -97,6 +94,8 @@ beforeAll(async () => {
     name: `StageRunnerConfigProject-${RUN}`,
     slug: `stage-runner-config-project-${RUN}`,
     repoUrl: `https://github.com/fluxaos/stage-runner-config-${RUN}`,
+    // FLX-221: targetRepoPath is per-project now; seed it on the row.
+    targetRepoPath,
   });
   projectId = project.id;
 
@@ -108,12 +107,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (previousTargetRepoPath === undefined) {
-    delete process.env.FLUXAOS_TARGET_REPO_PATH;
-  } else {
-    process.env.FLUXAOS_TARGET_REPO_PATH = previousTargetRepoPath;
-  }
-
   for (const path of tempDirs.reverse()) {
     await rm(path, { recursive: true, force: true }).catch(() => {});
   }

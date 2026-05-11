@@ -157,7 +157,6 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         pipelineId: run.pipelineId,
         issueId: run.issueId ?? null,
         issueNumber,
-        targetRepoPath: fluxaosConfig?.targetRepoPath,
       });
       envWorkingPath = acquired.env.workingPath;
       envArtifactsPath = acquired.env.artifactsPath;

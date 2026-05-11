@@ -19,7 +19,6 @@ const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-let previousTargetRepoPath: string | undefined;
 let targetRepoPath: string | null = null;
 let bareRemotePath: string | null = null;
 let handle: DaemonHandle | null = null;
@@ -32,8 +31,6 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
     const repos = createTempGitRepoWithBareRemote();
     targetRepoPath = repos.targetRepoPath;
     bareRemotePath = repos.bareRemotePath;
-    previousTargetRepoPath = process.env.FLUXAOS_TARGET_REPO_PATH;
-    process.env.FLUXAOS_TARGET_REPO_PATH = targetRepoPath;
 
     execSync('npx tsx src/scripts/db/nuke.ts', {
       cwd: REPO_ROOT,
@@ -46,7 +43,8 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
       env: process.env,
     });
 
-    await configureDeployConflictFixture();
+    // FLX-221: target_repo_path is a per-project column.
+    await configureDeployConflictFixture(targetRepoPath);
     handle = await spawnDaemon({ graceSeconds: 5, shutdownTimeoutMs: 20_000 });
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   });
@@ -54,11 +52,6 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
   test.afterAll(async () => {
     if (handle && handle.daemon.exitCode === null) {
       await handle.shutdown().catch(() => undefined);
-    }
-    if (previousTargetRepoPath === undefined) {
-      delete process.env.FLUXAOS_TARGET_REPO_PATH;
-    } else {
-      process.env.FLUXAOS_TARGET_REPO_PATH = previousTargetRepoPath;
     }
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
@@ -154,7 +147,7 @@ function createTempGitRepoWithBareRemote(): {
   return { targetRepoPath: repoPath, bareRemotePath: bareRemote };
 }
 
-async function configureDeployConflictFixture(): Promise<void> {
+async function configureDeployConflictFixture(repoPath: string): Promise<void> {
   const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
   try {
     const [projectRow] = await sql<{ id: string }[]>`
@@ -162,6 +155,7 @@ async function configureDeployConflictFixture(): Promise<void> {
       SET "repo_url" = 'https://github.com/fluxaos/flx-87-fixture',
           "default_branch" = 'main',
           "worktree_copy_files" = '[]'::jsonb,
+          "target_repo_path" = ${repoPath},
           "updated_at" = NOW()
       WHERE "slug" = 'fluxaos'
       RETURNING id

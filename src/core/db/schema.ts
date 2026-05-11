@@ -79,6 +79,12 @@ export const project = pgTable(
       .default(sql`'[]'::jsonb`),
     defaultPipelineId: uuid('default_pipeline_id'),
     brandId: uuid('brand_id'),
+    // FLX-221: absolute path to the on-disk clone of this project's target
+    // repo. Per-project column (replaces the prior global env-backed
+    // approach). Nullable — the stage runner fails fast when null at
+    // acquire time. Edited via Settings → Projects (FLX-207 makes it
+    // editable).
+    targetRepoPath: text('target_repo_path'),
     createdAt,
     updatedAt,
   },

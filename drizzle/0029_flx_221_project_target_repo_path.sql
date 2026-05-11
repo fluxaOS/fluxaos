@@ -1,0 +1,22 @@
+-- FLX-221 (2026-05-11): migrate FLUXAOS_TARGET_REPO_PATH env var to a
+-- per-project DB column.
+--
+-- Different shape from FLX-222/223/224: those were global operational
+-- config (config_entry rows). This one is per-project — different projects
+-- have different on-disk clones — so it lives on the project table.
+--
+-- The column is nullable. The stage-runner fails fast (typed
+-- MissingProjectTargetRepoPathError) when it tries to acquire isolation
+-- for a project whose target_repo_path is null. Operators set it via
+-- Settings → Projects (FLX-207 wires up the editable form).
+--
+-- Backfill: leave existing rows null. `npm run db:seed` is the idempotent
+-- re-seed path operators run after migrate — that script writes
+-- `project.target_repo_path` from the operator's previous
+-- FLUXAOS_TARGET_REPO_PATH env value if present, preserving today's
+-- single-project alpha behavior on upgrade.
+--
+-- Hand-written per FLX-16 (drizzle-kit generate is unusable in autonomous
+-- sessions; meta snapshots still drift on main).
+
+ALTER TABLE "project" ADD COLUMN "target_repo_path" text;
