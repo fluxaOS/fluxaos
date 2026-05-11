@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -21,17 +21,23 @@ type BrandOption = {
 };
 
 export default function PersonaSettingsPage() {
-  const params = useParams<{ project: string }>();
+  const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const projectSlug = params.project ?? 'fluxaos';
+  // params.project is guaranteed by the [project] route segment; the
+  // [org]/[user]/[project] layout never renders this page without it.
+  const projectSlug = params.project;
   const currentProjectQuery = trpc.project.getBySlug.useQuery({
     slug: projectSlug,
   });
   const currentProject = currentProjectQuery.data ?? null;
+  // Slug resolved against the DB but no project exists — the URL is invalid.
+  if (currentProjectQuery.isSuccess && !currentProject) {
+    notFound();
+  }
   const projectId = currentProject?.id;
   const orgId = currentProject?.orgId;
   const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
