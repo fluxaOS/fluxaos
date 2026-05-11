@@ -16,6 +16,20 @@ if (!url) {
   process.exit(1);
 }
 
+// Hard guard: nuke.ts must never run against the UAT Supabase project.
+// The dev/UAT env-file regression (FLX-123, 2026-05-05 / 2026-05-07) silently
+// pointed dev at UAT credentials; without this guard, every `flux server dev
+// reset` nukes UAT. Defense in depth — does not rely on env-file hygiene.
+const UAT_PROJECT_REF = 'zesinfsluyxiwzldeffa';
+if (url.includes(UAT_PROJECT_REF)) {
+  console.error(
+    `ERROR: nuke.ts refuses to run against UAT project (${UAT_PROJECT_REF}).\n` +
+      `       Current DB URL host contains the UAT project ref.\n` +
+      `       Check .env / .env.local — dev should point at dpdjlnpvxkepkwzwuvim.`
+  );
+  process.exit(1);
+}
+
 const provider = new SupabaseDatabaseProvider(url);
 const db = provider.getConnection();
 
