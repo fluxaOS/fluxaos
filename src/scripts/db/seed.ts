@@ -3,7 +3,7 @@
  * issue catalogs, transitions, and status automation config.
  *
  * Usage: npx tsx src/scripts/db/seed.ts
- * Requires: DATABASE_URL or DIRECT_URL set in .env
+ * Requires: DATABASE_URL set in .env (pgbouncer pooled connection, port 6543).
  *
  * Idempotent: safe to run multiple times. Uses onConflictDoNothing() throughout.
  */
@@ -36,9 +36,15 @@ import {
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
 
-const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+// Seed issues INSERT/SELECT/UPDATE only (no DDL). The pgbouncer pooled URL
+// is the right shape — same as runtime app traffic.
+const url = process.env.DATABASE_URL;
 if (!url) {
-  console.error('ERROR: DIRECT_URL or DATABASE_URL must be set.');
+  console.error(
+    'ERROR: DATABASE_URL must be set. ' +
+      'seed.ts uses the Supabase pooled connection (port 6543) for DML. ' +
+      'Run db:migrate (which uses DIRECT_URL) before seeding.'
+  );
   process.exit(1);
 }
 
