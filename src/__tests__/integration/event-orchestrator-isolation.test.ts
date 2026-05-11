@@ -513,6 +513,7 @@ async function createFixture() {
       priorityId: issuePriority.id,
       title: `flx-197 issue ${RUN}`,
       number: 1,
+      author: 'system',
     })
     .returning();
   const [run] = await db

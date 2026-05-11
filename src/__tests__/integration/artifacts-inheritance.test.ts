@@ -164,6 +164,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
         statusId: issueStatusId,
         priorityId: issuePriorityId,
         bodyMd: 'test',
+        author: 'system',
       })
       .returning();
 
@@ -238,6 +239,7 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
         statusId: issueStatusId,
         priorityId: issuePriorityId,
         bodyMd: 'test',
+        author: 'system',
       })
       .returning();
 

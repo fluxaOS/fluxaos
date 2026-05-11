@@ -68,6 +68,7 @@ describe('cleanup-service — safety checks', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-fixture' },
       branchName: `fluxaos/cleanup-uncommitted-${subRun.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
@@ -95,6 +96,7 @@ describe('cleanup-service — safety checks', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-fixture' },
       branchName: `fluxaos/cleanup-active-${subRun.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
     await divergeBranch(env.workingPath);
@@ -124,6 +126,7 @@ describe('cleanup-service — safety checks', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-fixture' },
       branchName: `fluxaos/cleanup-stale-${subRun.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
     await divergeBranch(env.workingPath);
@@ -157,6 +160,7 @@ describe('cleanup-service — safety checks', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-fixture' },
       branchName: branch,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
     await divergeBranch(env.workingPath);
@@ -201,6 +205,7 @@ describe('cleanup-service — safety checks', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-fixture' },
       branchName: branch,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
