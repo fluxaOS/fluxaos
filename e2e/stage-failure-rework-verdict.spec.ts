@@ -17,7 +17,6 @@ const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-let previousTargetRepoPath: string | undefined;
 let targetRepoPath: string | null = null;
 let handle: DaemonHandle | null = null;
 
@@ -27,8 +26,6 @@ test.describe('@flx-84 @daemon @journey', () => {
 
   test.beforeAll(async () => {
     targetRepoPath = createTempGitRepo();
-    previousTargetRepoPath = process.env.FLUXAOS_TARGET_REPO_PATH;
-    process.env.FLUXAOS_TARGET_REPO_PATH = targetRepoPath;
 
     execSync('npx tsx src/scripts/db/nuke.ts', {
       cwd: REPO_ROOT,
@@ -41,6 +38,7 @@ test.describe('@flx-84 @daemon @journey', () => {
       env: process.env,
     });
 
+    // FLX-221: target_repo_path is a per-project column.
     await configureReworkFixture(targetRepoPath);
     handle = await spawnDaemon({ graceSeconds: 5, shutdownTimeoutMs: 20_000 });
     await new Promise((resolve) => setTimeout(resolve, 2_000));
@@ -48,11 +46,6 @@ test.describe('@flx-84 @daemon @journey', () => {
 
   test.afterAll(async () => {
     if (handle) await handle.shutdown().catch(() => undefined);
-    if (previousTargetRepoPath === undefined) {
-      delete process.env.FLUXAOS_TARGET_REPO_PATH;
-    } else {
-      process.env.FLUXAOS_TARGET_REPO_PATH = previousTargetRepoPath;
-    }
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
     }
@@ -149,6 +142,7 @@ async function configureReworkFixture(repoPath: string): Promise<void> {
       SET "repo_url" = 'https://github.com/fluxaos/flx-84-fixture',
           "default_branch" = 'main',
           "worktree_copy_files" = '[]'::jsonb,
+          "target_repo_path" = ${repoPath},
           "updated_at" = NOW()
       WHERE "slug" = 'fluxaos'
       RETURNING id

@@ -37,24 +37,17 @@ const tempDirs: string[] = [];
 let fixtureOrgId: string;
 const driverIds: string[] = [];
 
-let previousTargetRepoPath: string | undefined;
 let fixture: Awaited<ReturnType<typeof createFixture>>;
+let fixtureTargetRepoPath: string;
 
 beforeAll(async () => {
   bootstrap();
-  previousTargetRepoPath = process.env.FLUXAOS_TARGET_REPO_PATH;
-  const targetRepoPath = await makeRepo('fluxaos-target-');
-  tempDirs.push(targetRepoPath);
-  process.env.FLUXAOS_TARGET_REPO_PATH = targetRepoPath;
+  fixtureTargetRepoPath = await makeRepo('fluxaos-target-');
+  tempDirs.push(fixtureTargetRepoPath);
   fixture = await createFixture();
 });
 
 afterAll(async () => {
-  if (previousTargetRepoPath === undefined) {
-    delete process.env.FLUXAOS_TARGET_REPO_PATH;
-  } else {
-    process.env.FLUXAOS_TARGET_REPO_PATH = previousTargetRepoPath;
-  }
   for (const path of tempDirs.reverse()) {
     await rm(path, { recursive: true, force: true }).catch(() => {});
   }
@@ -160,6 +153,8 @@ async function createFixture() {
     name: `StageRunnerIssueEventsProject-${RUN}`,
     slug: `stage-runner-issue-events-project-${RUN}`,
     repoUrl: `https://github.com/fluxaos/stage-runner-issue-events-${RUN}`,
+    // FLX-221: per-project column for the on-disk target repo clone.
+    targetRepoPath: fixtureTargetRepoPath,
   });
 
   const pipeline = await createPipelineService(db).create({

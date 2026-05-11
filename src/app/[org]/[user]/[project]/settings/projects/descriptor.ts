@@ -1,12 +1,12 @@
 // src/app/[org]/[user]/[project]/settings/projects/descriptor.ts
 import type { RecordDescriptor } from '@/components/record-editor/types';
 
-// ProjectRecord extends the raw project row with two UI-only derived
-// fields: `defaultPipelineName` (resolved from pipeline list) and
-// `targetRepoPath` (resolved from system.env.getPublic). Both are
+// ProjectRecord extends the raw project row with one UI-only derived
+// field: `defaultPipelineName` (resolved from pipeline list). It's
 // readonly in the editor — `defaultPipelineName` is changed via the
-// Pipelines tab's "Set as default" button; `targetRepoPath` is env-
-// backed for alpha and has no UI editor.
+// Pipelines tab's "Set as default" button. `targetRepoPath` is a real
+// project column (FLX-221) — readonly for now until FLX-207 makes the
+// form editable.
 //
 // RecordEditor requires { id, version: number } per RecordWithVersion.
 // The project table has no `version` column; the page hydrates with
@@ -20,7 +20,7 @@ export type ProjectRecord = {
   repoUrl: string | null;
   defaultBranch: string;
   defaultPipelineName: string;
-  targetRepoPath: string;
+  targetRepoPath: string | null;
 };
 
 export const projectDescriptor: RecordDescriptor<ProjectRecord> = {
@@ -49,7 +49,7 @@ export const projectDescriptor: RecordDescriptor<ProjectRecord> = {
     },
     {
       key: 'targetRepoPath',
-      label: 'Target repo path (env)',
+      label: 'Target repo path',
       fieldType: 'readonly',
     },
   ],

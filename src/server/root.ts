@@ -18,7 +18,6 @@ import { projectRouter } from './routers/project';
 import { providerRouter } from './routers/provider';
 import { routingRouter } from './routers/routing';
 import { skillRouter } from './routers/skill';
-import { systemRouter } from './routers/system';
 import { teamRouter } from './routers/team';
 import { userRouter } from './routers/user';
 import { router } from './trpc';
@@ -38,7 +37,6 @@ export const appRouter = router({
   driver: driverRouter,
   config: configRouter,
   cron: cronRouter,
-  system: systemRouter,
   team: teamRouter,
   user: userRouter,
   mission: missionRouter,

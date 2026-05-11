@@ -17,11 +17,13 @@
  *   - FLX-224: cleanup* + run-cleanup-scheduler moved out of FluxaosConfig
  *     (now five `cleanup.*` config_entry rows). The cleanup scheduler reads
  *     them from the DB on each sweep tick.
+ *   - FLX-221: targetRepoPath moved out of FluxaosConfig (now
+ *     `project.target_repo_path` column — per-project, not global). The
+ *     stage-runner reads it directly from the project row at acquire time
+ *     and fails fast with MissingProjectTargetRepoPathError when null.
  */
 
 export interface FluxaosConfig {
-  /** Absolute path to the on-disk clone of the target repo (R-RUNTIME alpha). */
-  targetRepoPath: string | undefined;
   /** Path to the init-result-doc script invoked via node. Required — no default. */
   initResultDocScript: string;
   /** Path to the ingest-result-doc script invoked via node. Required — no default. */
@@ -41,7 +43,6 @@ function parseRequiredString(name: string): string {
 
 export function loadFluxaosConfig(): FluxaosConfig {
   return {
-    targetRepoPath: process.env.FLUXAOS_TARGET_REPO_PATH,
     initResultDocScript: parseRequiredString('FLUXAOS_INIT_RESULT_DOC_SCRIPT'),
     ingestResultDocScript: parseRequiredString(
       'FLUXAOS_INGEST_RESULT_DOC_SCRIPT'

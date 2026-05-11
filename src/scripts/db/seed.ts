@@ -145,6 +145,19 @@ async function seed() {
     console.log(`  project.defaultPipelineId → ${pipe.id}`);
   }
 
+  // FLX-221: project.target_repo_path is the per-project replacement for
+  // the retired env var. Seed leaves it null; operators set it via
+  // Settings → Projects after first run. The stage runner fails fast with
+  // a typed error when null at acquire time, so a freshly-seeded DB will
+  // refuse to run pipelines until the column is populated.
+  if (proj.targetRepoPath) {
+    console.log(`  project.targetRepoPath: ${proj.targetRepoPath}`);
+  } else {
+    console.log(
+      `  project.targetRepoPath: (null — set it via Settings → Projects before running a pipeline)`
+    );
+  }
+
   // ── 5. Pipeline stages (no unique constraint — converge by name) ────────
   // Real dogfooding uses the full workflow: research -> implement -> review,
   // with review able to route to rework, then deploy after approval.

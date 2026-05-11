@@ -107,7 +107,6 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
     }));
 
     const fluxaosConfig: FluxaosConfig = {
-      targetRepoPath: repoPath,
       initResultDocScript: '.next/daemon/init-result-doc.mjs',
       ingestResultDocScript: '.next/daemon/ingest-result-doc.mjs',
     };
@@ -248,7 +247,6 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
     };
 
     const fluxaosConfig: FluxaosConfig = {
-      targetRepoPath: repoPath,
       initResultDocScript: '.next/daemon/init-result-doc.mjs',
       ingestResultDocScript: '.next/daemon/ingest-result-doc.mjs',
     };
@@ -382,6 +380,8 @@ async function createFixture() {
       slug,
       repoUrl: 'https://github.com/fluxaos/flx-197-fixture',
       defaultBranch: 'main',
+      // FLX-221: per-project target repo path column.
+      targetRepoPath: repoPath,
     })
     .returning();
   const [driverRow] = await db

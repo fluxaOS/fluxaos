@@ -1,7 +1,7 @@
 /**
  * `fluxaos status` — server reachability + project context summary.
  *
- * Calls system.env.getPublic (cheap, public, zero-input) plus
+ * Calls organization.list (cheap, public, zero-input) plus
  * project.getBySlug to verify both that the API is responding and that
  * the configured project slug resolves. Prints OK / NOT FOUND in text
  * mode, or a structured JSON object in --json mode.
@@ -31,8 +31,8 @@ export async function runStatus(
   };
 
   try {
-    // system.env.getPublic is the cheapest reach check — public, no inputs.
-    await client.system.env.getPublic.query();
+    // organization.list is the cheapest reach check — public, no inputs.
+    await client.organization.list.query();
     result.apiReachable = true;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);

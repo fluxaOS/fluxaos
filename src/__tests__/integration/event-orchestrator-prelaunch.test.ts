@@ -42,8 +42,9 @@ beforeAll(() => {
 
 describe('FLX-94 pre-launch stage failures', () => {
   it('fails pre-launch retries and stops at the retry budget', async () => {
-    const savedTarget = process.env.FLUXAOS_TARGET_REPO_PATH;
-    delete process.env.FLUXAOS_TARGET_REPO_PATH;
+    // FLX-221: targetRepoPath is a per-project column. Leaving it null on
+    // the fixture project drives the MissingProjectTargetRepoPathError
+    // pre-launch retry path.
     const fixture = await createFixture({ maxRetries: 1 });
     let insertCallback: PipelineRunInsertCallback | null = null;
     const realtime = {
@@ -129,13 +130,10 @@ describe('FLX-94 pre-launch stage failures', () => {
         STAGE_RUN_STATUS.failed,
         STAGE_RUN_STATUS.failed,
       ]);
-      expect(byAttempt[0].errorMessage).toMatch(/FLUXAOS_TARGET_REPO_PATH/);
-      expect(byAttempt[1].errorMessage).toMatch(/FLUXAOS_TARGET_REPO_PATH/);
+      expect(byAttempt[0].errorMessage).toMatch(/target_repo_path/);
+      expect(byAttempt[1].errorMessage).toMatch(/target_repo_path/);
     } finally {
       orchestrator.stop();
-      if (savedTarget !== undefined) {
-        process.env.FLUXAOS_TARGET_REPO_PATH = savedTarget;
-      }
       await cleanupFixture(fixture);
     }
   }, 15_000);

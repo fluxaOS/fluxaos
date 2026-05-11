@@ -61,6 +61,10 @@ export const projectRouter = router({
         defaultBranch: z.string().min(1).optional(),
         defaultPipelineId: z.string().uuid().nullable().optional(),
         brandId: z.string().uuid().nullable().optional(),
+        // FLX-221: per-project absolute path to the on-disk clone of the
+        // target repo. Null means the stage-runner will refuse to acquire
+        // an isolation env for this project.
+        targetRepoPath: z.string().nullable().optional(),
       })
     )
     .mutation(({ ctx, input }) => {

@@ -18,18 +18,20 @@ import type {
 
 /**
  * Error raised when the stage-runner cannot locate the on-disk clone of the
- * target repo. Thrown when `FLUXAOS_TARGET_REPO_PATH` is unset (alpha).
+ * target repo. Thrown when `project.targetRepoPath` is null for the project
+ * being run (FLX-221 migration from env var to per-project column).
  */
-export class TargetRepoPathMissingError extends Error {
-  constructor() {
+export class MissingProjectTargetRepoPathError extends Error {
+  readonly projectId: string;
+  constructor(projectId: string) {
     super(
-      'FLUXAOS_TARGET_REPO_PATH is not set. For R-RUNTIME alpha, the ' +
-        'stage-runner uses this env var to locate the on-disk clone of the ' +
-        'target repo (the one the isolation provider creates worktrees in). ' +
-        'Set it to the absolute path of a checked-out clone before running ' +
-        'the orchestrator.'
+      `project.target_repo_path is null for project ${projectId}. ` +
+        'The stage-runner needs an absolute path to the on-disk clone of ' +
+        "this project's target repo to acquire an isolation worktree. " +
+        'Set it via Settings → Projects, or update the project row directly.'
     );
-    this.name = 'TargetRepoPathMissingError';
+    this.name = 'MissingProjectTargetRepoPathError';
+    this.projectId = projectId;
   }
 }
 
@@ -81,11 +83,6 @@ interface AcquireEnvInput {
    */
   issueId: string | null;
   issueNumber?: number | null;
-  /**
-   * Absolute path to the on-disk clone of the target repo. Injected from
-   * FluxaosConfig so core code never reads process.env directly.
-   */
-  targetRepoPath?: string;
 }
 
 /**
@@ -124,8 +121,9 @@ export interface AcquireEnvResult {
 
 /**
  * Load the project row, resolve repoIdentity, derive the branch name, and
- * ask the isolation provider to acquire a worktree. Throws a typed error
- * when FLUXAOS_TARGET_REPO_PATH is missing.
+ * ask the isolation provider to acquire a worktree. Throws
+ * MissingProjectTargetRepoPathError when the project's target_repo_path
+ * column is null.
  */
 export async function acquireIsolationEnv(
   input: AcquireEnvInput
@@ -143,9 +141,9 @@ export async function acquireIsolationEnv(
     );
   }
 
-  const targetRepoPath = input.targetRepoPath;
+  const targetRepoPath = projectRow.targetRepoPath;
   if (!targetRepoPath) {
-    throw new TargetRepoPathMissingError();
+    throw new MissingProjectTargetRepoPathError(projectRow.id);
   }
 
   const repoIdentity = input.gitOps.resolveRepoIdentity({

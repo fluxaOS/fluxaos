@@ -86,6 +86,9 @@ beforeAll(async () => {
       slug: `inherit-proj-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/inherit-fixture',
       defaultBranch: 'main',
+      // FLX-221: target repo path is per-project; acquireIsolationEnv
+      // reads it directly from the project row.
+      targetRepoPath: repoPath,
     })
     .returning();
   projectId = proj.id;
@@ -179,7 +182,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: iss.id,
       issueNumber: 1,
-      targetRepoPath: repoPath,
     });
 
     expect(result1.env.artifactsPath).toBeTruthy();
@@ -210,7 +212,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: iss.id,
       issueNumber: 1,
-      targetRepoPath: repoPath,
     });
 
     expect(
@@ -254,7 +255,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: iss.id,
       issueNumber: 2,
-      targetRepoPath: repoPath,
     });
 
     expect(result.env.artifactsPath).toBeTruthy();
@@ -281,7 +281,6 @@ describe('DEF-022 — artifacts_path inheritance across pipeline_runs', () => {
       pipelineId,
       issueId: null,
       issueNumber: null,
-      targetRepoPath: repoPath,
     });
 
     expect(result.env.artifactsPath).toContain(run.id);

@@ -152,11 +152,14 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
 
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
     const targetRepoUrl = `https://github.com/${TARGET_REPO}`;
+    // FLX-221: target_repo_path is a per-project column; persist the
+    // operator-supplied value to the row so the daemon picks it up.
     await sql`
       UPDATE "project"
       SET "repo_url" = ${targetRepoUrl},
           "default_branch" = 'main',
           "worktree_copy_files" = '[]'::jsonb,
+          "target_repo_path" = ${TARGET_REPO_PATH!},
           "updated_at" = NOW()
       WHERE "slug" = 'fluxaos'
     `;

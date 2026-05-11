@@ -22,7 +22,6 @@ export default function ProjectsSettingsPage() {
     { orgId: orgId! },
     { enabled: !!orgId }
   );
-  const envQuery = trpc.system.env.getPublic.useQuery();
 
   const updateMutation = trpc.project.update.useMutation();
   const deleteMutation = trpc.project.delete.useMutation();
@@ -36,7 +35,6 @@ export default function ProjectsSettingsPage() {
   if (projectsQuery.isSuccess && projects.length > 0 && !currentProject) {
     notFound();
   }
-  const envValue = envQuery.data?.FLUXAOS_TARGET_REPO_PATH ?? null;
 
   // FLX-60: Create form needs an orgId + userId. The seeded project provides
   // both. Multi-org/user is out of scope for alpha (matrix § Out of Scope),
@@ -70,7 +68,7 @@ export default function ProjectsSettingsPage() {
       defaultBranch: p.defaultBranch,
       defaultPipelineName:
         pipe?.name ?? '(none — set one from the Pipelines tab)',
-      targetRepoPath: envValue ?? '(not set — daemon will refuse to acquire)',
+      targetRepoPath: p.targetRepoPath,
     };
   });
 
@@ -79,8 +77,11 @@ export default function ProjectsSettingsPage() {
     patch: Partial<ProjectRecord>,
     _expectedVersion: number
   ) => {
-    // Strip derived/readonly fields — the router only accepts the raw
-    // project columns. defaultPipelineName / targetRepoPath are UI-only.
+    // Strip derived/readonly fields — the router only accepts raw project
+    // columns. defaultPipelineName is UI-only (derived from pipeline list).
+    // targetRepoPath is a real column but readonly in the form for now
+    // (FLX-207 makes it editable); strip it here so an accidental save
+    // round-trip can't blank it.
     const {
       defaultPipelineName: _dp,
       targetRepoPath: _trp,
@@ -102,7 +103,7 @@ export default function ProjectsSettingsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Projects"
-        description="Configure the target repository and default pipeline. The target repo path is env-backed (FLUXAOS_TARGET_REPO_PATH) for alpha."
+        description="Configure the target repository and default pipeline. The target repo path is a per-project column; the stage runner refuses to acquire isolation when it is null."
         action={
           seedOrgId && seedUserId ? (
             <button

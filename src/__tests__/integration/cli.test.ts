@@ -28,8 +28,10 @@ async function probeServer(url: string): Promise<boolean> {
   try {
     const config = loadConfig();
     const client = createCliClient({ ...config, apiUrl: url });
+    // FLX-221: the legacy system.env.getPublic endpoint was retired;
+    // organization.list is the new cheapest reach check (public, zero inputs).
     await Promise.race([
-      client.system.env.getPublic.query(),
+      client.organization.list.query(),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('timeout')), 3000)
       ),

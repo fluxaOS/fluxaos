@@ -1,9 +1,10 @@
 /**
  * Integration tests: R-SETTINGS-ALPHA project settings router.
  *
- * Covers project.update (extended fields), project.setDefaultPipeline
- * (happy, cross-project rejection, clear), and system.env.getPublic
- * (allowlist shape).
+ * Covers project.update (extended fields) and project.setDefaultPipeline
+ * (happy, cross-project rejection, clear). The legacy system.env.getPublic
+ * endpoint was retired in FLX-221 — its only whitelisted key moved to a
+ * per-project DB column, and the endpoint had no other consumers.
  */
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
@@ -178,15 +179,5 @@ describe('R-SETTINGS-ALPHA project router', () => {
         projectId: f.projectRow.id,
       });
     }
-  });
-
-  it('system.env.getPublic returns allowlisted keys', async () => {
-    const result = await caller.system.env.getPublic();
-    expect(Object.keys(result)).toContain('FLUXAOS_TARGET_REPO_PATH');
-    // Value may be null (unset) or a string — both are valid shapes.
-    expect(
-      result.FLUXAOS_TARGET_REPO_PATH === null ||
-        typeof result.FLUXAOS_TARGET_REPO_PATH === 'string'
-    ).toBe(true);
   });
 });
