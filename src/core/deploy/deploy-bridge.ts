@@ -457,19 +457,27 @@ async function loadMostRecentStageName(
  * FLX-4 — pick the GitProvider for a project's repoUrl. Prefers the
  * factory ('gitFactory') when registered; falls back to the legacy
  * 'git' adapter for backward compat.
+ *
+ * FLX-218: `UnsupportedGitHostError` is *not* swallowed — when the
+ * factory rejects a repoUrl whose host doesn't match a registered
+ * provider, the runtime must fail fast. The only error this catches is
+ * the registry miss on `'gitFactory'` (test rigs without the factory
+ * registered).
  */
 function resolveGitProviderForProject(
   registry: AdapterRegistryLike,
   repoUrl: string | null | undefined
 ): GitProvider {
+  let factory: GitProviderFactory;
   try {
-    const factory = registry.get<GitProviderFactory>('gitFactory');
-    return factory.forUrl(repoUrl ?? '');
+    factory = registry.get<GitProviderFactory>('gitFactory');
   } catch {
     // Factory not registered (legacy bootstrap, integration tests with
     // a hand-rolled registry stub, etc.) — use the single 'git' adapter.
     return registry.get<GitProvider>('git');
   }
+  // UnsupportedGitHostError from .forUrl propagates intentionally.
+  return factory.forUrl(repoUrl ?? '');
 }
 
 function errorMessage(err: unknown): string {
