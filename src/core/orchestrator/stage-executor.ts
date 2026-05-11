@@ -10,7 +10,6 @@ import type { FluxaosConfig } from '@/config/env';
 import type { GateMode } from '@/core/constants';
 import {
   ACTOR,
-  DEFAULT_GATE_MODE,
   EVENT_TYPE,
   GATE_MODE,
   GATE_VERDICT,
@@ -84,7 +83,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
       preExisting ?? (await runService.createStageRun(run.id, stage.id));
 
     // Evaluate pre-gate
-    const gateMode = (stage.gateMode ?? DEFAULT_GATE_MODE) as GateMode;
+    const gateMode = stage.gateMode as GateMode;
     if (gateMode === GATE_MODE.hold || gateMode === GATE_MODE.manual) {
       await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.pending);
       await runService.appendEvent(sRun.id, EVENT_TYPE.gate_checked, {
@@ -223,30 +222,36 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         s.promptTemplate !== null && s.promptTemplate !== ''
     );
 
-    // Load issue and project context
-    const [issueRow] = run.issueId
-      ? await db
-          .select({ title: issue.title, description: issue.bodyMd })
-          .from(issue)
-          .where(eq(issue.id, run.issueId))
-      : [null];
+    // Load issue and project context — fail fast on missing rows. Column
+    // titles/names are NOT NULL at the schema layer; no presentation defaults.
+    if (!run.issueId) {
+      throw new Error(`Pipeline run ${run.id} has no issueId`);
+    }
+    const [issueRow] = await db
+      .select({ title: issue.title, description: issue.bodyMd })
+      .from(issue)
+      .where(eq(issue.id, run.issueId));
+    if (!issueRow) throw new Error(`Issue not found: ${run.issueId}`);
 
     const [projectRow] = await db
       .select({ name: project.name })
       .from(project)
       .where(eq(project.id, pipelineRow.projectId));
+    if (!projectRow) {
+      throw new Error(`Project not found: ${pipelineRow.projectId}`);
+    }
 
     const { composePrompt } = await import('@/core/pipeline/prompt-composer');
     const composedPrompt = composePrompt(personaSoul, skills, {
-      title: issueRow?.title ?? 'Untitled issue',
-      description: issueRow?.description ?? null,
+      title: issueRow.title,
+      description: issueRow.description,
       stageName: stage.name,
-      projectName: projectRow?.name ?? 'Unknown project',
+      projectName: projectRow.name,
       resultDocPath,
       artifactsDir: artifactsBase,
     });
 
-    const transport = driverRow.promptTransport ?? 'argv';
+    const transport = driverRow.promptTransport;
     const driverBinary = driverRow.binary;
     const rawDefaultArgs = driverRow.defaultArgs;
     if (
