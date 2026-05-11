@@ -168,8 +168,23 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     }
 
     // 2. Branch merged → safe.
+    // Invariant: isolation_environment.project_id is NOT NULL with an FK to
+    // project, and project.default_branch is NOT NULL with default 'main'.
+    // A null projectRow or null defaultBranch here is a schema-level invariant
+    // violation, not a recoverable case — fail fast instead of silently
+    // substituting and risking the wrong base branch.
     const projectRow = await loadProject(env.projectId);
-    const baseBranch = projectRow?.defaultBranch ?? 'main';
+    if (!projectRow) {
+      throw new Error(
+        `Invariant violation: isolation_environment ${env.id} references missing project ${env.projectId}`
+      );
+    }
+    if (!projectRow.defaultBranch) {
+      throw new Error(
+        `Invariant violation: project ${projectRow.id} has null defaultBranch`
+      );
+    }
+    const baseBranch = projectRow.defaultBranch;
     try {
       const canonical = await git.getCanonicalRepoPath(env.workingPath);
       if (await git.isBranchMerged(canonical, env.branchName, baseBranch)) {
