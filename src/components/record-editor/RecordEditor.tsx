@@ -142,11 +142,22 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
       const {
         id: _draftId,
         version: _draftVersion,
-        ...patch
+        ...rest
       } = draft as Partial<TRecord> & { id?: string; version?: number };
       void _draftId;
       void _draftVersion;
-      await onSave(selected.id, patch as Partial<TRecord>, selected.version);
+      // Enforce `fieldType: 'readonly'` at the save layer (FLX-225) — the
+      // renderer only hides the input visually, so without this filter a
+      // readonly key matching a real DB column would leak into the update.
+      const readonlyKeys = new Set(
+        descriptor.fields
+          .filter((f) => f.fieldType === 'readonly')
+          .map((f) => f.key as string)
+      );
+      const patch = Object.fromEntries(
+        Object.entries(rest).filter(([k]) => !readonlyKeys.has(k))
+      ) as Partial<TRecord>;
+      await onSave(selected.id, patch, selected.version);
       setDraft({});
       setFieldValidity({});
       setState({ kind: 'viewing' });
