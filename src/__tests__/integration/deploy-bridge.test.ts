@@ -219,6 +219,7 @@ async function makeFixture(
       priorityId: priorityRow.id,
       title: `deploy bridge issue ${label}`,
       number: 1,
+      author: 'system',
     })
     .returning();
 

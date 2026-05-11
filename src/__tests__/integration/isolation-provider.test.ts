@@ -103,6 +103,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-a`,
+      baseBranch: 'main',
     });
 
     expect(env.status).toBe('active');
@@ -133,6 +134,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-b`,
+      baseBranch: 'main',
     });
 
     const second = await isolationProvider.acquire({
@@ -141,6 +143,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-b`,
+      baseBranch: 'main',
     });
     expect(second.id).toBe(first.id);
     expect(second.workingPath).toBe(first.workingPath);
@@ -166,6 +169,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-c`,
+      baseBranch: 'main',
     });
 
     await isolationProvider.release(env.id);
@@ -198,6 +202,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-d`,
+      baseBranch: 'main',
     });
 
     // Dirty the worktree
@@ -239,6 +244,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-art-fresh`,
+      baseBranch: 'main',
     });
 
     // Domain object exposes the resolved absolute path.
@@ -279,6 +285,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-art-repair`,
+      baseBranch: 'main',
     });
 
     const originalArtifactsPath = first.artifactsPath!;
@@ -300,6 +307,7 @@ describe('WorktreeIsolationProvider', () => {
       repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
       branchName: `fluxaos/iso-${RUN}-art-repair`,
+      baseBranch: 'main',
     });
 
     expect(repaired.id).toBe(first.id);
@@ -339,6 +347,7 @@ describe('WorktreeIsolationProvider', () => {
         repoPath: freshRepo,
         repoIdentity: { owner: 'fluxaos', repo: 'isolation-test-fixture' },
         branchName: `fluxaos/iso-${RUN}-art-gi`,
+        baseBranch: 'main',
       });
 
       const { readFile } = await import('node:fs/promises');

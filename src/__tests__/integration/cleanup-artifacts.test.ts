@@ -221,6 +221,7 @@ describe('cleanup-service — artifacts reaping (R-ARTIFACTS W4)', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-art-force' },
       branchName: `fluxaos/art-force-${run.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
@@ -264,6 +265,7 @@ describe('cleanup-service — artifacts reaping (R-ARTIFACTS W4)', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-art-pr' },
       branchName: branch,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
 

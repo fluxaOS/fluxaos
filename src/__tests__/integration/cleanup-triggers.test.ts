@@ -66,6 +66,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-sweep' },
       branchName: `fluxaos/sweep-merged-${run1.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env1.id });
 
@@ -81,6 +82,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-sweep' },
       branchName: `fluxaos/sweep-dirty-${run2.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env2.id });
     await writeFile(join(env2.workingPath, 'dirty.txt'), 'x');
@@ -98,6 +100,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-sweep' },
       branchName: branch3,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env3.id });
     await divergeBranch(env3.workingPath);
@@ -148,6 +151,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-prclosed' },
       branchName: branch,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
@@ -193,6 +197,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-force' },
       branchName: `fluxaos/force-${run.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
 
@@ -224,6 +229,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-breakdown' },
       branchName: `fluxaos/breakdown-a-${run1.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: active1.id });
 
@@ -238,6 +244,7 @@ describe('cleanup-service — triggers', () => {
       repoPath: fx.repoPath,
       repoIdentity: { owner: 'fluxaos', repo: 'cleanup-breakdown' },
       branchName: `fluxaos/breakdown-b-${run2.id.slice(0, 8)}`,
+      baseBranch: 'main',
     });
     cleanup.push({ table: 'isolationEnvironment', id: active2.id });
 

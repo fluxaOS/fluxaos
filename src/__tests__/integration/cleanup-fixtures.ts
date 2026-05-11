@@ -197,6 +197,7 @@ export async function makeFixture(
       priorityId: priorityRow.id,
       title: `cleanup issue ${label}`,
       number: 1,
+      author: 'system',
     })
     .returning();
   push('issue', issueRow.id);
