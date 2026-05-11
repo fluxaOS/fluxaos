@@ -17,7 +17,7 @@ critical:
       - website/docs-site/docs/reference/gate-rules.md
       - website/docs-site/docs/concepts/state-vs-status.md
 
-  - match: src/core/db/seed.ts
+  - match: src/scripts/db/seed.ts
     docs:
       - website/docs-site/docs/reference/issue-states.md
       - website/docs-site/docs/reference/gate-rules.md

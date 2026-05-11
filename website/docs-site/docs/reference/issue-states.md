@@ -23,7 +23,7 @@ When an issue reaches `Complete`, `isClosed` is set to `true` and a `closedAt` t
 
 ## Valid transitions
 
-The table below covers human-initiated moves in the UI. **Signal-driven jumps bypass this table** — when a skill emits a `flux:signal` with `hold/already_complete`, the orchestrator calls `stateOverride()` directly and transitions the issue to `meta.targetState` regardless of whether that transition appears here.
+The table below covers human-initiated moves in the UI. **Reason-driven jumps bypass this table** — when an ingested result document includes `signal_reason: "already_complete"` and `signal_meta.targetState`, the orchestrator calls `stateOverride()` directly and transitions the issue to that target state regardless of whether that transition appears here.
 
 | From | To | How |
 |------|----|-----|
@@ -45,7 +45,7 @@ The table below covers human-initiated moves in the UI. **Signal-driven jumps by
 | `Open` | Active, not currently running |
 | `Queued` | In the queue, waiting for the daemon to pick it up |
 | `Running` | A stage is actively executing |
-| `Blocked` | Needs human intervention (skill emitted `blocked` verdict or `needs_human` signal) |
+| `Blocked` | Needs human intervention (result document used `verdict: "blocked"` or `signal_reason: "needs_human"`) |
 | `Completed` | Most recent pipeline run finished |
 
 Status is set automatically by the daemon. It is not user-configurable.
