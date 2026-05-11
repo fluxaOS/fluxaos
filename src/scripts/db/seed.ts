@@ -865,10 +865,13 @@ Exit:
   // worktree storage override. The row's value is jsonb null by default
   // ("use in-project layout"); an operator can update it to an absolute path
   // string via Settings → System.
+  // FLX-223: runtime.artifacts_root — same shape, distinct override for
+  // per-run artifact directories.
   // The unique index treats NULL project_id as distinct, so we can't use
   // onConflictDoNothing — we check-then-insert instead.
   const globalConfigDef: Array<{ key: string; value: unknown }> = [
     { key: 'runtime.workspace_root', value: null },
+    { key: 'runtime.artifacts_root', value: null },
   ];
   for (const entry of globalConfigDef) {
     const [existing] = await db

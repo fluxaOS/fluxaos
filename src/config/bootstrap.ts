@@ -18,7 +18,6 @@ import { SupabaseAuthProvider } from '@/adapters/supabase/auth';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { SupabaseRealtimeProvider } from '@/adapters/supabase/realtime';
 import type { DatabaseProvider } from '@/core/ports';
-import type { FluxaosConfig } from './env';
 import { registry } from './registry';
 
 function requireEnv(name: string): string {
@@ -45,12 +44,15 @@ let bootstrapped = false;
 /**
  * Initialize all adapters. Safe to call multiple times — only runs once.
  *
- * @param config - Optional FluxaosConfig from which workspace/artifacts root
- *   overrides are read. When omitted (e.g. web-server bootstrap where the
- *   cleanup vars are not set), the isolation provider falls back to the
- *   in-project directory layout.
+ * `bootstrap()` no longer takes a FluxaosConfig — both workspace_root and
+ * artifacts_root overrides moved to the DB (`runtime.workspace_root`,
+ * `runtime.artifacts_root`); the isolation provider reads them via
+ * `getRuntimeWorkspaceRoot(db)` / `getRuntimeArtifactsRoot(db)` at every
+ * acquire (FLX-222 / FLX-223). The remaining FluxaosConfig fields
+ * (cleanup thresholds, target repo path, result-doc scripts) are threaded
+ * directly into their consumers by the daemon — not via `bootstrap`.
  */
-export function bootstrap(config?: FluxaosConfig): void {
+export function bootstrap(): void {
   if (bootstrapped) return;
   bootstrapped = true;
 
@@ -97,15 +99,15 @@ export function bootstrap(config?: FluxaosConfig): void {
 
   // Isolation — worktree-per-run workspace provider. Depends on the
   // database adapter being resolvable (factory evaluates lazily).
-  // artifactsRoot is threaded in from FluxaosConfig so the adapter never
-  // reads process.env directly. workspaceRoot was migrated to the DB-backed
-  // `runtime.workspace_root` config_entry (FLX-222); the provider reads it
-  // via `getRuntimeWorkspaceRoot(db)` at every acquire.
+  // Both workspaceRoot and artifactsRoot were migrated to the DB-backed
+  // `runtime.workspace_root` / `runtime.artifacts_root` config_entry rows
+  // (FLX-222, FLX-223); the provider reads them via the runtime-config
+  // accessors at every acquire. Bootstrap no longer threads either root
+  // through DI — the provider only needs `db`.
   registry.register('isolation', () => {
     const dbProvider = registry.get<DatabaseProvider>('database');
     return createWorktreeIsolationProvider({
       db: dbProvider.getConnection(),
-      artifactsRoot: config?.artifactsRoot,
     });
   });
 

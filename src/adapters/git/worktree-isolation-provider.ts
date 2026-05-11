@@ -28,7 +28,10 @@ import type {
   IsolationProvider,
   ReleaseOptions,
 } from '@/core/ports/isolation';
-import { getRuntimeWorkspaceRoot } from '@/core/services/runtime-config';
+import {
+  getRuntimeArtifactsRoot,
+  getRuntimeWorkspaceRoot,
+} from '@/core/services/runtime-config';
 import { getArtifactsPath } from './artifacts-path';
 import { ensureGitignoreEntry } from './gitignore';
 import { getWorkspaceRoot, getWorktreePath } from './path-resolver';
@@ -108,14 +111,12 @@ async function ensureArtifactsGitignored(
 
 export interface WorktreeIsolationProviderDeps {
   db: Database;
-  /** Injected from FluxaosConfig.artifactsRoot — overrides in-project artifacts layout. */
-  artifactsRoot?: string | undefined;
 }
 
 export function createWorktreeIsolationProvider(
   deps: WorktreeIsolationProviderDeps
 ): IsolationProvider {
-  const { db, artifactsRoot } = deps;
+  const { db } = deps;
 
   async function acquire(
     params: AcquireEnvironmentParams
@@ -137,10 +138,11 @@ export function createWorktreeIsolationProvider(
       );
     }
 
-    // Read the workspace_root override from DB on every acquire. The Settings
-    // UI can update the row at runtime; we never cache. The reader throws if
-    // the seed row is missing — no fallbacks.
+    // Read the workspace_root + artifacts_root overrides from DB on every
+    // acquire. The Settings UI can update the rows at runtime; we never
+    // cache. The readers throw if the seed rows are missing — no fallbacks.
     const workspaceRoot = await getRuntimeWorkspaceRoot(db);
+    const artifactsRoot = await getRuntimeArtifactsRoot(db);
 
     const worktreePath = getWorktreePath({
       repoPath,

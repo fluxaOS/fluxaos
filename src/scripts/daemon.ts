@@ -143,7 +143,7 @@ export async function createDaemon(): Promise<Daemon> {
   loadDaemonEnvFiles();
   const env = parseEnv();
   const fluxaosConfig = loadFluxaosConfig();
-  bootstrap(fluxaosConfig);
+  bootstrap();
 
   consoleLogger.info({
     event: 'daemon.booting',
@@ -198,14 +198,12 @@ export async function createDaemon(): Promise<Daemon> {
       listArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
-      // workspaceRoot was migrated to DB (FLX-222) — this dead-code helper
-      // (declared in CleanupGitHelpers but not invoked by cleanup-service)
-      // now only forwards artifactsRoot. FLX-223 will migrate artifactsRoot
-      // and FLX-225 (TBD) will reshape this helper or remove it.
-      getArtifactsBase: (repoPath: string) =>
-        getArtifactsBase(repoPath, {
-          artifactsRoot: fluxaosConfig.artifactsRoot,
-        }),
+      // workspaceRoot (FLX-222) and artifactsRoot (FLX-223) were migrated to
+      // DB-backed `runtime.*` config_entry rows. This `getArtifactsBase` hook
+      // is declared in CleanupGitHelpers but not invoked by cleanup-service
+      // (cleanup-service uses listArtifactsBases(db) directly). It now passes
+      // no overrides; FLX-225 (TBD) will reshape this helper or remove it.
+      getArtifactsBase: (repoPath: string) => getArtifactsBase(repoPath),
     },
     cleanupStaleDays: fluxaosConfig.cleanupStaleDays,
     cleanupArtifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,

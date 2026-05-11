@@ -10,6 +10,11 @@
  *   2. opts.workspaceRoot — absolute. Shared override with worktrees.
  *   3. <repoPath>/.fluxaos-artifacts/ — default in-project layout.
  *
+ * Both overrides are DB-backed since FLX-222 / FLX-223 (`config_entry` rows
+ * `runtime.workspace_root` and `runtime.artifacts_root`, scope `'global'`,
+ * project_id NULL). The worktree isolation provider reads them at acquire
+ * time and forwards them here.
+ *
  * Shape mirrors path-resolver.ts exactly so behavior is predictable across
  * R-RUNTIME and R-ARTIFACTS.
  */
@@ -17,7 +22,11 @@
 import { isAbsolute, join, resolve } from 'node:path';
 
 export interface ArtifactsPathOpts {
-  /** Dedicated artifacts-root override (FLUXAOS_ARTIFACTS_ROOT). */
+  /**
+   * Dedicated artifacts-root override — DB-backed since FLX-223 (`config_entry`
+   * row `runtime.artifacts_root`, scope `'global'`, project_id NULL). Read by
+   * the worktree isolation provider at acquire time and forwarded here.
+   */
   artifactsRoot?: string | undefined;
   /**
    * Shared workspace-root override — DB-backed since FLX-222 (`config_entry`
@@ -46,7 +55,7 @@ export function getArtifactsBase(
   if (artifactsRoot) {
     if (!isAbsolute(artifactsRoot)) {
       throw new Error(
-        `FLUXAOS_ARTIFACTS_ROOT must be an absolute path, got '${artifactsRoot}'.`
+        `runtime.artifacts_root must be an absolute path, got '${artifactsRoot}'.`
       );
     }
     return artifactsRoot;

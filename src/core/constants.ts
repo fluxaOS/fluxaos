@@ -167,6 +167,8 @@ export type ConfigKey = (typeof CONFIG_KEY)[keyof typeof CONFIG_KEY];
 export const GLOBAL_CONFIG_KEY = {
   /** Absolute path override for worktree storage. FLX-222. */
   runtimeWorkspaceRoot: 'runtime.workspace_root',
+  /** Absolute path override for per-run artifact directories. FLX-223. */
+  runtimeArtifactsRoot: 'runtime.artifacts_root',
 } as const;
 
 export type GlobalConfigKey =
