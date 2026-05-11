@@ -80,6 +80,7 @@ Everything else: pick, document, ship. If something later turns out wrong, the u
 
 ## Gotchas
 
+- **No fallbacks ever.** `?? '<default>'`, `value || fallback`, and `config.get(key, default)` are banned — fail fast on missing config with a clear error naming what's missing. Same rule for runtime: no polling fallback for Realtime, no degraded-mode / graceful-degradation alternatives. *"If the primary mechanism doesn't work, that's a bug to fix — not a scenario to code around."* See Invariant 9 in [`invariants.md`](invariants.md) and [`ARCHITECTURAL_STANDARDS.md` §2](../ARCHITECTURAL_STANDARDS.md#2-no-fallbacks---fail-fast).
 - Optimistic concurrency required on all mutable entities (`WHERE version = $expected`)
 - Events tables are append-only (immutable audit trail)
 - Body HTML rendered at write time, never at read time
