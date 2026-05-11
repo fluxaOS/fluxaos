@@ -66,6 +66,19 @@ function RecordFieldInner({
     </label>
   );
 
+  // Optional sub-label rendered under the input. Only emitted when the
+  // descriptor sets `helpText` — no empty span, no fallback string (per
+  // "no fallbacks ever"). Wrapped in a fragment-less ternary so callers
+  // can `{helpTextNode}` next to the input without conditional wrappers.
+  const helpTextNode = field.helpText ? (
+    <p
+      className="mt-1 text-[11px] text-slate-500"
+      data-testid={`help-${field.key}`}
+    >
+      {field.helpText}
+    </p>
+  ) : null;
+
   // READ-ONLY (always displayed, never editable — used for `version`, timestamps)
   if (field.fieldType === 'readonly') {
     return (
@@ -74,6 +87,7 @@ function RecordFieldInner({
         <div className="text-sm font-mono text-slate-300 px-3 py-2 bg-slate-900/60 rounded-lg">
           {String(value ?? '—')}
         </div>
+        {helpTextNode}
       </div>
     );
   }
@@ -95,6 +109,7 @@ function RecordFieldInner({
             {value ? 'Enabled' : 'Disabled'}
           </span>
         </label>
+        {helpTextNode}
       </div>
     );
   }
@@ -141,6 +156,7 @@ function RecordFieldInner({
           </div>
         )}
         {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+        {helpTextNode}
       </div>
     );
   }
@@ -158,6 +174,7 @@ function RecordFieldInner({
         common={common}
         borderClass={borderClass}
         label={label}
+        helpTextNode={helpTextNode}
       />
     );
   }
@@ -182,6 +199,7 @@ function RecordFieldInner({
           ))}
         </select>
         {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+        {helpTextNode}
       </div>
     );
   }
@@ -201,6 +219,7 @@ function RecordFieldInner({
           className={`${common} ${borderClass} font-mono text-xs leading-relaxed disabled:opacity-75`}
         />
         {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+        {helpTextNode}
       </div>
     );
   }
@@ -220,6 +239,7 @@ function RecordFieldInner({
           className={`${common} ${borderClass} disabled:opacity-75`}
         />
         {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+        {helpTextNode}
       </div>
     );
   }
@@ -238,6 +258,7 @@ function RecordFieldInner({
         className={`${common} ${borderClass} disabled:opacity-75`}
       />
       {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+      {helpTextNode}
     </div>
   );
 }
@@ -305,6 +326,7 @@ type JsonFieldProps = {
   common: string;
   borderClass: string;
   label: React.ReactNode;
+  helpTextNode: React.ReactNode | null;
 };
 
 function formatJson(v: unknown): string {
@@ -326,6 +348,7 @@ function JsonField({
   common,
   borderClass,
   label,
+  helpTextNode,
 }: JsonFieldProps) {
   const fieldKey = field.key;
   // Track raw textarea content separately from the parsed value. Parents
@@ -364,6 +387,7 @@ function JsonField({
         <pre className="text-xs font-mono text-slate-300 px-3 py-2 bg-slate-900/60 rounded-lg whitespace-pre-wrap break-all max-h-64 overflow-auto">
           {display}
         </pre>
+        {helpTextNode}
       </div>
     );
   }
@@ -407,6 +431,7 @@ function JsonField({
           {showError}
         </p>
       ) : null}
+      {helpTextNode}
     </div>
   );
 }

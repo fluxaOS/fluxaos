@@ -15,6 +15,13 @@ export type FieldDescriptor<TRecord> = {
   key: keyof TRecord & string;
   /** UI label for the field */
   label: string;
+  /**
+   * Short, one-line explanation rendered under the input as muted help
+   * text. Use to clarify what the value controls when the label alone is
+   * ambiguous. Omit when no clarification is needed — RecordField renders
+   * nothing when this is absent (no empty span, no fallback string).
+   */
+  helpText?: string;
   /** Rendering hint */
   fieldType: FieldType;
   /** When true, Save blocks on empty value */
