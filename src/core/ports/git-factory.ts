@@ -1,17 +1,15 @@
 /**
  * FLX-4 — multi-forge GitProvider factory.
  *
- * Today the adapter registry exposes a single `'git'` adapter (the
- * GitHub one). With FLX-4, the deploy bridge resolves a GitProvider
- * *per-repo* using `GitProviderFactory.forUrl()`, which inspects the
- * URL host and returns the right adapter (GitHub, GitLab, Gitea, or
- * Forgejo). The non-GitHub adapters are stubs in this slice — every
- * method throws NotImplementedError until they're wired post-alpha.
+ * The deploy bridge resolves a GitProvider *per-repo* using
+ * `GitProviderFactory.forUrl()`, which inspects the URL host and
+ * returns the right adapter (GitHub, GitLab, Gitea, or Forgejo). The
+ * non-GitHub adapters are stubs in this slice — every method throws
+ * NotImplementedError until they're wired post-alpha.
  *
- * Older call sites that don't know the repo URL still resolve a
- * GitProvider via `registry.get<GitProvider>('git')` (the GitHub
- * adapter is the alpha default). New call sites should prefer the
- * factory.
+ * The factory is the only git resolution path. Call sites that do not
+ * have a repo URL should pass an empty string; the factory's
+ * detect-and-route logic handles the unknown-host case.
  */
 
 import type { GitProvider } from './git';

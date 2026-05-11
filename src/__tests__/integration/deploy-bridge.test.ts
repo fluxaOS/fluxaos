@@ -24,6 +24,7 @@ import {
   type DeployBridgeLogger,
 } from '@/core/deploy';
 import type { GitProvider, PullRequest } from '@/core/ports/git';
+import type { GitProviderFactory } from '@/core/ports/git-factory';
 import { createIssueService } from '@/core/services/issue';
 import { deleteOrgFixture } from './cleanup-fixtures';
 
@@ -279,9 +280,13 @@ function makeFakeGitProvider(result?: PullRequest): FakeGitProviderHarness {
 }
 
 function makeFakeRegistry(gitProvider: GitProvider): AdapterRegistryLike {
+  const factory: GitProviderFactory = {
+    forUrl: () => gitProvider,
+    detectForge: () => 'github',
+  };
   return {
     get<T>(name: string): T {
-      if (name === 'git') return gitProvider as unknown as T;
+      if (name === 'gitFactory') return factory as unknown as T;
       throw new Error(`unknown adapter: ${name}`);
     },
   };
