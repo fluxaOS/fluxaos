@@ -1,33 +1,39 @@
 /**
  * Cleanup scheduler — thin setInterval harness around cleanup-service.
  *
- * Wired from the orchestrator bootstrap or a dev-only entry that sets
- * FLUXAOS_RUN_CLEANUP_SCHEDULER=1. All four scheduling thresholds are
- * injected via deps — no process.env reads in this file.
+ * Wired from the daemon bootstrap. The four scheduling thresholds and the
+ * scheduler_enabled gate all live in `config_entry` rows (scope=`'global'`,
+ * project_id=NULL) — see `cleanup.*` keys in
+ * `src/core/constants.ts` GLOBAL_CONFIG_KEY (FLX-224). The scheduler reads
+ * the four threshold rows on every sweep tick (no module-level cache, no
+ * value carried in deps), so an operator edit in Settings → System takes
+ * effect on the very next sweep without a daemon restart.
+ *
+ * No env reads happen in this file.
  *
  * Shape borrowed from Archon's packages/core/src/services/cleanup-scheduler.ts
  * (MIT, shape-only).
  */
 
+import type { Database } from '@/core/db/connection';
+import {
+  getCleanupArtifactsRetentionDays,
+  getCleanupSessionRetentionDays,
+  getCleanupStaleDays,
+  getCleanupSweepIntervalMin,
+} from '@/core/services/runtime-config';
 import type { CleanupLogger, CleanupReport } from './cleanup-service';
 
 export interface CleanupSchedulerDeps {
+  db: Database;
   cleanupService: {
     runScheduledSweep(): Promise<CleanupReport>;
   };
   logger: CleanupLogger;
-  /** How often the sweep runs (minutes). */
-  sweepIntervalMin: number;
-  /** Maximum worktree age in days before considered stale. */
-  staleDays: number;
-  /** Minimum session age in days before a terminal session is reaped. */
-  sessionRetentionDays: number;
-  /** Minimum age in days before a terminal artifacts dir is reaped. */
-  artifactsRetentionDays: number;
 }
 
 export interface CleanupScheduler {
-  start(): void;
+  start(): Promise<void>;
   stop(): void;
   isRunning(): boolean;
 }
@@ -35,26 +41,26 @@ export interface CleanupScheduler {
 export function createCleanupScheduler(
   deps: CleanupSchedulerDeps
 ): CleanupScheduler {
-  const {
-    cleanupService,
-    logger,
-    sweepIntervalMin,
-    staleDays,
-    sessionRetentionDays,
-    artifactsRetentionDays,
-  } = deps;
+  const { db, cleanupService, logger } = deps;
   let timer: NodeJS.Timeout | null = null;
 
   function isRunning(): boolean {
     return timer !== null;
   }
 
-  function start(): void {
+  async function start(): Promise<void> {
     if (timer !== null) {
       logger.warn({}, 'cleanup_scheduler.already_running');
       return;
     }
 
+    // Read sweep interval up front to size the setInterval cadence. The
+    // per-sweep thresholds (stale/session/artifacts retention) are pulled
+    // fresh inside cleanup-service on every tick — operator edits to those
+    // rows take effect on the next sweep without a restart. The interval
+    // itself only re-reads on the next start() (daemon restart), which is
+    // an intentional trade-off: changing the cadence is rare and ad-hoc.
+    const sweepIntervalMin = await getCleanupSweepIntervalMin(db);
     const intervalMs = sweepIntervalMin * 60 * 1000;
     timer = setInterval(() => {
       void cleanupService.runScheduledSweep().catch((err: unknown) => {
@@ -68,6 +74,16 @@ export function createCleanupScheduler(
     if (typeof timer.unref === 'function') {
       timer.unref();
     }
+
+    // Log the initial snapshot of the threshold rows. These get re-read on
+    // every sweep, so this is for human inspection of "what was true when
+    // the scheduler started"; the live values may diverge.
+    const [staleDays, sessionRetentionDays, artifactsRetentionDays] =
+      await Promise.all([
+        getCleanupStaleDays(db),
+        getCleanupSessionRetentionDays(db),
+        getCleanupArtifactsRetentionDays(db),
+      ]);
 
     logger.info(
       {

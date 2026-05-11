@@ -32,6 +32,7 @@ import {
   type CleanupBag,
   makeFixture,
   runCleanupTeardown,
+  setGlobalConfig,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
@@ -53,14 +54,22 @@ afterAll(async () => {
 
 describe('cleanup-service — artifacts reaping (R-ARTIFACTS W4)', () => {
   const ARTIFACTS_BASE = '/tmp/fluxaos-artifacts-test-base';
-  const RETENTION_DAYS = '7';
+  const RETENTION_DAYS = 7;
 
-  beforeEach(() => {
-    process.env.FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS = RETENTION_DAYS;
+  beforeEach(async () => {
+    // FLX-224: retention now in `config_entry`. Also ensure stale_days
+    // has a sane value so isSafeToRemove() doesn't throw on its DB read.
+    await setGlobalConfig(
+      db,
+      'cleanup.artifacts_retention_days',
+      RETENTION_DAYS
+    );
+    await setGlobalConfig(db, 'cleanup.stale_days', 7);
   });
 
-  afterEach(() => {
-    delete process.env.FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS;
+  afterEach(async () => {
+    // Restore the seeded default value so other suites see a stable row.
+    await setGlobalConfig(db, 'cleanup.artifacts_retention_days', 30);
   });
 
   it('scheduled sweep reaps stale artifact dir when pipeline_run is terminal', async () => {

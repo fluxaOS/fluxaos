@@ -19,6 +19,7 @@ import {
   type Fixture,
   makeFixture,
   runCleanupTeardown,
+  setGlobalConfig,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
@@ -45,9 +46,12 @@ describe('cleanup-service — safety checks', () => {
     fx = await makeFixture(db, 'safety', tmpRepos, cleanup);
   }, 30000);
 
-  beforeEach(() => {
-    // Ensure no stale-days threshold leaks between cases by default.
-    delete process.env.FLUXAOS_CLEANUP_STALE_DAYS;
+  beforeEach(async () => {
+    // FLX-224: thresholds now live in `config_entry`. Reset to a sane
+    // default before each case so an earlier test's `setGlobalConfig`
+    // doesn't bleed into the next one. Seven days matches the seed.
+    await setGlobalConfig(db, 'cleanup.stale_days', 7);
+    await setGlobalConfig(db, 'cleanup.artifacts_retention_days', 30);
   });
 
   it('uncommitted changes → skip (not-safe)', async () => {
@@ -77,7 +81,7 @@ describe('cleanup-service — safety checks', () => {
     expect(safety).toEqual({ safe: false, reason: 'uncommitted' });
   });
 
-  it('active-but-not-stale → skip (no threshold configured)', async () => {
+  it('active-but-not-stale → skip (env fresh, default 7-day threshold)', async () => {
     const { isolation, service } = buildService(db);
     const [subRun] = await db
       .insert(schema.pipelineRun)
@@ -103,8 +107,10 @@ describe('cleanup-service — safety checks', () => {
     expect(safety).toEqual({ safe: false, reason: 'active-but-not-stale' });
   });
 
-  it('stale (threshold=0) → safe', async () => {
-    process.env.FLUXAOS_CLEANUP_STALE_DAYS = '0';
+  it('stale (threshold=1, env aged 2 days) → safe', async () => {
+    // FLX-224: positive-integer validator forbids 0; use 1 day and push
+    // createdAt back two days to clear it. Verifies the DB-backed gate.
+    await setGlobalConfig(db, 'cleanup.stale_days', 1);
     const { isolation, service } = buildService(db);
     const [subRun] = await db
       .insert(schema.pipelineRun)
@@ -122,10 +128,10 @@ describe('cleanup-service — safety checks', () => {
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
     await divergeBranch(env.workingPath);
 
-    // Force created_at back so ageDays > 0.
+    // Force created_at two days back so ageDays > 1.
     await db
       .update(schema.isolationEnvironment)
-      .set({ createdAt: new Date(Date.now() - 2 * 1000) })
+      .set({ createdAt: new Date(Date.now() - 2 * 86_400_000) })
       .where(eq(schema.isolationEnvironment.id, env.id));
 
     const [row] = await db

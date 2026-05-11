@@ -131,9 +131,14 @@ export async function sweepArtifacts(
   retentionDays?: number
 ): Promise<void> {
   if (retentionDays === undefined || retentionDays === null) {
+    // FLX-224: retention now lives in `config_entry` (key
+    // `cleanup.artifacts_retention_days`). The cleanup-service reader
+    // throws when the row is missing, so this branch is now a defensive
+    // shim for callers that pass the value explicitly — primarily the
+    // unit-style integration tests that pass `undefined` to mean "skip".
     logger.warn(
-      { envVar: 'FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS' },
-      'cleanup.artifacts.skipped.missing_env'
+      { configKey: 'cleanup.artifacts_retention_days' },
+      'cleanup.artifacts.skipped.missing_config'
     );
     return;
   }

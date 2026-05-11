@@ -15,11 +15,12 @@
  *   4. Multi-dir sweep: 3 dirs (stale-term, young-term, non-term) → only
  *      the stale-terminal one is reaped; the other two remain.
  *
- * Retention is set via `FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS=1` in
- * `beforeEach` and cleared in `afterEach` so nothing leaks between tests
- * or into the rest of the suite. The product code still reads the env
- * var — no test-only numeric thresholds are baked into runtime code
- * (AGENT_BEHAVIOR.md: no invented numeric thresholds).
+ * Retention is set via `setGlobalConfig(db, 'cleanup.artifacts_retention_days', 1)`
+ * in `beforeEach` and restored to the seeded default in `afterEach` so
+ * nothing leaks between tests or into the rest of the suite. The product
+ * code reads the row from `config_entry` (FLX-224 migrated the env var to
+ * DB-backed config) — no test-only numeric thresholds are baked into
+ * runtime code (AGENT_BEHAVIOR.md: no invented numeric thresholds).
  */
 import 'dotenv/config';
 import { existsSync } from 'node:fs';
@@ -40,6 +41,7 @@ import {
   type CleanupBag,
   makeFixture,
   runCleanupTeardown,
+  setGlobalConfig,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
@@ -121,12 +123,16 @@ async function provisionArtifactsDir(opts: {
 }
 
 describe('cleanup-service — artifacts sweep against real FS (R-ARTIFACTS W7-T15)', () => {
-  beforeEach(() => {
-    process.env.FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS = '1';
+  beforeEach(async () => {
+    // FLX-224: retention now in `config_entry`. Also seed stale_days so
+    // isSafeToRemove() doesn't throw on its DB read.
+    await setGlobalConfig(db, 'cleanup.artifacts_retention_days', 1);
+    await setGlobalConfig(db, 'cleanup.stale_days', 7);
   });
 
-  afterEach(() => {
-    delete process.env.FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS;
+  afterEach(async () => {
+    // Restore seed default value.
+    await setGlobalConfig(db, 'cleanup.artifacts_retention_days', 30);
   });
 
   it('reaps stale terminal artifact dir (mtime older than retention)', async () => {

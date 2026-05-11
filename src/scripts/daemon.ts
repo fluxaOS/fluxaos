@@ -52,6 +52,7 @@ import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 import { createIssueService } from '@/core/services/issue';
+import { getCleanupSchedulerEnabled } from '@/core/services/runtime-config';
 
 const SHUTDOWN_GRACE_ENV = 'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS';
 const RECOVERY_SWEEP_ENV = 'FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN';
@@ -198,24 +199,21 @@ export async function createDaemon(): Promise<Daemon> {
       listArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
-      // workspaceRoot (FLX-222) and artifactsRoot (FLX-223) were migrated to
-      // DB-backed `runtime.*` config_entry rows. This `getArtifactsBase` hook
-      // is declared in CleanupGitHelpers but not invoked by cleanup-service
-      // (cleanup-service uses listArtifactsBases(db) directly). It now passes
-      // no overrides; FLX-225 (TBD) will reshape this helper or remove it.
+      // workspaceRoot (FLX-222), artifactsRoot (FLX-223), and the cleanup
+      // thresholds (FLX-224) are now DB-backed config_entry rows; the
+      // service reads them directly from runtime-config. This
+      // `getArtifactsBase` hook is declared in CleanupGitHelpers but not
+      // invoked by cleanup-service (cleanup-service uses
+      // listArtifactsBases(db) directly). It now passes no overrides;
+      // FLX-225 (TBD) will reshape this helper or remove it.
       getArtifactsBase: (repoPath: string) => getArtifactsBase(repoPath),
     },
-    cleanupStaleDays: fluxaosConfig.cleanupStaleDays,
-    cleanupArtifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,
   });
 
   const cleanupScheduler = createCleanupScheduler({
+    db,
     cleanupService,
     logger: consoleLogger,
-    sweepIntervalMin: fluxaosConfig.cleanupSweepIntervalMin,
-    staleDays: fluxaosConfig.cleanupStaleDays,
-    sessionRetentionDays: fluxaosConfig.cleanupSessionRetentionDays,
-    artifactsRetentionDays: fluxaosConfig.cleanupArtifactsRetentionDays,
   });
 
   const issueWatcher = createIssueWatcher(db, realtime, consoleLogger);
@@ -229,10 +227,18 @@ export async function createDaemon(): Promise<Daemon> {
   issueWatcher.start();
   consoleLogger.info({ event: 'daemon.issue_watcher_started' });
 
-  cleanupScheduler.start();
+  // FLX-224: scheduler-enabled lives in `config_entry`
+  // (key=`cleanup.scheduler_enabled`). The cleanup loop is opt-in — the
+  // seeded row is `false`, so operators must flip it via Settings → System
+  // before the scheduler actually starts the interval.
+  const cleanupSchedulerEnabled = await getCleanupSchedulerEnabled(db);
+  if (cleanupSchedulerEnabled) {
+    await cleanupScheduler.start();
+  }
   consoleLogger.info({
     event: 'daemon.cleanup_scheduler_started',
     running: cleanupScheduler.isRunning(),
+    enabledByConfig: cleanupSchedulerEnabled,
   });
 
   let recoverySweepTimer: NodeJS.Timeout | null = null;

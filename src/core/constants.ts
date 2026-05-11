@@ -169,6 +169,16 @@ export const GLOBAL_CONFIG_KEY = {
   runtimeWorkspaceRoot: 'runtime.workspace_root',
   /** Absolute path override for per-run artifact directories. FLX-223. */
   runtimeArtifactsRoot: 'runtime.artifacts_root',
+  /** How often the cleanup sweep runs (minutes). Positive integer. FLX-224. */
+  cleanupSweepIntervalMin: 'cleanup.sweep_interval_min',
+  /** Maximum worktree age (days) before considered stale. Positive integer. FLX-224. */
+  cleanupStaleDays: 'cleanup.stale_days',
+  /** Minimum session age (days) before terminal session reaped. Positive integer. FLX-224. */
+  cleanupSessionRetentionDays: 'cleanup.session_retention_days',
+  /** Minimum age (days) before terminal artifacts dir reaped. Positive integer. FLX-224. */
+  cleanupArtifactsRetentionDays: 'cleanup.artifacts_retention_days',
+  /** Whether the cleanup scheduler runs. Boolean. FLX-224. */
+  cleanupSchedulerEnabled: 'cleanup.scheduler_enabled',
 } as const;
 
 export type GlobalConfigKey =

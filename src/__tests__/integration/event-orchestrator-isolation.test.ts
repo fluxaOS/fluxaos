@@ -108,10 +108,6 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
 
     const fluxaosConfig: FluxaosConfig = {
       targetRepoPath: repoPath,
-      cleanupSweepIntervalMin: 60,
-      cleanupStaleDays: 30,
-      cleanupSessionRetentionDays: 30,
-      cleanupArtifactsRetentionDays: 30,
       initResultDocScript: '.next/daemon/init-result-doc.mjs',
       ingestResultDocScript: '.next/daemon/ingest-result-doc.mjs',
     };
@@ -253,10 +249,6 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
 
     const fluxaosConfig: FluxaosConfig = {
       targetRepoPath: repoPath,
-      cleanupSweepIntervalMin: 60,
-      cleanupStaleDays: 30,
-      cleanupSessionRetentionDays: 30,
-      cleanupArtifactsRetentionDays: 30,
       initResultDocScript: '.next/daemon/init-result-doc.mjs',
       ingestResultDocScript: '.next/daemon/ingest-result-doc.mjs',
     };

@@ -18,6 +18,7 @@ import {
   divergeBranch,
   makeFixture,
   runCleanupTeardown,
+  setGlobalConfig,
 } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
@@ -38,12 +39,17 @@ afterAll(async () => {
 });
 
 describe('cleanup-service — triggers', () => {
-  beforeEach(() => {
-    delete process.env.FLUXAOS_CLEANUP_STALE_DAYS;
+  beforeEach(async () => {
+    // FLX-224: reset thresholds to seed defaults between cases.
+    await setGlobalConfig(db, 'cleanup.stale_days', 7);
+    await setGlobalConfig(db, 'cleanup.artifacts_retention_days', 30);
   });
 
   it('runScheduledSweep reaps merged branches and stale envs; skips unsafe', async () => {
-    process.env.FLUXAOS_CLEANUP_STALE_DAYS = '0';
+    // Threshold=1 day; merged-branch env1 reaps via "merged" reason
+    // (no staleness needed), so threshold mostly exists to satisfy the
+    // (positive-integer) gate.
+    await setGlobalConfig(db, 'cleanup.stale_days', 1);
 
     const fx = await makeFixture(db, 'sweep', tmpRepos, cleanup);
     const { isolation, service } = buildService(db);

@@ -2,12 +2,18 @@
  * Cleanup service — four triggers (onPrClosed, runScheduledSweep,
  * cleanupToMakeRoom, removeEnvironment) + listBreakdown, all sharing one
  * safety-check pipeline. Safety gates: uncommitted → skip; merged → safe;
- * open/draft PR → skip; age > FLUXAOS_CLEANUP_STALE_DAYS → safe; else skip
- * (active-but-not-stale). DI: db, isolation port, logger, git helper bag —
- * no vendor imports leak into core. Shape: Archon
+ * open/draft PR → skip; age > `cleanup.stale_days` (FLX-224) → safe; else
+ * skip (active-but-not-stale). DI: db, isolation port, logger, git helper
+ * bag — no vendor imports leak into core. Shape: Archon
  * packages/core/src/services/cleanup-service.ts (MIT, shape-only).
  * R-ARTIFACTS W4 artifact-reap helpers live in
  * ./cleanup-service-artifacts.ts (free functions, same DI contract).
+ *
+ * FLX-224: `cleanupStaleDays` / `cleanupArtifactsRetentionDays` are no
+ * longer accepted as deps. The cleanup service reads them from
+ * `config_entry` (scope='global', key='cleanup.stale_days' /
+ * 'cleanup.artifacts_retention_days') on every safety check / sweep — so
+ * operator edits in Settings → System take effect on the next call.
  */
 
 import { and, asc, eq, inArray } from 'drizzle-orm';
@@ -18,6 +24,10 @@ import {
   project,
 } from '@/core/db/schema';
 import type { IsolationProvider } from '@/core/ports/isolation';
+import {
+  getCleanupArtifactsRetentionDays,
+  getCleanupStaleDays,
+} from '@/core/services/runtime-config';
 import {
   type ArtifactsSafetyReason,
   forceRemoveArtifactsDir,
@@ -83,16 +93,6 @@ export interface CleanupServiceDeps {
   isolation: IsolationProvider;
   logger: CleanupLogger;
   git: CleanupGitHelpers;
-  /**
-   * Maximum worktree age in days before it is considered stale.
-   * Undefined means the stale-age gate is disabled (no-op).
-   */
-  cleanupStaleDays?: number;
-  /**
-   * Minimum age in days before a terminal pipeline_run artifacts dir is
-   * eligible for reaping. Undefined disables the artifacts sweep.
-   */
-  cleanupArtifactsRetentionDays?: number;
 }
 
 export interface CleanupService {
@@ -131,9 +131,6 @@ function ageDays(createdAt: Date, now: Date): number {
 
 export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
   const { db, isolation, logger, git } = deps;
-  const staleDays: number | null = deps.cleanupStaleDays ?? null;
-  const artifactsRetentionDays: number | undefined =
-    deps.cleanupArtifactsRetentionDays;
 
   async function loadProject(projectId: string): Promise<ProjectRow | null> {
     const [row] = await db
@@ -199,8 +196,12 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
       return { safe: false, reason: 'open-pr' };
     }
 
-    // 4. Stale → safe (only if threshold is explicitly configured).
-    if (staleDays !== null) {
+    // 4. Stale → safe. Read the threshold fresh from the DB on every safety
+    // check so Settings → System edits take effect on the next sweep.
+    // FLX-224: no fallbacks — getCleanupStaleDays throws if the row is
+    // missing or invalid, surfacing the misconfiguration.
+    const staleDays = await getCleanupStaleDays(db);
+    {
       const age = ageDays(env.createdAt, new Date());
       if (age > staleDays) {
         return { safe: true, reason: 'stale' };
@@ -287,16 +288,15 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
   }
 
   // R-ARTIFACTS W4 — wrapper delegating to ./cleanup-service-artifacts.
-  function isArtifactsSafeToRemove(
+  // FLX-224: artifactsRetentionDays is read fresh from `config_entry` on
+  // each call. The row must exist (no fallbacks); the runtime-config
+  // reader throws if it doesn't.
+  async function isArtifactsSafeToRemove(
     runId: string,
     ageMs: number
   ): Promise<ArtifactsSafetyReason> {
-    return isArtifactsSafeToRemoveImpl(
-      db,
-      runId,
-      ageMs,
-      artifactsRetentionDays
-    );
+    const retentionDays = await getCleanupArtifactsRetentionDays(db);
+    return isArtifactsSafeToRemoveImpl(db, runId, ageMs, retentionDays);
   }
 
   async function runScheduledSweep(): Promise<CleanupReport> {
@@ -344,7 +344,11 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     }
 
     // R-ARTIFACTS W4: artifact reap runs AFTER the worktree pass.
-    await sweepArtifacts(db, logger, git, report, artifactsRetentionDays);
+    // FLX-224: read retention fresh per sweep — operator edits via
+    // Settings → System apply on the next tick.
+    const artifactsRetentionDaysSweep =
+      await getCleanupArtifactsRetentionDays(db);
+    await sweepArtifacts(db, logger, git, report, artifactsRetentionDaysSweep);
 
     report.completedAt = new Date();
     logger.info(
@@ -406,7 +410,16 @@ export function createCleanupService(deps: CleanupServiceDeps): CleanupService {
     }
 
     // R-ARTIFACTS W4: best-effort second-tier — reap stale artifacts too.
-    await sweepArtifacts(db, logger, git, report, artifactsRetentionDays);
+    // FLX-224: retention read fresh from `config_entry` each call.
+    const artifactsRetentionDaysMakeRoom =
+      await getCleanupArtifactsRetentionDays(db);
+    await sweepArtifacts(
+      db,
+      logger,
+      git,
+      report,
+      artifactsRetentionDaysMakeRoom
+    );
 
     report.completedAt = new Date();
     logger.info(

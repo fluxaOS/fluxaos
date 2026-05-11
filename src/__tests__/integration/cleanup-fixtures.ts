@@ -10,7 +10,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   getCanonicalRepoPath,
   hasUncommittedChanges,
@@ -244,6 +244,45 @@ export interface ArtifactsFakes {
  * get no-op defaults. Artifacts-specific tests pass in fakes that record
  * and/or return scripted values.
  */
+/**
+ * Update (or insert) a global cleanup `config_entry` row.
+ *
+ * FLX-224: the cleanup thresholds + scheduler-enabled gate moved from env
+ * vars to `config_entry` (scope='global', project_id=NULL). Tests inject
+ * values directly into the DB via this helper. The positive-integer
+ * threshold accessors reject zero, so very-stale envs need an explicit
+ * `createdAt` push-back in the past.
+ */
+export async function setGlobalConfig(
+  db: Database,
+  key: string,
+  value: unknown
+): Promise<void> {
+  const [existing] = await db
+    .select({ id: schema.configEntry.id })
+    .from(schema.configEntry)
+    .where(
+      and(
+        eq(schema.configEntry.scope, 'global'),
+        isNull(schema.configEntry.projectId),
+        eq(schema.configEntry.key, key)
+      )
+    );
+  if (existing) {
+    await db
+      .update(schema.configEntry)
+      .set({ value: sql`${JSON.stringify(value)}::jsonb` })
+      .where(eq(schema.configEntry.id, existing.id));
+    return;
+  }
+  await db.insert(schema.configEntry).values({
+    scope: 'global',
+    projectId: null,
+    key,
+    value: sql`${JSON.stringify(value)}::jsonb`,
+  });
+}
+
 export function buildService(db: Database, artifacts: ArtifactsFakes = {}) {
   const isolation = createWorktreeIsolationProvider({ db });
   const logger = makeLogger();
