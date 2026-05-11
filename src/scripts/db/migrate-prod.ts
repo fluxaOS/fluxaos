@@ -17,12 +17,18 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+// Migrations issue DDL (CREATE TABLE, ALTER, etc.). pgbouncer transaction
+// mode (DATABASE_URL on port 6543) breaks DDL — every statement may land on
+// a different backend, so prepared-statement caches and session-scoped
+// objects (search_path, locks) are unreliable. Require the direct/session
+// connection on port 5432.
+const url = process.env.DIRECT_URL;
 
 if (!url) {
   throw new Error(
-    'DIRECT_URL or DATABASE_URL is required for migrations. ' +
-      'Set DIRECT_URL to your Supabase direct connection (port 5432).'
+    'DIRECT_URL is required for migrations. ' +
+      'Set DIRECT_URL to your Supabase direct connection (port 5432). ' +
+      'DATABASE_URL (pgbouncer transaction mode) is not acceptable for DDL.'
   );
 }
 

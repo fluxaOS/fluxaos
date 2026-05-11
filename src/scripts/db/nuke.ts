@@ -2,7 +2,7 @@
  * Nuke script — deletes all data from every table in FK-safe order.
  *
  * Usage: npx tsx src/scripts/db/nuke.ts
- * Requires: DATABASE_URL or DIRECT_URL set in .env
+ * Requires: DIRECT_URL set in .env (session-mode, port 5432).
  *
  * Tables that don't exist yet are skipped gracefully.
  */
@@ -10,9 +10,16 @@ import 'dotenv/config';
 import { sql } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 
-const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+// Destructive script — issues bulk DELETEs across the full FK graph. Require
+// the session-mode direct connection so all statements run on the same
+// backend (predictable locking, no pgbouncer transaction-mode surprises).
+const url = process.env.DIRECT_URL;
 if (!url) {
-  console.error('ERROR: DIRECT_URL or DATABASE_URL must be set.');
+  console.error(
+    'ERROR: DIRECT_URL must be set. ' +
+      'nuke.ts requires the Supabase direct connection (port 5432) — ' +
+      'DATABASE_URL (pgbouncer transaction mode) is not acceptable.'
+  );
   process.exit(1);
 }
 
