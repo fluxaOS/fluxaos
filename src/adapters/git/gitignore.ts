@@ -8,7 +8,7 @@
  * The helper itself reads no config — callers decide whether to invoke it
  * at all (e.g. skip when an external workspace root points outside the
  * repo). Keeping config-gating out of this module avoids cross-feature
- * coupling (`runtime.workspace_root` vs FLUXAOS_ARTIFACTS_ROOT).
+ * coupling (`runtime.workspace_root` vs `runtime.artifacts_root`).
  */
 
 import { readFile, writeFile } from 'node:fs/promises';

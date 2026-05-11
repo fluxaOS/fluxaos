@@ -39,7 +39,7 @@ describe('getArtifactsBase + getArtifactsPath against real tmpdirs', () => {
   it('throws when artifactsRoot is relative', () => {
     expect(() =>
       getArtifactsBase(repoPath, { artifactsRoot: 'relative/path' })
-    ).toThrow(/FLUXAOS_ARTIFACTS_ROOT must be an absolute path/);
+    ).toThrow(/runtime\.artifacts_root must be an absolute path/);
   });
 
   it('falls back to workspaceRoot when artifactsRoot is unset', () => {

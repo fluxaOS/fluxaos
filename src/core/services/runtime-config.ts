@@ -14,9 +14,10 @@
  * `undefined` to the caller in that case, mirroring the optional semantics
  * that the env var carried before this migration.
  *
- * Lands the pattern that FLX-223 (`runtime.artifacts_root`) and FLX-224
- * (`cleanup.*`) will reuse. See
- * docs/superpowers/specs/2026-05-11-config-classification-design.md.
+ * Migration order (see docs/superpowers/specs/2026-05-11-config-classification-design.md):
+ *   - FLX-222 (`runtime.workspace_root`) — done. Lands the pattern.
+ *   - FLX-223 (`runtime.artifacts_root`) — done. Mirrors the FLX-222 shape.
+ *   - FLX-224 (`cleanup.*`) — next. Reuses the same accessors.
  */
 
 import { and, eq, isNull } from 'drizzle-orm';
@@ -103,6 +104,40 @@ export async function getRuntimeWorkspaceRoot(
   if (typeof value !== 'string') {
     throw new InvalidGlobalConfigError(
       GLOBAL_CONFIG_KEY.runtimeWorkspaceRoot,
+      'string or jsonb null',
+      typeof value
+    );
+  }
+  return value;
+}
+
+/**
+ * Read the `runtime.artifacts_root` override.
+ *
+ * Returns:
+ *   - `undefined` when the row's value is jsonb `null` — meaning "use the
+ *     adapter's built-in in-project `<repo>/.fluxaos-artifacts/` layout" (the
+ *     optional-env semantics that this DB row replaced in FLX-223).
+ *   - the absolute path string when the row's value is a JSON string.
+ *
+ * Throws:
+ *   - `MissingGlobalConfigError` when the row itself is missing — the seed
+ *     has not been run and the system is misconfigured.
+ *   - `InvalidGlobalConfigError` when the value is present but not a string
+ *     (e.g. number, array) — a Settings UI bug or a manual SQL typo.
+ */
+export async function getRuntimeArtifactsRoot(
+  db: Database
+): Promise<string | undefined> {
+  const value = await readGlobalConfigValue(
+    db,
+    GLOBAL_CONFIG_KEY.runtimeArtifactsRoot
+  );
+
+  if (value === null) return undefined;
+  if (typeof value !== 'string') {
+    throw new InvalidGlobalConfigError(
+      GLOBAL_CONFIG_KEY.runtimeArtifactsRoot,
       'string or jsonb null',
       typeof value
     );
