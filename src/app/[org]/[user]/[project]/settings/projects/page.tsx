@@ -1,7 +1,7 @@
 // src/app/[org]/[user]/[project]/settings/projects/page.tsx
 'use client';
 
-import { useParams } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc/client';
 import { type ProjectRecord, projectDescriptor } from './descriptor';
 
 export default function ProjectsSettingsPage() {
-  const params = useParams<{ org: string; project: string }>();
+  const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -29,9 +29,13 @@ export default function ProjectsSettingsPage() {
 
   const projects = projectsQuery.data ?? [];
   const currentProject =
-    projects.find((project) => project.slug === params.project) ??
-    projects.find((project) => project.slug === 'fluxaos') ??
-    null;
+    projects.find((project) => project.slug === params.project) ?? null;
+  // Once the projects list has loaded and the URL slug still doesn't
+  // resolve, the route is invalid — surface a 404 instead of silently
+  // falling back to a hard-coded seed slug.
+  if (projectsQuery.isSuccess && projects.length > 0 && !currentProject) {
+    notFound();
+  }
   const envValue = envQuery.data?.FLUXAOS_TARGET_REPO_PATH ?? null;
 
   // FLX-60: Create form needs an orgId + userId. The seeded project provides

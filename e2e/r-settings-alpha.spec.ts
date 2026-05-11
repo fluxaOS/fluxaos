@@ -71,4 +71,60 @@ test.describe('@r-settings-alpha @journey', () => {
       await expect(page).toHaveURL(/\/settings\/projects$/);
     }
   });
+
+  // FLX-213 — the Projects, Brands, and Personas settings pages used to
+  // fall back to a hard-coded 'fluxaos' slug literal if URL resolution
+  // failed. The fallback was removed; pages must now resolve the project
+  // strictly from `params.project`. This journey exercises that path
+  // against the seeded slug to confirm the pages still render and load
+  // their project-scoped data without any hard-coded slug, and that an
+  // invalid project slug surfaces a 404 instead of silently rerouting to
+  // the seeded slug's data.
+  test('settings pages resolve project from URL slug (no hard-coded fallback)', async ({
+    page,
+  }) => {
+    // ── Valid slug: each settings page must render its heading. ────────
+    await page.goto(projectPath('/settings/projects'));
+    await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
+      timeout: 15_000,
+    });
+    // The seeded project row must be present — proves the URL slug
+    // resolved into a real project (no fallback masking a bad lookup).
+    await expect(
+      page.locator('li', { hasText: 'fluxaos' }).first()
+    ).toBeVisible({ timeout: 10_000 });
+
+    await page.goto(projectPath('/settings/brands'));
+    await expect(page.getByRole('heading', { name: 'Brands' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await page.goto(projectPath('/settings/personas'));
+    await expect(page.getByRole('heading', { name: 'Personas' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // ── Invalid slug: pages must 404, not silently render the seeded
+    //    project's data via a fallback literal. ──────────────────────────
+    await page.goto('/default/admin/does-not-exist-flx-213/settings/projects', {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      page.getByRole('heading', { name: 'Projects' })
+    ).not.toBeVisible({ timeout: 10_000 });
+
+    await page.goto('/default/admin/does-not-exist-flx-213/settings/brands', {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(page.getByRole('heading', { name: 'Brands' })).not.toBeVisible(
+      { timeout: 10_000 }
+    );
+
+    await page.goto('/default/admin/does-not-exist-flx-213/settings/personas', {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      page.getByRole('heading', { name: 'Personas' })
+    ).not.toBeVisible({ timeout: 10_000 });
+  });
 });

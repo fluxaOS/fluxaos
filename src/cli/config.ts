@@ -6,7 +6,14 @@
  * running fluxaOS app server; the CLI just speaks to its tRPC surface.
  *
  * Required env:
- *   FLUXAOS_API_URL — full tRPC endpoint, e.g. http://localhost:3004/api/trpc
+ *   FLUXAOS_API_URL          — full tRPC endpoint, e.g. http://localhost:3004/api/trpc
+ *   FLUXAOS_CLI_ORG_SLUG     — org slug to target
+ *   FLUXAOS_CLI_USER_SLUG    — user slug to target
+ *   FLUXAOS_CLI_PROJECT_SLUG — project slug to target
+ *
+ * All four must be set — no silent defaults. CLI invocations must name the
+ * project explicitly so renaming the seeded project (or operating against a
+ * non-seeded project) does not silently route to a stale slug.
  *
  * Auth model (current scope):
  *   FLUXAOS_LAN_AUTH_BYPASS=1 must be set on the server. This is the
@@ -14,11 +21,6 @@
  *   Supabase OAuth flow is out of scope for FLX-2. The CLI itself does not
  *   read this var — it only checks it via `system.health` so the operator
  *   gets a clear message when the server is locked down.
- *
- * Project context (single-tenant assumption):
- *   FLUXAOS_CLI_ORG_SLUG     — default "default"
- *   FLUXAOS_CLI_USER_SLUG    — default "admin"
- *   FLUXAOS_CLI_PROJECT_SLUG — default "fluxaos"
  */
 import 'dotenv/config';
 
@@ -36,13 +38,19 @@ export class CliConfigError extends Error {
   }
 }
 
-export function loadConfig(): CliConfig {
-  const apiUrl = process.env.FLUXAOS_API_URL?.trim();
-  if (!apiUrl) {
-    throw new CliConfigError(
-      'FLUXAOS_API_URL is not set. Example: FLUXAOS_API_URL=http://localhost:3004/api/trpc'
-    );
+function requireEnv(name: string, example: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new CliConfigError(`${name} is not set. Example: ${name}=${example}`);
   }
+  return value;
+}
+
+export function loadConfig(): CliConfig {
+  const apiUrl = requireEnv(
+    'FLUXAOS_API_URL',
+    'http://localhost:3004/api/trpc'
+  );
   try {
     new URL(apiUrl);
   } catch {
@@ -51,8 +59,8 @@ export function loadConfig(): CliConfig {
 
   return {
     apiUrl,
-    orgSlug: process.env.FLUXAOS_CLI_ORG_SLUG?.trim() || 'default',
-    userSlug: process.env.FLUXAOS_CLI_USER_SLUG?.trim() || 'admin',
-    projectSlug: process.env.FLUXAOS_CLI_PROJECT_SLUG?.trim() || 'fluxaos',
+    orgSlug: requireEnv('FLUXAOS_CLI_ORG_SLUG', 'default'),
+    userSlug: requireEnv('FLUXAOS_CLI_USER_SLUG', 'admin'),
+    projectSlug: requireEnv('FLUXAOS_CLI_PROJECT_SLUG', 'my-project'),
   };
 }
