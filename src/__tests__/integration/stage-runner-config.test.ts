@@ -291,12 +291,30 @@ async function createStageRunnerHarness(input: {
     await createRoutingFixture(stage.name);
   }
 
+  // FLX-153 moved skillId from pipelineStage to stageRun; FLX-236 restores
+  // the skill fixture (dropped during the FLX-153 cleanup) so the
+  // materializer assertions below have a `## Skill:` section to verify.
+  // The skill row is attached to stageRun.skillId directly because
+  // createStageRun() doesn't accept skillId.
+  const [skillRow] = await db
+    .insert(schema.skill)
+    .values({
+      projectId,
+      name: `flx-83-skill-${RUN}-${callIdx}`,
+      promptTemplate: 'Use {{workspace_path}} for source edits.',
+    })
+    .returning();
+
   const [run] = await db
     .insert(schema.pipelineRun)
     .values({ pipelineId, issueId: null, status: 'pending' })
     .returning();
 
   const stageRun = await svc.createStageRun(run.id, stage.id);
+  await db
+    .update(schema.stageRun)
+    .set({ skillId: skillRow.id })
+    .where(eq(schema.stageRun.id, stageRun.id));
 
   const workingPath = input.gitInitWorkingPath
     ? await makeRepo('fluxaos-worktree-')
