@@ -97,13 +97,14 @@ export function bootstrap(config?: FluxaosConfig): void {
 
   // Isolation — worktree-per-run workspace provider. Depends on the
   // database adapter being resolvable (factory evaluates lazily).
-  // workspaceRoot / artifactsRoot are threaded in from FluxaosConfig so the
-  // adapter never reads process.env directly.
+  // artifactsRoot is threaded in from FluxaosConfig so the adapter never
+  // reads process.env directly. workspaceRoot was migrated to the DB-backed
+  // `runtime.workspace_root` config_entry (FLX-222); the provider reads it
+  // via `getRuntimeWorkspaceRoot(db)` at every acquire.
   registry.register('isolation', () => {
     const dbProvider = registry.get<DatabaseProvider>('database');
     return createWorktreeIsolationProvider({
       db: dbProvider.getConnection(),
-      workspaceRoot: config?.workspaceRoot,
       artifactsRoot: config?.artifactsRoot,
     });
   });

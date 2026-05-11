@@ -4,7 +4,8 @@
  * Shape borrowed from Archon's resolveOwnerRepo + getWorktreeBase patterns
  * (MIT, packages/git/src/worktree.ts). fluxaOS default is in-project
  * `.fluxaos-worktrees/` for NFS/Docker friendliness; Archon's workspace-scoped
- * layout is the opt-in alternative via FLUXAOS_WORKSPACE_ROOT.
+ * layout is the opt-in alternative via the `runtime.workspace_root`
+ * `config_entry` row (DB-backed since FLX-222).
  */
 
 import { homedir } from 'node:os';
@@ -78,9 +79,10 @@ export function resolveRepoIdentity(
 /**
  * Root for worktree storage. Default: in-project `.fluxaos-worktrees/`.
  *
- * Accepts an explicit override (injected from FluxaosConfig.workspaceRoot).
- * When override is undefined, returns null — each repo gets its own
- * in-project dir via getWorktreeBase.
+ * Accepts an explicit override (injected from the DB-backed
+ * `runtime.workspace_root` config_entry row, read by the isolation provider
+ * at acquire time). When override is undefined or jsonb `null`, returns null
+ * — each repo gets its own in-project dir via getWorktreeBase.
  *
  * Throws if the override value is not an absolute path.
  */
@@ -88,7 +90,7 @@ export function getWorkspaceRoot(override?: string | undefined): string | null {
   if (!override) return null;
   if (!isAbsolute(override)) {
     throw new Error(
-      `FLUXAOS_WORKSPACE_ROOT must be an absolute path, got '${override}'.`
+      `runtime.workspace_root must be an absolute path, got '${override}'.`
     );
   }
   return override;
@@ -143,8 +145,8 @@ export function getWorktreePath(params: {
 
 /**
  * Default home-based workspace root — used only when an operator wants to
- * point FLUXAOS_WORKSPACE_ROOT at `~/.fluxaos/workspaces` specifically.
- * Exported as a helper; not consumed unless the env var references it.
+ * point `runtime.workspace_root` at `~/.fluxaos/workspaces` specifically.
+ * Exported as a helper; not consumed unless the DB row references it.
  */
 export function getDefaultHomeWorkspaceRoot(): string {
   return join(homedir(), '.fluxaos', 'workspaces');

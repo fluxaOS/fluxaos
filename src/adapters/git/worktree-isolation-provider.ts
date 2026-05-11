@@ -28,6 +28,7 @@ import type {
   IsolationProvider,
   ReleaseOptions,
 } from '@/core/ports/isolation';
+import { getRuntimeWorkspaceRoot } from '@/core/services/runtime-config';
 import { getArtifactsPath } from './artifacts-path';
 import { ensureGitignoreEntry } from './gitignore';
 import { getWorkspaceRoot, getWorktreePath } from './path-resolver';
@@ -107,8 +108,6 @@ async function ensureArtifactsGitignored(
 
 export interface WorktreeIsolationProviderDeps {
   db: Database;
-  /** Injected from FluxaosConfig.workspaceRoot — overrides in-project worktree layout. */
-  workspaceRoot?: string | undefined;
   /** Injected from FluxaosConfig.artifactsRoot — overrides in-project artifacts layout. */
   artifactsRoot?: string | undefined;
 }
@@ -116,7 +115,7 @@ export interface WorktreeIsolationProviderDeps {
 export function createWorktreeIsolationProvider(
   deps: WorktreeIsolationProviderDeps
 ): IsolationProvider {
-  const { db, workspaceRoot, artifactsRoot } = deps;
+  const { db, artifactsRoot } = deps;
 
   async function acquire(
     params: AcquireEnvironmentParams
@@ -137,6 +136,11 @@ export function createWorktreeIsolationProvider(
         `[worktree-isolation] baseBranch is required — project.defaultBranch must be set`
       );
     }
+
+    // Read the workspace_root override from DB on every acquire. The Settings
+    // UI can update the row at runtime; we never cache. The reader throws if
+    // the seed row is missing — no fallbacks.
+    const workspaceRoot = await getRuntimeWorkspaceRoot(db);
 
     const worktreePath = getWorktreePath({
       repoPath,

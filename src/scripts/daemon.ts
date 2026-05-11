@@ -198,10 +198,13 @@ export async function createDaemon(): Promise<Daemon> {
       listArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
+      // workspaceRoot was migrated to DB (FLX-222) — this dead-code helper
+      // (declared in CleanupGitHelpers but not invoked by cleanup-service)
+      // now only forwards artifactsRoot. FLX-223 will migrate artifactsRoot
+      // and FLX-225 (TBD) will reshape this helper or remove it.
       getArtifactsBase: (repoPath: string) =>
         getArtifactsBase(repoPath, {
           artifactsRoot: fluxaosConfig.artifactsRoot,
-          workspaceRoot: fluxaosConfig.workspaceRoot,
         }),
     },
     cleanupStaleDays: fluxaosConfig.cleanupStaleDays,
