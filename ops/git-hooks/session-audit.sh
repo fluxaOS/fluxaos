@@ -16,7 +16,9 @@
 #
 # Usage:
 #   bash ops/git-hooks/session-audit.sh report   # human banner; non-zero exit
-#                                                # only on hard repo errors
+#                                                # only on hard repo errors.
+#                                                # Also runs `./flux env audit`
+#                                                # as advisory output (FLX-230).
 #   bash ops/git-hooks/session-audit.sh prune    # delete branches classified
 #                                                # ORPHAN-MERGED (post-merge use)
 #   bash ops/git-hooks/session-audit.sh json     # machine-readable output
@@ -271,6 +273,19 @@ case "$MODE" in
       echo "✓ No orphans. Snapshot reflects only active work + protected PRs."
     fi
     echo "───────────────────────────────────────────────────────────────"
+
+    # FLX-230: env-file audit as advisory output. Run inline in `report`
+    # mode so the SessionStart hook (which invokes `session-audit.sh
+    # report`) surfaces env regressions the moment a session begins.
+    # Non-blocking: a non-zero rc is reported but never fails the audit.
+    # The FLX-123 regression happened because two recovery sessions
+    # silently wrote UAT credentials into dev — this guard catches it.
+    FLUX_BIN="$REPO_ROOT/flux"
+    if [ -x "$FLUX_BIN" ]; then
+      echo
+      "$FLUX_BIN" env audit || \
+        echo "[session-audit] flux env audit reported a mismatch — advisory only, session continues. Fix before running dev/UAT." >&2
+    fi
     ;;
 esac
 

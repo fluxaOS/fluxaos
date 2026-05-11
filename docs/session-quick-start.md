@@ -33,6 +33,19 @@ Headless box. **Prod** runs in Docker on port **3003** (`fluxaos-web` container,
 - **`.env`** — checked into git template, holds Supabase URLs/keys (publishable only) and DB connection strings. Required: `DATABASE_URL` (transaction pooler, port 6543), `DIRECT_URL` (direct connection, port 5432, required for migrations), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - **`.env.local`** — gitignored, holds secrets like `ANTHROPIC_API_KEY` and `FLUXAOS_LAN_AUTH_BYPASS=1` (skip `/login` from LAN clients during Playwright runs). Next.js auto-loads `.env.local`; Playwright picks it up via `set -a; source .env.local; set +a` before invocation. Never paste these into prompts.
 
+### Dev vs UAT databases
+
+Two Supabase projects back fluxaOS. Verify your env files point at the right one with `./flux env audit` (exits 1 with a clear remediation hint if they don't).
+
+| Environment | Supabase project ref | DATABASE_URL host | Env file |
+|---|---|---|---|
+| **Dev** | `dpdjlnpvxkepkwzwuvim` | `postgres.dpdjlnpvxkepkwzwuvim@aws-1-us-west-2.pooler.supabase.com` | `/mnt/dev/fluxaos/.env.local` |
+| **UAT** | `zesinfsluyxiwzldeffa` | `postgres.zesinfsluyxiwzldeffa@aws-1-us-west-2.pooler.supabase.com` | `/mnt/stacks/docker/fluxaos/fluxaos.env` |
+
+`./flux env audit` extracts the project ref from each `DATABASE_URL` host and PASS/FAILs against the table. It runs automatically at SessionStart via `ops/git-hooks/session-audit.sh report` (advisory — non-zero rc is reported, never blocks the session).
+
+**Never reconstruct env files from a container's environment.** That's how FLX-123 happened: two recovery sessions read the UAT container's env, wrote it back to `.env.local`, and silently swapped dev to point at UAT. If an env file is corrupt or missing, restore from 1Password (`Agents/Supabase/dev info` and `Agents/Supabase/UAT info`) and re-run `./flux env audit` before doing anything else. (FLX-230)
+
 ## CLI Tools
 
 Standalone TypeScript project — no `flu` CLI, no `fhc`. Use npm scripts (see Commands table in CLAUDE.md).
