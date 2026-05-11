@@ -109,9 +109,22 @@ describe('cleanup-service — safety checks', () => {
     expect(safety).toEqual({ safe: false, reason: 'active-but-not-stale' });
   });
 
-  it('stale (threshold=1, env aged 2 days) → safe', async () => {
-    // FLX-224: positive-integer validator forbids 0; use 1 day and push
-    // createdAt back two days to clear it. Verifies the DB-backed gate.
+  it('stale (threshold=1, env aged 60 days) → safe', async () => {
+    // FLX-237: vitest runs DIFFERENT test files in parallel workers
+    // against the SAME Supabase DB. Sibling cleanup-*.test.ts suites
+    // (cleanup-scheduler writes stale_days=14, cleanup-triggers writes 1)
+    // can overwrite our threshold mid-test, so we cannot pin a specific
+    // value across the slow `isolation.acquire` window without a race.
+    //
+    // Hardening:
+    //   1. Back-date `createdAt` 60 days — clears any value any concurrent
+    //      cleanup test writes (max observed: 14).
+    //   2. Re-assert `cleanup.stale_days = 1` immediately before the
+    //      `isSafeToRemove` call, shrinking the contamination window
+    //      from ~1300ms (acquire + diverge + DB ops) to ~5ms.
+    //
+    // This still verifies the DB-backed gate fires; the test no longer
+    // depends on the exact threshold value surviving the parallel race.
     await setGlobalConfig(db, 'cleanup.stale_days', 1);
     const { isolation, service } = buildService(db);
     const [subRun] = await db
@@ -131,16 +144,20 @@ describe('cleanup-service — safety checks', () => {
     cleanup.push({ table: 'isolationEnvironment', id: env.id });
     await divergeBranch(env.workingPath);
 
-    // Force created_at two days back so ageDays > 1.
+    // Force created_at 60 days back so any plausible concurrent
+    // stale_days value (seed=7, cleanup-scheduler=14) still flags stale.
     await db
       .update(schema.isolationEnvironment)
-      .set({ createdAt: new Date(Date.now() - 2 * 86_400_000) })
+      .set({ createdAt: new Date(Date.now() - 60 * 86_400_000) })
       .where(eq(schema.isolationEnvironment.id, env.id));
 
     const [row] = await db
       .select()
       .from(schema.isolationEnvironment)
       .where(eq(schema.isolationEnvironment.id, env.id));
+    // Re-assert the threshold right before the read so the contamination
+    // window collapses to a few milliseconds.
+    await setGlobalConfig(db, 'cleanup.stale_days', 1);
     const safety = await service.isSafeToRemove(row);
     expect(safety).toEqual({ safe: true, reason: 'stale' });
   });
