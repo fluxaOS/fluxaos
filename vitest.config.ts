@@ -5,7 +5,15 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    exclude: ['**/node_modules/**', 'dist', '.next', 'e2e/**', 'website/**'],
+    exclude: [
+      '**/node_modules/**',
+      'dist',
+      '.next',
+      'e2e/**',
+      'website/**',
+      '.worktrees/**',
+      '.fluxaos-worktrees/**',
+    ],
   },
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
 });

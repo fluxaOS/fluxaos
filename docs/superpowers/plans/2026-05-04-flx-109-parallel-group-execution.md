@@ -1,8 +1,10 @@
 # FLX-109 Parallel Group Execution Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Superseded / historical reference only (2026-05-09):** FLX-109 is Done in Linear with PR #229 attached. Do not execute this unchecked plan as live implementation guidance. The current pipeline architecture is DB-owned/config-driven; retired playbook/YAML references below are preserved only to explain the old implementation path.
+>
+> Tracker note: FLX-109 now has a PM hygiene comment from kanban `t_db4975a5` calling out this stale-doc risk and pointing back here.
 
-**Goal:** Implement concurrent execution of `parallel` playbook stage groups so that the `NotImplementedError` guard in `event-orchestrator.ts` is replaced with real fan-out logic using `Promise.allSettled`, child result aggregation, and the existing audit/paperwork pipeline.
+**Historical goal:** Implement concurrent execution of `parallel` playbook stage groups so that the `NotImplementedError` guard in `event-orchestrator.ts` is replaced with real fan-out logic using `Promise.allSettled`, child result aggregation, and the existing audit/paperwork pipeline.
 
 **Architecture:** A new `parallel-executor.ts` module (mirroring `loop-executor.ts`) handles all fan-out and aggregation logic. `event-orchestrator.ts` gains a third branch alongside the loop branch: detect `isParallelGroup`, delegate to `runParallelExecutor`, then hand a synthesized `ingestOutput` back to the shared audit path. Each child gets its own `stageRun` DB row (all pointing to the group's `pipelineStageId`) and a distinct LangGraph `threadId`. Aggregation rules (`all-pass`, `any-pass`, `majority-pass`, `none`) collapse N child verdicts into a single group verdict before routing.
 
