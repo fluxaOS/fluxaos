@@ -5,10 +5,10 @@
  * Parametrized so R-RUNTIME (.fluxaos-worktrees/) and R-ARTIFACTS
  * (.fluxaos-artifacts/) can share one implementation.
  *
- * The helper itself reads no env vars — callers decide whether to invoke it
+ * The helper itself reads no config — callers decide whether to invoke it
  * at all (e.g. skip when an external workspace root points outside the
- * repo). Keeping env-gating out of this module avoids cross-feature
- * coupling (FLUXAOS_WORKSPACE_ROOT vs FLUXAOS_ARTIFACTS_ROOT).
+ * repo). Keeping config-gating out of this module avoids cross-feature
+ * coupling (`runtime.workspace_root` vs FLUXAOS_ARTIFACTS_ROOT).
  */
 
 import { readFile, writeFile } from 'node:fs/promises';

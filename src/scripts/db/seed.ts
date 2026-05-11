@@ -8,7 +8,7 @@
  * Idempotent: safe to run multiple times. Uses onConflictDoNothing() throughout.
  */
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { PIPELINE_SENTINEL } from '@/core/constants';
 import {
@@ -859,6 +859,37 @@ Exit:
     )
     .onConflictDoNothing();
   console.log(`  config entries: ${configDef.length}`);
+
+  // ── 12.b Global operational config (scope='global', project_id=NULL) ───
+  // FLX-222: runtime.workspace_root — DB is the sole source of truth for the
+  // worktree storage override. The row's value is jsonb null by default
+  // ("use in-project layout"); an operator can update it to an absolute path
+  // string via Settings → System.
+  // The unique index treats NULL project_id as distinct, so we can't use
+  // onConflictDoNothing — we check-then-insert instead.
+  const globalConfigDef: Array<{ key: string; value: unknown }> = [
+    { key: 'runtime.workspace_root', value: null },
+  ];
+  for (const entry of globalConfigDef) {
+    const [existing] = await db
+      .select({ id: configEntry.id })
+      .from(configEntry)
+      .where(
+        and(
+          eq(configEntry.scope, 'global'),
+          isNull(configEntry.projectId),
+          eq(configEntry.key, entry.key)
+        )
+      );
+    if (existing) continue;
+    await db.insert(configEntry).values({
+      scope: 'global',
+      projectId: null,
+      key: entry.key,
+      value: sql`${JSON.stringify(entry.value)}::jsonb`,
+    });
+  }
+  console.log(`  global config entries: ${globalConfigDef.length}`);
 
   // ── 13. Seed issue ─────────────────────────────────────────────────────
   const types = await db

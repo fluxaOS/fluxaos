@@ -156,6 +156,22 @@ export const CONFIG_KEY = {
 
 export type ConfigKey = (typeof CONFIG_KEY)[keyof typeof CONFIG_KEY];
 
+/**
+ * Global (scope=`'global'`, project_id=NULL) config_entry keys for runtime
+ * settings that were previously read from env. The DB is the sole source of
+ * truth; readers fail fast when a row is missing. A row with `value` set to
+ * jsonb `null` is the explicit "use default in-project layout" choice.
+ *
+ * See docs/superpowers/specs/2026-05-11-config-classification-design.md.
+ */
+export const GLOBAL_CONFIG_KEY = {
+  /** Absolute path override for worktree storage. FLX-222. */
+  runtimeWorkspaceRoot: 'runtime.workspace_root',
+} as const;
+
+export type GlobalConfigKey =
+  (typeof GLOBAL_CONFIG_KEY)[keyof typeof GLOBAL_CONFIG_KEY];
+
 // ── Trigger Types ─────────────────────────────────────────
 export const TRIGGER_TYPE = {
   manual: 'manual',

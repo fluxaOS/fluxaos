@@ -19,7 +19,12 @@ import { isAbsolute, join, resolve } from 'node:path';
 export interface ArtifactsPathOpts {
   /** Dedicated artifacts-root override (FLUXAOS_ARTIFACTS_ROOT). */
   artifactsRoot?: string | undefined;
-  /** Shared workspace-root override (FLUXAOS_WORKSPACE_ROOT). */
+  /**
+   * Shared workspace-root override — DB-backed since FLX-222 (`config_entry`
+   * row `runtime.workspace_root`, scope `'global'`, project_id NULL). Read by
+   * the worktree isolation provider at acquire time and forwarded here so
+   * artifacts and worktrees share the same root layout.
+   */
   workspaceRoot?: string | undefined;
 }
 
@@ -50,7 +55,7 @@ export function getArtifactsBase(
   if (workspaceRoot) {
     if (!isAbsolute(workspaceRoot)) {
       throw new Error(
-        `FLUXAOS_WORKSPACE_ROOT must be an absolute path, got '${workspaceRoot}'.`
+        `runtime.workspace_root must be an absolute path, got '${workspaceRoot}'.`
       );
     }
     return workspaceRoot;

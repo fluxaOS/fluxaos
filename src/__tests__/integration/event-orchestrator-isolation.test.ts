@@ -108,7 +108,6 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
 
     const fluxaosConfig: FluxaosConfig = {
       artifactsRoot: undefined,
-      workspaceRoot: undefined,
       targetRepoPath: repoPath,
       cleanupSweepIntervalMin: 60,
       cleanupStaleDays: 30,
@@ -255,7 +254,6 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
 
     const fluxaosConfig: FluxaosConfig = {
       artifactsRoot: undefined,
-      workspaceRoot: undefined,
       targetRepoPath: repoPath,
       cleanupSweepIntervalMin: 60,
       cleanupStaleDays: 30,
