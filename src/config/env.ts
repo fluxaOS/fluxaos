@@ -27,9 +27,9 @@ export interface FluxaosConfig {
   cleanupSessionRetentionDays: number;
   /** Minimum age (in days) before a terminal pipeline_run artifacts dir is reaped. Required — no default. */
   cleanupArtifactsRetentionDays: number;
-  /** Path to the init-result-doc script invoked via node. Defaults to the bundled .mjs in .next/daemon/. */
+  /** Path to the init-result-doc script invoked via node. Required — no default. */
   initResultDocScript: string;
-  /** Path to the ingest-result-doc script invoked via node. Defaults to the bundled .mjs in .next/daemon/. */
+  /** Path to the ingest-result-doc script invoked via node. Required — no default. */
   ingestResultDocScript: string;
 }
 
@@ -54,6 +54,17 @@ function parseRequiredPositiveInt(name: string): number {
   return Number(raw);
 }
 
+function parseRequiredString(name: string): string {
+  const raw = process.env[name];
+  if (!raw) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+        'Operator owns this value — no silent default.'
+    );
+  }
+  return raw;
+}
+
 export function loadFluxaosConfig(): FluxaosConfig {
   return {
     artifactsRoot: process.env.FLUXAOS_ARTIFACTS_ROOT,
@@ -67,11 +78,9 @@ export function loadFluxaosConfig(): FluxaosConfig {
     cleanupArtifactsRetentionDays: parseRequiredPositiveInt(
       REQUIRED_CLEANUP_VARS[3]
     ),
-    initResultDocScript:
-      process.env.FLUXAOS_INIT_RESULT_DOC_SCRIPT ??
-      '.next/daemon/init-result-doc.mjs',
-    ingestResultDocScript:
-      process.env.FLUXAOS_INGEST_RESULT_DOC_SCRIPT ??
-      '.next/daemon/ingest-result-doc.mjs',
+    initResultDocScript: parseRequiredString('FLUXAOS_INIT_RESULT_DOC_SCRIPT'),
+    ingestResultDocScript: parseRequiredString(
+      'FLUXAOS_INGEST_RESULT_DOC_SCRIPT'
+    ),
   };
 }
