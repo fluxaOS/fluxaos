@@ -46,11 +46,15 @@ export const projectDescriptor: RecordDescriptor<ProjectRecord> = {
       key: 'defaultPipelineName',
       label: 'Default pipeline',
       fieldType: 'readonly',
+      helpText:
+        'Pipeline used when an issue does not specify one. Change in the Pipelines tab via "Set as default".',
     },
     {
       key: 'targetRepoPath',
       label: 'Target repo path',
       fieldType: 'readonly',
+      helpText:
+        "Absolute path to a local clone of this project's target repo on main. Stage runs use it to acquire an isolation worktree (see CLAUDE.md → R-RUNTIME env vars).",
     },
   ],
 };

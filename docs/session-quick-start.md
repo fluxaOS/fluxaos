@@ -33,6 +33,22 @@ Headless box. **Prod** runs in Docker on port **3003** (`fluxaos-web` container,
 - **`.env`** — checked into git template, holds Supabase URLs/keys (publishable only) and DB connection strings. Required: `DATABASE_URL` (transaction pooler, port 6543), `DIRECT_URL` (direct connection, port 5432, required for migrations), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - **`.env.local`** — gitignored, holds secrets like `ANTHROPIC_API_KEY` and `FLUXAOS_LAN_AUTH_BYPASS=1` (skip `/login` from LAN clients during Playwright runs). Next.js auto-loads `.env.local`; Playwright picks it up via `set -a; source .env.local; set +a` before invocation. Never paste these into prompts.
 
+### R-RUNTIME configuration
+
+The runtime deploy loop (issue → worktree → PR) pulls most of its knobs from the database; only a couple still live in `.env.local`. Full descriptions and defaults live under "R-RUNTIME env vars" in [`CLAUDE.md`](../CLAUDE.md) — this is the orientation table.
+
+| Knob | Where it lives | What it controls |
+|---|---|---|
+| `FLUXAOS_GITHUB_TOKEN` | `.env.local` | PAT with `repo` scope. Deploy bridge fails fast when it needs to open a PR and this is unset. |
+| `project.target_repo_path` | DB column on `project` (FLX-221) | Absolute path to each project's local target-repo clone on `main`. Edited via Settings → Projects. Stage runner throws `MissingProjectTargetRepoPathError` when null. No env fallback — operators upgrading from the pre-FLX-221 env var must copy the value into the column. |
+| `runtime.workspace_root` | DB `config_entry` (`scope='global'`, FLX-222) | Override for worktree location. Default jsonb `null` means "use in-project `<repo>/.fluxaos-worktrees/`". Set via Settings → System. Isolation provider fails fast if the row is missing. |
+| `runtime.artifacts_root` | DB `config_entry` (`scope='global'`, FLX-223) | Override for per-run artifact directories. Default jsonb `null` means "use in-project `<repo>/.fluxaos-artifacts/`" (auto-added to target repo's `.gitignore`). Set via Settings → System. |
+| `cleanup.*` (5 rows) | DB `config_entry` (`scope='global'`, FLX-224) | Cleanup scheduler thresholds + on/off gate: `cleanup.sweep_interval_min`, `cleanup.stale_days`, `cleanup.session_retention_days`, `cleanup.artifacts_retention_days`, `cleanup.scheduler_enabled`. Thresholds re-read on every sweep; the boolean gate is read once at daemon boot (restart to flip). |
+| `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` | `.env.local` (env-only) | Positive integer; seconds the daemon waits for in-flight stage runs to drain after SIGTERM. Daemon refuses to start without it. |
+| `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` | `.env.local` (env-only, optional) | Positive integer; if set, daemon runs `orchestrator.recoverOnStartup()` on that cadence to reap stale stage runs whose PIDs are dead. Unset = startup sweep only. |
+
+DB-backed config is seeded by `npm run db:seed`. There is no file-backed pipeline override — stages, routing, gates, skills, and deploy behavior are all DB rows.
+
 ### Dev vs UAT databases
 
 Two Supabase projects back fluxaOS. Verify your env files point at the right one with `./flux env audit` (exits 1 with a clear remediation hint if they don't).
