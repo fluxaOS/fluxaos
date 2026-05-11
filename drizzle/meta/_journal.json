@@ -176,6 +176,13 @@
       "when": 1778169600000,
       "tag": "0023_flx_197_deploy_run",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1778428800000,
+      "tag": "0024_flx_215_drop_routing_rule_fallback_driver",
+      "breakpoints": true
     }
   ]
 }

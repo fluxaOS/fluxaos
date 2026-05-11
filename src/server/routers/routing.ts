@@ -105,7 +105,6 @@ export const routingRouter = router({
           )
           .optional(),
         preferredDriver: z.string().optional(),
-        fallbackDriver: z.string().optional(),
         sortStrategy: z.string().optional(),
         maxCostUsd: z.string().optional(),
       })
