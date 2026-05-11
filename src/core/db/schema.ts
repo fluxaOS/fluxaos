@@ -699,7 +699,6 @@ export const routingRule = pgTable('routing_rule', {
   stageName: text('stage_name'),
   allowedModelsPattern: text('allowed_models_pattern'),
   preferredDriver: text('preferred_driver'),
-  fallbackDriver: text('fallback_driver'),
   sortStrategy: text('sort_strategy').default('quality'),
   maxCostUsd: numeric('max_cost_usd', { precision: 10, scale: 6 }),
   createdAt,

@@ -66,7 +66,6 @@ export function createRoutingResolver(db: Database): RoutingResolver {
           stageName: routingRule.stageName,
           allowedModelsPattern: routingRule.allowedModelsPattern,
           preferredDriver: routingRule.preferredDriver,
-          fallbackDriver: routingRule.fallbackDriver,
           sortStrategy: routingRule.sortStrategy,
           maxCostUsd: routingRule.maxCostUsd,
           profileId: routingRule.profileId,
@@ -153,9 +152,17 @@ export function createRoutingResolver(db: Database): RoutingResolver {
 
       const pick = candidates[0];
 
-      // 7. Resolve driver: stage override > rule preferred > rule fallback (fail fast)
-      const driver =
-        stage.driver ?? rule?.preferredDriver ?? rule?.fallbackDriver;
+      // 7. Resolve driver: per-stage override wins over the matched rule's
+      // configured driver. This is scope precedence (stage-level beats
+      // rule-level), not a fallback chain — both columns are user-configured
+      // at different scopes and there are no implicit defaults. If neither
+      // scope sets a driver, return null and let stage-runner fail fast.
+      let driver: string | null = null;
+      if (stage.driver) {
+        driver = stage.driver;
+      } else if (rule?.preferredDriver) {
+        driver = rule.preferredDriver;
+      }
       if (!driver) {
         return null; // No driver configured — caller must handle
       }
