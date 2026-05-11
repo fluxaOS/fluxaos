@@ -7,8 +7,6 @@
  * Zero vendor imports. Zero domain concepts beyond "driver config → command."
  */
 
-import { DEFAULT_PROMPT_TRANSPORT } from '@/core/constants';
-
 /** Driver config shape — matches driver table columns. */
 export interface DriverConfig {
   binary: string;
@@ -127,7 +125,12 @@ export function buildCommand(
 
   // 8. Handle prompt based on transport
   let stdin: string | undefined;
-  const transport = driver.promptTransport || DEFAULT_PROMPT_TRANSPORT;
+  if (!driver.promptTransport) {
+    throw new Error(
+      `Driver '${driver.binary}' has no promptTransport configured`
+    );
+  }
+  const transport = driver.promptTransport;
 
   if (transport === 'argv') {
     // PAT pattern: '--' separator then positional prompt

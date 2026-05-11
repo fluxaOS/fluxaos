@@ -6,7 +6,6 @@
  */
 import { eq } from 'drizzle-orm';
 import type { GateMode } from '@/core/constants';
-import { DEFAULT_GATE_MODE } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import { pipelineStage, stageGateResult } from '@/core/db/schema';
 import { evaluateGate } from './engine';
@@ -57,7 +56,7 @@ export function createGateService(db: Database): GateService {
         throw new Error(`pipeline stage not found: ${stageId}`);
       }
 
-      const mode = (stage.gateMode ?? DEFAULT_GATE_MODE) as GateMode;
+      const mode = stage.gateMode as GateMode;
       const rules = (stage.gateRules as RuleGroup) ?? null;
 
       // Evaluate

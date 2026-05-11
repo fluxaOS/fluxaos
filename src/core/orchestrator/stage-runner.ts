@@ -13,7 +13,6 @@ import { eq } from 'drizzle-orm';
 import type { TriggerType } from '@/core/constants';
 import {
   ACTOR,
-  DEFAULT_STAGE_TIMEOUT_SEC,
   EVENT_TYPE,
   ISSUE_EVENT_TYPE,
   STAGE_RUN_STATUS,
@@ -368,7 +367,7 @@ export async function executeStageRun(
       args: cmd.args,
       cwd: workspacePath,
       env: { ...resolvedProviderEnv, ...cmd.env },
-      timeoutMs: (stage.timeoutSec ?? DEFAULT_STAGE_TIMEOUT_SEC) * 1000,
+      timeoutMs: stage.timeoutSec * 1000,
       onStart: (_processId, pid) => {
         if (!pid) return;
         runService.recordPid(sRun.id, pid).catch(logError);
