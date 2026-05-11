@@ -867,11 +867,21 @@ Exit:
   // string via Settings → System.
   // FLX-223: runtime.artifacts_root — same shape, distinct override for
   // per-run artifact directories.
+  // FLX-224: cleanup.* — five rows owning cleanup-scheduler behaviour. The
+  // four threshold rows are positive integers; the scheduler_enabled row is
+  // a boolean (defaults to false — the cleanup loop is opt-in). Operators
+  // flip scheduler_enabled to true via Settings → System once they're ready
+  // for the daemon to start the cleanup loop.
   // The unique index treats NULL project_id as distinct, so we can't use
   // onConflictDoNothing — we check-then-insert instead.
   const globalConfigDef: Array<{ key: string; value: unknown }> = [
     { key: 'runtime.workspace_root', value: null },
     { key: 'runtime.artifacts_root', value: null },
+    { key: 'cleanup.sweep_interval_min', value: 10 },
+    { key: 'cleanup.stale_days', value: 7 },
+    { key: 'cleanup.session_retention_days', value: 30 },
+    { key: 'cleanup.artifacts_retention_days', value: 30 },
+    { key: 'cleanup.scheduler_enabled', value: false },
   ];
   for (const entry of globalConfigDef) {
     const [existing] = await db

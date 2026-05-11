@@ -27,14 +27,6 @@ export interface SpawnDaemonOptions {
   bootTimeoutMs?: number;
   /** Override SIGTERM wait timeout (ms). Must exceed graceSeconds * 1000. */
   shutdownTimeoutMs?: number;
-  /** Cleanup scheduler sweep cadence in minutes. Defaults to 1 (test-suitable). */
-  cleanupSweepIntervalMin?: number;
-  /** Days before a worktree/workspace is considered stale. Defaults to 1 (test-suitable). */
-  cleanupStaleDays?: number;
-  /** Days to retain session artifacts. Defaults to 1 (test-suitable). */
-  cleanupSessionRetentionDays?: number;
-  /** Days to retain run artifacts. Defaults to 1 (test-suitable). */
-  cleanupArtifactsRetentionDays?: number;
 }
 
 export interface DaemonHandle {
@@ -53,22 +45,15 @@ export async function spawnDaemon(
   const bootTimeoutMs = options.bootTimeoutMs ?? DEFAULT_BOOT_TIMEOUT_MS;
   const shutdownTimeoutMs =
     options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
-  const cleanupSweepIntervalMin = options.cleanupSweepIntervalMin ?? 1;
-  const cleanupStaleDays = options.cleanupStaleDays ?? 1;
-  const cleanupSessionRetentionDays = options.cleanupSessionRetentionDays ?? 1;
-  const cleanupArtifactsRetentionDays =
-    options.cleanupArtifactsRetentionDays ?? 1;
 
+  // FLX-224: cleanup thresholds + scheduler-enabled gate now live in
+  // `config_entry` rows. The daemon reads them from the DB. Specs that
+  // need the cleanup loop running should flip `cleanup.scheduler_enabled`
+  // to true via direct DB write before invoking spawnDaemon().
   const env = {
     ...process.env,
     FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS: String(graceSeconds),
     FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN: String(recoveryIntervalMin),
-    FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN: String(cleanupSweepIntervalMin),
-    FLUXAOS_CLEANUP_STALE_DAYS: String(cleanupStaleDays),
-    FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS: String(cleanupSessionRetentionDays),
-    FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS: String(
-      cleanupArtifactsRetentionDays
-    ),
   };
   const tsxBin = resolve(process.cwd(), 'node_modules/.bin/tsx');
   const child = spawn(tsxBin, ['src/scripts/daemon.ts'], {

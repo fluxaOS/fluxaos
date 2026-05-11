@@ -34,13 +34,9 @@ test.describe('@flx-193 @journey @auto-dispatch', () => {
   let handle: DaemonHandle | null = null;
 
   test.beforeAll(async () => {
-    handle = await spawnDaemon({
-      // Minimal cleanup thresholds for test environment.
-      cleanupSweepIntervalMin: 60,
-      cleanupStaleDays: 1,
-      cleanupSessionRetentionDays: 1,
-      cleanupArtifactsRetentionDays: 1,
-    });
+    // FLX-224: cleanup thresholds now live in `config_entry`; pass nothing
+    // here (daemon reads scheduler-enabled gate from DB, defaults to off).
+    handle = await spawnDaemon();
   });
 
   test.afterAll(async () => {

@@ -17,7 +17,10 @@
  * Migration order (see docs/superpowers/specs/2026-05-11-config-classification-design.md):
  *   - FLX-222 (`runtime.workspace_root`) — done. Lands the pattern.
  *   - FLX-223 (`runtime.artifacts_root`) — done. Mirrors the FLX-222 shape.
- *   - FLX-224 (`cleanup.*`) — next. Reuses the same accessors.
+ *   - FLX-224 (`cleanup.*`) — done. Five rows: four positive-int thresholds
+ *     consumed by the cleanup scheduler and a boolean scheduler-enabled gate.
+ *     Unlike the `runtime.*` keys, these have NO "use built-in layout"
+ *     affordance — jsonb null is invalid for the cleanup keys.
  */
 
 import { and, eq, isNull } from 'drizzle-orm';
@@ -143,4 +146,112 @@ export async function getRuntimeArtifactsRoot(
     );
   }
   return value;
+}
+
+/**
+ * Read a global config_entry whose value MUST be a positive integer.
+ *
+ * Unlike the `runtime.*` accessors, the cleanup thresholds have no
+ * "use built-in layout" affordance — a missing row, a null value, or a
+ * non-positive-integer value all throw. The DB row must exist with a real
+ * operator-set number before the cleanup scheduler can run.
+ *
+ * Throws:
+ *   - `MissingGlobalConfigError` when the row is missing.
+ *   - `InvalidGlobalConfigError` when the value is not a positive integer
+ *     (string, boolean, null, zero, negative, non-integer number).
+ */
+async function readGlobalConfigPositiveInt(
+  db: Database,
+  key: string
+): Promise<number> {
+  const value = await readGlobalConfigValue(db, key);
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value <= 0 ||
+    !Number.isFinite(value)
+  ) {
+    throw new InvalidGlobalConfigError(
+      key,
+      'positive integer',
+      value === null ? 'null' : typeof value
+    );
+  }
+  return value;
+}
+
+/**
+ * Read a global config_entry whose value MUST be a boolean.
+ *
+ * Throws:
+ *   - `MissingGlobalConfigError` when the row is missing.
+ *   - `InvalidGlobalConfigError` when the value is not a JS boolean (e.g.
+ *     null, string `'true'`, number 1).
+ */
+async function readGlobalConfigBoolean(
+  db: Database,
+  key: string
+): Promise<boolean> {
+  const value = await readGlobalConfigValue(db, key);
+  if (typeof value !== 'boolean') {
+    throw new InvalidGlobalConfigError(
+      key,
+      'boolean',
+      value === null ? 'null' : typeof value
+    );
+  }
+  return value;
+}
+
+/**
+ * Read `cleanup.sweep_interval_min` — how often (in minutes) the cleanup
+ * scheduler runs its sweep. FLX-224.
+ */
+export function getCleanupSweepIntervalMin(db: Database): Promise<number> {
+  return readGlobalConfigPositiveInt(
+    db,
+    GLOBAL_CONFIG_KEY.cleanupSweepIntervalMin
+  );
+}
+
+/**
+ * Read `cleanup.stale_days` — maximum worktree age (in days) before the
+ * cleanup sweep considers it stale and eligible for reaping. FLX-224.
+ */
+export function getCleanupStaleDays(db: Database): Promise<number> {
+  return readGlobalConfigPositiveInt(db, GLOBAL_CONFIG_KEY.cleanupStaleDays);
+}
+
+/**
+ * Read `cleanup.session_retention_days` — minimum age (in days) of a
+ * terminal session before it is reaped. FLX-224.
+ */
+export function getCleanupSessionRetentionDays(db: Database): Promise<number> {
+  return readGlobalConfigPositiveInt(
+    db,
+    GLOBAL_CONFIG_KEY.cleanupSessionRetentionDays
+  );
+}
+
+/**
+ * Read `cleanup.artifacts_retention_days` — minimum age (in days) of a
+ * terminal pipeline_run artifacts dir before it is reaped. FLX-224.
+ */
+export function getCleanupArtifactsRetentionDays(
+  db: Database
+): Promise<number> {
+  return readGlobalConfigPositiveInt(
+    db,
+    GLOBAL_CONFIG_KEY.cleanupArtifactsRetentionDays
+  );
+}
+
+/**
+ * Read `cleanup.scheduler_enabled` — whether the periodic cleanup
+ * scheduler runs at all. Defaults to `false` in the seed; the cleanup
+ * loop is an explicit operator opt-in via Settings → System. FLX-224.
+ */
+export function getCleanupSchedulerEnabled(db: Database): Promise<boolean> {
+  return readGlobalConfigBoolean(db, GLOBAL_CONFIG_KEY.cleanupSchedulerEnabled);
 }

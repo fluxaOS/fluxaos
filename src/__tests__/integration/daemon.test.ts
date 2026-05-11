@@ -151,8 +151,9 @@ describe('R-DAEMON factory', () => {
     const daemon = await createDaemon();
     try {
       expect(daemon.orchestrator.running).toBe(true);
-      // cleanupScheduler may be enabled or disabled depending on whether
-      // the four FLUXAOS_CLEANUP_* env vars are set — don't over-assert.
+      // cleanupScheduler may be enabled or disabled depending on the
+      // `cleanup.scheduler_enabled` config_entry row (FLX-224) — don't
+      // over-assert.
       expect(typeof daemon.cleanupScheduler.isRunning()).toBe('boolean');
       expect(daemon.env.shutdownGraceSeconds).toBe(3);
     } finally {
