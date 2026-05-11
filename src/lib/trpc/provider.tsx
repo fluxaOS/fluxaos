@@ -8,7 +8,15 @@ import { trpc } from './client';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3003';
+  const url = process.env.NEXT_PUBLIC_APP_URL;
+  if (!url) {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL is not set. tRPC provider cannot construct an absolute URL for SSR. ' +
+        'Set NEXT_PUBLIC_APP_URL in your environment (e.g. http://192.168.54.101:3004 for dev, ' +
+        'https://uat-flux.jdp21.com for UAT).'
+    );
+  }
+  return url;
 }
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
