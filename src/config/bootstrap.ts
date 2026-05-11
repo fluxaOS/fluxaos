@@ -11,7 +11,6 @@
 import { BullMQAdapter } from '@/adapters/bullmq/queue';
 import { createWorktreeIsolationProvider } from '@/adapters/git';
 import { createGitProviderFactory } from '@/adapters/git-router/factory';
-import { createGitHubAdapter } from '@/adapters/github';
 import { LangGraphStageGraphRunner } from '@/adapters/langgraph/stage-graph-runner-adapter';
 import { SubprocessExecutor } from '@/adapters/subprocess/executor';
 import { SubprocessStdoutParser } from '@/adapters/subprocess/stdout-parser';
@@ -109,18 +108,12 @@ export function bootstrap(config?: FluxaosConfig): void {
     });
   });
 
-  // Git — GitHub adapter (legacy single-forge resolver). Requires
-  // FLUXAOS_GITHUB_TOKEN at call time (not at registration time), so
-  // operators can boot the app without the token when they don't need
-  // deploy-bridge functionality yet. GitHubAuthError (missing token)
-  // surfaces to the caller. Kept for call sites that don't have a
-  // repoUrl handy; new call sites should prefer the gitFactory.
-  registry.register('git', () => createGitHubAdapter());
-
   // FLX-4 — GitProviderFactory. Routes a repo URL to the right forge
   // adapter (GitHub, GitLab, Gitea, Forgejo). The non-GitHub adapters
   // are stubs in the FLX-4 slice; they throw NotImplementedError until
-  // a future PR wires their REST APIs.
+  // a future PR wires their REST APIs. This is the only git resolution
+  // path; FLUXAOS_GITHUB_TOKEN is required at call time (not at
+  // registration time) and missing-token errors surface to the caller.
   registry.register('gitFactory', () => createGitProviderFactory());
 
   // Validate all required adapters are registered

@@ -9,7 +9,7 @@
  *      with `{ skipped: 'no-changes' }` so the orchestrator can still mark
  *      the run complete without manufacturing a PR.
  *   3. push() the branch with --set-upstream.
- *   4. registry.get<GitProvider>('git').createPullRequest().
+ *   4. gitFactory.forUrl(project.repoUrl).createPullRequest().
  *   5. Single Drizzle transaction: insert issue_branch, insert
  *      issue_pull_request, advance issue state (via issueService.transition).
  *   6. isolation.release() OUTSIDE the transaction (filesystem side effect).
@@ -263,9 +263,8 @@ export function createDeployBridge(deps: DeployBridgeDeps): DeployBridge {
     }
 
     // 8. createPullRequest — resolve the right forge adapter from the
-    // project's repoUrl when one is set (FLX-4); fall back to the
-    // legacy single-adapter registration so call sites without a URL
-    // (or with an unrecognized host) keep working.
+    // project's repoUrl via the gitFactory (FLX-4). Single resolution
+    // path; fails fast if 'gitFactory' is not registered.
     const gitProvider = resolveGitProviderForProject(
       registry,
       projectRow.repoUrl
@@ -454,29 +453,21 @@ async function loadMostRecentStageName(
 }
 
 /**
- * FLX-4 — pick the GitProvider for a project's repoUrl. Prefers the
- * factory ('gitFactory') when registered; falls back to the legacy
- * 'git' adapter for backward compat.
+ * FLX-4 / FLX-217 / FLX-218 — pick the GitProvider for a project's
+ * repoUrl. Single resolution path via the 'gitFactory' adapter; the
+ * legacy 'git' adapter fallback was removed in FLX-217.
  *
- * FLX-218: `UnsupportedGitHostError` is *not* swallowed — when the
- * factory rejects a repoUrl whose host doesn't match a registered
- * provider, the runtime must fail fast. The only error this catches is
- * the registry miss on `'gitFactory'` (test rigs without the factory
- * registered).
+ * Two error paths, both intentional:
+ *   - registry miss on 'gitFactory' (e.g., bootstrap misconfig) →
+ *     surfaces "adapter not registered".
+ *   - `UnsupportedGitHostError` from factory.forUrl() when repoUrl host
+ *     doesn't match a registered provider (FLX-218) — propagates.
  */
 function resolveGitProviderForProject(
   registry: AdapterRegistryLike,
   repoUrl: string | null | undefined
 ): GitProvider {
-  let factory: GitProviderFactory;
-  try {
-    factory = registry.get<GitProviderFactory>('gitFactory');
-  } catch {
-    // Factory not registered (legacy bootstrap, integration tests with
-    // a hand-rolled registry stub, etc.) — use the single 'git' adapter.
-    return registry.get<GitProvider>('git');
-  }
-  // UnsupportedGitHostError from .forUrl propagates intentionally.
+  const factory = registry.get<GitProviderFactory>('gitFactory');
   return factory.forUrl(repoUrl ?? '');
 }
 
