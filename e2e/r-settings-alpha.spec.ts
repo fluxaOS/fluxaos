@@ -106,26 +106,23 @@ test.describe('@r-settings-alpha @journey', () => {
 
     // ── Invalid slug: pages must 404, not silently render the seeded
     //    project's data via a fallback literal. ──────────────────────────
-    await page.goto(
-      '/default/admin/does-not-exist-flx-213/settings/projects',
-      { waitUntil: 'domcontentloaded' }
-    );
+    await page.goto('/default/admin/does-not-exist-flx-213/settings/projects', {
+      waitUntil: 'domcontentloaded',
+    });
     await expect(
       page.getByRole('heading', { name: 'Projects' })
     ).not.toBeVisible({ timeout: 10_000 });
 
-    await page.goto(
-      '/default/admin/does-not-exist-flx-213/settings/brands',
-      { waitUntil: 'domcontentloaded' }
+    await page.goto('/default/admin/does-not-exist-flx-213/settings/brands', {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(page.getByRole('heading', { name: 'Brands' })).not.toBeVisible(
+      { timeout: 10_000 }
     );
-    await expect(
-      page.getByRole('heading', { name: 'Brands' })
-    ).not.toBeVisible({ timeout: 10_000 });
 
-    await page.goto(
-      '/default/admin/does-not-exist-flx-213/settings/personas',
-      { waitUntil: 'domcontentloaded' }
-    );
+    await page.goto('/default/admin/does-not-exist-flx-213/settings/personas', {
+      waitUntil: 'domcontentloaded',
+    });
     await expect(
       page.getByRole('heading', { name: 'Personas' })
     ).not.toBeVisible({ timeout: 10_000 });
