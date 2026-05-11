@@ -54,6 +54,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 - **Agnostic engine** — no stage/provider/driver/enum literals in app code (seed data and adapters only)
 - **Config-driven** — fail fast on missing config, no silent defaults
+- **No fallbacks ever** — *"If the primary mechanism doesn't work, that's a bug to fix — not a scenario to code around."* No `?? 'default'` patterns, no fallback chains, no polling fallbacks, no degraded-mode / graceful-degradation alternatives. One path; if it fails, surface the error. See [`ARCHITECTURAL_STANDARDS.md` §2](ARCHITECTURAL_STANDARDS.md#2-no-fallbacks---fail-fast).
 - **DI everywhere** — services are factories receiving `Database`, zero vendor imports in `src/core/`
 - **Orchestrator vs Workers** — systemd daemon manages pipeline state; AI workers are read-only executors that report via comments
 - **No unit tests** — integration tests against real Supabase only; see Agent Behavior

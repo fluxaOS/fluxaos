@@ -64,7 +64,11 @@ AI workers do NOT: know what pipeline stage they're in, know the issue's state/s
 
 8. **All services use dependency injection.** Services are factory functions that receive `Database` as a parameter. No singletons. No direct imports of adapters or connections.
 
-9. **Everything is config-driven.** No fallback defaults. No silent degradation. If a required configuration is missing, the system fails fast with a clear error message naming what's missing. A misconfigured system crashes immediately — it does not silently do the wrong thing.
+9. **No fallbacks ever.** *"If the primary mechanism doesn't work, that's a bug to fix — not a scenario to code around."* This covers both shapes:
+   - **Silent defaults / fallback chains.** No `?? 'default'`, no `value || fallback`, no `config.get('key', 'default')`, no "try A, then B, then C." If a required configuration is missing, the system fails fast with a clear error message naming what's missing. Config is the source of truth; missing config crashes immediately and does not silently do the wrong thing.
+   - **Degraded-mode alternatives.** No "preferred mechanism with polling fallback," no SSE-with-polling, no "Realtime with refetch on disconnect" — if Supabase Realtime is the streaming mechanism, it is the *only* streaming mechanism. No graceful-degradation paths that mask a broken primary. If the primary path fails, surface the error; never silently substitute.
+
+   Canonical statement: [`ARCHITECTURAL_STANDARDS.md` §2 "No Fallbacks - Fail Fast"](../ARCHITECTURAL_STANDARDS.md#2-no-fallbacks---fail-fast).
 
 10. **Max ~500 lines per file.** Split into multiple files when approaching this limit.
 
