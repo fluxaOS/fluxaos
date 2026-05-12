@@ -2,7 +2,7 @@
 
 AI orchestration OS — a config-driven engine that runs pipelines of AI-powered stages against issues. File an issue, the daemon picks it up, the worker runs in an isolated git worktree, and a PR opens on your repo.
 
-> **Status:** Alpha. Single operator, single project, single git provider (GitHub). Anthropic-only.
+> **Status:** Alpha in progress — the engine is assembled, but alpha is **not shipped** until the verification matrix is fully green. Current scope remains one operator, one project, one git provider (GitHub), Anthropic-only.
 
 ## What is fluxaOS?
 
@@ -29,31 +29,36 @@ cp .env.example .env
 # Edit .env — set DATABASE_URL, DIRECT_URL, NEXT_PUBLIC_SUPABASE_URL,
 # NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY.
 #
-# Then create .env.local with the operational keys. Required:
+# Then create .env.local with the operational keys. Required for the daemon/deploy loop:
 #   ANTHROPIC_API_KEY=sk-ant-...
 #   FLUXAOS_GITHUB_TOKEN=ghp_...                  # repo scope
-#   FLUXAOS_TARGET_REPO_PATH=/abs/path/to/clone   # local checkout on main, clean
 #   FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS=60
-#   FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN=15
-#   FLUXAOS_CLEANUP_STALE_DAYS=7
-#   FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS=14
-#   FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS=14
+#
+# Runtime deploy paths and cleanup knobs are DB-backed now, not env-backed:
+#   project.target_repo_path                      # Settings → Projects
+#   runtime.workspace_root / runtime.artifacts_root
+#   cleanup.sweep_interval_min / cleanup.stale_days / cleanup.session_retention_days
+#   cleanup.artifacts_retention_days / cleanup.scheduler_enabled
 
 # 4. Set up the database
 npm run db:migrate
 npm run db:seed
 npm run verify:seed       # 10/10 PASS expected
 
-# 5. Start the dev server (terminal 1)
-npm run dev
+# 5. Configure DB-backed runtime rows
+# In Settings → Projects, set project.target_repo_path to an absolute local clone on main.
+# In Settings → System, keep the seeded runtime/cleanup defaults or edit them intentionally.
 
-# 6. Start the daemon (terminal 2)
+# 6. Start the dev server (terminal 1)
+npm run dev -- -H 0.0.0.0 -p 3004
+
+# 7. Start the daemon (terminal 2)
 npm run daemon
 # Or use the systemd user-unit at ops/systemd/fluxaos-daemon.service
 # and `systemctl --user enable --now fluxaos-daemon`.
 
-# 7. Open the UI
-open http://localhost:3000
+# 8. Open the UI
+open http://localhost:3004
 # File an issue, advance state to `Implement`, click Run Stage.
 # Watch the daemon log + the mission-control page (/mission-control)
 # until the run reaches `completed` and a PR appears on your target repo.
@@ -193,7 +198,11 @@ drizzle/                # Migrations + meta snapshots
 
 ## Configuration
 
-All operational config lives in `.env.local` (gitignored). See `.env.example` for the Supabase + base set; the operational vars below are documented in `CLAUDE.md` (R-RUNTIME env vars block).
+Configuration is split on purpose: credentials and process boot knobs live in env files; runtime deploy paths and cleanup policy live in the database. That prevents one global `.env.local` value from silently driving every project.
+
+### Environment variables
+
+See `.env.example` for the Supabase + base set and `website/docs-site/docs/reference/env-vars.md` for the full `FLUXAOS_*` reference.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
@@ -202,19 +211,32 @@ All operational config lives in `.env.local` (gitignored). See `.env.example` fo
 | `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | Anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | Service role (server-only) |
+| `NEXT_PUBLIC_APP_URL` | yes | Absolute app base URL for SSR tRPC calls |
 | `ANTHROPIC_API_KEY` | yes | Anthropic SDK key |
-| `FLUXAOS_GITHUB_TOKEN` | yes | PAT with `repo` scope |
-| `FLUXAOS_TARGET_REPO_PATH` | yes | Absolute path to a clean local checkout of the target repo on `main` |
-| `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` | yes | Positive int, drain window after SIGTERM |
-| `FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN` | yes | Cleanup scheduler cadence |
-| `FLUXAOS_CLEANUP_STALE_DAYS` | yes | Stale worktree threshold |
-| `FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS` | yes | Session retention |
-| `FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS` | yes | Artifacts retention |
-| `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` | optional | Periodic recovery sweep cadence |
-| `FLUXAOS_WORKSPACE_ROOT` | optional | Override `<repo>/.fluxaos-worktrees/` |
-| `FLUXAOS_ARTIFACTS_ROOT` | optional | Override `<repo>/.fluxaos-artifacts/` |
-| `FLUXAOS_TEST_TARGET_REPO` | optional (e2e only) | `owner/repo` deploy-touching journeys open PRs against; set to `fluxaOS/fluxaos` to dogfood, or any disposable repo |
-| `FLUXAOS_LAN_AUTH_BYPASS` | optional (homelab only) | Skip auth middleware (`=1`) |
+| `FLUXAOS_GITHUB_TOKEN` | yes for deploy | PAT with `repo` scope; deploy bridge fails fast when it needs to open a PR and this is unset |
+| `FLUXAOS_INIT_RESULT_DOC_SCRIPT` | yes | Path to the bundled init-result-doc script (`.next/daemon/init-result-doc.mjs`) |
+| `FLUXAOS_INGEST_RESULT_DOC_SCRIPT` | yes | Path to the bundled ingest-result-doc script (`.next/daemon/ingest-result-doc.mjs`) |
+| `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` | yes for daemon | Positive int, drain window after SIGTERM |
+| `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` | optional | Periodic recovery sweep cadence; unset means startup sweep only |
+| `FLUXAOS_TEST_TARGET_REPO` | optional (e2e only) | `owner/repo` deploy-touching journeys open PRs against |
+| `FLUXAOS_LAN_AUTH_BYPASS` | optional (homelab only) | Skip auth middleware (`=1`); never set on an internet-reachable host |
+
+### DB-backed runtime config
+
+These are the authoritative runtime knobs after FLX-221..224. They are seeded by `npm run db:seed` and edited through Settings, not `.env.local`.
+
+| DB key / column | Required | Purpose |
+|-----------------|----------|---------|
+| `project.target_repo_path` | yes for deploy | Absolute path to each project's local target-repo clone on `main`; `NULL` makes stage acquisition fail fast with `MissingProjectTargetRepoPathError` |
+| `runtime.workspace_root` | seeded global `config_entry` | Optional worktree root override; JSON `null` means use `<repo>/.fluxaos-worktrees/` |
+| `runtime.artifacts_root` | seeded global `config_entry` | Optional artifact root override; JSON `null` means use `<repo>/.fluxaos-artifacts/` |
+| `cleanup.sweep_interval_min` | seeded global `config_entry` | Cleanup scheduler cadence in minutes |
+| `cleanup.stale_days` | seeded global `config_entry` | Worktree stale threshold |
+| `cleanup.session_retention_days` | seeded global `config_entry` | Terminal session retention |
+| `cleanup.artifacts_retention_days` | seeded global `config_entry` | Artifact directory retention |
+| `cleanup.scheduler_enabled` | seeded global `config_entry` | Boolean boot gate; restart the daemon after changing it |
+
+Legacy env names `FLUXAOS_TARGET_REPO_PATH`, `FLUXAOS_WORKSPACE_ROOT`, `FLUXAOS_ARTIFACTS_ROOT`, and `FLUXAOS_CLEANUP_*` are not the runtime configuration surface. If you find one in local scripts, treat it as migration/test scaffolding and verify the matching DB row before trusting it.
 
 ## Development
 

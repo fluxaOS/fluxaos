@@ -5,6 +5,14 @@
 # Keep this list small — only files where a change almost certainly
 # requires a doc update. Everything else is covered by the LLM soft nudge.
 #
+# Review checklist for config/env changes:
+# - This map only proves co-changed files, not semantic correctness.
+# - When source moves a knob between env, DB rows, seed data, or Settings UI,
+#   reviewers must compare docs against source-of-truth code and seeded rows.
+# - For FLUXAOS_* changes, verify README.md, docs/session-quick-start.md,
+#   website/docs-site/docs/reference/env-vars.md, src/config/env.ts, and
+#   relevant migrations/seed rows tell the same story.
+#
 # To skip doc-drift for a PR (pure refactor, no user-visible change),
 # add the label "skip-doc-drift" to the PR or include [skip-doc-drift]
 # in the PR title.
