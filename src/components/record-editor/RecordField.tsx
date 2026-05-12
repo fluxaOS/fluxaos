@@ -79,12 +79,42 @@ function RecordFieldInner({
     </p>
   ) : null;
 
-  // READ-ONLY (always displayed, never editable — used for `version`, timestamps)
+  // CUSTOM RENDERER (FLX-207) — generic escape hatch. When a descriptor
+  // sets `customRenderer`, defer entirely to it. Used by `repoUrl` for
+  // the two-step Validate UX. The renderer reports its own validity via
+  // `onValidityChange` so Save can block.
+  if (field.customRenderer) {
+    return (
+      <>
+        {field.customRenderer({
+          field,
+          value,
+          editing,
+          onChange,
+          error,
+          onValidityChange,
+        })}
+      </>
+    );
+  }
+
+  // READ-ONLY — visually unmistakable from editable fields per FLX-207.
+  // Used for fields that genuinely cannot be edited (e.g. version,
+  // timestamps). The dashed border, muted text, "(read-only)" suffix,
+  // and not-allowed cursor make the non-interactive nature obvious.
   if (field.fieldType === 'readonly') {
     return (
       <div className="mb-3">
-        {label}
-        <div className="text-sm font-mono text-slate-300 px-3 py-2 bg-slate-900/60 rounded-lg">
+        <label className="text-xs font-medium text-slate-400 block mb-1">
+          {field.label}
+          <span className="ml-1.5 text-[10px] text-slate-500 font-normal">
+            (read-only)
+          </span>
+        </label>
+        <div
+          className="text-sm font-mono text-slate-400 px-3 py-2 bg-slate-900/30 border border-dashed border-slate-700/40 rounded-lg cursor-not-allowed"
+          aria-readonly="true"
+        >
           {String(value ?? '—')}
         </div>
         {helpTextNode}
@@ -195,6 +225,48 @@ function RecordFieldInner({
           {options.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
+            </option>
+          ))}
+        </select>
+        {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+        {helpTextNode}
+      </div>
+    );
+  }
+
+  // SELECT-ID (FK lookup — label shown, value (UUID) saved; FLX-207)
+  // No fallbacks: an undefined selectIdOptions is a descriptor bug —
+  // surface it, don't render an empty dropdown that silently looks
+  // valid. Per CLAUDE.md / ARCHITECTURAL_STANDARDS.md §2.
+  if (field.fieldType === 'select-id') {
+    if (!field.selectIdOptions) {
+      throw new Error(
+        `RecordField: select-id field "${field.key}" is missing selectIdOptions. ` +
+          'Pass an empty array explicitly if the dropdown is intentionally empty.'
+      );
+    }
+    const options = field.selectIdOptions;
+    const hasNullOption = typeof field.nullOptionLabel === 'string';
+    const selected = value == null ? '' : String(value);
+    return (
+      <div className="mb-3">
+        {label}
+        <select
+          disabled={!editing}
+          value={selected}
+          onChange={(e) => {
+            const next = e.target.value;
+            onChange(next === '' ? null : next);
+          }}
+          aria-label={field.label}
+          className={`${common} ${borderClass} disabled:opacity-75`}
+        >
+          {hasNullOption ? (
+            <option value="">{field.nullOptionLabel}</option>
+          ) : null}
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>

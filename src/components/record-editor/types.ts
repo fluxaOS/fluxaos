@@ -8,7 +8,24 @@ export type FieldType =
   | 'boolean'
   | 'jsonb'
   | 'select'
+  | 'select-id'
   | 'readonly';
+
+export type SelectIdOption = {
+  /** UUID written to the record */
+  value: string;
+  /** Human-readable label shown in the dropdown */
+  label: string;
+};
+
+export type CustomRendererProps<TRecord> = {
+  field: FieldDescriptor<TRecord>;
+  value: unknown;
+  editing: boolean;
+  onChange: (next: unknown) => void;
+  error?: string | null;
+  onValidityChange?: (key: string, error: string | null) => void;
+};
 
 export type FieldDescriptor<TRecord> = {
   /** Typed key on the record row */
@@ -46,6 +63,24 @@ export type FieldDescriptor<TRecord> = {
    * mode and resets to the first option when entering edit mode.
    */
   options?: readonly string[];
+  /**
+   * For fieldType: 'select-id' (FLX-207) — FK lookups: dropdown renders
+   * `label` to the operator and saves `value` (a UUID) to the record.
+   */
+  selectIdOptions?: readonly SelectIdOption[];
+  /**
+   * For fieldType: 'select-id' — label of the null/empty choice (e.g.
+   * "(no brand)"). Omit to force a non-null selection (no leading null
+   * option rendered).
+   */
+  nullOptionLabel?: string;
+  /**
+   * Generic escape hatch (FLX-207). When set, RecordField defers entirely
+   * to this renderer for the field — used by `repoUrl` for the two-step
+   * Validate UX. The renderer can call `onValidityChange(key, err|null)`
+   * to lift a field-local validity error to the editor so Save can block.
+   */
+  customRenderer?: (props: CustomRendererProps<TRecord>) => ReactNode;
 };
 
 export type RecordDescriptor<TRecord> = {
