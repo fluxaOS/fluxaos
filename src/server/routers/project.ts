@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
+import { buildGitRouter } from '@/adapters/git-router/validator-registry';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createPipelineService, createProjectService } from '@/core/services';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
@@ -76,6 +77,19 @@ export const projectRouter = router({
     .input(inputId())
     .mutation(({ ctx, input }) => {
       return createProjectService(ctx.db).remove(input.id);
+    }),
+
+  /**
+   * FLX-227: liveness check on a repo URL. Walks the registered git
+   * provider validators (vendor-agnostic) and returns a structured
+   * ValidationResult. Called by the Projects form's "Validate" button
+   * and re-run by project.update on save. Never used as a fallback.
+   */
+  validateRepoUrl: protectedMutation(EDIT_ROLES)
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const router = buildGitRouter();
+      return router.validate(input.url);
     }),
 
   /**
