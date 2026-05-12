@@ -1,8 +1,7 @@
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { buildGitRouter } from '@/adapters/git-router/validator-registry';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
-import { createPipelineService, createProjectService } from '@/core/services';
+import { createProjectService } from '@/core/services';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
@@ -57,8 +56,12 @@ export const projectRouter = router({
       z.object({
         id: z.string().uuid(),
         name: z.string().min(1).optional(),
-        slug: z.string().min(1).optional(),
-        repoUrl: z.string().optional(),
+        slug: z
+          .string()
+          .min(1)
+          .regex(/^[a-z0-9-]+$/, 'SLUG_INVALID_FORMAT')
+          .optional(),
+        repoUrl: z.string().url().nullable().optional(),
         defaultBranch: z.string().min(1).optional(),
         defaultPipelineId: z.string().uuid().nullable().optional(),
         brandId: z.string().uuid().nullable().optional(),
@@ -70,7 +73,9 @@ export const projectRouter = router({
     )
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
-      return createProjectService(ctx.db).update(id, data);
+      return createProjectService(ctx.db, {
+        repoUrlValidator: buildGitRouter(),
+      }).update(id, data);
     }),
 
   delete: protectedMutation(DELETE_ROLES)
@@ -78,7 +83,6 @@ export const projectRouter = router({
     .mutation(({ ctx, input }) => {
       return createProjectService(ctx.db).remove(input.id);
     }),
-
   /**
    * FLX-227: liveness check on a repo URL. Walks the registered git
    * provider validators (vendor-agnostic) and returns a structured
@@ -90,42 +94,5 @@ export const projectRouter = router({
     .mutation(async ({ input }) => {
       const router = buildGitRouter();
       return router.validate(input.url);
-    }),
-
-  /**
-   * Set (or clear) the project's default pipeline. Validates the
-   * pipeline belongs to the project when non-null. Operators click
-   * "Set as default" from the Pipelines settings tab; the server
-   * enforces the project-scope invariant so a crafted UI can't point
-   * a project at a pipeline from a different project.
-   */
-  setDefaultPipeline: protectedMutation(EDIT_ROLES)
-    .input(
-      z.object({
-        projectId: z.string().uuid(),
-        pipelineId: z.string().uuid().nullable(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      if (input.pipelineId !== null) {
-        const pipe = await createPipelineService(ctx.db).getById(
-          input.pipelineId
-        );
-        if (!pipe) {
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: 'PIPELINE_NOT_FOUND',
-          });
-        }
-        if (pipe.projectId !== input.projectId) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'PIPELINE_NOT_IN_PROJECT',
-          });
-        }
-      }
-      return createProjectService(ctx.db).update(input.projectId, {
-        defaultPipelineId: input.pipelineId,
-      });
     }),
 });

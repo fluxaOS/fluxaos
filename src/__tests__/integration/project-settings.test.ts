@@ -1,10 +1,12 @@
 /**
  * Integration tests: R-SETTINGS-ALPHA project settings router.
  *
- * Covers project.update (extended fields) and project.setDefaultPipeline
- * (happy, cross-project rejection, clear). The legacy system.env.getPublic
- * endpoint was retired in FLX-221 — its only whitelisted key moved to a
- * per-project DB column, and the endpoint had no other consumers.
+ * Covers project.update (extended fields + defaultPipelineId, including
+ * the cross-project rejection and null-clear that FLX-228 consolidated
+ * into project.update's service-layer FK guard). The legacy
+ * system.env.getPublic endpoint was retired in FLX-221 — its only
+ * whitelisted key moved to a per-project DB column, and the endpoint had
+ * no other consumers.
  */
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
@@ -111,12 +113,12 @@ describe('R-SETTINGS-ALPHA project router', () => {
     }
   });
 
-  it('project.setDefaultPipeline sets a same-project pipeline', async () => {
+  it('project.update (defaultPipelineId) sets a same-project pipeline', async () => {
     const f = await makeFixture(db);
     try {
-      await caller.project.setDefaultPipeline({
-        projectId: f.projectRow.id,
-        pipelineId: f.pipe2.id,
+      await caller.project.update({
+        id: f.projectRow.id,
+        defaultPipelineId: f.pipe2.id,
       });
       const [after] = await db
         .select()
@@ -132,16 +134,16 @@ describe('R-SETTINGS-ALPHA project router', () => {
     }
   });
 
-  it('project.setDefaultPipeline rejects a cross-project pipeline', async () => {
+  it('project.update (defaultPipelineId) rejects a cross-project pipeline', async () => {
     const f = await makeFixture(db);
     const other = await makeFixture(db);
     try {
       await expect(
-        caller.project.setDefaultPipeline({
-          projectId: f.projectRow.id,
-          pipelineId: other.pipe1.id,
+        caller.project.update({
+          id: f.projectRow.id,
+          defaultPipelineId: other.pipe1.id,
         })
-      ).rejects.toThrow(/PIPELINE_NOT_IN_PROJECT/);
+      ).rejects.toMatchObject({ message: 'PIPELINE_NOT_IN_PROJECT' });
     } finally {
       await teardown(db, {
         orgId: f.org.id,
@@ -156,16 +158,16 @@ describe('R-SETTINGS-ALPHA project router', () => {
     }
   });
 
-  it('project.setDefaultPipeline({ pipelineId: null }) clears the default', async () => {
+  it('project.update ({ defaultPipelineId: null }) clears the default', async () => {
     const f = await makeFixture(db);
     try {
-      await caller.project.setDefaultPipeline({
-        projectId: f.projectRow.id,
-        pipelineId: f.pipe1.id,
+      await caller.project.update({
+        id: f.projectRow.id,
+        defaultPipelineId: f.pipe1.id,
       });
-      await caller.project.setDefaultPipeline({
-        projectId: f.projectRow.id,
-        pipelineId: null,
+      await caller.project.update({
+        id: f.projectRow.id,
+        defaultPipelineId: null,
       });
       const [after] = await db
         .select()
