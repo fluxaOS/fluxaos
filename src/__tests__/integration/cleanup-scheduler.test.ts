@@ -97,7 +97,10 @@ describe('cleanup-scheduler', () => {
   });
 
   it('starts and fires sweep on interval', async () => {
-    vi.useFakeTimers();
+    // Fake only the timer APIs (setInterval/clearInterval/Date). Faking
+    // all timers including setTimeout breaks the Supabase fetch internals
+    // that back the DB calls inside scheduler.start().
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     const cleanupService = makeService();
     const logger = makeLogger();
     const scheduler = createCleanupScheduler({
