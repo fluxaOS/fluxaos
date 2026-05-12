@@ -1,10 +1,12 @@
 /**
  * Integration tests: R-SETTINGS-ALPHA project settings router.
  *
- * Covers project.update (extended fields + defaultPipelineId FK validation)
- * (happy, cross-project rejection, clear). The legacy system.env.getPublic
- * endpoint was retired in FLX-221 — its only whitelisted key moved to a
- * per-project DB column, and the endpoint had no other consumers.
+ * Covers project.update (extended fields + defaultPipelineId, including
+ * the cross-project rejection and null-clear that used to live on
+ * setDefaultPipeline before FLX-228 consolidated FK guards). The legacy
+ * system.env.getPublic endpoint was retired in FLX-221 — its only
+ * whitelisted key moved to a per-project DB column, and the endpoint had
+ * no other consumers.
  */
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
@@ -111,8 +113,7 @@ describe('R-SETTINGS-ALPHA project router', () => {
     }
   });
 
-  // FLX-228: setDefaultPipeline retired; FK validation lives in project.update.
-  it('project.update sets a same-project defaultPipelineId', async () => {
+  it('project.update (defaultPipelineId) sets a same-project pipeline', async () => {
     const f = await makeFixture(db);
     try {
       await caller.project.update({
@@ -133,7 +134,7 @@ describe('R-SETTINGS-ALPHA project router', () => {
     }
   });
 
-  it('project.update rejects a cross-project defaultPipelineId', async () => {
+  it('project.update (defaultPipelineId) rejects a cross-project pipeline', async () => {
     const f = await makeFixture(db);
     const other = await makeFixture(db);
     try {
@@ -142,7 +143,7 @@ describe('R-SETTINGS-ALPHA project router', () => {
           id: f.projectRow.id,
           defaultPipelineId: other.pipe1.id,
         })
-      ).rejects.toThrow(/PIPELINE_NOT_IN_PROJECT/);
+      ).rejects.toMatchObject({ message: 'PIPELINE_NOT_IN_PROJECT' });
     } finally {
       await teardown(db, {
         orgId: f.org.id,
@@ -157,7 +158,7 @@ describe('R-SETTINGS-ALPHA project router', () => {
     }
   });
 
-  it('project.update({ defaultPipelineId: null }) clears the default', async () => {
+  it('project.update ({ defaultPipelineId: null }) clears the default', async () => {
     const f = await makeFixture(db);
     try {
       await caller.project.update({
