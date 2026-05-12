@@ -114,13 +114,18 @@ export default function ProjectsSettingsPage() {
       id,
       ...(patch as Record<string, unknown>),
     });
-    await utils.project.list.invalidate();
 
+    // FLX-226: on slug rename, navigate to the new URL BEFORE
+    // invalidating the project list. If invalidate runs first, the
+    // page re-renders with the new list, the URL param is still the
+    // old slug, `currentProject` resolves to null, and notFound()
+    // throws — yielding a 404 instead of the expected redirect.
     if (slugChanged && typeof patch.slug === 'string') {
       router.replace(
         `/${params.org}/${params.user}/${patch.slug}/settings/projects`
       );
     }
+    await utils.project.list.invalidate();
   };
 
   const onDelete = async (id: string, _expectedVersion: number) => {
