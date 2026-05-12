@@ -2,8 +2,8 @@
  * Integration tests: R-SETTINGS-ALPHA project settings router.
  *
  * Covers project.update (extended fields + defaultPipelineId, including
- * the cross-project rejection and null-clear that used to live on
- * setDefaultPipeline before FLX-228 consolidated FK guards). The legacy
+ * the cross-project rejection and null-clear that FLX-228 consolidated
+ * into project.update's service-layer FK guard). The legacy
  * system.env.getPublic endpoint was retired in FLX-221 — its only
  * whitelisted key moved to a per-project DB column, and the endpoint had
  * no other consumers.

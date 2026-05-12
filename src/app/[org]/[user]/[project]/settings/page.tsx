@@ -30,8 +30,8 @@ export default function PipelineSettingsPage() {
 
   const pipelines = pipelinesQuery.data ?? [];
 
-  // FLX-228: setDefaultPipeline is gone. project.update enforces the
-  // "pipeline belongs to this project" invariant via the service layer.
+  // FLX-228: project.update enforces the "pipeline belongs to this
+  // project" invariant via the service-layer FK guard.
   const setDefaultMutation = trpc.project.update.useMutation({
     onSuccess: async () => {
       await utils.project.listByOrg.invalidate();
