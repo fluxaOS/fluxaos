@@ -14,7 +14,9 @@ type ProjectSelect = typeof project.$inferSelect;
  * imports in `src/core/`).
  */
 export interface RepoUrlValidatorPort {
-  validate(url: string): Promise<
+  validate(
+    url: string
+  ): Promise<
     | { ok: true; provider: string; coords: { owner: string; repo: string } }
     | { ok: false; provider: string | null; reason: string; detail?: string }
   >;
