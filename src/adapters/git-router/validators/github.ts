@@ -1,5 +1,8 @@
 import { AuthError, NetworkError } from '../errors';
-import type { GitProviderValidator, RepoCoordinates } from '../validation-types';
+import type {
+  GitProviderValidator,
+  RepoCoordinates,
+} from '../validation-types';
 
 export function gitHubValidator({
   token,
@@ -18,16 +21,13 @@ export function gitHubValidator({
     },
 
     async exists({ owner, repo }: RepoCoordinates): Promise<boolean> {
-      const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-          },
-        }
-      );
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
       if (res.status === 404) return false;
       if (res.status === 401 || res.status === 403) {
         throw new AuthError(res.statusText || `GitHub ${res.status}`);
