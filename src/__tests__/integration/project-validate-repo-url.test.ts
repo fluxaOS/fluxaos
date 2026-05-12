@@ -18,9 +18,7 @@ describe('GitRouter.validate (FLX-227)', () => {
   });
 
   it('returns UNSUPPORTED_HOST for a host with no registered validator', async () => {
-    const result = await router.validate(
-      'https://bitbucket.org/owner/repo'
-    );
+    const result = await router.validate('https://bitbucket.org/owner/repo');
     expect(result).toEqual({
       ok: false,
       provider: null,
