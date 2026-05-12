@@ -4,12 +4,21 @@ AI orchestration OS — a config-driven engine that runs pipelines of AI-powered
 
 > **New session?** Read [Session Quick-Start](docs/session-quick-start.md) first — conventions, gotchas, and database access rules.
 
+## Environments
+
+There is no production. There are no users. Only the owner and AI agents use this codebase.
+
+- **dev** — the local Next.js dev server (`npm run dev -- -p 3004`). The dev database gets nuked and re-seeded with dummy data freely. Treat as fully disposable.
+- **UAT** — the Docker build on `:3003`. Distinct only because the UAT database is *not* nuked on demand — it persists across deploys so longer-running workflows aren't reset. UAT is otherwise disposable. Rebuilds and restarts do not require ceremony; just run `./flux server uat build` when ready.
+
+No "production-impacting" framing applies here. The override in this project's CLAUDE.md takes precedence over the global "shared-state changes: checkpoint first" rule in `~/.claude/CLAUDE.md` for fluxaOS work.
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev -- -H 0.0.0.0 -p 3004` | Next.js dev server (port 3004 — prod/Docker owns 3003; `-H 0.0.0.0` required for LAN access) |
-| `npm run build` | Production build |
+| `npm run dev -- -H 0.0.0.0 -p 3004` | Next.js dev server (port 3004 — UAT/Docker owns 3003; `-H 0.0.0.0` required for LAN access) |
+| `npm run build` | Next.js production-mode build (used by the UAT Docker image; not a deploy) |
 | `npm run lint` | ESLint |
 | `npm run db:generate` | Drizzle schema codegen |
 | `npm run db:migrate` | Run migrations |
