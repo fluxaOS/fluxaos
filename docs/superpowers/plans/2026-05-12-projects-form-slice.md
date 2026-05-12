@@ -363,14 +363,22 @@ git commit -m "feat: project.validateRepoUrl tRPC endpoint (FLX-227)"
 
 This task verifies Tasks 1-4 end-to-end. Per project rules, integration tests against real Supabase only — no unit tests.
 
+The GitRouter doesn't touch the DB, but we still place this in the integration suite so it runs alongside everything else (and because it makes real HTTP calls to api.github.com, which is exactly an "integration" concern). No fixtures are needed for these cases.
+
+**Reviewer-fix:** the project has no `helpers/` directory and no `createCallerFactory` export. The real pattern is direct `import { appRouter } from '@/server/root'` for caller-style tests; this test doesn't even need that since it imports the router directly.
+
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // src/__tests__/integration/project-validate-repo-url.test.ts
+import 'dotenv/config';
 import { describe, expect, it } from 'vitest';
 import { buildGitRouter } from '@/adapters/git-router/validator-registry';
 
 describe('GitRouter.validate (FLX-227)', () => {
+  // Construct once at suite scope — buildGitRouter() throws if
+  // FLUXAOS_GITHUB_TOKEN is missing. That's intentional (the rest of
+  // the suite needs the same env anyway).
   const router = buildGitRouter();
 
   it('returns INVALID_URL for a malformed URL', async () => {
@@ -546,15 +554,14 @@ git commit -m "feat: FK_VALIDATORS map for project.update (FLX-228, FLX-229)"
 **Files:**
 - Modify: `src/core/services/project.ts`
 
-- [ ] **Step 1: Replace the service to add `update()`**
+**Reviewer-fix (CRITICAL):** the GitRouter is injected, not imported. The project's stated DI rule is "zero vendor imports in `src/core/`." `createProjectService` gains a second parameter; the router wiring happens in `src/server/routers/project.ts` (Task 8). The `gitRouter` parameter is optional only because legacy callers exist that pass only `db` — those callers never include `repoUrl` in their patches, so the lazy throw below is correct for them. When `repoUrl` IS in a patch and `gitRouter` is undefined, throw — no fallbacks.
 
-The file currently re-exports `crud.update` implicitly via `...crud`. Replace the whole file:
+- [ ] **Step 1: Replace the service to add `update()`**
 
 ```ts
 // src/core/services/project.ts
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
-import { buildGitRouter } from '@/adapters/git-router/validator-registry';
 import type { Database } from '@/core/db/connection';
 import { project } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
@@ -563,7 +570,22 @@ import { FK_VALIDATORS } from './project-fk-validators';
 type ProjectInsert = typeof project.$inferInsert;
 type ProjectSelect = typeof project.$inferSelect;
 
-export function createProjectService(db: Database) {
+/**
+ * Minimal port for the repoUrl validator the service needs. Decouples
+ * the service from `@/adapters/git-router/*` (DI rule: zero vendor
+ * imports in `src/core/`).
+ */
+export interface RepoUrlValidatorPort {
+  validate(url: string): Promise<
+    | { ok: true; provider: string; coords: { owner: string; repo: string } }
+    | { ok: false; provider: string | null; reason: string; detail?: string }
+  >;
+}
+
+export function createProjectService(
+  db: Database,
+  deps?: { repoUrlValidator?: RepoUrlValidatorPort }
+) {
   const crud = createCrudService<ProjectInsert, ProjectSelect>(db, project);
 
   return {
@@ -572,9 +594,9 @@ export function createProjectService(db: Database) {
     /**
      * FLX-228 / FLX-229: walk FK_VALIDATORS for every key in the patch
      * so FK scope is enforced in one place. FLX-227: when `repoUrl` is
-     * in the patch and non-null, re-validate via gitRouter. The server
-     * is authoritative; the form's "Validate" button is a UX hint, not
-     * a save gate.
+     * in the patch and non-null, re-validate via the injected port.
+     * The server is authoritative; the form's "Validate" button is a
+     * UX hint, not a save gate.
      */
     async update(id: string, patch: Partial<ProjectInsert>) {
       for (const key of Object.keys(patch)) {
@@ -585,8 +607,15 @@ export function createProjectService(db: Database) {
       }
 
       if ('repoUrl' in patch && patch.repoUrl != null) {
-        const router = buildGitRouter();
-        const result = await router.validate(patch.repoUrl as string);
+        if (!deps?.repoUrlValidator) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'REPO_URL_VALIDATOR_NOT_INJECTED',
+          });
+        }
+        const result = await deps.repoUrlValidator.validate(
+          patch.repoUrl as string
+        );
         if (!result.ok) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -662,9 +691,23 @@ git commit -m "feat: project-service.update enforces FK scope + repo liveness (F
 **Files:**
 - Modify: `src/server/routers/project.ts`
 
-- [ ] **Step 1: Tighten `update` input**
+**Pre-step audit (reviewer-fix):** before editing, run:
 
-Find the `update` block (around lines 54-73). Replace the input definition:
+```bash
+grep -rn "setDefaultPipeline" /mnt/dev/fluxaos/src /mnt/dev/fluxaos/e2e 2>/dev/null
+```
+
+Expected callers: `src/app/[org]/[user]/[project]/settings/page.tsx`, `src/__tests__/integration/project-settings.test.ts`, and the endpoint itself. The plan handles all three (Tasks 9, 10, 8 respectively). If any unexpected caller surfaces — Playwright spec, additional component — STOP and add it to Task 9 before continuing.
+
+- [ ] **Step 1: Wire the injected git-router validator**
+
+The service now takes an injected `repoUrlValidator` port (Task 7 reviewer-fix). The router constructs the GitRouter (which IS allowed to live in the server layer) and passes it in. Add at the top of `src/server/routers/project.ts`:
+
+```ts
+import { buildGitRouter } from '@/adapters/git-router/validator-registry';
+```
+
+Replace the `update` mutation body (around lines 54-73) with the new input shape AND validator injection:
 
 ```ts
   update: protectedMutation(EDIT_ROLES)
@@ -686,20 +729,28 @@ Find the `update` block (around lines 54-73). Replace the input definition:
     )
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
-      return createProjectService(ctx.db).update(id, data);
+      return createProjectService(ctx.db, {
+        repoUrlValidator: buildGitRouter(),
+      }).update(id, data);
     }),
 ```
 
+Also update `validateRepoUrl` from Task 4 to use the same builder (already does — no change). The router-layer import is intentional: vendor wiring belongs above `src/core/`.
+
 - [ ] **Step 2: Delete `setDefaultPipeline`**
 
-Remove the entire `setDefaultPipeline` block (lines ~88-116 in the original file). Also remove the unused `TRPCError` import IF nothing else in the file uses it (check first — `getById` etc. don't throw, but `inputId()` might). Run `grep TRPCError src/server/routers/project.ts` after removing the block; if no matches remain, drop the import.
+Remove the entire `setDefaultPipeline` block (lines ~88-116 in the original file). Then check whether `TRPCError` is still used:
+
+```bash
+grep -c "TRPCError" src/server/routers/project.ts
+```
+
+If the count is 0, remove the `import { TRPCError } from '@trpc/server';` line. Otherwise keep it.
 
 - [ ] **Step 3: Verify compile**
 
 Run: `npx tsc --noEmit`
-Expected: exit 0. Any caller of `trpc.project.setDefaultPipeline` will fail — that's expected; the caller in `settings/page.tsx` gets fixed in Task 9.
-
-If tsc errors only on the `setDefaultPipeline` caller, proceed. If it errors anywhere else, investigate.
+Expected: tsc errors limited to callers of `trpc.project.setDefaultPipeline` (`src/app/[org]/[user]/[project]/settings/page.tsx`, the integration test). Both are fixed in Tasks 9 and 10. If errors appear ANYWHERE else, stop and audit — there's an unexpected caller.
 
 - [ ] **Step 4: Do NOT commit yet** — caller migration in Task 9 must land in the same commit. Continue.
 
@@ -811,173 +862,226 @@ git commit -m "test: migrate setDefaultPipeline tests to project.update (FLX-228
 **Files:**
 - Create: `src/__tests__/integration/project-update-fk-validation.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+**Reviewer-fix:** the project has no `helpers/` directory and no `createCallerFactory` export. The canonical pattern is in `src/__tests__/integration/project-settings.test.ts`:
 
-This test creates two organizations and two projects. The cross-org and cross-project negative cases are the ones that previously slipped through `project.update`.
+- `import { appRouter } from '@/server/root';`
+- `import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';`
+- `caller = appRouter.createCaller({ db, viewer: { authUserId: null, fluxaUserId: null, role: 'admin', tier: 'enterprise' } });`
+- Inline `makeFixture(db)` using raw Drizzle inserts; tear down per-test.
+
+This task follows that pattern exactly.
+
+- [ ] **Step 1: Confirm `brand` table required columns**
+
+Run: `grep -A 12 "export const brand = pgTable" /mnt/dev/fluxaos/src/core/db/schema.ts | head -20`
+
+Confirm which columns are NOT NULL (the schema shows `orgId` and `name` are required; `slug` is required). Adjust the insert in the test accordingly.
+
+- [ ] **Step 2: Write the test**
 
 ```ts
 // src/__tests__/integration/project-update-fk-validation.test.ts
-import { TRPCError } from '@trpc/server';
+import 'dotenv/config';
+import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { createCallerFactory } from '@/server/trpc';
-import { appRouter } from '@/server/routers/_app';
-import { makeTestCtx } from './helpers/ctx';
-import {
-  insertOrg,
-  insertProject,
-  insertUser,
-  insertPipeline,
-  insertBrand,
-} from './helpers/fixtures';
+import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
+import { brand, organization, pipeline, project, user } from '@/core/db/schema';
+import { appRouter } from '@/server/root';
 
-const createCaller = createCallerFactory(appRouter);
+function stamp(label: string): string {
+  return `fk-${label}-${Date.now()}`;
+}
+
+async function makeFixture(
+  db: ReturnType<SupabaseDatabaseProvider['getConnection']>,
+  label: string
+) {
+  const s = stamp(label);
+  const [org] = await db
+    .insert(organization)
+    .values({ name: s, slug: s })
+    .returning();
+  const [userRow] = await db
+    .insert(user)
+    .values({ orgId: org.id, email: `${s}@test.local`, name: s, slug: s })
+    .returning();
+  const [projRow] = await db
+    .insert(project)
+    .values({
+      orgId: org.id,
+      userId: userRow.id,
+      name: s,
+      slug: s,
+      defaultBranch: 'main',
+    })
+    .returning();
+  return { org, userRow, projRow };
+}
+
+async function teardown(
+  db: ReturnType<SupabaseDatabaseProvider['getConnection']>,
+  ids: { orgId: string; userId: string; projectId: string }
+) {
+  await db
+    .delete(brand)
+    .where(eq(brand.orgId, ids.orgId))
+    .catch(() => undefined);
+  await db
+    .delete(pipeline)
+    .where(eq(pipeline.projectId, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(project)
+    .where(eq(project.id, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(user)
+    .where(eq(user.id, ids.userId))
+    .catch(() => undefined);
+  await db
+    .delete(organization)
+    .where(eq(organization.id, ids.orgId))
+    .catch(() => undefined);
+}
 
 describe('project.update FK validation (FLX-228, FLX-229)', () => {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL required');
+  const dbProvider = new SupabaseDatabaseProvider(url);
+  const db = dbProvider.getConnection();
+  const caller = appRouter.createCaller({
+    db,
+    viewer: {
+      authUserId: null,
+      fluxaUserId: null,
+      role: 'admin',
+      tier: 'enterprise',
+    },
+  });
+
   it('rejects defaultPipelineId from a different project', async () => {
-    const ctx = await makeTestCtx();
-    const caller = createCaller(ctx);
-    const orgA = await insertOrg(ctx.db, 'fk-org-a');
-    const userA = await insertUser(ctx.db, orgA.id, 'fk-user-a');
-    const projectA = await insertProject(ctx.db, orgA.id, userA.id, 'fk-proj-a');
-    const projectB = await insertProject(ctx.db, orgA.id, userA.id, 'fk-proj-b');
-    const otherProjectPipeline = await insertPipeline(
-      ctx.db,
-      projectB.id,
-      'fk-pipe-b'
-    );
-
-    await expect(
-      caller.project.update({
-        id: projectA.id,
-        defaultPipelineId: otherProjectPipeline.id,
-      })
-    ).rejects.toMatchObject({
-      message: 'PIPELINE_NOT_IN_PROJECT',
-    });
+    const fA = await makeFixture(db, 'pipe-cross-a');
+    const fB = await makeFixture(db, 'pipe-cross-b');
+    try {
+      const [otherPipe] = await db
+        .insert(pipeline)
+        .values({ projectId: fB.projRow.id, name: `${stamp('p')}` })
+        .returning();
+      await expect(
+        caller.project.update({
+          id: fA.projRow.id,
+          defaultPipelineId: otherPipe.id,
+        })
+      ).rejects.toMatchObject({ message: 'PIPELINE_NOT_IN_PROJECT' });
+    } finally {
+      await teardown(db, {
+        orgId: fA.org.id,
+        userId: fA.userRow.id,
+        projectId: fA.projRow.id,
+      });
+      await teardown(db, {
+        orgId: fB.org.id,
+        userId: fB.userRow.id,
+        projectId: fB.projRow.id,
+      });
+    }
   });
 
-  it('accepts defaultPipelineId from the same project', async () => {
-    const ctx = await makeTestCtx();
-    const caller = createCaller(ctx);
-    const org = await insertOrg(ctx.db, 'fk-org-c');
-    const user = await insertUser(ctx.db, org.id, 'fk-user-c');
-    const proj = await insertProject(ctx.db, org.id, user.id, 'fk-proj-c');
-    const pipe = await insertPipeline(ctx.db, proj.id, 'fk-pipe-c');
+  it('accepts defaultPipelineId from the same project, then clears it with null', async () => {
+    const f = await makeFixture(db, 'pipe-same');
+    try {
+      const [p] = await db
+        .insert(pipeline)
+        .values({ projectId: f.projRow.id, name: `${stamp('p')}` })
+        .returning();
 
-    await caller.project.update({
-      id: proj.id,
-      defaultPipelineId: pipe.id,
-    });
+      await caller.project.update({
+        id: f.projRow.id,
+        defaultPipelineId: p.id,
+      });
+      const after1 = await caller.project.getById({ id: f.projRow.id });
+      expect(after1?.defaultPipelineId).toBe(p.id);
 
-    const after = await caller.project.getById({ id: proj.id });
-    expect(after?.defaultPipelineId).toBe(pipe.id);
-  });
-
-  it('accepts defaultPipelineId: null', async () => {
-    const ctx = await makeTestCtx();
-    const caller = createCaller(ctx);
-    const org = await insertOrg(ctx.db, 'fk-org-d');
-    const user = await insertUser(ctx.db, org.id, 'fk-user-d');
-    const proj = await insertProject(ctx.db, org.id, user.id, 'fk-proj-d');
-    const pipe = await insertPipeline(ctx.db, proj.id, 'fk-pipe-d');
-    await caller.project.update({
-      id: proj.id,
-      defaultPipelineId: pipe.id,
-    });
-
-    await caller.project.update({
-      id: proj.id,
-      defaultPipelineId: null,
-    });
-
-    const after = await caller.project.getById({ id: proj.id });
-    expect(after?.defaultPipelineId).toBeNull();
+      await caller.project.update({
+        id: f.projRow.id,
+        defaultPipelineId: null,
+      });
+      const after2 = await caller.project.getById({ id: f.projRow.id });
+      expect(after2?.defaultPipelineId).toBeNull();
+    } finally {
+      await teardown(db, {
+        orgId: f.org.id,
+        userId: f.userRow.id,
+        projectId: f.projRow.id,
+      });
+    }
   });
 
   it('rejects brandId from a different org', async () => {
-    const ctx = await makeTestCtx();
-    const caller = createCaller(ctx);
-    const orgA = await insertOrg(ctx.db, 'fk-brand-org-a');
-    const orgB = await insertOrg(ctx.db, 'fk-brand-org-b');
-    const userA = await insertUser(ctx.db, orgA.id, 'fk-brand-user-a');
-    const projectA = await insertProject(
-      ctx.db,
-      orgA.id,
-      userA.id,
-      'fk-brand-proj-a'
-    );
-    const otherOrgBrand = await insertBrand(
-      ctx.db,
-      orgB.id,
-      'fk-brand-other-org'
-    );
+    const fA = await makeFixture(db, 'brand-cross-a');
+    const fB = await makeFixture(db, 'brand-cross-b');
+    try {
+      const [otherBrand] = await db
+        .insert(brand)
+        .values({ orgId: fB.org.id, name: `${stamp('b')}`, slug: `${stamp('b')}` })
+        .returning();
 
-    await expect(
-      caller.project.update({
-        id: projectA.id,
-        brandId: otherOrgBrand.id,
-      })
-    ).rejects.toMatchObject({
-      message: 'BRAND_NOT_IN_ORG',
-    });
+      await expect(
+        caller.project.update({
+          id: fA.projRow.id,
+          brandId: otherBrand.id,
+        })
+      ).rejects.toMatchObject({ message: 'BRAND_NOT_IN_ORG' });
+    } finally {
+      await teardown(db, {
+        orgId: fA.org.id,
+        userId: fA.userRow.id,
+        projectId: fA.projRow.id,
+      });
+      await teardown(db, {
+        orgId: fB.org.id,
+        userId: fB.userRow.id,
+        projectId: fB.projRow.id,
+      });
+    }
   });
 
   it('accepts brandId from the same org', async () => {
-    const ctx = await makeTestCtx();
-    const caller = createCaller(ctx);
-    const org = await insertOrg(ctx.db, 'fk-brand-org-c');
-    const user = await insertUser(ctx.db, org.id, 'fk-brand-user-c');
-    const proj = await insertProject(
-      ctx.db,
-      org.id,
-      user.id,
-      'fk-brand-proj-c'
-    );
-    const br = await insertBrand(ctx.db, org.id, 'fk-brand-same-org');
+    const f = await makeFixture(db, 'brand-same');
+    try {
+      const [b] = await db
+        .insert(brand)
+        .values({ orgId: f.org.id, name: `${stamp('b')}`, slug: `${stamp('b')}` })
+        .returning();
 
-    await caller.project.update({
-      id: proj.id,
-      brandId: br.id,
-    });
-
-    const after = await caller.project.getById({ id: proj.id });
-    expect(after?.brandId).toBe(br.id);
+      await caller.project.update({
+        id: f.projRow.id,
+        brandId: b.id,
+      });
+      const after = await caller.project.getById({ id: f.projRow.id });
+      expect(after?.brandId).toBe(b.id);
+    } finally {
+      await teardown(db, {
+        orgId: f.org.id,
+        userId: f.userRow.id,
+        projectId: f.projRow.id,
+      });
+    }
   });
 });
 ```
 
-**Note:** Before writing the actual file, check the existing fixture helpers in `src/__tests__/integration/helpers/` — function names, signatures, and import paths must match. If `insertBrand` doesn't exist, add a minimal one (consistent with the other `insertX` helpers).
-
-- [ ] **Step 2: Adapt to actual fixture helpers**
-
-Run: `ls src/__tests__/integration/helpers/`
-Run: `grep -n "export function insert" src/__tests__/integration/helpers/*.ts`
-
-Adjust the imports and call signatures in the test file to match the real helpers. If `insertBrand` is missing, add it to the appropriate helper file with this minimum:
-
-```ts
-import { brand } from '@/core/db/schema';
-// ...
-export async function insertBrand(db: Database, orgId: string, name: string) {
-  const [row] = await db
-    .insert(brand)
-    .values({ orgId, name, slug: name })
-    .returning();
-  return row;
-}
-```
-
-(Check `brand` schema for required columns — slug may be required; the exact shape is in `src/core/db/schema.ts` around line 828.)
+**Important:** verify the `brand` table column names match the schema before running. The schema at `src/core/db/schema.ts` around line 828 is the source of truth — confirm `orgId`, `name`, `slug` (or whatever exists). Adjust the inserts if any column is named differently.
 
 - [ ] **Step 3: Run the suite**
 
 Run: `set -a; source .env; source .env.local; set +a; npx vitest run src/__tests__/integration/project-update-fk-validation.test.ts`
-Expected: 5/5 pass.
+Expected: 4/4 pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/__tests__/integration/project-update-fk-validation.test.ts src/__tests__/integration/helpers/
+git add src/__tests__/integration/project-update-fk-validation.test.ts
 git commit -m "test: project.update FK validation (FLX-228, FLX-229)"
 ```
 
@@ -1080,8 +1184,17 @@ Add the `select-id` branch immediately after the existing `select` branch (aroun
 
 ```ts
   // SELECT-ID (FK lookup — label shown, value (UUID) saved)
+  // No fallbacks: an undefined selectIdOptions is a descriptor bug —
+  // surface it, don't render an empty dropdown that silently looks
+  // valid. Per CLAUDE.md / ARCHITECTURAL_STANDARDS.md §2.
   if (field.fieldType === 'select-id') {
-    const options = field.selectIdOptions ?? [];
+    if (!field.selectIdOptions) {
+      throw new Error(
+        `RecordField: select-id field "${field.key}" is missing selectIdOptions. ` +
+          'Pass an empty array explicitly if the dropdown is intentionally empty.'
+      );
+    }
+    const options = field.selectIdOptions;
     const hasNullOption = typeof field.nullOptionLabel === 'string';
     const selected = value == null ? '' : String(value);
     return (
@@ -1284,45 +1397,78 @@ git commit -m "feat: ConfirmModal primitive with promise-based open API (FLX-226
 
 ---
 
-## Task 14: Mount `ConfirmModalHost` at the app root
+## Task 14: Mount `ConfirmModalHost` inside the project-scoped client boundary
 
 **Files:**
-- Modify: `src/app/layout.tsx`
+- Modify: `src/app/[org]/[user]/[project]/layout.tsx`
 
-- [ ] **Step 1: Inspect the layout file**
+**Reviewer-fix (HIGH):** `src/app/layout.tsx` is a bare server component with no `'use client'` boundary or providers wrapper — mounting `ConfirmModalHost` there means React server-renders the layout once, then client-hydrates a separate boundary for the modal, and the module-level `setRequestQueue` ref never makes it across to the client tree the form lives in. The correct mount target is `src/app/[org]/[user]/[project]/layout.tsx` — it already nests `<TRPCProvider>` (which IS `'use client'`), so anything inside it is on the same client island as the form. Scope is also correct: the modal is only useful on project-scoped pages where the form exists.
 
-Run: `cat src/app/layout.tsx | head -50`
+- [ ] **Step 1: Inspect the target layout**
 
-The host must mount inside the providers tree (not outside, or `useEffect` won't fire on the client). Add `<ConfirmModalHost />` adjacent to other client-side overlay providers.
+Run: `cat src/app/[org]/[user]/[project]/layout.tsx`
 
-- [ ] **Step 2: Add the mount**
+You should see:
+```tsx
+import { Nav } from '@/components/nav';
+import { TRPCProvider } from '@/lib/trpc/provider';
+
+export default function DashboardLayout({ children }: { ... }) {
+  return (
+    <TRPCProvider>
+      <div className="flex h-full min-h-screen relative z-1">
+        <Nav />
+        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+          <div className="max-w-[1280px]">{children}</div>
+        </main>
+      </div>
+    </TRPCProvider>
+  );
+}
+```
+
+`<TRPCProvider>` is `'use client'` (see `src/lib/trpc/provider.tsx:1`). Children rendered inside it share its client island.
+
+- [ ] **Step 2: Mount the host**
 
 Add the import:
 
-```ts
+```tsx
 import { ConfirmModalHost } from '@/components/confirm-modal';
 ```
 
-Inside the `<body>` (or its top-level client provider), add `<ConfirmModalHost />` as a sibling to the page content. Place it last so it overlays correctly.
+Wrap the existing JSX so `<ConfirmModalHost />` sits inside `<TRPCProvider>` (same client island) but at sibling level to the main content, so it overlays:
 
-If the layout is a server component that wraps a client `<Providers>` component, add the host inside `<Providers>`. If unsure, check whether `<Providers>` exists and place it there; otherwise inside `<body>` after `{children}`.
+```tsx
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <TRPCProvider>
+      <div className="flex h-full min-h-screen relative z-1">
+        <Nav />
+        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+          <div className="max-w-[1280px]">{children}</div>
+        </main>
+      </div>
+      <ConfirmModalHost />
+    </TRPCProvider>
+  );
+}
+```
 
-- [ ] **Step 3: Verify compile and run dev**
+- [ ] **Step 3: Verify compile + smoke**
 
 Run: `npx tsc --noEmit`
 Expected: exit 0
 
-Smoke-check by starting the dev server and opening any page — the modal should not appear, but the page should load (proves the host doesn't break SSR).
-
 Run: `./flux server dev restart`
 Then: `curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3004/`
-Expected: HTTP 200 or 307.
+Expected: HTTP 200 or 307. Modal should not appear (no `openConfirmModal` called yet).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/app/layout.tsx
-git commit -m "feat: mount ConfirmModalHost at the app root (FLX-226)"
+git add src/app/[org]/[user]/[project]/layout.tsx
+git commit -m "feat: mount ConfirmModalHost in the project-scoped client boundary (FLX-226)"
 ```
 
 ---
@@ -1924,11 +2070,33 @@ git commit -m "feat: Projects form — all fields editable, slug rename safe, br
 **Files:**
 - Create: `e2e/settings-projects-form-slice.spec.ts`
 
-- [ ] **Step 1: Inspect an existing settings spec for patterns**
+**Reviewer-fix:** the seed slugs are NOT guesses — read them from an existing settings spec or run a one-shot query. Also: the slug-rename test must NOT mutate the seed project. Spin up a throwaway project via the API at test-setup, rename it, delete it at teardown.
 
-Run: `ls e2e/`
-Run: `grep -l "settings/projects" e2e/*.spec.ts || true`
-Read one or two existing specs to match the project's test patterns (auth bypass, page navigation, `data-testid` conventions).
+- [ ] **Step 1: Inspect existing settings specs + confirm seed slugs**
+
+Run:
+```bash
+ls /mnt/dev/fluxaos/e2e/ | grep -i project
+grep -l "settings/projects" /mnt/dev/fluxaos/e2e/*.spec.ts || true
+grep -rln "'fluxaos'\|'fluxaOS'" /mnt/dev/fluxaos/e2e/*.spec.ts | head -3
+```
+
+Look at one or two existing specs to copy the auth-bypass / base URL / test setup conventions. The seed values for `org`, `user`, `project` slugs are whatever those specs use today — copy them verbatim. If specs disagree, run:
+
+```bash
+set -a; source .env; source .env.local; set +a
+node -e "
+import('@/adapters/supabase/database').then(async ({ SupabaseDatabaseProvider }) => {
+  const p = new SupabaseDatabaseProvider(process.env.DATABASE_URL);
+  const db = p.getConnection();
+  const { organization, user, project } = await import('@/core/db/schema');
+  console.log('org:',  (await db.select().from(organization).limit(1))[0]?.slug);
+  console.log('user:', (await db.select().from(user).limit(1))[0]?.slug);
+  console.log('proj:', (await db.select().from(project).limit(1))[0]?.slug);
+});" 2>&1 || echo "fallback: read seed.ts directly"
+```
+
+Or simpler: read `src/scripts/db/seed.ts` and grep for `slug:`. Use whatever the seed sets. Substitute the values into `SEED_ORG`, `SEED_USER`, `SEED_PROJECT` constants below.
 
 - [ ] **Step 2: Write the spec**
 
@@ -1940,18 +2108,24 @@ import { expect, test } from '@playwright/test';
 // Projects form lifecycle: dropdown selections, repoUrl validate,
 // slug rename confirm + redirect.
 //
-// Targets the dev server seeded with the canonical org/user/project
-// (default seed creates one of each). FLUXAOS_LAN_AUTH_BYPASS=1 must
-// be set on the server (already required by other e2e specs).
+// All slug-rename testing happens on a throwaway project created via
+// the API at beforeAll and deleted at afterAll. The seed project is
+// only used for the read-only form structure assertions (no readonly
+// inputs remain, etc.) and dropdown-select tests on fields that are
+// safely re-savable.
 
-const ORG = 'default';      // adjust if your seed slugs differ
-const USER = 'default';
-const PROJECT = 'fluxaos';
-const RENAMED_PROJECT = 'fluxaos-renamed';
+// Replace these three constants with the values from src/scripts/db/seed.ts.
+const SEED_ORG = '<REPLACE_FROM_SEED>';
+const SEED_USER = '<REPLACE_FROM_SEED>';
+const SEED_PROJECT = '<REPLACE_FROM_SEED>';
+
+// Throwaway project slugs for the slug-rename test.
+const SCRATCH_SLUG = `e2e-projects-form-${Date.now()}`;
+const SCRATCH_RENAMED = `${SCRATCH_SLUG}-renamed`;
 
 test.describe('Projects form slice', () => {
-  test('full form lifecycle', async ({ page }) => {
-    await page.goto(`/${ORG}/${USER}/${PROJECT}/settings/projects`);
+  test('full form lifecycle (read-only structure + safe edits on seed project)', async ({ page }) => {
+    await page.goto(`/${SEED_ORG}/${SEED_USER}/${SEED_PROJECT}/settings/projects`);
 
     // No readonly inputs remain on the form (FLX-207). The readonly
     // visual treatment is reserved for fields that genuinely cannot
@@ -1992,7 +2166,7 @@ test.describe('Projects form slice', () => {
   });
 
   test('repoUrl validation surfaces error for bad URL', async ({ page }) => {
-    await page.goto(`/${ORG}/${USER}/${PROJECT}/settings/projects`);
+    await page.goto(`/${SEED_ORG}/${SEED_USER}/${SEED_PROJECT}/settings/projects`);
     await page.getByRole('button', { name: /^Edit$/i }).first().click();
 
     const repoInput = page.getByTestId('repo-url-input-repoUrl');
@@ -2006,53 +2180,114 @@ test.describe('Projects form slice', () => {
     );
   });
 
-  test('slug rename — cancel keeps current slug', async ({ page }) => {
-    await page.goto(`/${ORG}/${USER}/${PROJECT}/settings/projects`);
-    await page.getByRole('button', { name: /^Edit$/i }).first().click();
+  // ─── slug rename tests use a throwaway project ─────────────────────────
+  //
+  // Reviewer-fix: the slug rename test must NOT mutate the seed project.
+  // beforeAll creates a scratch project via the tRPC HTTP API; afterAll
+  // deletes it. If a test crashes mid-flight, afterAll still runs and
+  // cleans up. Slugs are timestamp-suffixed so parallel test runs don't
+  // collide on the unique (userId, slug) index.
 
-    const slugInput = page.getByLabel('Slug', { exact: true });
-    await slugInput.fill(RENAMED_PROJECT);
-    await page.getByRole('button', { name: /^Save$/i }).click();
+  test.describe('slug rename (throwaway project)', () => {
+    let scratchProjectId: string | null = null;
 
-    // Confirm modal appears.
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await page.getByRole('button', { name: /Cancel/i }).click();
+    test.beforeAll(async ({ request }) => {
+      // Resolve seed org and user IDs via tRPC. Endpoint names match the
+      // current router shape — if they change, update both here and the
+      // page's queries together.
+      const orgRes = await request.get(
+        `/api/trpc/organization.getBySlug?input=${encodeURIComponent(
+          JSON.stringify({ slug: SEED_ORG })
+        )}`
+      );
+      const orgJson = await orgRes.json();
+      const orgId = orgJson?.result?.data?.id;
+      if (!orgId) throw new Error('Seed org not resolvable via tRPC');
 
-    // URL did not change.
-    await expect(page).toHaveURL(
-      new RegExp(`/${ORG}/${USER}/${PROJECT}/settings/projects$`)
-    );
-  });
+      const userRes = await request.get(
+        `/api/trpc/user.list?input=${encodeURIComponent(
+          JSON.stringify({ orgId })
+        )}`
+      );
+      const userJson = await userRes.json();
+      const userId = userJson?.result?.data?.[0]?.id;
+      if (!userId) throw new Error('Seed user not resolvable via tRPC');
 
-  test('slug rename — confirm redirects to new slug', async ({ page }) => {
-    // This case mutates seeded data. Rename, assert redirect, then rename back.
-    await page.goto(`/${ORG}/${USER}/${PROJECT}/settings/projects`);
-    await page.getByRole('button', { name: /^Edit$/i }).first().click();
+      const createRes = await request.post('/api/trpc/project.create', {
+        data: {
+          orgId,
+          userId,
+          name: SCRATCH_SLUG,
+          slug: SCRATCH_SLUG,
+        },
+      });
+      const createJson = await createRes.json();
+      scratchProjectId = createJson?.result?.data?.id ?? null;
+      if (!scratchProjectId)
+        throw new Error('Failed to create scratch project');
+    });
 
-    const slugInput = page.getByLabel('Slug', { exact: true });
-    await slugInput.fill(RENAMED_PROJECT);
-    await page.getByRole('button', { name: /^Save$/i }).click();
-    await page.getByTestId('confirm-modal-confirm').click();
+    test.afterAll(async ({ request }) => {
+      if (!scratchProjectId) return;
+      await request
+        .post('/api/trpc/project.delete', {
+          data: { id: scratchProjectId },
+        })
+        .catch(() => undefined);
+    });
 
-    await expect(page).toHaveURL(
-      new RegExp(`/${ORG}/${USER}/${RENAMED_PROJECT}/settings/projects$`)
-    );
+    test('cancel keeps current slug', async ({ page }) => {
+      await page.goto(
+        `/${SEED_ORG}/${SEED_USER}/${SCRATCH_SLUG}/settings/projects`
+      );
+      await page.getByRole('button', { name: /^Edit$/i }).first().click();
 
-    // Rename back so the next test run starts clean.
-    await page.getByRole('button', { name: /^Edit$/i }).first().click();
-    await slugInput.fill(PROJECT);
-    await page.getByRole('button', { name: /^Save$/i }).click();
-    await page.getByTestId('confirm-modal-confirm').click();
-    await expect(page).toHaveURL(
-      new RegExp(`/${ORG}/${USER}/${PROJECT}/settings/projects$`)
-    );
+      const slugInput = page.getByLabel('Slug', { exact: true });
+      await slugInput.fill(SCRATCH_RENAMED);
+      await page.getByRole('button', { name: /^Save$/i }).click();
+
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.getByRole('button', { name: /Cancel/i }).click();
+
+      await expect(page).toHaveURL(
+        new RegExp(
+          `/${SEED_ORG}/${SEED_USER}/${SCRATCH_SLUG}/settings/projects$`
+        )
+      );
+    });
+
+    test('confirm redirects to new slug', async ({ page }) => {
+      await page.goto(
+        `/${SEED_ORG}/${SEED_USER}/${SCRATCH_SLUG}/settings/projects`
+      );
+      await page.getByRole('button', { name: /^Edit$/i }).first().click();
+
+      const slugInput = page.getByLabel('Slug', { exact: true });
+      await slugInput.fill(SCRATCH_RENAMED);
+      await page.getByRole('button', { name: /^Save$/i }).click();
+      await page.getByTestId('confirm-modal-confirm').click();
+
+      await expect(page).toHaveURL(
+        new RegExp(
+          `/${SEED_ORG}/${SEED_USER}/${SCRATCH_RENAMED}/settings/projects$`
+        )
+      );
+
+      // Rename back so subsequent tests in this block (and any
+      // re-runs against a still-live scratch project) start from
+      // SCRATCH_SLUG. afterAll still deletes the row by id regardless.
+      await page.getByRole('button', { name: /^Edit$/i }).first().click();
+      await slugInput.fill(SCRATCH_SLUG);
+      await page.getByRole('button', { name: /^Save$/i }).click();
+      await page.getByTestId('confirm-modal-confirm').click();
+    });
   });
 });
 ```
 
 **Note on selectors:** The exact text of the Edit/Save buttons depends on RecordEditor's existing UI. Before running, open the form in the browser and confirm the button names match. Adjust `getByRole('button', { name: ... })` patterns as needed.
 
-**Note on ORG/USER/PROJECT slugs:** the seed uses specific values. Run `npm run db:issues` or inspect the seed to confirm. Adjust the constants at the top of the spec if they differ.
+**Note on tRPC HTTP shape:** the `beforeAll` uses standard tRPC `httpBatchLink` request format (`POST /api/trpc/<router.proc>` with `{data: ...}` body for mutations, `GET /api/trpc/<router.proc>?input=<urlencoded JSON>` for queries). If the project's `httpBatchLink` config uses a different transformer, adjust the body shape — open an existing tRPC call in DevTools' Network panel to confirm.
 
 - [ ] **Step 3: Start the dev server and run the spec**
 
@@ -2089,6 +2324,13 @@ Run: `./flux server dev restart`
 Then: `set -a; source .env; source .env.local; set +a; npx playwright test e2e/settings-projects-form-slice.spec.ts`
 Expected: 4/4 pass.
 
+- [ ] **Step 3b: Run the canonical full-lifecycle journey (CLAUDE.md gate)**
+
+Per CLAUDE.md → "Canonical full-lifecycle journey": `e2e/full-issue-lifecycle.spec.ts` MUST be run and pass before any UI sign-off or UI-touching PR merge. This slice modifies RecordEditor primitives, the project form, and the settings page — all of which the lifecycle journey may touch.
+
+Run: `set -a; source .env; source .env.local; set +a; npx playwright test e2e/full-issue-lifecycle.spec.ts`
+Expected: pass. If it fails, work halts (per CLAUDE.md) — diagnose and fix the underlying break before opening the PR. Do NOT mark the slice complete with this red.
+
 - [ ] **Step 4: Push and open the PR**
 
 ```bash
@@ -2112,6 +2354,7 @@ Five layers, each ignorant of the layers below. Future git providers drop in as 
 - [x] `npx biome check src/ e2e/` clean
 - [x] Integration: `project-settings.test.ts`, `project-update-fk-validation.test.ts`, `project-validate-repo-url.test.ts` all green
 - [x] Playwright: `e2e/settings-projects-form-slice.spec.ts` 4/4 pass against dev server
+- [x] Playwright: `e2e/full-issue-lifecycle.spec.ts` passes (CLAUDE.md canonical gate)
 
 Refs FLX-207, FLX-226, FLX-227, FLX-228, FLX-229. Tenancy redesign tracked separately as FLX-239.
 EOF
@@ -2158,4 +2401,16 @@ For each of FLX-207, 226, 227, 228, 229: `mcp__plugin_linear_linear__save_issue`
 - Spec implied replacing the existing `factory.ts`; investigation in writing-plans phase showed `factory.ts` exposes the richer `GitProvider` port consumed by stage-runner and deploy-bridge. Plan keeps both separately. Documented in Task 3 comment.
 - Spec said the Pipelines tab caller migrates from `setDefaultPipeline`; the real caller is in `settings/page.tsx`, not `pipelines/page.tsx`. Plan corrects this in Task 9.
 
-No further issues. Plan complete.
+**Plan-review revisions (2026-05-12):**
+
+A fresh-eyes plan review surfaced six material issues; all are addressed in-plan:
+
+1. **CRITICAL — Integration test pattern.** Original plan referenced non-existent `createCallerFactory`, `makeTestCtx`, and `helpers/` directory. Tasks 5 and 11 rewritten to follow the canonical pattern from `src/__tests__/integration/project-settings.test.ts` (direct `appRouter.createCaller` from `@/server/root`, inline `makeFixture` + `teardown`).
+2. **CRITICAL — DI rule violation.** Original Task 7 imported `buildGitRouter` inside `src/core/services/project.ts`, breaking the "zero vendor imports in src/core/" invariant. Service now defines a `RepoUrlValidatorPort` and accepts it via injection; Task 8 wires the actual `GitRouter` from the server-router layer.
+3. **HIGH — ConfirmModalHost mount target.** `src/app/layout.tsx` is a bare server component with no client boundary. Task 14 retargeted to `src/app/[org]/[user]/[project]/layout.tsx` which nests `<TRPCProvider>` (an existing `'use client'` boundary) — that's the natural shared client island for the form.
+4. **HIGH — `setDefaultPipeline` caller audit.** Task 8 now opens with an explicit grep to enumerate every caller before deletion.
+5. **HIGH — Playwright seed mutation.** Task 18's slug rename tests no longer touch seed data. A `beforeAll`/`afterAll` block creates and deletes a throwaway project via tRPC HTTP API; slug is timestamped to prevent parallel-run collisions.
+6. **MEDIUM — Forbidden fallback (`??`).** Task 12's `select-id` branch no longer uses `?? []`. An undefined `selectIdOptions` is now an explicit thrown error — descriptor bugs surface immediately.
+7. **MEDIUM — Full-lifecycle gate missing.** Task 19 adds Step 3b: `e2e/full-issue-lifecycle.spec.ts` must pass before PR open, per CLAUDE.md's canonical-journey rule.
+
+Plan complete.
