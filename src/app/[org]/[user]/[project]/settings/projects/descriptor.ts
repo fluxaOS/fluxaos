@@ -1,12 +1,10 @@
 // src/app/[org]/[user]/[project]/settings/projects/descriptor.ts
-import type { RecordDescriptor } from '@/components/record-editor/types';
-
-// ProjectRecord extends the raw project row with one UI-only derived
-// field: `defaultPipelineName` (resolved from pipeline list). It's
-// readonly in the editor — `defaultPipelineName` is changed via the
-// Pipelines tab's "Set as default" button. `targetRepoPath` is a real
-// project column (FLX-221) — readonly for now until FLX-207 makes the
-// form editable.
+//
+// FLX-207 / FLX-229: ProjectRecord carries the FK IDs directly. The
+// descriptor itself is built per-render by buildProjectDescriptor() so
+// dropdown options (loaded from tRPC) can be passed in. This file only
+// exports the record type — there is no `projectDescriptor` constant
+// any more.
 //
 // RecordEditor requires { id, version: number } per RecordWithVersion.
 // The project table has no `version` column; the page hydrates with
@@ -19,42 +17,7 @@ export type ProjectRecord = {
   slug: string;
   repoUrl: string | null;
   defaultBranch: string;
-  defaultPipelineName: string;
+  defaultPipelineId: string | null;
+  brandId: string | null;
   targetRepoPath: string | null;
-};
-
-export const projectDescriptor: RecordDescriptor<ProjectRecord> = {
-  entityName: 'project',
-  title: (p) => p.name,
-  subtitle: (p) => p.slug,
-  fields: [
-    { key: 'name', label: 'Name', fieldType: 'text', required: true },
-    { key: 'slug', label: 'Slug', fieldType: 'text', required: true },
-    {
-      key: 'repoUrl',
-      label: 'Repo URL',
-      fieldType: 'text',
-      placeholder: 'https://github.com/owner/repo',
-    },
-    {
-      key: 'defaultBranch',
-      label: 'Default branch',
-      fieldType: 'text',
-      required: true,
-    },
-    {
-      key: 'defaultPipelineName',
-      label: 'Default pipeline',
-      fieldType: 'readonly',
-      helpText:
-        'Pipeline used when an issue does not specify one. Change in the Pipelines tab via "Set as default".',
-    },
-    {
-      key: 'targetRepoPath',
-      label: 'Target repo path',
-      fieldType: 'readonly',
-      helpText:
-        "Absolute path to a local clone of this project's target repo on main. Stage runs use it to acquire an isolation worktree (see CLAUDE.md → R-RUNTIME env vars).",
-    },
-  ],
 };

@@ -1,15 +1,18 @@
 // src/app/[org]/[user]/[project]/settings/projects/page.tsx
 'use client';
 
-import { notFound, useParams } from 'next/navigation';
-import { useState } from 'react';
+import { notFound, useParams, useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { openConfirmModal } from '@/components/confirm-modal';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { trpc } from '@/lib/trpc/client';
-import { type ProjectRecord, projectDescriptor } from './descriptor';
+import { buildProjectDescriptor } from './buildProjectDescriptor';
+import type { ProjectRecord } from './descriptor';
 
 export default function ProjectsSettingsPage() {
   const params = useParams<{ org: string; user: string; project: string }>();
+  const router = useRouter();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -36,62 +39,88 @@ export default function ProjectsSettingsPage() {
     notFound();
   }
 
-  // FLX-60: Create form needs an orgId + userId. The seeded project provides
-  // both. Multi-org/user is out of scope for alpha (matrix § Out of Scope),
-  // so the first project's identifiers are the canonical handle for now.
+  // The seeded project provides org/user/project handles for the
+  // create form and the FK option queries below. Multi-org/user is
+  // out of scope for alpha (matrix § Out of Scope).
   const seedOrgId = currentProject?.orgId ?? projects[0]?.orgId ?? null;
   const seedUserId = currentProject?.userId ?? projects[0]?.userId ?? null;
   const seedProjectId = currentProject?.id ?? projects[0]?.id ?? null;
 
-  // Pipelines are scoped to the current project — only load once we have it.
+  // Pipelines are scoped to the current project — only load once we
+  // have it. Drives the defaultPipelineId dropdown.
   const pipelinesQuery = trpc.pipeline.list.useQuery(
     { projectId: seedProjectId! },
     { enabled: !!seedProjectId }
   );
   const pipelines = pipelinesQuery.data ?? [];
+
+  // Brands are org-scoped with optional project visibility — drives
+  // the brandId dropdown (FLX-229 folds the standalone <section> in).
   const brandsQuery = trpc.brand.listVisibleToProject.useQuery(
     { orgId: seedOrgId!, projectId: seedProjectId! },
     { enabled: !!seedOrgId && !!seedProjectId }
   );
   const brands = brandsQuery.data ?? [];
 
-  const records: ProjectRecord[] = projects.map((p) => {
-    const pipe = p.defaultPipelineId
-      ? pipelines.find((x) => x.id === p.defaultPipelineId)
-      : null;
-    return {
-      id: p.id,
-      version: 1,
-      name: p.name,
-      slug: p.slug,
-      repoUrl: p.repoUrl,
-      defaultBranch: p.defaultBranch,
-      defaultPipelineName:
-        pipe?.name ?? '(none — set one from the Pipelines tab)',
-      targetRepoPath: p.targetRepoPath,
-    };
-  });
+  // FLX-207 / FLX-229: build the descriptor with dropdown options from
+  // the loaded queries. Stable identity via useMemo so RecordEditor's
+  // internal effects don't churn on every render.
+  const descriptor = useMemo(
+    () =>
+      buildProjectDescriptor({
+        pipelineOptions: pipelines.map((p) => ({
+          value: p.id,
+          label: p.name,
+        })),
+        brandOptions: brands.map((b) => ({ value: b.id, label: b.name })),
+      }),
+    [pipelines, brands]
+  );
+
+  const records: ProjectRecord[] = projects.map((p) => ({
+    id: p.id,
+    version: 1,
+    name: p.name,
+    slug: p.slug,
+    repoUrl: p.repoUrl,
+    defaultBranch: p.defaultBranch,
+    defaultPipelineId: p.defaultPipelineId,
+    brandId: p.brandId,
+    targetRepoPath: p.targetRepoPath,
+  }));
 
   const onSave = async (
     id: string,
     patch: Partial<ProjectRecord>,
     _expectedVersion: number
   ) => {
-    // Strip derived/readonly fields — the router only accepts raw project
-    // columns. defaultPipelineName is UI-only (derived from pipeline list).
-    // targetRepoPath is a real column but readonly in the form for now
-    // (FLX-207 makes it editable); strip it here so an accidental save
-    // round-trip can't blank it.
-    const {
-      defaultPipelineName: _dp,
-      targetRepoPath: _trp,
-      ...writable
-    } = patch;
+    // FLX-226: slug rename = confirm + redirect after save. We compare
+    // against the record's current slug (not URL params) so the modal
+    // copy matches what the operator actually changed.
+    const target = records.find((r) => r.id === id);
+    const slugChanged =
+      'slug' in patch && target != null && patch.slug !== target.slug;
+    if (slugChanged) {
+      const confirmed = await openConfirmModal({
+        title: 'Rename project slug?',
+        body: 'Renaming the project slug invalidates all existing URLs and bookmarks for this project. Continue?',
+        confirmLabel: 'Rename',
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+
     await updateMutation.mutateAsync({
       id,
-      ...(writable as Record<string, unknown>),
+      ...(patch as Record<string, unknown>),
     });
     await utils.project.list.invalidate();
+
+    if (slugChanged && typeof patch.slug === 'string') {
+      router.replace(
+        `/${params.org}/${params.user}/${patch.slug}/settings/projects`
+      );
+    }
   };
 
   const onDelete = async (id: string, _expectedVersion: number) => {
@@ -129,7 +158,7 @@ export default function ProjectsSettingsPage() {
       )}
 
       <RecordEditor<ProjectRecord>
-        descriptor={projectDescriptor}
+        descriptor={descriptor}
         records={records}
         isLoading={projectsQuery.isLoading}
         onSave={onSave}
@@ -138,43 +167,6 @@ export default function ProjectsSettingsPage() {
           await utils.project.list.invalidate();
         }}
       />
-
-      {brands.length > 0 && (
-        <section className="card-static p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-white">
-            Project default brands
-          </h2>
-          <div className="space-y-3">
-            {projects.map((project) => (
-              <label
-                key={project.id}
-                className="grid gap-2 md:grid-cols-[180px_minmax(0,1fr)] md:items-center"
-              >
-                <span className="text-xs text-slate-400">{project.name}</span>
-                <select
-                  value={project.brandId ?? ''}
-                  onChange={async (e) => {
-                    await updateMutation.mutateAsync({
-                      id: project.id,
-                      brandId: e.target.value || null,
-                    });
-                    await utils.project.list.invalidate();
-                  }}
-                  aria-label={`Default brand for ${project.name}`}
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground"
-                >
-                  <option value="">No brand</option>
-                  {brands.map((brand) => (
-                    <option key={brand.id} value={brand.id}>
-                      {brand.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
