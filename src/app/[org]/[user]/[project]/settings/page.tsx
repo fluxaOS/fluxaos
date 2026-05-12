@@ -30,7 +30,9 @@ export default function PipelineSettingsPage() {
 
   const pipelines = pipelinesQuery.data ?? [];
 
-  const setDefaultMutation = trpc.project.setDefaultPipeline.useMutation({
+  // FLX-228: setDefaultPipeline is gone. project.update enforces the
+  // "pipeline belongs to this project" invariant via the service layer.
+  const setDefaultMutation = trpc.project.update.useMutation({
     onSuccess: async () => {
       await utils.project.listByOrg.invalidate();
       await utils.project.list.invalidate();
@@ -93,8 +95,8 @@ export default function PipelineSettingsPage() {
                         type="button"
                         onClick={() =>
                           setDefaultMutation.mutate({
-                            projectId,
-                            pipelineId: p.id,
+                            id: projectId,
+                            defaultPipelineId: p.id,
                           })
                         }
                         disabled={setDefaultMutation.isPending}
