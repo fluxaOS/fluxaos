@@ -2114,10 +2114,12 @@ import { expect, test } from '@playwright/test';
 // inputs remain, etc.) and dropdown-select tests on fields that are
 // safely re-savable.
 
-// Replace these three constants with the values from src/scripts/db/seed.ts.
-const SEED_ORG = '<REPLACE_FROM_SEED>';
-const SEED_USER = '<REPLACE_FROM_SEED>';
-const SEED_PROJECT = '<REPLACE_FROM_SEED>';
+// Seed slugs — confirmed from src/scripts/db/seed.ts:
+//   organization.slug='default', user.slug='admin', project.slug='fluxaos'.
+// If the seed changes, update these constants.
+const SEED_ORG = 'default';
+const SEED_USER = 'admin';
+const SEED_PROJECT = 'fluxaos';
 
 // Throwaway project slugs for the slug-rename test.
 const SCRATCH_SLUG = `e2e-projects-form-${Date.now()}`;
@@ -2191,49 +2193,90 @@ test.describe('Projects form slice', () => {
   test.describe('slug rename (throwaway project)', () => {
     let scratchProjectId: string | null = null;
 
-    test.beforeAll(async ({ request }) => {
-      // Resolve seed org and user IDs via tRPC. Endpoint names match the
-      // current router shape — if they change, update both here and the
-      // page's queries together.
-      const orgRes = await request.get(
-        `/api/trpc/organization.getBySlug?input=${encodeURIComponent(
-          JSON.stringify({ slug: SEED_ORG })
-        )}`
-      );
-      const orgJson = await orgRes.json();
-      const orgId = orgJson?.result?.data?.id;
-      if (!orgId) throw new Error('Seed org not resolvable via tRPC');
+    // Reviewer-fix: project uses tRPC `httpBatchLink` (no transformer).
+    // Real wire format (confirmed from e2e/r-smoke.spec.ts:66-69):
+    //   POST  /api/trpc/<router.proc>?batch=1   body { '0': { ...input } }
+    //   GET   /api/trpc/<router.proc>?input=<urlencoded JSON of input>
+    // The `playwright.config.ts` baseURL is set per existing specs;
+    // we use `page.request` (project-scoped APIRequestContext) so the
+    // baseURL prefix is applied automatically.
+    //
+    // beforeAll has no `page` — create a context-bound page via the
+    // browser fixture instead.
 
-      const userRes = await request.get(
-        `/api/trpc/user.list?input=${encodeURIComponent(
-          JSON.stringify({ orgId })
-        )}`
-      );
-      const userJson = await userRes.json();
-      const userId = userJson?.result?.data?.[0]?.id;
-      if (!userId) throw new Error('Seed user not resolvable via tRPC');
+    test.beforeAll(async ({ browser }) => {
+      const page = await browser.newPage();
+      try {
+        // GET (non-batched) — single-input form, no `'0'` wrap.
+        const orgRes = await page.request.get(
+          `/api/trpc/organization.getBySlug?input=${encodeURIComponent(
+            JSON.stringify({ slug: SEED_ORG })
+          )}`
+        );
+        if (!orgRes.ok())
+          throw new Error(
+            `organization.getBySlug failed: ${orgRes.status()} ${await orgRes.text()}`
+          );
+        const orgJson = await orgRes.json();
+        const orgId = orgJson?.result?.data?.id;
+        if (!orgId) throw new Error('Seed org not resolvable via tRPC');
 
-      const createRes = await request.post('/api/trpc/project.create', {
-        data: {
-          orgId,
-          userId,
-          name: SCRATCH_SLUG,
-          slug: SCRATCH_SLUG,
-        },
-      });
-      const createJson = await createRes.json();
-      scratchProjectId = createJson?.result?.data?.id ?? null;
-      if (!scratchProjectId)
-        throw new Error('Failed to create scratch project');
+        const userRes = await page.request.get(
+          `/api/trpc/user.list?input=${encodeURIComponent(
+            JSON.stringify({ orgId })
+          )}`
+        );
+        if (!userRes.ok())
+          throw new Error(
+            `user.list failed: ${userRes.status()} ${await userRes.text()}`
+          );
+        const userJson = await userRes.json();
+        const userId = userJson?.result?.data?.[0]?.id;
+        if (!userId) throw new Error('Seed user not resolvable via tRPC');
+
+        // POST (batched) — must wrap input under '0' and append ?batch=1.
+        const createRes = await page.request.post(
+          '/api/trpc/project.create?batch=1',
+          {
+            data: {
+              '0': {
+                orgId,
+                userId,
+                name: SCRATCH_SLUG,
+                slug: SCRATCH_SLUG,
+              },
+            },
+          }
+        );
+        if (!createRes.ok())
+          throw new Error(
+            `project.create failed: ${createRes.status()} ${await createRes.text()}`
+          );
+        const createJson = await createRes.json();
+        // Batched response is an array of `{ result: { data } }`; pull [0].
+        scratchProjectId =
+          createJson?.[0]?.result?.data?.id ?? createJson?.result?.data?.id ?? null;
+        if (!scratchProjectId)
+          throw new Error(
+            `scratch project create returned no id: ${JSON.stringify(createJson)}`
+          );
+      } finally {
+        await page.close();
+      }
     });
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async ({ browser }) => {
       if (!scratchProjectId) return;
-      await request
-        .post('/api/trpc/project.delete', {
-          data: { id: scratchProjectId },
-        })
-        .catch(() => undefined);
+      const page = await browser.newPage();
+      try {
+        await page.request.post('/api/trpc/project.delete?batch=1', {
+          data: { '0': { id: scratchProjectId } },
+        });
+      } catch {
+        // Best-effort cleanup; don't fail the suite on teardown errors.
+      } finally {
+        await page.close();
+      }
     });
 
     test('cancel keeps current slug', async ({ page }) => {
@@ -2412,5 +2455,12 @@ A fresh-eyes plan review surfaced six material issues; all are addressed in-plan
 5. **HIGH — Playwright seed mutation.** Task 18's slug rename tests no longer touch seed data. A `beforeAll`/`afterAll` block creates and deletes a throwaway project via tRPC HTTP API; slug is timestamped to prevent parallel-run collisions.
 6. **MEDIUM — Forbidden fallback (`??`).** Task 12's `select-id` branch no longer uses `?? []`. An undefined `selectIdOptions` is now an explicit thrown error — descriptor bugs surface immediately.
 7. **MEDIUM — Full-lifecycle gate missing.** Task 19 adds Step 3b: `e2e/full-issue-lifecycle.spec.ts` must pass before PR open, per CLAUDE.md's canonical-journey rule.
+
+**Plan-review revisions, pass 2 (2026-05-12):**
+
+A second fresh-eyes review verified 6 of 7 revisions and surfaced two more issues:
+
+8. **BLOCKER — Task 18 used the wrong tRPC HTTP wire format.** Original `beforeAll`/`afterAll` posted `{data: input}` directly. The project uses `httpBatchLink` (no transformer) — confirmed by `e2e/r-smoke.spec.ts:66-69`. Correct format is `POST /api/trpc/<proc>?batch=1` with body `{ '0': { ...input } }` and `GET /api/trpc/<proc>?input=<urlencoded JSON>` for queries. Without the `?batch=1` query param and `'0'` wrapper, mutations silently fail, `scratchProjectId` stays null, and the slug-rename test block reports a deceptive green. Task 18 `beforeAll`/`afterAll` rewritten with the correct wire format AND switched from the standalone `request` fixture to `browser.newPage()` (the existing specs all use `page.request`).
+9. **HIGH — Seed-slug placeholders.** Task 18 left `SEED_ORG/USER/PROJECT` as `<REPLACE_FROM_SEED>` strings. The values are unambiguous from `src/scripts/db/seed.ts` (org='default', user='admin', project='fluxaos'); now hard-coded.
 
 Plan complete.
