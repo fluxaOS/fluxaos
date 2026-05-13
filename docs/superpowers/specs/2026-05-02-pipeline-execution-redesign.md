@@ -1,9 +1,23 @@
-Warning: Identity file /home/jpierce/.ssh/id_rsa not accessible: No such file or directory.
 # Pipeline Execution Redesign
 
 Date: 2026-05-02
-Status: Draft
-Linear: FLX-106 (reopened — development gap)
+Status: Superseded / historical
+Linear: FLX-106 (closed — historical design record)
+
+> **STATUS: SUPERSEDED.** This spec describes the FLX-106 YAML/file-backed
+> playbook experiment (`playbookPath`, `playbookScope`, `.fluxaos/pipelines/`,
+> LangGraph playbook execution). It is preserved for audit history only. Do not
+> use the playbook routing sections below as current operator or architecture
+> guidance.
+>
+> **Current truth:** pipeline stages, routing, gates, personas/skills, and deploy
+> behavior are database-owned configuration seeded by `npm run db:seed` and
+> executed by `src/core/orchestrator/stage-executor.ts`. Stage agents still hand
+> off facts through result docs in the run artifacts directory; the executor
+> ingests `result.json` and persists it to `stage_run.result_doc`. See
+> `README.md`, `CLAUDE.md`, `docs/session-quick-start.md`,
+> `docs/superpowers/handoffs/2026-05-05-pipeline-db-source-of-truth.md`,
+> `src/core/db/schema.ts`, and `src/scripts/db/seed.ts` for the active model.
 
 ## Problem Statement
 

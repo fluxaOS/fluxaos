@@ -1,5 +1,14 @@
 # FLX-106 Merge, Architectural Debate, and Deploy Session Handoff
 
+> **Historical handoff.** This session shipped the temporary FLX-106
+> playbook/YAML implementation. That path was later deleted and replaced by
+> DB-owned pipeline routing in PR #254; current code reads routing from
+> `pipeline_stage.on_pass`, `pipeline_stage.on_fail`, and
+> `pipeline_stage.fallback`, while stage facts continue through result-doc
+> ingestion. Use `docs/superpowers/handoffs/2026-05-05-pipeline-db-source-of-truth.md`
+> plus `README.md`, `CLAUDE.md`, and `docs/session-quick-start.md` for active
+> guidance. The details below are preserved as audit history only.
+
 Date: 2026-05-03 / 2026-05-04 (session ran overnight Pacific)
 Operator: Joseph Pierce
 Branch at start: `flx-106-pipeline-execution-redesign`
