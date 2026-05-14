@@ -18,10 +18,12 @@ test.describe('@flx-65 @journey @provider-crud', () => {
     const initialBaseUrl = 'https://example.test/api';
 
     // ── Create ────────────────────────────────────────────────────────────
+    // FLX-252: form refactored to use CreateEntityForm; aria-labels are now
+    // the field labels ("Name", "Type", etc.) instead of entity-prefixed names.
     await page.getByRole('button', { name: 'New Provider' }).click();
-    await page.getByLabel('Provider name').fill(uniqueName);
-    await page.getByLabel('Provider type').fill(initialType);
-    await page.getByLabel('Provider base URL').fill(initialBaseUrl);
+    await page.getByLabel('Name').fill(uniqueName);
+    await page.getByLabel('Type').fill(initialType);
+    await page.getByLabel('Base URL (optional)').fill(initialBaseUrl);
     await page.getByRole('button', { name: /^Create/ }).click();
 
     const row = page.locator('li', { hasText: uniqueName });

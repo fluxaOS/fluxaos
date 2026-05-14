@@ -2,8 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
+import { CreateEntityForm } from '@/components/record-editor/CreateEntityForm';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { Feature } from '@/core/features/features';
 import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
@@ -24,10 +24,6 @@ export default function SkillsSettingsPage() {
   const records = (listQuery.data ?? []) as unknown as SkillRecord[];
 
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newScope, setNewScope] = useState<'global' | 'project'>('global');
-  const [newDescription, setNewDescription] = useState('');
-  const [newPrompt, setNewPrompt] = useState('');
   const [selected, setSelected] = useState<SkillRecord | null>(null);
 
   const onSave = async (
@@ -49,20 +45,6 @@ export default function SkillsSettingsPage() {
   const onDelete = async (id: string, expectedVersion: number) => {
     // Router enforces optimistic lock on delete as well — pass the version.
     await deleteMutation.mutateAsync({ id, version: expectedVersion });
-    await utils.skill.list.invalidate();
-  };
-
-  const onCreate = async () => {
-    await createMutation.mutateAsync({
-      scope: newScope,
-      name: newName,
-      description: newDescription || undefined,
-      promptTemplate: newPrompt || undefined,
-    });
-    setNewName('');
-    setNewDescription('');
-    setNewPrompt('');
-    setShowCreate(false);
     await utils.skill.list.invalidate();
   };
 
@@ -91,70 +73,41 @@ export default function SkillsSettingsPage() {
       </div>
 
       {showCreate ? (
-        <Card padding="p-6">
-          <h3 className="text-sm font-semibold text-white mb-3">New Skill</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                aria-label="Skill name"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Scope
-              </label>
-              <select
-                aria-label="Skill scope"
-                className="bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newScope}
-                onChange={(e) =>
-                  setNewScope(e.target.value as 'global' | 'project')
-                }
-              >
-                <option value="global">global</option>
-                <option value="project">project</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Description
-              </label>
-              <textarea
-                rows={3}
-                aria-label="Skill description"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Prompt template
-              </label>
-              <textarea
-                rows={8}
-                aria-label="Skill prompt template"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white font-mono"
-                value={newPrompt}
-                onChange={(e) => setNewPrompt(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
-              disabled={!newName.trim()}
-              onClick={onCreate}
-            >
-              Create
-            </button>
-          </div>
-        </Card>
+        <CreateEntityForm
+          title="New Skill"
+          fields={[
+            { key: 'name', label: 'Name', required: true },
+            {
+              key: 'scope',
+              label: 'Scope',
+              type: 'select',
+              defaultValue: 'global',
+              options: [
+                { value: 'global', label: 'global' },
+                { value: 'project', label: 'project' },
+              ],
+            },
+            { key: 'description', label: 'Description', type: 'textarea' },
+            {
+              key: 'promptTemplate',
+              label: 'Prompt template',
+              type: 'textarea',
+              rows: 8,
+              mono: true,
+            },
+          ]}
+          onSubmit={async (vals) => {
+            await createMutation.mutateAsync({
+              scope: vals.scope as 'global' | 'project',
+              name: vals.name,
+              description: vals.description || undefined,
+              promptTemplate: vals.promptTemplate || undefined,
+            });
+            setShowCreate(false);
+            await utils.skill.list.invalidate();
+          }}
+          onCancel={() => setShowCreate(false)}
+        />
       ) : null}
 
       <RecordEditor<SkillRecord>

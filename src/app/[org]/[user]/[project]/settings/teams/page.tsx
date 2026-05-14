@@ -2,8 +2,8 @@
 
 import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
-import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
+import { CreateEntityForm } from '@/components/record-editor/CreateEntityForm';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
 import { trpc } from '@/lib/trpc/client';
@@ -13,8 +13,6 @@ export default function TeamsSettingsPage() {
   const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
 
   // FLX-244: resolve the project from the URL slug, not the first DB row.
   const currentProjectQuery = trpc.project.getBySlug.useQuery({
@@ -57,19 +55,6 @@ export default function TeamsSettingsPage() {
     await utils.team.listByProject.invalidate();
   };
 
-  const onCreate = async () => {
-    if (!newName.trim() || !projectId) return;
-    await createMutation.mutateAsync({
-      projectId,
-      name: newName.trim(),
-      description: newDescription.trim() || undefined,
-    });
-    setNewName('');
-    setNewDescription('');
-    setShowCreate(false);
-    await utils.team.listByProject.invalidate();
-  };
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -89,42 +74,24 @@ export default function TeamsSettingsPage() {
         </div>
       ) : null}
 
-      {showCreate ? (
-        <Card padding="p-6">
-          <h3 className="text-sm font-semibold text-white mb-3">New Team</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                aria-label="Team name"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Description
-              </label>
-              <input
-                aria-label="Team description"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
-              disabled={!newName.trim() || createMutation.isPending}
-              onClick={onCreate}
-            >
-              Create
-            </button>
-          </div>
-        </Card>
+      {showCreate && projectId ? (
+        <CreateEntityForm
+          title="New Team"
+          fields={[
+            { key: 'name', label: 'Name', required: true },
+            { key: 'description', label: 'Description' },
+          ]}
+          onSubmit={async (vals) => {
+            await createMutation.mutateAsync({
+              projectId,
+              name: vals.name.trim(),
+              description: vals.description.trim() || undefined,
+            });
+            setShowCreate(false);
+            await utils.team.listByProject.invalidate();
+          }}
+          onCancel={() => setShowCreate(false)}
+        />
       ) : null}
 
       <RecordEditor<TeamRecord>
