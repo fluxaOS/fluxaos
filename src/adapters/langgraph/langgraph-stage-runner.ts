@@ -8,7 +8,6 @@ import {
   START,
   StateGraph,
 } from '@langchain/langgraph';
-import { DEFAULT_STAGE_TIMEOUT_SEC } from '@/core/constants';
 import type { StageGraphInput } from '@/core/ports/stage-graph-runner';
 
 export type { StageGraphInput };
@@ -26,6 +25,8 @@ const StageState = Annotation.Root({
   cwd: Annotation<string | undefined>(),
   initResultDocScript: Annotation<string>(),
   ingestResultDocScript: Annotation<string>(),
+  /** Per-stage timeout in seconds. 0 / undefined means no timeout. */
+  timeoutSec: Annotation<number | undefined>(),
   prepared: Annotation<boolean>(),
   executed: Annotation<boolean>(),
   ingestOutput: Annotation<string | undefined>(),
@@ -68,14 +69,39 @@ async function executeNode(
       ARTIFACTS_DIR: state.artifactsDir,
     };
 
-    await execFileAsync(state.driverCommand, state.driverArgs, {
-      env: agentEnv,
-      cwd: state.cwd,
-      timeout: DEFAULT_STAGE_TIMEOUT_SEC * 1000,
-    });
+    const timeoutSec = state.timeoutSec;
+    const hasTimeout = typeof timeoutSec === 'number' && timeoutSec > 0;
+
+    if (hasTimeout) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutSec * 1000);
+      try {
+        await execFileAsync(state.driverCommand, state.driverArgs, {
+          env: agentEnv,
+          cwd: state.cwd,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      await execFileAsync(state.driverCommand, state.driverArgs, {
+        env: agentEnv,
+        cwd: state.cwd,
+      });
+    }
 
     return { executed: true };
-  } catch {
+  } catch (err) {
+    const isAbort =
+      err instanceof Error &&
+      (err.name === 'AbortError' ||
+        (err as NodeJS.ErrnoException).code === 'ABORT_ERR');
+    if (isAbort) {
+      return {
+        error: `stage timed out after ${state.timeoutSec}s`,
+      };
+    }
     // Agent exited non-zero — not an engine error; ingest handles partial result doc
     return { executed: true };
   }
