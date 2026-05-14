@@ -57,13 +57,13 @@ test.describe('@flx-244 Settings pages resolve org/project from URL', () => {
       if (!orgId) throw new Error('Seed org not resolvable via tRPC');
 
       const userRes = await page.request.get(
-        `/api/trpc/user.list?input=${encodeURIComponent(
+        `/api/trpc/user.listByOrg?input=${encodeURIComponent(
           JSON.stringify({ orgId })
         )}`
       );
       if (!userRes.ok())
         throw new Error(
-          `user.list failed: ${userRes.status()} ${await userRes.text()}`
+          `user.listByOrg failed: ${userRes.status()} ${await userRes.text()}`
         );
       const userId = (await userRes.json())?.result?.data?.[0]?.id;
       if (!userId) throw new Error('Seed user not resolvable via tRPC');
