@@ -9,13 +9,14 @@ import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import type { Database } from '@/core/db/connection';
-import { issue, issueComment, project } from '@/core/db/schema';
+import { issue, issueComment } from '@/core/db/schema';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import {
   createIssueCommentService,
   createIssueEventService,
   createIssueService,
 } from '@/core/services';
+import { assertProjectOwnership } from '../ownership';
 import type { Viewer } from '../trpc';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
@@ -61,14 +62,7 @@ async function assertProjectViewership(
   projectId: string,
   viewer: Viewer
 ): Promise<void> {
-  const [proj] = await db
-    .select({ userId: project.userId })
-    .from(project)
-    .where(eq(project.id, projectId));
-  if (!proj) throw new TRPCError({ code: 'NOT_FOUND' });
-  if (viewer.fluxaUserId !== null && proj.userId !== viewer.fluxaUserId) {
-    throw new TRPCError({ code: 'NOT_FOUND' });
-  }
+  await assertProjectOwnership(db, projectId, viewer.fluxaUserId);
 }
 
 export const issueRouter = router({
