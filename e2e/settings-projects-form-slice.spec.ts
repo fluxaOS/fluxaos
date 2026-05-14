@@ -130,13 +130,13 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
         if (!orgId) throw new Error('Seed org not resolvable via tRPC');
 
         const userRes = await page.request.get(
-          `/api/trpc/user.list?input=${encodeURIComponent(
+          `/api/trpc/user.listByOrg?input=${encodeURIComponent(
             JSON.stringify({ orgId })
           )}`
         );
         if (!userRes.ok())
           throw new Error(
-            `user.list failed: ${userRes.status()} ${await userRes.text()}`
+            `user.listByOrg failed: ${userRes.status()} ${await userRes.text()}`
           );
         const userJson = await userRes.json();
         const userId = userJson?.result?.data?.[0]?.id;
