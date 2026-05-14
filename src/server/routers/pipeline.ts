@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import {
   EVENT_TYPE,
@@ -378,23 +378,20 @@ export const pipelineRouter = router({
         if (pipelines.length === 0) return [];
 
         const pipelineNames = new Map(pipelines.map((p) => [p.id, p.name]));
-        const runs = [];
-        for (const p of pipelines) {
-          const pRuns = await ctx.db
-            .select()
-            .from(pipelineRun)
-            .where(eq(pipelineRun.pipelineId, p.id));
-          runs.push(
-            ...pRuns.map((r) => ({
-              ...r,
-              pipelineName: pipelineNames.get(r.pipelineId) ?? '',
-            }))
+        const pipelineIds = pipelines.map((p) => p.id);
+        const allRuns = await ctx.db
+          .select()
+          .from(pipelineRun)
+          .where(inArray(pipelineRun.pipelineId, pipelineIds));
+        return allRuns
+          .map((r) => ({
+            ...r,
+            pipelineName: pipelineNames.get(r.pipelineId) ?? '',
+          }))
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
-        }
-        return runs.sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
       }),
 
     /** List pipeline runs for an issue, newest first, with stage summaries. */
@@ -681,14 +678,11 @@ export const pipelineRouter = router({
           };
         }
 
-        const allRuns = [];
-        for (const p of pipelines) {
-          const runs = await ctx.db
-            .select()
-            .from(pipelineRun)
-            .where(eq(pipelineRun.pipelineId, p.id));
-          allRuns.push(...runs);
-        }
+        const kpiPipelineIds = pipelines.map((p) => p.id);
+        const allRuns = await ctx.db
+          .select()
+          .from(pipelineRun)
+          .where(inArray(pipelineRun.pipelineId, kpiPipelineIds));
 
         const total = allRuns.length;
         const completed = allRuns.filter(
