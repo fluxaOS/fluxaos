@@ -40,9 +40,16 @@ import { resolveStageBrand } from './brand-resolver';
 import { buildCommand, renderTemplate } from './command-builder';
 import type { PipelineRunService } from './pipeline-run-service';
 import { createRoutingResolver } from './routing-resolver';
-import { acquireIsolationEnv, resolveProjectId } from './stage-runner-env';
+import {
+  acquireIsolationEnv,
+  MissingProviderApiKeyError,
+  resolveProjectId,
+} from './stage-runner-env';
 
-export { MissingProjectTargetRepoPathError } from './stage-runner-env';
+export {
+  MissingProjectTargetRepoPathError,
+  MissingProviderApiKeyError,
+} from './stage-runner-env';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -319,9 +326,13 @@ export async function executeStageRun(
     if (routing.providerApiKeyRef?.startsWith('env:')) {
       const envVarName = routing.providerApiKeyRef.slice(4);
       const keyValue = process.env[envVarName];
-      if (keyValue) {
-        resolvedProviderEnv[envVarName] = keyValue;
+      if (!keyValue) {
+        throw new MissingProviderApiKeyError(
+          routing.providerName ?? 'unknown',
+          envVarName
+        );
       }
+      resolvedProviderEnv[envVarName] = keyValue;
     }
 
     // Mark running

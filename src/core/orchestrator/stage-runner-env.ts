@@ -17,6 +17,27 @@ import type {
 } from '@/core/ports/isolation';
 
 /**
+ * Error raised when the stage-runner cannot resolve the provider API key for
+ * a stage run. Thrown when `routing.providerApiKeyRef` references an env var
+ * (e.g. "env:ANTHROPIC_API_KEY") that is not set in the process environment
+ * (FLX-250).
+ */
+export class MissingProviderApiKeyError extends Error {
+  readonly providerName: string;
+  readonly envVarName: string;
+  constructor(providerName: string, envVarName: string) {
+    super(
+      `Provider API key env var '${envVarName}' is not set for provider '${providerName}'. ` +
+        `Set ${envVarName} in the server environment so the stage-runner can inject ` +
+        'the credential into the subprocess.'
+    );
+    this.name = 'MissingProviderApiKeyError';
+    this.providerName = providerName;
+    this.envVarName = envVarName;
+  }
+}
+
+/**
  * Error raised when the stage-runner cannot locate the on-disk clone of the
  * target repo. Thrown when `project.targetRepoPath` is null for the project
  * being run (FLX-221 migration from env var to per-project column).
