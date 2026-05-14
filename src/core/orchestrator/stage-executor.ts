@@ -269,6 +269,12 @@ export function createStageExecutor(deps: StageExecutorDeps) {
 
     await runService.updateStageRunStatus(sRun.id, STAGE_RUN_STATUS.running);
 
+    // Fail fast on the missing dependency — no hardcoded daemon-script fallback.
+    if (!fluxaosConfig) {
+      throw new Error(
+        'fluxaosConfig not injected into stage executor — required for initResultDocScript / ingestResultDocScript. Pass loadFluxaosConfig() into createEventOrchestrator (set FLUXAOS_INIT_RESULT_DOC_SCRIPT and FLUXAOS_INGEST_RESULT_DOC_SCRIPT).'
+      );
+    }
     if (!stageGraphRunner) {
       const msg = 'stageGraphRunner not injected — cannot execute stage';
       console.error(`[orchestrator] ${msg} (stageRunId: ${sRun.id})`);
@@ -296,12 +302,8 @@ export function createStageExecutor(deps: StageExecutorDeps) {
           ARTIFACTS_DIR: artifactsBase,
           WORKING_PATH: envWorkingPath,
         },
-        initResultDocScript:
-          fluxaosConfig?.initResultDocScript ??
-          '.next/daemon/init-result-doc.mjs',
-        ingestResultDocScript:
-          fluxaosConfig?.ingestResultDocScript ??
-          '.next/daemon/ingest-result-doc.mjs',
+        initResultDocScript: fluxaosConfig.initResultDocScript,
+        ingestResultDocScript: fluxaosConfig.ingestResultDocScript,
       });
       ingestOutput = result.ingestOutput;
       graphError = result.error;
