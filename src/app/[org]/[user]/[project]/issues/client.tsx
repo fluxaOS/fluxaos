@@ -44,17 +44,24 @@ export function IssueListClient({
   const stateMap = new Map(states.map((s) => [s.id, s]));
   const priorityMap = new Map(priorities.map((p) => [p.id, p]));
 
-  // ── Issue query with filters ─────────────────────────────────────────────
-  const issuesQuery = trpc.issue.list.useQuery({
-    projectId,
-    ...(lifecycle !== 'all' && { isClosed: lifecycle === 'closed' }),
-    ...(typeFilter !== 'all' && { typeId: typeFilter }),
-    ...(stateFilter !== 'all' && { stateId: stateFilter }),
-    ...(priorityFilter !== 'all' && { priorityId: priorityFilter }),
-    ...(searchTerm.trim() && { search: searchTerm.trim() }),
-  });
+  // ── Single issue query — all issues for this project ────────────────────
+  // Filters (lifecycle, type, state, priority, search) are applied in memory
+  // below, avoiding a second DB round-trip for the unfiltered stat counts.
+  const allIssuesQuery = trpc.issue.list.useQuery({ projectId });
+  const allIssues = allIssuesQuery.data ?? [];
 
-  const issues = issuesQuery.data ?? [];
+  // ── In-memory filter ─────────────────────────────────────────────────────
+  const issues = allIssues.filter((i) => {
+    if (lifecycle !== 'all' && i.isClosed !== (lifecycle === 'closed'))
+      return false;
+    if (typeFilter !== 'all' && i.typeId !== typeFilter) return false;
+    if (stateFilter !== 'all' && i.stateId !== stateFilter) return false;
+    if (priorityFilter !== 'all' && i.priorityId !== priorityFilter)
+      return false;
+    const term = searchTerm.trim().toLowerCase();
+    if (term && !i.title.toLowerCase().includes(term)) return false;
+    return true;
+  });
 
   // R-EPIC: one bulk query returns { [parentId]: openCount } for every
   // parent in the project — supports "↳ (N open)" indicators without
@@ -64,19 +71,13 @@ export function IssueListClient({
   });
   const openChildCounts = openChildCountsQuery.data ?? {};
 
-  // ── Stat counts from fetched issues ──────────────────────────────────────
-  const _openCount = issues.filter((i) => !i.isClosed).length;
-  const _closedCount = issues.filter((i) => i.isClosed).length;
-
-  // Count issues per state for stat cards (using full unfiltered query when lifecycle=all)
-  const allIssuesQuery = trpc.issue.list.useQuery({ projectId });
-  const allIssues = allIssuesQuery.data ?? [];
+  // ── Stat counts from full (unfiltered) issue list ─────────────────────────
   const totalOpen = allIssues.filter((i) => !i.isClosed).length;
   const totalClosed = allIssues.filter((i) => i.isClosed).length;
 
   const catalogsLoading =
     typesQuery.isLoading || statesQuery.isLoading || prioritiesQuery.isLoading;
-  const isLoading = issuesQuery.isLoading || catalogsLoading;
+  const isLoading = allIssuesQuery.isLoading || catalogsLoading;
 
   return (
     <div className="space-y-5">
