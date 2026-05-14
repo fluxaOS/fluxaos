@@ -2,8 +2,8 @@
  * Issue catalog router — CRUD for types, states, statuses, priorities, labels,
  * transitions, and a health check endpoint.
  *
- * Each catalog type has: list (active), listAll (including inactive), create,
- * update, deactivate. Transitions have list, create, delete (hard).
+ * Each catalog type has: list (active), create, update, deactivate.
+ * Transitions have list, create, delete (hard).
  * Health verifies all required catalogs and config entries exist.
  */
 import { z } from 'zod/v4';
@@ -71,11 +71,6 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).types.list(input.projectId)
       ),
-    listAll: publicProcedure
-      .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.listAll(input.projectId)
-      ),
     create: protectedMutation(EDIT_ROLES)
       .input(typeInput)
       .mutation(({ ctx, input }) =>
@@ -100,11 +95,6 @@ export const issueCatalogRouter = router({
       .input(projectIdInput)
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).states.list(input.projectId)
-      ),
-    listAll: publicProcedure
-      .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.listAll(input.projectId)
       ),
     create: protectedMutation(EDIT_ROLES)
       .input(stateInput)
@@ -131,11 +121,6 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).statuses.list(input.projectId)
       ),
-    listAll: publicProcedure
-      .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.listAll(input.projectId)
-      ),
     create: protectedMutation(EDIT_ROLES)
       .input(statusInput)
       .mutation(({ ctx, input }) =>
@@ -161,11 +146,6 @@ export const issueCatalogRouter = router({
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).priorities.list(input.projectId)
       ),
-    listAll: publicProcedure
-      .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.listAll(input.projectId)
-      ),
     create: protectedMutation(EDIT_ROLES)
       .input(priorityInput)
       .mutation(({ ctx, input }) =>
@@ -190,11 +170,6 @@ export const issueCatalogRouter = router({
       .input(projectIdInput)
       .query(({ ctx, input }) =>
         createIssueCatalogService(ctx.db).labels.list(input.projectId)
-      ),
-    listAll: publicProcedure
-      .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.listAll(input.projectId)
       ),
     create: protectedMutation(EDIT_ROLES)
       .input(labelInput)
