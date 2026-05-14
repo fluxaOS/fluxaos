@@ -304,6 +304,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         },
         initResultDocScript: fluxaosConfig.initResultDocScript,
         ingestResultDocScript: fluxaosConfig.ingestResultDocScript,
+        timeoutSec: stage.timeoutSec,
       });
       ingestOutput = result.ingestOutput;
       graphError = result.error;

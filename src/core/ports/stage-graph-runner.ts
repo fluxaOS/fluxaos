@@ -14,6 +14,12 @@ export interface StageGraphInput {
   cwd?: string;
   initResultDocScript: string;
   ingestResultDocScript: string;
+  /**
+   * Per-stage timeout in seconds. When set to a positive integer, the driver
+   * subprocess is aborted after this many seconds. 0 / null / undefined means
+   * no timeout (infinite — use only for stages that self-terminate).
+   */
+  timeoutSec?: number;
 }
 
 export interface StageGraphResult {

@@ -73,6 +73,11 @@ SIZE_EXEMPT_FILES=(
   # FLX-197 isolation integration test: real event-orchestrator + worktree path
   # needs the full fixture in one file to keep auto-dispatch assertions readable.
   "src/__tests__/integration/event-orchestrator-isolation.test.ts"
+  # Stage executor: owns DB-driven stage launch (isolation, persona, prompt
+  # composition, stageGraphRunner dispatch, verdict routing) in one cohesive
+  # unit. Splitting separates acquire/execute/ingest phases that share
+  # invariants and error-exit semantics. Pre-existing 500-line boundary.
+  "src/core/orchestrator/stage-executor.ts"
 )
 
 is_size_exempt() {
