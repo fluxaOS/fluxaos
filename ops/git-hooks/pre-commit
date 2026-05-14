@@ -78,6 +78,11 @@ SIZE_EXEMPT_FILES=(
   # unit. Splitting separates acquire/execute/ingest phases that share
   # invariants and error-exit semantics. Pre-existing 500-line boundary.
   "src/core/orchestrator/stage-executor.ts"
+  # StageEditor: single-pipeline CRUD table with inline edit forms per column.
+  # Splitting the add-form, edit-inline-row, and routing selects into separate
+  # files would require threading pipelineId + shared mutation handles across
+  # boundaries. Pre-existing oversize (517 lines at HEAD before FLX-253).
+  "src/app/[org]/[user]/[project]/settings/StageEditor.tsx"
 )
 
 is_size_exempt() {

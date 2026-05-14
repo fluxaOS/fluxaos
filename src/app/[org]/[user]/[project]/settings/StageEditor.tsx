@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { openConfirmModal } from '@/components/confirm-modal';
 import { RuleBuilder } from '@/components/gates/RuleBuilder';
 import { RuleTestPanel } from '@/components/gates/RuleTestPanel';
 import { PIPELINE_SENTINEL } from '@/core/constants';
@@ -369,12 +370,14 @@ export function StageEditor({ pipelineId }: { pipelineId: string }) {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Delete stage "${s.name}" from this pipeline?`
-                              )
-                            ) {
+                          onClick={async () => {
+                            const confirmed = await openConfirmModal({
+                              title: `Delete stage "${s.name}"?`,
+                              body: `This will permanently remove the "${s.name}" stage from this pipeline.`,
+                              confirmLabel: 'Delete',
+                              destructive: true,
+                            });
+                            if (confirmed) {
                               deleteStage.mutate({ id: s.id });
                             }
                           }}

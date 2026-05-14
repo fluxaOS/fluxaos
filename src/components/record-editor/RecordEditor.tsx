@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/card';
+import { openConfirmModal } from '@/components/confirm-modal';
 import { EmptyState } from '@/components/empty-state';
 import { SkeletonTable } from '@/components/skeleton';
 import { type ActionsState, RecordActionsBar } from './RecordActionsBar';
@@ -75,9 +76,14 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
 
   // When the list refreshes after Save, stay on the same record and exit editing.
   // When the selected record is deleted, clear selection.
-  const handleSelect = (id: string) => {
+  const handleSelect = async (id: string) => {
     if (state.kind === 'editing' || state.kind === 'confirming-delete') {
-      const ok = window.confirm('Discard unsaved changes?');
+      const ok = await openConfirmModal({
+        title: 'Discard unsaved changes?',
+        body: 'You have unsaved edits. Switching records will discard them.',
+        confirmLabel: 'Discard',
+        destructive: true,
+      });
       if (!ok) return;
     }
     setSelectedId(id);
