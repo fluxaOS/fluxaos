@@ -1,7 +1,7 @@
-import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { project } from '@/core/db/schema';
+import { BadRequestError, InternalError } from '@/core/errors/domain';
 import { createCrudService } from './crud-factory';
 import { FK_VALIDATORS } from './project-fk-validators';
 
@@ -48,20 +48,13 @@ export function createProjectService(
 
       if ('repoUrl' in patch && patch.repoUrl != null) {
         if (!deps?.repoUrlValidator) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'REPO_URL_VALIDATOR_NOT_INJECTED',
-          });
+          throw new InternalError('REPO_URL_VALIDATOR_NOT_INJECTED');
         }
         const result = await deps.repoUrlValidator.validate(
           patch.repoUrl as string
         );
         if (!result.ok) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: `REPO_URL_${result.reason}`,
-            cause: result,
-          });
+          throw new BadRequestError(`REPO_URL_${result.reason}`, result);
         }
       }
 
