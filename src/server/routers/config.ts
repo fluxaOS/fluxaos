@@ -1,36 +1,25 @@
 import { TRPCError } from '@trpc/server';
-import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
-import { project } from '@/core/db/schema';
 import { NotFoundError } from '@/core/errors/domain';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createConfigService } from '@/core/services/config';
+import { assertProjectOwnership } from '../ownership';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const configRouter = router({
   list: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      // Ownership check: verify the requesting user owns this project.
-      // Skip when fluxaUserId is null (LAN auth bypass = admin role).
-      if (ctx.viewer.fluxaUserId !== null) {
-        const [proj] = await ctx.db
-          .select({ userId: project.userId })
-          .from(project)
-          .where(eq(project.id, input.projectId));
-        if (!proj) {
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: `Project not found: ${input.projectId}`,
-          });
+      await assertProjectOwnership(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId,
+        {
+          notFoundMsg: `Project not found: ${input.projectId}`,
+          notOwnedCode: 'FORBIDDEN',
+          notOwnedMsg: 'You do not have access to this project.',
         }
-        if (proj.userId !== ctx.viewer.fluxaUserId) {
-          throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'You do not have access to this project.',
-          });
-        }
-      }
+      );
       return createConfigService(ctx.db).listByProject(input.projectId);
     }),
 

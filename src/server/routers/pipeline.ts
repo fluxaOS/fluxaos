@@ -14,7 +14,6 @@ import {
   pipeline,
   pipelineRun,
   pipelineStage,
-  project,
   stageGateResult,
   stageRun,
 } from '@/core/db/schema';
@@ -23,6 +22,7 @@ import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-servi
 import { resolveProjectIdForRun } from '@/core/orchestrator/run-helpers';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
+import { assertProjectOwnership } from '../ownership';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 import { enrichStageRuns } from './_shared/enrich-stage-runs';
 import { listIssueRunsWithStages } from './pipeline-run-history';
@@ -42,33 +42,6 @@ async function getProjectIdForStageRun(
     .innerJoin(pipeline, eq(pipelineRun.pipelineId, pipeline.id))
     .where(eq(stageRun.id, stageRunId));
   return row?.projectId ?? null;
-}
-
-/**
- * Verify that a projectId is owned by the viewer. Returns the ownerId of the
- * project, or throws NOT_FOUND if the project doesn't exist.
- *
- * When fluxaUserId is null (LAN auth bypass), the check is skipped.
- */
-async function assertProjectOwnership(
-  db: Database,
-  projectId: string,
-  fluxaUserId: string | null
-): Promise<void> {
-  if (fluxaUserId === null) return; // LAN auth bypass
-  const [proj] = await db
-    .select({ userId: project.userId })
-    .from(project)
-    .where(eq(project.id, projectId));
-  if (!proj) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
-  }
-  if (proj.userId !== fluxaUserId) {
-    throw new TRPCError({
-      code: 'NOT_FOUND',
-      message: 'Not found',
-    });
-  }
 }
 
 /**
