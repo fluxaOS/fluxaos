@@ -8,16 +8,6 @@ import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 const roleEnum = z.enum(ROLE_VALUES as readonly [string, ...string[]]);
 
 export const userRouter = router({
-  /**
-   * List users scoped to the given org.
-   * Replaces the banned unscoped `list()` from the user service.
-   */
-  list: publicProcedure
-    .input(z.object({ orgId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      return createUserService(ctx.db).listByOrg(input.orgId);
-    }),
-
   // FLX-12: client-side gates need to know the viewer's effective role.
   // Returns the role resolved by tRPC context (Supabase session ↦ user.role,
   // or 'admin' under the homelab LAN bypass).

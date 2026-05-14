@@ -17,28 +17,6 @@ export const driverRouter = router({
     return createDriverService(ctx.db).list();
   }),
 
-  getBySlug: publicProcedure
-    .input(z.object({ slug: z.string().min(1) }))
-    .query(async ({ ctx, input }) => {
-      const row = await createDriverService(ctx.db).getBySlug(input.slug);
-      if (!row)
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: `Driver not found: ${input.slug}`,
-        });
-      return row;
-    }),
-
-  getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
-    const row = await createDriverService(ctx.db).getById(input.id);
-    if (!row)
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: `Driver not found: ${input.id}`,
-      });
-    return row;
-  }),
-
   create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({

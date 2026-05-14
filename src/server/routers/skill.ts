@@ -30,16 +30,6 @@ export const skillRouter = router({
         : svc.listGlobal();
     }),
 
-  listByProject: publicProcedure
-    .input(z.object({ projectId: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createSkillService(ctx.db).listByProject(input.projectId);
-    }),
-
-  listGlobal: publicProcedure.query(({ ctx }) => {
-    return createSkillService(ctx.db).listGlobal();
-  }),
-
   getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
     return createSkillService(ctx.db).getById(input.id);
   }),
@@ -109,10 +99,6 @@ export const skillRouter = router({
       if (!row) throw new Error('Optimistic concurrency conflict');
       return row;
     }),
-
-  countReferences: publicProcedure.input(inputId()).query(({ ctx, input }) => {
-    return createSkillService(ctx.db).countReferences(input.id);
-  }),
 
   delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))

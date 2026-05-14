@@ -21,16 +21,6 @@ export const personaRouter = router({
         : svc.listGlobal();
     }),
 
-  listByProject: publicProcedure
-    .input(z.object({ projectId: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createPersonaService(ctx.db).listByProject(input.projectId);
-    }),
-
-  listGlobal: publicProcedure.query(({ ctx }) => {
-    return createPersonaService(ctx.db).listGlobal();
-  }),
-
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => {
