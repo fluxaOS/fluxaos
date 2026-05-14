@@ -1,5 +1,11 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { buildGitRouter } from '@/adapters/git-router/validator-registry';
+import {
+  BadRequestError,
+  InternalError,
+  NotFoundError,
+} from '@/core/errors/domain';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createProjectService } from '@/core/services';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
@@ -71,11 +77,33 @@ export const projectRouter = router({
         targetRepoPath: z.string().nullable().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return createProjectService(ctx.db, {
-        repoUrlValidator: buildGitRouter(),
-      }).update(id, data);
+      try {
+        return await createProjectService(ctx.db, {
+          repoUrlValidator: buildGitRouter(),
+        }).update(id, data);
+      } catch (err) {
+        // Map core domain errors to transport-layer TRPCError so HTTP
+        // behavior is unchanged. Core stays free of @trpc/server (FLX-242).
+        if (err instanceof NotFoundError) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: err.message });
+        }
+        if (err instanceof BadRequestError) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: err.message,
+            cause: err.detail,
+          });
+        }
+        if (err instanceof InternalError) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: err.message,
+          });
+        }
+        throw err;
+      }
     }),
 
   delete: protectedMutation(DELETE_ROLES)

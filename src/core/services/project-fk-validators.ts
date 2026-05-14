@@ -1,16 +1,16 @@
-import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { brand, pipeline, project } from '@/core/db/schema';
+import { BadRequestError, NotFoundError } from '@/core/errors/domain';
 
 /**
  * Per-FK scope validation. The project-service `update()` walks this map
  * for every key present in the patch; new FK columns on `project` need
  * one entry here and nothing else.
  *
- * Each validator throws TRPCError with a stable `message` key (e.g.,
- * 'PIPELINE_NOT_IN_PROJECT') that the page maps to user copy. See spec
- * §"Error message keys".
+ * Each validator throws a domain error (NotFoundError / BadRequestError)
+ * with a stable `message` key (e.g., 'PIPELINE_NOT_IN_PROJECT') that the
+ * page maps to user copy. See spec §"Error message keys".
  */
 export type FkValidator = (
   db: Database,
@@ -27,16 +27,10 @@ export const FK_VALIDATORS: Record<string, FkValidator> = {
       .where(eq(pipeline.id, value as string))
       .limit(1);
     if (!pipe) {
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: 'PIPELINE_NOT_FOUND',
-      });
+      throw new NotFoundError('PIPELINE_NOT_FOUND');
     }
     if (pipe.projectId !== projectId) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'PIPELINE_NOT_IN_PROJECT',
-      });
+      throw new BadRequestError('PIPELINE_NOT_IN_PROJECT');
     }
   },
 
@@ -48,7 +42,7 @@ export const FK_VALIDATORS: Record<string, FkValidator> = {
       .where(eq(project.id, projectId))
       .limit(1);
     if (!proj) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'PROJECT_NOT_FOUND' });
+      throw new NotFoundError('PROJECT_NOT_FOUND');
     }
     const [br] = await db
       .select()
@@ -56,13 +50,10 @@ export const FK_VALIDATORS: Record<string, FkValidator> = {
       .where(eq(brand.id, value as string))
       .limit(1);
     if (!br) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'BRAND_NOT_FOUND' });
+      throw new NotFoundError('BRAND_NOT_FOUND');
     }
     if (br.orgId !== proj.orgId) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'BRAND_NOT_IN_ORG',
-      });
+      throw new BadRequestError('BRAND_NOT_IN_ORG');
     }
   },
 };

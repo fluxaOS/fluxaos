@@ -18,3 +18,29 @@ export class VersionConflictError extends Error {
     this.name = 'VersionConflictError';
   }
 }
+
+/**
+ * Caller-supplied input was invalid (maps to tRPC BAD_REQUEST). The
+ * optional `detail` carries structured context (e.g., a ValidationResult)
+ * for the router to forward.
+ */
+export class BadRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly detail?: unknown
+  ) {
+    super(message);
+    this.name = 'BadRequestError';
+  }
+}
+
+/**
+ * An invariant the service relies on was violated — a wiring/DI bug,
+ * not bad input (maps to tRPC INTERNAL_SERVER_ERROR).
+ */
+export class InternalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InternalError';
+  }
+}
