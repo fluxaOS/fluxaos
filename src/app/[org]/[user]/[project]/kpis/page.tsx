@@ -8,6 +8,7 @@ import {
   Play,
   XCircle,
 } from 'lucide-react';
+import { notFound, useParams } from 'next/navigation';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { SkeletonCard } from '@/components/skeleton';
@@ -15,13 +16,17 @@ import { StatCard } from '@/components/stat-card';
 import { trpc } from '@/lib/trpc/client';
 
 export default function KpisPage() {
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
-  );
-  const projectId = projectsQuery.data?.[0]?.id;
+  const params = useParams<{ org: string; user: string; project: string }>();
+
+  // FLX-244: resolve the project from the URL slug, not the first DB row.
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: params.project,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  if (currentProjectQuery.isSuccess && !currentProject) {
+    notFound();
+  }
+  const projectId = currentProject?.id;
 
   const kpisQuery = trpc.pipeline.runs.kpis.useQuery(
     { projectId: projectId! },
@@ -29,7 +34,7 @@ export default function KpisPage() {
   );
 
   const kpis = kpisQuery.data;
-  const isLoading = orgsQuery.isLoading || projectsQuery.isLoading;
+  const isLoading = currentProjectQuery.isLoading;
 
   if (isLoading) {
     return (

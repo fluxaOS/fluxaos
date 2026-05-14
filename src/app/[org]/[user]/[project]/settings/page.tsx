@@ -1,5 +1,6 @@
 'use client';
 
+import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -7,19 +8,21 @@ import { trpc } from '@/lib/trpc/client';
 import { StageEditor } from './StageEditor';
 
 export default function PipelineSettingsPage() {
+  const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [editingPipelineId, setEditingPipelineId] = useState<string | null>(
     null
   );
 
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
-  );
-  const projectRow = projectsQuery.data?.[0];
+  // FLX-244: resolve the project from the URL slug, not the first DB row.
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: params.project,
+  });
+  const projectRow = currentProjectQuery.data ?? null;
+  if (currentProjectQuery.isSuccess && !projectRow) {
+    notFound();
+  }
   const projectId = projectRow?.id;
   const defaultPipelineId = projectRow?.defaultPipelineId ?? null;
 
