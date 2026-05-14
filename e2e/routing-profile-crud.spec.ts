@@ -19,9 +19,11 @@ test.describe('@flx-64 @journey @routing-profile-crud', () => {
     const description = 'Spec-created profile — safe to delete.';
 
     // ── Create ────────────────────────────────────────────────────────────
+    // FLX-252: form refactored to use CreateEntityForm; aria-labels are now
+    // the field labels ("Name", "Description") instead of entity-prefixed names.
     await page.getByRole('button', { name: 'New Profile' }).click();
-    await page.getByLabel('Profile name').fill(uniqueName);
-    await page.getByLabel('Profile description').fill(description);
+    await page.getByLabel('Name').fill(uniqueName);
+    await page.getByLabel('Description').fill(description);
     await page.getByRole('button', { name: /^Create/ }).click();
 
     const row = page.locator('li', { hasText: uniqueName });

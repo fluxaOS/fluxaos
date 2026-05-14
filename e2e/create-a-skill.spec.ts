@@ -15,9 +15,11 @@ test.describe('@flx-62 @journey @skill-create', () => {
     const uniqueName = `Spec Skill ${Date.now()}`;
     const description = 'Spec-created skill — safe to delete.';
 
+    // FLX-252: form refactored to use CreateEntityForm; aria-labels are now
+    // the field labels ("Name", "Description") instead of entity-prefixed names.
     await page.getByRole('button', { name: 'New Skill' }).click();
-    await page.getByLabel('Skill name').fill(uniqueName);
-    await page.getByLabel('Skill description').fill(description);
+    await page.getByLabel('Name').fill(uniqueName);
+    await page.getByLabel('Description').fill(description);
     await page.getByRole('button', { name: 'Create', exact: true }).click();
 
     // RecordEditor renders rows as <li> with descriptor.title(s) === s.name.

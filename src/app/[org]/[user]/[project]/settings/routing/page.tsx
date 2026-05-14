@@ -4,6 +4,7 @@ import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
+import { CreateEntityForm } from '@/components/record-editor/CreateEntityForm';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
 import { trpc } from '@/lib/trpc/client';
@@ -16,8 +17,6 @@ export default function RoutingSettingsPage() {
   const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
   const [selected, setSelected] = useState<RoutingProfileRecord | null>(null);
 
   // FLX-244: resolve the org from the URL project slug, not the first DB row.
@@ -63,19 +62,6 @@ export default function RoutingSettingsPage() {
     if (selected?.id === id) setSelected(null);
   };
 
-  const onCreate = async () => {
-    if (!newName.trim() || !orgId) return;
-    await createMutation.mutateAsync({
-      orgId,
-      name: newName.trim(),
-      description: newDescription.trim() || undefined,
-    });
-    setNewName('');
-    setNewDescription('');
-    setShowCreate(false);
-    await utils.routing.listProfiles.invalidate();
-  };
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -95,44 +81,24 @@ export default function RoutingSettingsPage() {
         </div>
       ) : null}
 
-      {showCreate ? (
-        <Card padding="p-6">
-          <h3 className="text-sm font-semibold text-white mb-3">
-            New Routing Profile
-          </h3>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                aria-label="Profile name"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
-                Description
-              </label>
-              <input
-                aria-label="Profile description"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
-              disabled={!newName.trim() || createMutation.isPending}
-              onClick={onCreate}
-            >
-              Create
-            </button>
-          </div>
-        </Card>
+      {showCreate && orgId ? (
+        <CreateEntityForm
+          title="New Routing Profile"
+          fields={[
+            { key: 'name', label: 'Name', required: true },
+            { key: 'description', label: 'Description' },
+          ]}
+          onSubmit={async (vals) => {
+            await createMutation.mutateAsync({
+              orgId,
+              name: vals.name.trim(),
+              description: vals.description.trim() || undefined,
+            });
+            setShowCreate(false);
+            await utils.routing.listProfiles.invalidate();
+          }}
+          onCancel={() => setShowCreate(false)}
+        />
       ) : null}
 
       <RecordEditor<RoutingProfileRecord>

@@ -26,9 +26,11 @@ test.describe('@flx-61 @journey @team-crud', () => {
     const uniqueDesc = 'Spec-created team — safe to delete.';
 
     // ── Create ────────────────────────────────────────────────────────────
+    // FLX-252: form refactored to use CreateEntityForm; aria-labels are now
+    // the field labels ("Name", "Description") instead of entity-prefixed names.
     await page.getByRole('button', { name: 'New Team' }).click();
-    await page.getByLabel('Team name').fill(uniqueName);
-    await page.getByLabel('Team description').fill(uniqueDesc);
+    await page.getByLabel('Name').fill(uniqueName);
+    await page.getByLabel('Description').fill(uniqueDesc);
     await page.getByRole('button', { name: /^Create/ }).click();
 
     const row = page.locator('li', { hasText: uniqueName });

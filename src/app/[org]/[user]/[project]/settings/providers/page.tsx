@@ -4,6 +4,7 @@ import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
+import { CreateEntityForm } from '@/components/record-editor/CreateEntityForm';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { useCanDelete, useCanEdit } from '@/lib/auth/use-viewer-role';
 import { trpc } from '@/lib/trpc/client';
@@ -13,10 +14,6 @@ export default function ProviderSettingsPage() {
   const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState('');
-  const [newBaseUrl, setNewBaseUrl] = useState('');
-  const [newApiKeyRef, setNewApiKeyRef] = useState('');
   const [selected, setSelected] = useState<ProviderRecord | null>(null);
 
   // FLX-244: resolve the org from the URL project slug, not the first DB row.
@@ -64,23 +61,6 @@ export default function ProviderSettingsPage() {
     if (selected?.id === id) setSelected(null);
   };
 
-  const onCreate = async () => {
-    if (!newName.trim() || !newType.trim() || !orgId) return;
-    await createMutation.mutateAsync({
-      orgId,
-      name: newName.trim(),
-      type: newType.trim(),
-      baseUrl: newBaseUrl.trim() || undefined,
-      apiKeyRef: newApiKeyRef.trim() || undefined,
-    });
-    setNewName('');
-    setNewType('');
-    setNewBaseUrl('');
-    setNewApiKeyRef('');
-    setShowCreate(false);
-    await utils.provider.list.invalidate();
-  };
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -100,74 +80,37 @@ export default function ProviderSettingsPage() {
         </div>
       ) : null}
 
-      {showCreate ? (
-        <Card padding="p-6">
-          <h3 className="text-sm font-semibold text-white mb-3">
-            New Provider
-          </h3>
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-xs font-medium text-slate-400 block mb-1">
-                  Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  aria-label="Provider name"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-400 block mb-1">
-                  Type <span className="text-red-400">*</span>
-                </label>
-                <input
-                  aria-label="Provider type"
-                  placeholder="provider slug"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="text-xs font-medium text-slate-400 block mb-1">
-                  Base URL (optional)
-                </label>
-                <input
-                  aria-label="Provider base URL"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                  value={newBaseUrl}
-                  onChange={(e) => setNewBaseUrl(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-400 block mb-1">
-                  API Key Reference (optional)
-                </label>
-                <input
-                  aria-label="Provider API key reference"
-                  placeholder="env:API_KEY_NAME"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                  value={newApiKeyRef}
-                  onChange={(e) => setNewApiKeyRef(e.target.value)}
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
-              disabled={
-                !newName.trim() || !newType.trim() || createMutation.isPending
-              }
-              onClick={onCreate}
-            >
-              Create
-            </button>
-          </div>
-        </Card>
+      {showCreate && orgId ? (
+        <CreateEntityForm
+          title="New Provider"
+          fields={[
+            { key: 'name', label: 'Name', required: true },
+            {
+              key: 'type',
+              label: 'Type',
+              required: true,
+              placeholder: 'provider slug',
+            },
+            { key: 'baseUrl', label: 'Base URL (optional)' },
+            {
+              key: 'apiKeyRef',
+              label: 'API Key Reference (optional)',
+              placeholder: 'env:API_KEY_NAME',
+            },
+          ]}
+          onSubmit={async (vals) => {
+            await createMutation.mutateAsync({
+              orgId,
+              name: vals.name.trim(),
+              type: vals.type.trim(),
+              baseUrl: vals.baseUrl.trim() || undefined,
+              apiKeyRef: vals.apiKeyRef.trim() || undefined,
+            });
+            setShowCreate(false);
+            await utils.provider.list.invalidate();
+          }}
+          onCancel={() => setShowCreate(false)}
+        />
       ) : null}
 
       <RecordEditor<ProviderRecord>
