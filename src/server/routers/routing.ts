@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
+import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createRoutingService } from '@/core/services';
-import { publicProcedure, router } from '../trpc';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 export const routingRouter = router({
   listProfiles: publicProcedure
@@ -14,7 +15,7 @@ export const routingRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .query(({ ctx, input }) => createRoutingService(ctx.db).getById(input.id)),
 
-  createProfile: publicProcedure
+  createProfile: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         orgId: z.string().uuid(),
@@ -25,7 +26,7 @@ export const routingRouter = router({
     )
     .mutation(({ ctx, input }) => createRoutingService(ctx.db).create(input)),
 
-  updateProfile: publicProcedure
+  updateProfile: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         id: z.string().uuid(),
@@ -50,7 +51,7 @@ export const routingRouter = router({
       return row;
     }),
 
-  deleteProfile: publicProcedure
+  deleteProfile: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.transaction(async (tx) => {
@@ -84,7 +85,7 @@ export const routingRouter = router({
       createRoutingService(ctx.db).rules.listByProfile(input.profileId)
     ),
 
-  createRule: publicProcedure
+  createRule: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         profileId: z.string().uuid(),
@@ -113,7 +114,7 @@ export const routingRouter = router({
       createRoutingService(ctx.db).rules.create(input)
     ),
 
-  deleteRule: publicProcedure
+  deleteRule: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid() }))
     .mutation(({ ctx, input }) =>
       createRoutingService(ctx.db).rules.remove(input.id)

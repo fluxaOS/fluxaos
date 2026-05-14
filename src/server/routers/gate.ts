@@ -6,8 +6,9 @@
  * - Test-evaluating rules against mock context (no persistence)
  */
 import { z } from 'zod/v4';
+import { EDIT_ROLES } from '@/core/features/roles';
 import { createGateService } from '@/core/gates/service';
-import { publicProcedure, router } from '../trpc';
+import { protectedMutation, publicProcedure, router } from '../trpc';
 
 // ─── Zod schemas for rule structures ────────────────────────────────────────
 
@@ -56,7 +57,7 @@ export const gateRouter = router({
    * Evaluate the gate for a pipeline stage run.
    * Reads gateMode + gateRules from DB, evaluates, persists audit result.
    */
-  evaluate: publicProcedure
+  evaluate: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         stageId: z.string().uuid(),
