@@ -28,13 +28,16 @@ test.describe('@flx-208 @journey @settings-projects-help-text', () => {
 
     // Both descriptor.helpText values render via RecordField's
     // helpTextNode (data-testid="help-<fieldKey>"). No edit click needed
-    // — readonly fields show the sub-label in the default viewing state.
+    // — the sub-label shows in the default viewing state for both readonly
+    // and select-id fields.
     const targetRepoHelp = page.getByTestId('help-targetRepoPath');
     await expect(targetRepoHelp).toBeVisible({ timeout: 5_000 });
     await expect(targetRepoHelp).toContainText('Absolute path');
     await expect(targetRepoHelp).toContainText('isolation worktree');
 
-    const defaultPipelineHelp = page.getByTestId('help-defaultPipelineName');
+    // FLX-207 renamed this field from `defaultPipelineName` (readonly) to
+    // `defaultPipelineId` (select-id). The testid follows the field key.
+    const defaultPipelineHelp = page.getByTestId('help-defaultPipelineId');
     await expect(defaultPipelineHelp).toBeVisible();
     await expect(defaultPipelineHelp).toContainText('Pipeline used when');
   });
