@@ -1,6 +1,7 @@
 // src/app/[org]/[user]/[project]/settings/users/page.tsx
 'use client';
 
+import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
@@ -10,9 +11,18 @@ import { trpc } from '@/lib/trpc/client';
 import { type UserRecord, userDescriptor } from './descriptor';
 
 export default function UsersSettingsPage() {
+  const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
+
+  // FLX-244: resolve the org from the URL project slug, not the first DB row.
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: params.project,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  if (currentProjectQuery.isSuccess && !currentProject) {
+    notFound();
+  }
+  const orgId = currentProject?.orgId;
 
   const listQuery = trpc.user.listByOrg.useQuery(
     { orgId: orgId! },

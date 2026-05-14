@@ -1,5 +1,6 @@
 'use client';
 
+import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
@@ -12,14 +13,22 @@ import {
 } from './descriptor';
 
 export default function RoutingSettingsPage() {
+  const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [selected, setSelected] = useState<RoutingProfileRecord | null>(null);
 
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
+  // FLX-244: resolve the org from the URL project slug, not the first DB row.
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: params.project,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  if (currentProjectQuery.isSuccess && !currentProject) {
+    notFound();
+  }
+  const orgId = currentProject?.orgId;
 
   const profilesQuery = trpc.routing.listProfiles.useQuery(
     { orgId: orgId! },

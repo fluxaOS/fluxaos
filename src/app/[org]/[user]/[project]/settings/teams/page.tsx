@@ -1,5 +1,6 @@
 'use client';
 
+import { notFound, useParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { PageHeader } from '@/components/page-header';
@@ -9,18 +10,21 @@ import { trpc } from '@/lib/trpc/client';
 import { type TeamRecord, teamDescriptor } from './descriptor';
 
 export default function TeamsSettingsPage() {
+  const params = useParams<{ org: string; user: string; project: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
 
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
-  );
-  const projectId = projectsQuery.data?.[0]?.id;
+  // FLX-244: resolve the project from the URL slug, not the first DB row.
+  const currentProjectQuery = trpc.project.getBySlug.useQuery({
+    slug: params.project,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  if (currentProjectQuery.isSuccess && !currentProject) {
+    notFound();
+  }
+  const projectId = currentProject?.id;
 
   const teamsQuery = trpc.team.listByProject.useQuery(
     { projectId: projectId! },
