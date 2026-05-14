@@ -486,6 +486,7 @@ export async function executeStageRun(
         {
           stageRunId: sRun.id,
           stageName: stage.name,
+          skillSignal: synthSignal,
           reason,
           exitCode: result.exitCode,
         },
