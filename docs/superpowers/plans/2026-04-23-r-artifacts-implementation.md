@@ -1,4 +1,6 @@
-# R-ARTIFACTS — Implementation plan
+# R-ARTIFACTS Implementation Plan
+
+> **Historical / superseded note (FLX-257):** This plan predates the DB-backed runtime config migration. Mentions of `FLUXAOS_ARTIFACTS_ROOT`, `FLUXAOS_WORKSPACE_ROOT`, and `FLUXAOS_CLEANUP_*` document the implementation path at the time, not active operator config. Current artifact/worktree/cleanup knobs are DB rows (`runtime.artifacts_root`, `runtime.workspace_root`, `cleanup.*`).
 
 **Date:** 2026-04-23
 **Spec:** [`../specs/2026-04-23-r-artifacts-design.md`](../specs/2026-04-23-r-artifacts-design.md)

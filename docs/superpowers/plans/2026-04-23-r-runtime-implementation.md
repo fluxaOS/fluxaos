@@ -1,4 +1,6 @@
-# R-RUNTIME — Implementation Plan
+# R-RUNTIME Implementation Plan
+
+> **Historical / superseded note (FLX-257):** This plan predates the DB-backed runtime config migration. Any references below to `FLUXAOS_TARGET_REPO_PATH`, `FLUXAOS_WORKSPACE_ROOT`, or `FLUXAOS_CLEANUP_*` are retained as implementation history, not current operator guidance. Current runtime source of truth is `project.target_repo_path`, `runtime.workspace_root`, `runtime.artifacts_root`, and `cleanup.*` DB config rows; see `README.md`, `CLAUDE.md`, and `docs/session-quick-start.md`.
 
 **Date:** 2026-04-23
 **Status:** Plan proposed; execution pending

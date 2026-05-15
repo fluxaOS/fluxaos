@@ -1,6 +1,8 @@
 # User Docs + Doc-Drift Prevention Implementation Plan
 
 > **Historical note (FLX-153 follow-up):** This implementation plan predates the DB-first pipeline migration and contains stale YAML-playbook references (`reference/playbook-schema.md`, `src/core/pipeline/playbook.ts`, and `FLUXAOS_BUNDLED_PIPELINES_DIR`). Do not treat those references as current product behavior; live docs now describe database-backed pipelines and `pipeline_stage.onPass` / `onFail` / `fallback` routing.
+>
+> **Runtime-config note (FLX-257):** This same plan also predates FLX-221..224 moving runtime deploy paths and cleanup policy to the database. The env-var tables below are retained as historical plan text; current operator docs live in `README.md`, `docs/session-quick-start.md`, `ops/README.md`, and `website/docs-site/docs/reference/env-vars.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

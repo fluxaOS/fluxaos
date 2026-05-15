@@ -105,7 +105,7 @@ Linear is the source of truth for issues, deferred fixes, and post-alpha roadmap
 - **Workspace:** `rebos`
 - **Team:** `fluxaOS` (key `FLX`)
 - **Projects:**
-  - **fluxaOS Post-Alpha Roadmap** — workstreams after alpha shipped 2026-04-25
+  - **fluxaOS Post-Alpha Roadmap** — parked post-alpha workstreams; alpha is not shipped until the verification matrix is fully green
   - **fluxaOS Deferred Fixes** — non-blocking cleanup and follow-ups
 - **Access:** Linear MCP only. No CLI. List issues with `mcp__plugin_linear_linear__list_issues`, save with `mcp__plugin_linear_linear__save_issue`.
 - **Branch convention:** `flx-NNN-short-slug` (e.g., `flx-42-fix-realtime-leak`).
