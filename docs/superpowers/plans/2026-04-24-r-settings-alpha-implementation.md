@@ -1,4 +1,6 @@
-# R-SETTINGS-ALPHA — Implementation plan
+# R-SETTINGS-ALPHA Implementation Plan
+
+> **Historical / superseded note (FLX-257):** This alpha settings plan reflects the pre-FLX-221 world where `FLUXAOS_TARGET_REPO_PATH` was env-backed and surfaced read-only. Current code stores the target clone path on `project.target_repo_path` and edits it through Settings → Projects. Treat the env-var instructions below as historical context only.
 
 **Date:** 2026-04-24
 **Spec:** [`../specs/2026-04-24-r-settings-alpha-design.md`](../specs/2026-04-24-r-settings-alpha-design.md)

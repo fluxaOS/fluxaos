@@ -1,4 +1,6 @@
-# FLX-100 — Production Docker Setup
+# FLX-100 Production Docker Design
+
+> **Historical / superseded note (FLX-257):** This design predates the DB-backed runtime config migration. `FLUXAOS_TARGET_REPO_PATH`, `FLUXAOS_WORKSPACE_ROOT`, and `FLUXAOS_ARTIFACTS_ROOT` references below are now Docker preflight/history, not app runtime config.
 
 **Status:** Design
 **Linear:** [FLX-100](https://linear.app/rebos/issue/FLX-100)

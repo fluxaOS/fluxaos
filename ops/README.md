@@ -40,7 +40,7 @@ git -C /mnt/stacks/docker/fluxaos/source remote set-url origin git@github.com:fl
 git -C /mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos remote set-url origin git@github.com:fluxaOS/fluxaos.git
 ```
 
-The target clone should be the intended repository and clean on the expected base branch before rehearsal. In the template env, `FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos` maps inside the containers to the host path `/mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos`; the daemon writes deploy branches and worktrees against that target repo.
+The target clone should be the intended repository and clean on the expected base branch before rehearsal. Runtime target selection is DB-backed now: after migrations/seeding, set `project.target_repo_path` to the container-visible path (for the homelab template, `/repos/fluxaOS/fluxaos`, which maps to host path `/mnt/stacks/docker/fluxaos/repos/fluxaOS/fluxaos`). The daemon writes deploy branches and worktrees against that DB row; the old `FLUXAOS_TARGET_REPO_PATH` env name is only a Docker build-script preflight shim until FLX-258 removes the last test/preflight dependency.
 
 Configure the target clone for production Git writes before running `build.sh`:
 
@@ -61,7 +61,14 @@ cp /mnt/stacks/docker/fluxaos/source/ops/docker/homelab/build.sh /mnt/stacks/doc
 chmod +x /mnt/stacks/docker/fluxaos/build.sh
 ```
 
-Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, daemon, and cleanup values.
+Fill `/mnt/stacks/docker/fluxaos/fluxaos.env` with real Supabase, AI provider, GitHub, Redis, and daemon values.
+`build.sh` still requires the three legacy path envs in this template for stack preflight only:
+
+- `FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos` — checks the mounted target clone before deploy.
+- `FLUXAOS_WORKSPACE_ROOT=/runtime/worktrees` — checks the mounted worktree directory.
+- `FLUXAOS_ARTIFACTS_ROOT=/runtime/artifacts` — checks the mounted artifact directory.
+
+Those envs are not the app runtime source of truth. After `npm run db:migrate:prod` / `npm run db:seed`, configure `project.target_repo_path`, `runtime.workspace_root`, `runtime.artifacts_root`, and `cleanup.*` in the database via Settings or SQL.
 Use the Compose-visible Redis hostname in production, for example `redis://:password@central_redis:6379` when the shared Redis requires auth.
 
 Deploy or update:
@@ -130,7 +137,7 @@ journalctl --user -u fluxaos-daemon -f
 systemctl --user status fluxaos-daemon
 ```
 
-The unit file uses `%h/dev/fluxaos` for the repo path. Adjust if you checked out elsewhere. `Restart=always` means the daemon comes back automatically on crash; `KillMode=mixed + TimeoutStopSec=120` gives SIGTERM-then-SIGKILL semantics with a 2-minute drain window (align with `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS`).
+The unit file uses `%h/dev/fluxaos` for the repo path. Adjust if you checked out elsewhere. `Restart=always` means the daemon comes back automatically on crash; `KillMode=mixed + TimeoutStopSec=120` gives SIGTERM-then-SIGKILL semantics with a 2-minute drain window (align with `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS`). Runtime paths and cleanup thresholds are DB-backed rows, not daemon env vars.
 
 ### Sentinel log line
 
@@ -140,7 +147,7 @@ On ready the daemon prints one plain-text line:
 daemon.started orchestrator=running cleanup=<running|disabled> recovery_sweep=<enabled|disabled>
 ```
 
-`cleanup=disabled` means the four `FLUXAOS_CLEANUP_*` envs are not all set; the cleanup scheduler is a no-op until they are. `recovery_sweep=disabled` means `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` is unset; startup-only sweep still runs.
+`cleanup=disabled` means the DB `cleanup.scheduler_enabled` row is false; the cleanup scheduler is a no-op until that row is set true and the daemon restarts. `recovery_sweep=disabled` means `FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN` is unset; startup-only sweep still runs.
 
 ### Foreground dev loop
 

@@ -2,7 +2,7 @@
 
 AI orchestration OS — a config-driven engine that runs pipelines of AI-powered stages against issues. File an issue, the daemon picks it up, the worker runs in an isolated git worktree, and a PR opens on your repo.
 
-> **Status:** Alpha in progress — the engine is assembled, but alpha is **not shipped** until the verification matrix is fully green. Current scope remains one operator, one project, one git provider (GitHub), Anthropic-only.
+> **Status:** Alpha is **not shipped**. The engine is assembled and the project is in alpha-verification / post-alpha-roadmap triage: code for the file-issue → daemon-run → PR-open loop exists, but the alpha label waits on the verification matrix going fully green. Current scope remains one operator, one project, one git provider (GitHub), Anthropic-only.
 
 ## What is fluxaOS?
 
