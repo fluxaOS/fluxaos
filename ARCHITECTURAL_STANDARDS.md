@@ -109,7 +109,60 @@ Run ' install' to create configuration.
 
 ---
 
-## 3. Config-Driven & Modular
+## 3. No Legacy Support
+
+**This is a one-user homelab. Clean break is always preferred.**
+
+There are no external consumers, no production deployments to migrate, no users running old versions of fluxaos. Every "preserve compatibility" instinct from enterprise software engineering is wrong here.
+
+### Bad (Legacy/Compatibility Code)
+```python
+# BAD: dual-mode adapter "during the transitional release"
+class LegacyCommandPlugin:
+    """Adapter wrapping the old config format..."""
+
+# BAD: re-export shim for backwards compatibility
+def get_client(*args, **kwargs):
+    """Kept for backward compatibility — use create_platform_client instead."""
+    return create_platform_client(*args, **kwargs)
+
+# BAD: dual-mode branch
+if legacy_config_present:
+    config = _bridge_legacy_forgejo(raw)
+else:
+    config = raw
+```
+
+### Good (Clean Break)
+```python
+# GOOD: delete the old thing in the same PR as the new one
+# (no LegacyCommandPlugin — verify commands go through proper plugins)
+# (no get_client shim — call sites updated to create_platform_client)
+# (no _bridge_legacy_forgejo — config schema migrated, old key rejected)
+```
+
+### Rules
+- No backwards-compatibility shims
+- No transitional adapters ("during the transitional release...")
+- No dual-mode code paths that keep both old and new working
+- No `legacy_*` / `Legacy*` modules, classes, or branches
+- No re-exports / aliases / wrappers existing only to keep old call sites working
+- No "for backwards compat" / "preserve old behavior" comments
+- When something is replaced, the old thing is deleted in the **same PR**
+- When agents propose a shim or migration path that keeps the old way working, refuse and propose the clean break
+- If the change is genuinely too large for one PR, file an EPIC that sequences **delete-then-replace** (not add-then-deprecate-then-delete)
+
+### Enforcement
+- `plan-review` and `review` skills scan plans/PRs for "legacy" / "transitional" / "compatibility shim" / "for backwards compat" language and reject.
+- Pre-commit hook may grow a check that fails on commit messages or new files containing these markers (deferred — not part of #3449).
+
+### See Also
+- Memory: `feedback_no_legacy_support`, `feedback_clean_break_preferred`
+- Issue #3449 — the audit that established this standard
+
+---
+
+## 4. Config-Driven & Modular
 
 **Everything must be configurable without code changes.**
 
@@ -149,7 +202,7 @@ def get_files():
 
 ---
 
-## 4. Dynamic Path Construction
+## 5. Dynamic Path Construction
 
 **All paths must be built dynamically from config.**
 
@@ -203,7 +256,7 @@ XDG_CONFIG_HOME=/custom/config   # Standard XDG override
 
 ---
 
-## 5. DRY Principles
+## 6. DRY Principles
 
 **Don't Repeat Yourself - Reuse code, don't duplicate.**
 
@@ -258,7 +311,7 @@ sync_files(source, target_b, '*.md')
 
 ---
 
-## 6. Consistent CLI Output
+## 7. Consistent CLI Output
 
 **Use output helpers for all user-facing messages.**
 
@@ -415,7 +468,7 @@ Before submitting code, verify:
 
 ---
 
-## 7. File Size Limit (~500 Lines)
+## 8. File Size Limit (~500 Lines)
 
 **Keep files small and focused - maximum ~500 lines per file.**
 
@@ -491,7 +544,7 @@ class Service:
 
 ---
 
-## 8. CLI Help Maintenance
+## 9. CLI Help Maintenance
 
 **Manually maintained help text must be kept up-to-date.**
 
@@ -530,7 +583,7 @@ All native git stash options are supported.''',
 
 ---
 
-## 9. Logging Patterns
+## 10. Logging Patterns
 
 **Use project logger helpers, not logging.basicConfig().**
 
@@ -574,7 +627,7 @@ logger.info("Processing started")
 
 ---
 
-## 10. Real-World Testing Only — No Mocks
+## 11. Real-World Testing Only — No Mocks
 
 **All tests must run real commands and verify real output. Mock testing is banned.**
 
@@ -647,7 +700,7 @@ See `docs/TESTING.md` and `.claude/E2E_TEST_STANDARDS.md` for detailed standards
 
 ---
 
-## 11. Schema-Driven UI (Webapp Projects)
+## 12. Schema-Driven UI (Webapp Projects)
 
 **Settings pages must use dynamic form schemas.**
 
@@ -693,7 +746,7 @@ form_html = DynamicFormHelper.render(schema, current_values)
 
 ---
 
-## 12. Webapp Response Patterns
+## 13. Webapp Response Patterns
 
 **Use shared response helpers in blueprints.**
 
@@ -759,7 +812,7 @@ def save():
 
 ---
 
-## 13. Webapp-Managed Service Registration
+## 14. Webapp-Managed Service Registration
 
 **Services with webapp settings pages MUST register via their blueprint.**
 
@@ -799,7 +852,7 @@ def save():
 
 ---
 
-## 14. CLI Framework Patterns
+## 15. CLI Framework Patterns
 
 **CLI commands must follow the CliApp framework conventions.**
 
