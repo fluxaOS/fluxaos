@@ -5,9 +5,22 @@
 // page, opens the create form, fills required fields, submits, and asserts
 // the new row appears in the RecordEditor list.
 
+import { cleanupFlx252CreateEntityRows } from './helpers/catalog-cleanup';
 import { expect, projectPath, test } from './helpers/setup';
 
 test.describe('@flx-252 @journey @create-entity-form', () => {
+  test.beforeAll(async () => {
+    await cleanupFlx252CreateEntityRows();
+  });
+
+  test.afterEach(async () => {
+    await cleanupFlx252CreateEntityRows();
+  });
+
+  test.afterAll(async () => {
+    await cleanupFlx252CreateEntityRows();
+  });
+
   test('Routing Profiles: CreateEntityForm creates a new profile', async ({
     page,
   }) => {
