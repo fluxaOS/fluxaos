@@ -61,6 +61,9 @@ SIZE_EXEMPT_FILES=(
   # makeRoom) share fixtures and invariants. Splitting fragments the
   # release-flow contract between triggers.
   "src/core/cleanup/cleanup-service.ts"
+  # Cleanup fixtures: shared DB teardown helpers across integration suites.
+  # Splitting would duplicate delete-order invariants and FK cleanup sequencing.
+  "src/__tests__/integration/cleanup-fixtures.ts"
   # Pipeline router: owns pipeline CRUD, stage CRUD, and all run-lifecycle
   # mutations (trigger, cancel, approve, reject, execute) in one cohesive
   # surface. Splitting separates tightly coupled run-lifecycle helpers

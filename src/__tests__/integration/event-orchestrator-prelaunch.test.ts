@@ -57,7 +57,7 @@ describe('FLX-94 pre-launch stage failures', () => {
       },
       async broadcast() {},
     } satisfies RealtimeProvider;
-    const executor: StageExecutor = {
+    const _executor: StageExecutor = {
       async execute() {
         throw new Error('executor should not launch without target repo path');
       },

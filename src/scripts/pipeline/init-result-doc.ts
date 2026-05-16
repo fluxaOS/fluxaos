@@ -1,7 +1,7 @@
 import 'dotenv/config';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { mkdirSync, writeFileSync } from 'fs';
-import { dirname } from 'path';
 import {
   issue,
   organization,

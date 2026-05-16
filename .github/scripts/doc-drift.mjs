@@ -12,7 +12,7 @@
 //   MAP_FILE        — path to doc-drift-map.yml (default: .github/doc-drift-map.yml)
 //   SKIP_LLM        — set to "true" to disable the LLM nudge layer (hard gate still runs)
 
-import fs from 'fs';
+import fs from 'node:fs';
 import { load as yamlLoad } from 'js-yaml';
 
 const changedFiles = (process.env.CHANGED_FILES || '')
@@ -47,7 +47,7 @@ const violations = [];
 
 for (const entry of map.critical) {
   const sourceChanged = changedFiles.some(
-    (f) => f === entry.match || f.startsWith(entry.match + '/')
+    (f) => f === entry.match || f.startsWith(`${entry.match}/`)
   );
   if (!sourceChanged) continue;
 

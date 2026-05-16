@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { test } from '@playwright/test';
 
 test('capture hydration errors on dashboard', async ({ page }) => {
   const hydrationErrors: string[] = [];

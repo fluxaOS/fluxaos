@@ -341,7 +341,7 @@ describe('WorktreeIsolationProvider', () => {
         })
         .returning();
 
-      const env = await isolationProvider.acquire({
+      const _env = await isolationProvider.acquire({
         projectId,
         runId: run.id,
         repoPath: freshRepo,

@@ -399,7 +399,7 @@ export async function deleteOrgFixture(
           .catch(() => [])
       : [];
 
-  const skillIds: string[] =
+  const _skillIds: string[] =
     projectIds.length > 0
       ? await db
           .select({ id: schema.skill.id })
