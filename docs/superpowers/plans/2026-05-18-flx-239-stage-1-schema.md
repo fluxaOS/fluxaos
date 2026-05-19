@@ -1048,7 +1048,9 @@ If `db:migrate` fails:
 
 - [ ] **Step 4.2: Verify the trigger works**
 
-Run via psql or `npx tsx -e`. Wrap in a transaction so any failure rolls back cleanly without leaving audit rows behind:
+Run via psql or `npx tsx -e`. Wrap in a transaction so any failure rolls back cleanly without leaving audit rows behind.
+
+The INSERT into `project` deliberately omits `org_id`. Postgres evaluates `NOT NULL` constraints AFTER `BEFORE INSERT` triggers fire, so the trigger gets to populate `NEW.org_id` from `team.org_id` before the constraint check runs. If the trigger is missing or broken, the INSERT fails with a NOT NULL violation — which is the test outcome we want to catch:
 
 ```sql
 BEGIN;
@@ -1116,7 +1118,9 @@ const tables = [
 ];
 ```
 
-Insert `'project_member',` after `'team_member',` (around line 65), and insert `'customer',` as the LAST entry (after `'organization',`):
+Insert `'project_member',` after `'team_member',` (around line 65), and insert `'customer',` as the LAST entry (after `'organization',`).
+
+Note: `organization.customer_id` is nullable with NO FK constraint (per spec — placeholder). The deletion order between organization and customer is therefore logical, not enforced by the database. Listing customer last just keeps the convention of "parents after children" readable.
 
 ```typescript
 const tables = [
@@ -1234,9 +1238,12 @@ Do NOT skip the top-level `test.describe(...)`. Do NOT skip Routing Profiles or 
 Open `e2e/settings-url-context.spec.ts`. Same treatment:
 
 ```typescript
-// FLX-239 Stage 1: this spec creates a project via project.create with a
-// userId field (dropped in the schema migration) and navigates to the
-// old /{org}/{user}/{project} URL tree. Scheduled for rewrite in Stage 7.
+// FLX-239 Stage 1: this spec fails for two compounding reasons:
+//   (1) its beforeAll calls project.create with `userId` — column dropped
+//       in Stage 1 schema; router shape updated in Stage 5.
+//   (2) it navigates to /{org}/{user}/{scratch}/settings/teams — old URL
+//       tree, dropped in Stage 4 (with the 307 redirect scaffold).
+// Both must be addressed before the spec runs again; rewrite in Stage 7.
 test.describe.skip('settings URL context', () => {
 ```
 
