@@ -145,7 +145,25 @@ The audit runs automatically:
 - **At every Claude Code SessionStart** via `.claude/hooks/session-start-audit.sh` (advisory, non-blocking — surfaces orphans the moment the agent kicks off).
 - **After every merge into `main`** via `ops/git-hooks/post-merge` (auto-prunes ORPHAN-MERGED branches; leaves dangling branches for human attention).
 
-**Stash convention:** `git stash push -m "<owner>: <reason>"` — unnamed stashes are flagged as orphans. Use `WIP:` or `PROTECTED:` prefixes for short-lived or never-drop entries.
+**No stash in agent workflows:** `git stash` operates on the repo, not the worktree — agent B can pop agent A's stash silently. Agents must not use stash; use temp commits instead. The pre-push hook fails on any stash that is not prefixed `PROTECTED:` (the human escape hatch).
+
+Commit-based recipes for the three legitimate "set aside" cases:
+
+```bash
+# Pull while dirty
+git commit -am "wip: pre-pull"
+git pull --rebase origin main
+git reset --soft HEAD~1
+
+# Inspect main mid-edit — diff in place, or open a second worktree
+git diff main..HEAD -- <path>
+# or:
+git worktree add /tmp/inspect-main main && cd /tmp/inspect-main
+
+# Recoverable abandon — commit it on the branch, then move on
+git commit -am "wip: abandoned approach"
+git checkout main   # branch retains the wip commit; cherry-pick later or drop
+```
 
 ## Editing This File
 
