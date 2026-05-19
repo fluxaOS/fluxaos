@@ -208,7 +208,7 @@ async function createRouting(orgId: string, stageName: string) {
     .insert(schema.provider)
     .values({ orgId, name: `Issue Events Provider ${RUN}`, type: 'test' })
     .returning();
-  const [modelRow] = await db
+  const [_modelRow] = await db
     .insert(schema.model)
     .values({
       providerId: providerRow.id,

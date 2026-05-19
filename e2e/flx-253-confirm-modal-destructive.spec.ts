@@ -63,7 +63,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     // Playwright would auto-dismiss it and the following assertion would fail
     // because the stage would be gone.
     page.on('dialog', () => {
-      throw new Error('Native dialog appeared — window.confirm was not replaced');
+      throw new Error(
+        'Native dialog appeared — window.confirm was not replaced'
+      );
     });
 
     // Click Delete → ConfirmModal should appear.
@@ -82,9 +84,10 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     await row.getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
     await page.getByTestId('confirm-modal-confirm').click();
-    await expect(
-      pipeline.locator('tr', { hasText: stageName })
-    ).toHaveCount(0, { timeout: 10_000 });
+    await expect(pipeline.locator('tr', { hasText: stageName })).toHaveCount(
+      0,
+      { timeout: 10_000 }
+    );
   });
 
   test('StageEditor: Delete stage — Confirm removes stage; no native dialog fires', async ({
@@ -108,7 +111,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     await expect(row).toBeVisible({ timeout: 10_000 });
 
     page.on('dialog', () => {
-      throw new Error('Native dialog appeared — window.confirm was not replaced');
+      throw new Error(
+        'Native dialog appeared — window.confirm was not replaced'
+      );
     });
 
     await row.getByRole('button', { name: 'Delete' }).click();
@@ -120,9 +125,10 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     // Confirm → stage gone.
     await page.getByTestId('confirm-modal-confirm').click();
     await expect(modal).not.toBeVisible({ timeout: 5_000 });
-    await expect(
-      pipeline.locator('tr', { hasText: stageName })
-    ).toHaveCount(0, { timeout: 10_000 });
+    await expect(pipeline.locator('tr', { hasText: stageName })).toHaveCount(
+      0,
+      { timeout: 10_000 }
+    );
   });
 
   // ── RecordEditor ───────────────────────────────────────────────────────────
@@ -132,9 +138,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
   }) => {
     // Use the Skills settings page (RecordEditor with multiple records from seed).
     await page.goto(projectPath('/settings/skills'));
-    await expect(
-      page.getByRole('heading', { name: /skills/i })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /skills/i })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Wait for records to load — need at least 2 skills from seed.
     const listItems = page.locator('ul li');
@@ -157,7 +163,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
 
     page.on('dialog', () => {
-      throw new Error('Native dialog appeared — window.confirm was not replaced');
+      throw new Error(
+        'Native dialog appeared — window.confirm was not replaced'
+      );
     });
 
     // Click a different record while in editing mode → ConfirmModal should appear.
@@ -184,9 +192,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     page,
   }) => {
     await page.goto(projectPath('/settings/skills'));
-    await expect(
-      page.getByRole('heading', { name: /skills/i })
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /skills/i })).toBeVisible({
+      timeout: 15_000,
+    });
 
     const listItems = page.locator('ul li');
     await expect(listItems).toHaveCount(2, { timeout: 10_000 });
@@ -203,7 +211,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
 
     page.on('dialog', () => {
-      throw new Error('Native dialog appeared — window.confirm was not replaced');
+      throw new Error(
+        'Native dialog appeared — window.confirm was not replaced'
+      );
     });
 
     // Click second record while editing → ConfirmModal.

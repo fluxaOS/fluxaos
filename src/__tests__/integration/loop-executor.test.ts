@@ -3,7 +3,7 @@ import type { LoopExecutorInput } from '@/core/agents/loop-executor';
 import { runLoopExecutor } from '@/core/agents/loop-executor';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
 
-function makeRunner(impl: StageGraphRunner['run']): StageGraphRunner {
+function _makeRunner(impl: StageGraphRunner['run']): StageGraphRunner {
   return { run: vi.fn(impl) };
 }
 

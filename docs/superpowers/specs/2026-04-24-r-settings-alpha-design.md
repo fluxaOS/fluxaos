@@ -1,5 +1,7 @@
 # R-SETTINGS-ALPHA — Minimum Config Surface
 
+> **Historical / superseded note (FLX-257):** This design predates FLX-221. It intentionally left the target repo path in `FLUXAOS_TARGET_REPO_PATH`; current code moved that value to `project.target_repo_path` and makes it editable in Settings → Projects. Keep the env-backed sections below as audit history, not current guidance.
+
 **Phase:** R-SETTINGS-ALPHA
 **Status:** SPEC
 **Created:** 2026-04-24

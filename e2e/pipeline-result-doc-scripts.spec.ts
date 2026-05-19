@@ -1,5 +1,5 @@
+import { execSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
-import { execSync } from 'child_process';
 
 test('init-result-doc script: exits cleanly when help requested', async () => {
   const result = execSync(

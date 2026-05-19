@@ -392,7 +392,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
   async function applyVerdict(
     run: typeof pipelineRun.$inferSelect,
     stage: typeof pipelineStage.$inferSelect,
-    sRun: typeof stageRun.$inferSelect,
+    _sRun: typeof stageRun.$inferSelect,
     verdict: string,
     signalReason?: string | null,
     signalMeta?: Record<string, unknown> | null

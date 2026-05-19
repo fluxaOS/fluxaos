@@ -388,7 +388,7 @@ async function createRoutingFixture(stageName: string) {
     })
     .returning();
 
-  const [modelRow] = await db
+  const [_modelRow] = await db
     .insert(schema.model)
     .values({
       providerId: providerRow.id,

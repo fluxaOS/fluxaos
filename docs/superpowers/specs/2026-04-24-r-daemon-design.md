@@ -1,4 +1,6 @@
-# R-DAEMON — Long-Running Orchestrator Process
+# R-DAEMON — Long-Running Orchestrator Daemon
+
+> **Historical / superseded note (FLX-257):** Runtime target/worktree/artifact/cleanup config moved from env to DB rows after this design. `FLUXAOS_GITHUB_TOKEN` and daemon shutdown/recovery envs remain current; references below to `FLUXAOS_TARGET_REPO_PATH` and cleanup-scheduler envs are historical.
 
 **Phase:** R-DAEMON
 **Status:** SPEC

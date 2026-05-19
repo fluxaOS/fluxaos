@@ -173,6 +173,7 @@ assertExcludes('ops/docker/homelab/docker-compose.yml', compose, '  redis:');
 const env = read('ops/docker/homelab/fluxaos.env.example');
 for (const expected of [
   'REDIS_URL=redis://:replace-me@central_redis:6379',
+  '# Docker build-script preflight shims only. Runtime values live in DB rows:',
   'FLUXAOS_TARGET_REPO_PATH=/repos/fluxaOS/fluxaos',
   'FLUXAOS_WORKSPACE_ROOT=/runtime/worktrees',
   'FLUXAOS_ARTIFACTS_ROOT=/runtime/artifacts',
@@ -308,10 +309,6 @@ try {
     'FLUXAOS_WORKSPACE_ROOT:',
     'FLUXAOS_ARTIFACTS_ROOT:',
     'FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS:',
-    'FLUXAOS_CLEANUP_SWEEP_INTERVAL_MIN:',
-    'FLUXAOS_CLEANUP_STALE_DAYS:',
-    'FLUXAOS_CLEANUP_SESSION_RETENTION_DAYS:',
-    'FLUXAOS_CLEANUP_ARTIFACTS_RETENTION_DAYS:',
   ];
 
   const webBlock = serviceBlock(normalizedCompose, 'fluxaos-web');

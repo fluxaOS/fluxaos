@@ -1,5 +1,7 @@
 # FLX-100 Production Docker — Repair and Complete
 
+> **Historical / superseded note (FLX-257):** This plan captured the first production-Docker rehearsal before runtime path/cleanup knobs moved to DB-backed config. Legacy env names in the steps below are implementation history or Docker preflight shims only; current runtime config is DB-owned.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete the FLX-100 production Docker instance by closing three spec gaps (SSH Git auth, authenticated Redis, Playwright root-redirect coverage) and running a real `build.sh` deployment that produces a working instance at `http://192.168.54.101:3003`.

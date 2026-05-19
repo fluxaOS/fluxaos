@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { type ResultDoc, validateResultDoc } from '@/core/pipeline/result-doc';
 
 async function main() {

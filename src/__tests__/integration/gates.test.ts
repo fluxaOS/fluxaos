@@ -665,7 +665,7 @@ describe('gate service — evaluateStageGate', () => {
     expect(latest.reason).toBe('all rules passed');
 
     // Track for cleanup
-    for (const r of results) {
+    for (const _r of results) {
     }
   });
 

@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { createGitOps } from '@/adapters/git/git-ops';
 import { createWorktreeIsolationProvider } from '@/adapters/git/worktree-isolation-provider';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
