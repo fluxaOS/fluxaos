@@ -218,6 +218,13 @@
       "when": 1778515380000,
       "tag": "0029_flx_221_project_target_repo_path",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1778515440000,
+      "tag": "0030_flx_239_tenancy_waterfall",
+      "breakpoints": true
     }
   ]
 }

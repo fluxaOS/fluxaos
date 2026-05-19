@@ -1,0 +1,7 @@
+=== FLX-239 Stage 1 — RLS audit ===
+Date: 2026-05-19T08:28:22.367Z
+DB host: postgresql://postgres.dpdjlnpvxkepkwzwuvim:***@aws-1-us-west-2.pooler.supabase.com:5432/postgres...
+
+Rows: 0
+
+NO RLS policies reference team or team_member tables. No DROP POLICY needed in migration.
