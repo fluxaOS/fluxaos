@@ -165,7 +165,7 @@ Inserts are explicit at the layer being defined. No cascade-write. No backfill. 
 ### Added
 
 - `customer` table (placeholder, see above).
-- New `team` table: `id, org_id NOT NULL, name, description, created_at, updated_at`.
+- New `team` table: `id, org_id NOT NULL, name, description, version, created_at, updated_at` (`version` is the optimistic-concurrency column required by RecordEditor per FLX-124, matching the pattern used by other CRUD entities).
 - New `team_member` table: `(user_id, team_id, role) PRIMARY KEY (user_id, team_id)`.
 - New `project_member` table: `(user_id, project_id, role) PRIMARY KEY (user_id, project_id)`.
 - `project.team_id NOT NULL` — every project belongs to a team.
@@ -176,6 +176,7 @@ Inserts are explicit at the layer being defined. No cascade-write. No backfill. 
 - `user.org_id`: still required.
 - `organization.customer_id`: new nullable column (no FK, no NOT NULL).
 - `project.org_id`: kept and denormalized from `team.org_id` for query speed. Postgres CHECK can't reference other rows, so enforcement is via a `BEFORE INSERT OR UPDATE ON project` trigger that **overwrites** `project.org_id` from `team.org_id` (caller can't set it independently). The seed and `project.create` procedure simply set `team_id` and let the trigger fill in `org_id`. Stage 2's `verify:seed` asserts the invariant.
+- `team.org_id` is **immutable** after team creation. No procedure exposes a team-org-move operation; `team.update` excludes `org_id` from the mutable column set. Without this, the denormalized `project.org_id` could become stale (the trigger only fires on `project` writes, not `team` writes). If a team-org-move ever becomes a requirement, a second `BEFORE UPDATE ON team` trigger must cascade the new `org_id` to every dependent project — that's an explicit future feature, not v1.
 - `provider.org_id`, `routing_profile.org_id`, `brand.org_id`: today these are `NOT NULL`. Under the waterfall, catalog-scoped rows have all four scope columns NULL, so the NOT NULL constraint must be dropped on every feature table that gains scope columns. Stage 1's migration drops these. The CHECK constraint enforces the new invariant (exactly one scope FK non-null, or all null for catalog).
 - `persona` and `skill` each have **existing** `scope text NOT NULL default 'project'` and `project_id uuid` columns. These predate the waterfall and would collide with the new waterfall columns. Stage 1 drops both columns from each table before adding the new waterfall machinery. The corresponding Drizzle relation entries (`personaRelations`, `skillRelations`) are updated in the same migration PR so `npm run build` stays green.
 - `persona.brandId`, `persona.routingProfileId`, `persona.parentPersonaId` — unrelated FK columns kept as-is. Stage 6 considers whether the orchestrator should walk `parentPersonaId` chains under the waterfall (no schema impact in Stage 1).

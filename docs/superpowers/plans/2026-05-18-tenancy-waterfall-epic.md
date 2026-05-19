@@ -86,12 +86,22 @@ For each waterfall feature table that today has `orgId NOT NULL`, **drop the NOT
 - `persona.project_id uuid REFERENCES project(id)` — DROP.
 - `skill.scope text NOT NULL default 'project'` — DROP.
 - `skill.project_id uuid REFERENCES project(id)` — DROP.
+- `brand.project_id uuid` — DROP (vestigial, never wired into `brandRelations`).
 
 The `skill_revision` table also has `scope text NOT NULL`. It's an append-only history table, not in the waterfall; its `scope` column captured the old discriminator value at revision time. Stage 1 leaves it intact (rip-and-replace authorized — historical revisions become semantically stale, which is acceptable).
 
 CHECK constraint logic per feature table: `(num_non_null(org_id, team_id, user_id, project_id) = 1 AND kind = matching_layer) OR (num_non_null(...) = 0 AND kind = 'catalog')`.
 
-**Drizzle relations:** `personaRelations`, `skillRelations`, and any other relation definitions in `schema.ts` that reference the dropped columns (`persona.projectId`, `skill.projectId`) MUST be updated in the same Stage 1 PR. Without this, `npm run build` fails at compile time. This is why Stage 1's scope explicitly includes `schema.ts` relation edits, not just table edits.
+**Drizzle relations:** `personaRelations` and `skillRelations` reference the dropped `.projectId` columns today and MUST be updated in the same Stage 1 PR. Without this, `npm run build` fails at compile time. `brandRelations` currently does NOT reference `projectId` so requires no edit, but verify at slice-plan time. This is why Stage 1's scope explicitly includes `schema.ts` relation edits, not just table edits.
+
+**Index sequencing for dropped columns:**
+- `project_user_slug_idx` (`UNIQUE (user_id, slug)` on project) references the dropped `project.user_id`. DROP this index in the migration BEFORE the column drop, or use `CASCADE` — Drizzle's codegen does not emit `CASCADE` by default, so the migration SQL must explicitly drop the index first. Verified at slice-plan time by running the generated migration on a fresh DB.
+
+**Unique-index repair after `orgId` NOT NULL drop:**
+- `provider_org_id_name_idx` is `UNIQUE (org_id, name)`. After Stage 1 makes `provider.org_id` nullable for catalog rows, two catalog providers (`org_id = NULL`) with the same name would NOT collide in a standard unique index (because `NULL != NULL`). To preserve uniqueness within each scope layer, replace this index with TWO partial unique indexes:
+  - `UNIQUE (org_id, name) WHERE org_id IS NOT NULL` — uniqueness for org-scoped rows.
+  - `UNIQUE (name) WHERE kind = 'catalog'` — uniqueness for catalog rows.
+- Repeat the same pattern for any other `UNIQUE (org_id, name)` indexes on waterfall feature tables. Audit at slice-plan time: grep `uniqueIndex.*org_id.*name` against `schema.ts`.
 
 UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope columns are NULL where they previously had values (rip-and-replace authorized — the data being lost is dev/UAT seed data only).
 
@@ -108,6 +118,7 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
 
 - Schema + migration SQL + nuke script. No seed rewrites. No code consuming the new shape.
 - The old `team` and `team_member` tables get DROPPED in this stage's migration. Code references will break — that's intentional and gets repaired in stage 5.
+- **e2e/team-crud.spec.ts tests the OLD team concept (project-scoped, persona members).** Stage 1 marks it as `test.skip(...)` with an explicit FLX-239 comment pointing at the cross-stage rule (below). The spec gets a semantic rewrite — not just a URL-helper swap — in Stage 7 when the new Settings → Teams UI lands. Same treatment applies to any other spec that asserts old-team UI behavior (audit at slice-plan time via `grep -l "settings/teams\|teamMember\|persona.*team" e2e/*.spec.ts`).
 
 **Hard rules for this stage:**
 
@@ -200,9 +211,13 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
   ): Promise<T[]>;
   ```
 
-  `resolveScoped` returns the single highest-priority row (first match walking project → user → team → org → catalog). `resolveScopedAll` returns all rows across all layers, deduplicated by `dedupeKey`: for each distinct value of that column, the highest-priority layer wins; lower-layer rows with the same key are dropped. Per-table `dedupeKey` choices (locked at v1, from spec):
-  - `persona.name`, `skill.name`, `routingProfile.name`, `brand.name`, `provider.name`, `driver.name` — natural name keys.
-  - `model`: composite `(providerId, identifier)`. Stage 3 either (a) extends the helper to take a `SQL` key expression, or (b) restricts `dedupeKey` to single columns and the model consumer uses a synthetic key column. Slice plan picks one.
+  `resolveScoped` returns the single highest-priority row (first match walking project → user → team → org → catalog). `resolveScopedAll` returns all rows across all layers, deduplicated by `dedupeKey`: for each distinct value of that column, the highest-priority layer wins; lower-layer rows with the same key are dropped.
+
+  Per-table `dedupeKey` choices (locked at v1):
+  - `persona.name`, `skill.name`, `routingProfile.name`, `brand.name`, `provider.name`, `driver.name` — natural single-column name keys.
+  - `model` and `routingRule` are NOT waterfall-scoped (they inherit via their parent provider/routingProfile), so `resolveScopedAll` is never called on them. The composite-key question is moot.
+
+  `dedupeKey: keyof T` is therefore always a single column name in v1. Drizzle does not have a built-in `DISTINCT ON`; the implementer uses a raw `sql` template literal for the clause.
 
   Stage 3 ships both helpers; later stages choose which to use per call site.
 
@@ -289,14 +304,15 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
 
 - Every router that currently uses `userId` for authorization must be audited. Don't blindly replace — some `userId` uses are legitimate scope queries (e.g., "show me MY issue list"), not authorization. Authorization → `assertProjectAccess`. Scope → keep `userId` if still meaningful.
 - The audit goes in the slice plan: a table per router listing every procedure and its mapping (authorization vs scope vs delete).
-- **Auth identity invariant (per spec):** `src/server/trpc.ts`'s viewer resolver matches `user.id === authUserId` (the JWT subject = `auth.users.id`). The new `assertProjectAccess` relies on this. The slice plan must include a Stage-2 / Stage-5 cross-check that the seeded user row has `id = auth.users.id` for the dev/UAT seeded auth account. If they don't match, every `assertProjectAccess` call fails closed — which is correct behavior but would surface as "every project denied" rather than a clear identity error. Add an early-failure assertion in `getViewerContext` that throws a typed error if `fluxaUserId` is null AND the request is not an unauthenticated LAN-bypass path.
+- **Auth identity invariant (per spec):** `src/server/trpc.ts`'s viewer resolver already enforces `user.id === authUserId` structurally (the existing `WHERE user.id = authUserId` JOIN is the invariant). The new `assertProjectAccess` relies on this — no new in-code assertion is needed. The Stage 2 `verify:seed` assertion catches a broken seed; the Stage 5 work is to ensure `getViewerContext` produces a typed error when `fluxaUserId` is null AND the request is NOT a LAN-bypass path (today it would silently fall through to the "viewer" role default).
 - **LAN bypass passthrough:** today `assertProjectOwnership` (in `src/server/ownership.ts`) returns silently when `fluxaUserId === null` to permit unauthenticated dev/Playwright traffic. `assertProjectAccess` preserves this exactly: when `fluxaUserId === null` AND `FLUXAOS_LAN_AUTH_BYPASS=1`, the helper returns without consulting `project_member` or `team_member`. Semantically: null user = treated as having access to all projects (dev-only). Document this in the helper's doccomment.
 
 **Verification gate (must pass before stage 6 starts):**
 
 1. Every existing integration test in `src/__tests__/integration/*` updated to seed memberships before calling procedures.
-2. `npx vitest src/__tests__/integration/` — all green.
-3. Manual smoke: dev server, log in as default user, navigate to a project I'm a member of (works), navigate to a project I'm NOT a member of (denied), navigate to a project where I have team access but no project grant (works via team).
+2. New integration test for `assertProjectAccess` LAN bypass: a request with `fluxaUserId = null` and `FLUXAOS_LAN_AUTH_BYPASS=1` passes membership check without consulting `project_member`/`team_member`. Without this test, a regression that breaks LAN bypass would only surface in dev/Playwright, not in CI.
+3. `npx vitest src/__tests__/integration/` — all green.
+4. Manual smoke: dev server, log in as default user, navigate to a project I'm a member of (works), navigate to a project I'm NOT a member of (denied), navigate to a project where I have team access but no project grant (works via team).
 
 **Slice plan filename when written:** `docs/superpowers/plans/YYYY-MM-DD-flx-239-stage-5-router-scope.md`
 
@@ -348,7 +364,7 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 - `e2e/helpers/setup.ts` — **central chokepoint**. `projectPath()` and any `defaultOrg`/`defaultUser`/`defaultProject` slug-based helpers updated to build `/p/{uuid}/...` paths from a `FLUXAOS_PROJECT_UUID` env var (replacing the three slug env vars). Updating this alone fixes most call sites.
 - `e2e/*.spec.ts` — ~47 specs reference seed defaults or call `projectPath()`. Most go through the helper and need zero changes once the helper is updated. The slice plan begins by running `grep -rln "defaultProject\|defaultOrg\|defaultUser\|projectPath" e2e/` to produce the authoritative list, then categorizes each as "via helper (no change)" vs "direct URL or DB ref (needs edit)."
 - `e2e/full-issue-lifecycle.spec.ts` — the canonical full-lifecycle journey. Must pass against the new URL shape.
-- `.env.example` and Playwright env loading — switch `FLUXAOS_ORG_SLUG`/`USER_SLUG`/`PROJECT_SLUG` to `FLUXAOS_PROJECT_UUID` (with the seed setting it deterministically).
+- `.env.example` and Playwright env loading — switch `FLUXAOS_ORG_SLUG`/`USER_SLUG`/`PROJECT_SLUG` to `FLUXAOS_PROJECT_UUID` (with the seed setting it deterministically). `.env.example` MUST land in the same PR as the helper change. `e2e/helpers/setup.ts` throws at module load if the required env vars are missing — any drift between `.env.example` and the helper produces a confusing missing-env error that masks the underlying epic transition.
 
 **Scope boundary:**
 
@@ -434,6 +450,17 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 - **Type consistency:** `resolveContext` signature locked in Stage 4 and matches spec ("Routing + page changes" section). `resolveScoped`/`resolveScopedAll` signatures locked in Stage 3 with `dedupeKey` parameter; consumed unchanged in Stage 6. ✓
 - **Scope check:** epic is 8 stages, each a single-PR-sized slice. Reasonable.
 - **Ambiguity:** "Routers that scoped by `userId` for authorization" vs "scope queries" disambiguated in Stage 5 hard rules. ✓
+
+**Revisions from plan-review round 3 (2026-05-18):**
+- Stage 1: `brand.project_id` added to the pre-existing-column drop list (would have hit the same collision as persona/skill).
+- Stage 1: index sequencing — `project_user_slug_idx` must be dropped before `project.user_id` to avoid Drizzle codegen emitting `DROP COLUMN` without `CASCADE`.
+- Stage 1: unique-index repair — `provider_org_id_name_idx` (and similar) replaced with two partial indexes after `org_id` becomes nullable, so catalog rows don't silently lose name uniqueness.
+- Stage 1: e2e/team-crud.spec.ts marked `test.skip(...)` in Stage 1 with FLX-239 comment; full semantic rewrite scheduled for Stage 7.
+- Stage 3: `dedupeKey` locked as single-column only since `model`/`routingRule` are out of waterfall; composite key question is moot.
+- Stage 5: explicit integration-test gate for `assertProjectAccess` LAN bypass; auth-identity wording corrected (invariant is structurally enforced in trpc.ts today).
+- Stage 7: `.env.example` MUST land atomically with the helper change.
+- Spec: `team.org_id` immutability declared (no team-org-move in v1; would need a second trigger).
+- Spec: new `team` table now includes `version` column for RecordEditor optimistic concurrency (matches old-team pattern).
 
 **Revisions from plan-review round 2 (2026-05-18):**
 - Stage 1: explicit DROP of pre-existing `persona.scope`/`persona.project_id` and `skill.scope`/`skill.project_id` columns before adding waterfall columns (would have caused Postgres "column already exists" error on the migration).
