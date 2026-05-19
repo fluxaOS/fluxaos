@@ -11,8 +11,11 @@
 //
 // Skips cleanly when ANTHROPIC_API_KEY (live Claude required) or any
 // deploy cred (FLUXAOS_GITHUB_TOKEN / FLUXAOS_TEST_TARGET_REPO /
-// FLUXAOS_TARGET_REPO_PATH / DATABASE_URL) is missing. With everything
-// set, this proves:
+// FLUXAOS_TARGET_REPO_PATH / DATABASE_URL) is missing. The
+// FLUXAOS_TARGET_REPO_PATH env var is legacy/test-only fixture input here:
+// after seeding, the spec writes it into project.target_repo_path so the
+// daemon proves the DB-backed FLX-221 runtime path. Do not treat this env
+// var as operator runtime configuration. With everything set, this proves:
 //
 //   - Engine boot + Realtime pickup + daemon execution loop work
 //     end-to-end against live Claude.
@@ -39,6 +42,8 @@ import { expect, projectPath, test } from './helpers/setup';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GITHUB_TOKEN = process.env.FLUXAOS_GITHUB_TOKEN;
 const TARGET_REPO = process.env.FLUXAOS_TEST_TARGET_REPO;
+// Legacy/test-only checkout path; persisted into project.target_repo_path
+// below so runtime still exercises the DB-backed FLX-221 path.
 const TARGET_REPO_PATH = process.env.FLUXAOS_TARGET_REPO_PATH;
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 

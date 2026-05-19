@@ -28,6 +28,11 @@
 //   4. The dev server (`npm run dev -- -p 3003`) must be running. The test
 //      nukes + reseeds the database before driving the UI.
 //
+// FLUXAOS_TARGET_REPO_PATH is legacy/test-only fixture input here: after
+// seeding, the spec writes it into project.target_repo_path so the stage
+// runner proves the DB-backed FLX-221 runtime path. Do not treat this env
+// var as operator runtime configuration.
+//
 // ── What this test asserts (after a completed run) ────────────────────────
 //   - pipeline_run.status = 'completed'
 //   - issue.state advanced to "review"
@@ -49,7 +54,9 @@ import { expect, projectPath, test } from './helpers/setup';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GITHUB_TOKEN = process.env.FLUXAOS_GITHUB_TOKEN;
 const TARGET_REPO = process.env.FLUXAOS_TEST_TARGET_REPO; // 'owner/repo'
-const TARGET_REPO_PATH = process.env.FLUXAOS_TARGET_REPO_PATH; // local checkout
+// Legacy/test-only checkout path; persisted into project.target_repo_path
+// below so runtime still exercises the DB-backed FLX-221 path.
+const TARGET_REPO_PATH = process.env.FLUXAOS_TARGET_REPO_PATH;
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
 const missingCreds: string[] = [];
