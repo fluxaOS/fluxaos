@@ -79,7 +79,9 @@ If the invariant is ever broken (e.g., a user row is created without a matching 
 
 ## Waterfall config (Kopia-style)
 
-**Every feature row** follows the same shape — persona, model, skill, provider, driver, routing-profile, routing-rule, brand, gate-config, and any future feature config row.
+**Every feature row** follows the same shape — persona, skill, provider, driver, routing-profile, brand, and any future feature config row.
+
+`model` and `routingRule` are NOT independently waterfall-scoped. They are structurally child rows (`model.providerId NOT NULL`, `routingRule.profileId NOT NULL`) and inherit scope through their parent. Read resolution for a model goes through `resolveScoped(provider)` first, then enumerates the chosen provider's models. Same for routing rules under their profile. Adding independent scope columns to `model`/`routingRule` would create "project-level model under catalog-level provider" ambiguity for no clear use case.
 
 **Explicitly NOT in the waterfall** (these are execution / runtime / non-config rows):
 
@@ -144,9 +146,8 @@ resolveScopedAll<T>(
 The helper issues a single SQL query with `ORDER BY` over a CASE that ranks rows by layer (project=1, user=2, team=3, org=4, catalog=5), `LIMIT 1` for the single variant. `resolveScopedAll` uses `DISTINCT ON (dedupeKey)` with the same ordering. No N+1.
 
 Per-table `dedupeKey` choices (locked at v1):
-- `persona.name`, `skill.name`, `routingProfile.name`, `brand.name` — natural name keys.
-- `model`: composite `(providerId, identifier)` — `resolveScopedAll` is called with a synthetic key column expression, or the helper is extended to take a `SQL` key. Stage 3 picks one and documents it.
-- `provider.name`, `driver.name` — natural name keys.
+- `persona.name`, `skill.name`, `routingProfile.name`, `brand.name`, `provider.name`, `driver.name` — natural name keys on waterfall-scoped tables.
+- `model` and `routingRule` are NOT waterfall-scoped (they inherit via their parent provider/routingProfile), so `resolveScopedAll` is not called on them directly.
 
 ### Write
 
@@ -176,6 +177,8 @@ Inserts are explicit at the layer being defined. No cascade-write. No backfill. 
 - `organization.customer_id`: new nullable column (no FK, no NOT NULL).
 - `project.org_id`: kept and denormalized from `team.org_id` for query speed. Postgres CHECK can't reference other rows, so enforcement is via a `BEFORE INSERT OR UPDATE ON project` trigger that **overwrites** `project.org_id` from `team.org_id` (caller can't set it independently). The seed and `project.create` procedure simply set `team_id` and let the trigger fill in `org_id`. Stage 2's `verify:seed` asserts the invariant.
 - `provider.org_id`, `routing_profile.org_id`, `brand.org_id`: today these are `NOT NULL`. Under the waterfall, catalog-scoped rows have all four scope columns NULL, so the NOT NULL constraint must be dropped on every feature table that gains scope columns. Stage 1's migration drops these. The CHECK constraint enforces the new invariant (exactly one scope FK non-null, or all null for catalog).
+- `persona` and `skill` each have **existing** `scope text NOT NULL default 'project'` and `project_id uuid` columns. These predate the waterfall and would collide with the new waterfall columns. Stage 1 drops both columns from each table before adding the new waterfall machinery. The corresponding Drizzle relation entries (`personaRelations`, `skillRelations`) are updated in the same migration PR so `npm run build` stays green.
+- `persona.brandId`, `persona.routingProfileId`, `persona.parentPersonaId` — unrelated FK columns kept as-is. Stage 6 considers whether the orchestrator should walk `parentPersonaId` chains under the waterfall (no schema impact in Stage 1).
 
 ## Routing + page changes
 
@@ -213,7 +216,7 @@ Every tRPC router that authorizes access via `userId` or `orgId` (e.g., "user ow
 - Schema migrated rip-and-replace (no migration scripts; nuke + reseed).
 - Seed creates one customer + one org + one team + one user, with the user as team member, and a default project under the team, with the user as project member.
 - `resolveScoped<T>()` helper exists, unit-tested at the project layer with rows at every level.
-- All pages routed via `/p/{uuid}/...`. Old `[org]/[user]/[project]/...` routes return 404.
+- All pages routed via `/p/{uuid}/...`. Old `[org]/[user]/[project]/...` routes return 307 during Stages 4–7 (temporary scaffold) and 404 after Stage 8 cleanup.
 - `assertProjectAccess` enforces access on every router that touches a project.
 - Existing journey tests updated to use new URL shape; full-issue-lifecycle journey passes end-to-end.
 

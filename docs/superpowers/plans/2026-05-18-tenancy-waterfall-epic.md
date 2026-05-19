@@ -70,15 +70,28 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
 *Feature tables (waterfall additions):*
 
 Add four nullable scope columns (`org_id`, `team_id`, `user_id`, `project_id`) + `kind` text discriminator + CHECK constraint to:
-- `persona`, `skill`, `model`, `provider`, `driver`, `brand`, `routingProfile`, `routingRule`, `gateConfig` (if exists; otherwise add via gate-config slice).
+- `persona`, `skill`, `provider`, `driver`, `brand`, `routingProfile`.
 
-For each of those tables that today has `orgId NOT NULL`, **drop the NOT NULL** as part of the migration:
+`model` and `routingRule` are NOT added to the waterfall (they inherit via their parent provider/routingProfile FK — see spec). Don't touch their schema in Stage 1.
+
+`gateConfig` is mentioned in some product discussions but no `gate_config` table exists in the current schema. Do not speculatively add one in Stage 1.
+
+For each waterfall feature table that today has `orgId NOT NULL`, **drop the NOT NULL**:
 - `provider.org_id` — drop NOT NULL.
 - `routingProfile.org_id` — drop NOT NULL.
 - `brand.org_id` — drop NOT NULL.
-- (Verify via grep at slice-plan time; any other feature table with `NOT NULL` on a scope column gets the same treatment.)
+
+**Pre-existing column collisions** (must be dropped BEFORE adding the new waterfall columns or the migration fails with `column already exists`):
+- `persona.scope text NOT NULL default 'project'` — DROP.
+- `persona.project_id uuid REFERENCES project(id)` — DROP.
+- `skill.scope text NOT NULL default 'project'` — DROP.
+- `skill.project_id uuid REFERENCES project(id)` — DROP.
+
+The `skill_revision` table also has `scope text NOT NULL`. It's an append-only history table, not in the waterfall; its `scope` column captured the old discriminator value at revision time. Stage 1 leaves it intact (rip-and-replace authorized — historical revisions become semantically stale, which is acceptable).
 
 CHECK constraint logic per feature table: `(num_non_null(org_id, team_id, user_id, project_id) = 1 AND kind = matching_layer) OR (num_non_null(...) = 0 AND kind = 'catalog')`.
+
+**Drizzle relations:** `personaRelations`, `skillRelations`, and any other relation definitions in `schema.ts` that reference the dropped columns (`persona.projectId`, `skill.projectId`) MUST be updated in the same Stage 1 PR. Without this, `npm run build` fails at compile time. This is why Stage 1's scope explicitly includes `schema.ts` relation edits, not just table edits.
 
 UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope columns are NULL where they previously had values (rip-and-replace authorized — the data being lost is dev/UAT seed data only).
 
@@ -277,6 +290,7 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
 - Every router that currently uses `userId` for authorization must be audited. Don't blindly replace — some `userId` uses are legitimate scope queries (e.g., "show me MY issue list"), not authorization. Authorization → `assertProjectAccess`. Scope → keep `userId` if still meaningful.
 - The audit goes in the slice plan: a table per router listing every procedure and its mapping (authorization vs scope vs delete).
 - **Auth identity invariant (per spec):** `src/server/trpc.ts`'s viewer resolver matches `user.id === authUserId` (the JWT subject = `auth.users.id`). The new `assertProjectAccess` relies on this. The slice plan must include a Stage-2 / Stage-5 cross-check that the seeded user row has `id = auth.users.id` for the dev/UAT seeded auth account. If they don't match, every `assertProjectAccess` call fails closed — which is correct behavior but would surface as "every project denied" rather than a clear identity error. Add an early-failure assertion in `getViewerContext` that throws a typed error if `fluxaUserId` is null AND the request is not an unauthenticated LAN-bypass path.
+- **LAN bypass passthrough:** today `assertProjectOwnership` (in `src/server/ownership.ts`) returns silently when `fluxaUserId === null` to permit unauthenticated dev/Playwright traffic. `assertProjectAccess` preserves this exactly: when `fluxaUserId === null` AND `FLUXAOS_LAN_AUTH_BYPASS=1`, the helper returns without consulting `project_member` or `team_member`. Semantically: null user = treated as having access to all projects (dev-only). Document this in the helper's doccomment.
 
 **Verification gate (must pass before stage 6 starts):**
 
@@ -313,6 +327,7 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 
 - After this stage, no production code path reads `from(persona)` (or other feature tables) without going through `resolveScoped` for tenant-context reads. Direct `from()` queries are allowed only for admin / catalog management endpoints (e.g., the Settings → Personas RecordEditor that lists all rows the user can see across layers — that uses `resolveScopedAll`).
 - The orchestrator stage runner must resolve feature rows once at stage-acquire time and pass them down; no resolve-on-every-row.
+- **`persona.parentPersonaId` semantics under the waterfall** (M2): the column survived Stage 1 unchanged. Slice plan must decide: does `resolveScoped(persona)` follow the parent chain when assembling a persona's effective config, or is the parent reference informational only (display "extends X")? Default decision (overridable in slice plan): parent chain is informational, not resolved. If the slice plan needs parent-chain resolution, document why and add tests for the multi-level case.
 
 **Verification gate (must pass before stage 7):**
 
@@ -419,6 +434,15 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 - **Type consistency:** `resolveContext` signature locked in Stage 4 and matches spec ("Routing + page changes" section). `resolveScoped`/`resolveScopedAll` signatures locked in Stage 3 with `dedupeKey` parameter; consumed unchanged in Stage 6. ✓
 - **Scope check:** epic is 8 stages, each a single-PR-sized slice. Reasonable.
 - **Ambiguity:** "Routers that scoped by `userId` for authorization" vs "scope queries" disambiguated in Stage 5 hard rules. ✓
+
+**Revisions from plan-review round 2 (2026-05-18):**
+- Stage 1: explicit DROP of pre-existing `persona.scope`/`persona.project_id` and `skill.scope`/`skill.project_id` columns before adding waterfall columns (would have caused Postgres "column already exists" error on the migration).
+- Stage 1: `model` and `routingRule` REMOVED from waterfall list — they're child rows of `provider`/`routingProfile` and inherit scope through their parent. Spec updated to match.
+- Stage 1: `gateConfig` removed (no such table in current schema; was a speculative inclusion).
+- Stage 1: Drizzle relation edits (`personaRelations`, `skillRelations`) explicitly in scope so `npm run build` stays green.
+- Stage 5: LAN bypass passthrough behavior in `assertProjectAccess` explicit (null user = all projects, dev-only).
+- Stage 6: `persona.parentPersonaId` semantics under the waterfall explicitly addressed (default: informational, not resolved).
+- Spec acceptance criterion for "old routes return 404" rewritten to distinguish 307 (Stages 4–7) from 404 (Stage 8).
 
 **Revisions from plan-review round 1 (2026-05-18):**
 - Stage 1 expanded with concrete schema work list, explicit out-of-scope tables (pipeline/issue/etc.), NOT NULL drop list (provider/routingProfile/brand), and the `project.org_id` trigger.
