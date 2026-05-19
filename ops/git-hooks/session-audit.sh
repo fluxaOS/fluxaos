@@ -136,16 +136,17 @@ while IFS= read -r b; do
   fi
 done <<< "$LOCAL_BRANCHES"
 
-# Stashes — owner-named or junk?
-STASH_ACTIVE=()
-STASH_ORPHAN=()
+# Stashes — agents should not use stash (FLX-233). Only `PROTECTED:`-prefixed
+# entries are silent (human escape hatch). Every other stash is advisory.
+STASH_PROTECTED=()
+STASH_ADVISORY=()
 while IFS= read -r line; do
   [ -z "$line" ] && continue
   # `git stash list` format: "stash@{N}: <subject>"
-  if printf '%s' "$line" | grep -qE ': (PROTECTED:|WIP:|[A-Za-z0-9_-]+:)'; then
-    STASH_ACTIVE+=("$line")
+  if printf '%s' "$line" | grep -qE ': PROTECTED:'; then
+    STASH_PROTECTED+=("$line")
   else
-    STASH_ORPHAN+=("$line")
+    STASH_ADVISORY+=("$line")
   fi
 done < <(git stash list 2>/dev/null)
 
@@ -194,17 +195,17 @@ case "$MODE" in
       printf '%s\n    {"branch":"%s","reason":"%s"}' "$sep" "${e%%|*}" "${e#*|}"
       sep=","
     done
-    printf '\n  ],\n  "stash_active": ['
+    printf '\n  ],\n  "stash_protected": ['
     sep=""
-    for s in "${STASH_ACTIVE[@]:-}"; do
+    for s in "${STASH_PROTECTED[@]:-}"; do
       [ -z "$s" ] && continue
       esc=$(printf '%s' "$s" | sed 's/\\/\\\\/g; s/"/\\"/g')
       printf '%s\n    "%s"' "$sep" "$esc"
       sep=","
     done
-    printf '\n  ],\n  "stash_orphan": ['
+    printf '\n  ],\n  "stash_advisory": ['
     sep=""
-    for s in "${STASH_ORPHAN[@]:-}"; do
+    for s in "${STASH_ADVISORY[@]:-}"; do
       [ -z "$s" ] && continue
       esc=$(printf '%s' "$s" | sed 's/\\/\\\\/g; s/"/\\"/g')
       printf '%s\n    "%s"' "$sep" "$esc"
@@ -218,7 +219,7 @@ case "$MODE" in
     has_orphan=0
     if [ ${#ORPHAN_MERGED_OUT[@]} -gt 0 ] || \
        [ ${#ORPHAN_DANGLING_OUT[@]} -gt 0 ] || \
-       [ ${#STASH_ORPHAN[@]} -gt 0 ]; then
+       [ ${#STASH_ADVISORY[@]} -gt 0 ]; then
       has_orphan=1
     fi
 
@@ -260,12 +261,13 @@ case "$MODE" in
       echo
     fi
 
-    if [ ${#STASH_ORPHAN[@]} -gt 0 ]; then
-      echo "ORPHAN — unnamed stashes (no owner: prefix — decide manually):"
-      for s in "${STASH_ORPHAN[@]}"; do
+    if [ ${#STASH_ADVISORY[@]} -gt 0 ]; then
+      echo "ADVISORY — stashes present (agents should not use git stash — see CLAUDE.md):"
+      for s in "${STASH_ADVISORY[@]}"; do
         echo "  ✗ $s"
       done
-      echo "  Action: \`git stash apply\` & resolve, or \`git stash drop\`. Future stashes should use \`git stash push -m '<owner>: <reason>'\`."
+      echo "  Action: \`git stash apply\` & resolve, or \`git stash drop\`. Agents must use temp commits instead (CLAUDE.md \`## Worktrees & Hooks\`)."
+      echo "  If this is a legitimate human escape hatch, relabel: \`git stash push -m 'PROTECTED: <reason>'\` (PROTECTED: stashes pass)."
       echo
     fi
 

@@ -31,20 +31,22 @@
 #     committed before pushing.
 #   - ORPHAN-MERGED branches present (someone forgot `git branch -d`).
 #   - ORPHAN-DANGLING branches present (unmerged + no PR + abandoned).
-#   - Unnamed stashes (no `<owner>:` / `WIP:` / `PROTECTED:` prefix).
+#   - Any stash present whose subject is not prefixed `PROTECTED:`
+#     (FLX-233: agents must use temp commits, not stash).
 #
 # Cleanliness gate passes when every entry the audit reports is ACTIVE
 # (current HEAD anywhere, ahead of origin/main) or PROTECTED (open PR
-# head). Stashes pass when every entry has an owner prefix.
+# head). Stashes pass only when every entry is `PROTECTED:`-prefixed.
 #
 # Resolve the failure by:
 #   - Committing or discarding the working-tree changes.
 #   - `git branch -d <orphan>` for merged orphans (or run
 #     `bash ops/git-hooks/session-audit.sh prune`).
-#   - For dangling orphans: open a PR, delete the branch, or rename the
-#     stash with an owner so it stops looking abandoned.
-#   - `git stash drop` or relabel the stash via
-#     `git stash push -m '<owner>: <reason>'`.
+#   - For dangling orphans: open a PR or delete the branch.
+#   - `git stash drop` for any non-`PROTECTED:` stash; future agent work
+#     must use temp commits (see CLAUDE.md `## Worktrees & Hooks`). If a
+#     legitimate human escape hatch is needed, relabel:
+#     `git stash push -m 'PROTECTED: <reason>'`.
 #
 # Journey-test gate fails when:
 #   - Push range touches src/components/** or src/app/**/*.tsx (or
@@ -88,13 +90,15 @@ JSON=$(bash "$AUDIT" json 2>/dev/null || echo '{}')
 dirty=$(printf '%s' "$JSON" | grep -E '"working_tree_dirty":[[:space:]]*true' || true)
 orphan_merged_count=$(printf '%s' "$JSON" | awk '/"orphan_merged":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"branch"' || true)
 orphan_dangling_count=$(printf '%s' "$JSON" | awk '/"orphan_dangling":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"branch"' || true)
-stash_orphan_count=$(printf '%s' "$JSON" | awk '/"stash_orphan":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"stash@' || true)
+# FLX-233: any stash that isn't `PROTECTED:` blocks the push. Agents must use
+# temp commits, not stash. `PROTECTED:` stays a silent human escape hatch.
+stash_advisory_count=$(printf '%s' "$JSON" | awk '/"stash_advisory":[[:space:]]*\[/,/^[[:space:]]*\]/' | grep -c '"stash@' || true)
 
 problems=0
 [ -n "$dirty" ] && problems=$((problems + 1))
 [ "$orphan_merged_count" -gt 0 ] && problems=$((problems + 1))
 [ "$orphan_dangling_count" -gt 0 ] && problems=$((problems + 1))
-[ "$stash_orphan_count" -gt 0 ] && problems=$((problems + 1))
+[ "$stash_advisory_count" -gt 0 ] && problems=$((problems + 1))
 
 if [ "$problems" -gt 0 ]; then
   # Block + report cleanliness failure (handled by the block below).
@@ -168,7 +172,7 @@ echo ""
 echo "✗ Push blocked."
 echo ""
 
-if [ -n "$dirty" ] || [ "$orphan_merged_count" -gt 0 ] || [ "$orphan_dangling_count" -gt 0 ] || [ "$stash_orphan_count" -gt 0 ]; then
+if [ -n "$dirty" ] || [ "$orphan_merged_count" -gt 0 ] || [ "$orphan_dangling_count" -gt 0 ] || [ "$stash_advisory_count" -gt 0 ]; then
   echo "── Cleanliness gate failed ───────────────────────────────────"
   echo ""
   echo "Four-command snapshot:"

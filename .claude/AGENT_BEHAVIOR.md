@@ -29,6 +29,8 @@ AI does every step from brainstorm to shipped. **Once a spec or plan is approved
 
 Linear is the source of truth (per CLAUDE.md). Stale Linear is a bug.
 
+**No `git stash` from agents.** `git stash` writes to the shared repo `refs/stash`, not the worktree — agent B can pop agent A's stash silently and mix unrelated WIP. Agents must not use stash; use temp commits instead. Commit-based recipes for pull-while-dirty, inspect-main, and recoverable-abandon are in [CLAUDE.md](../CLAUDE.md#worktrees--hooks). The pre-push hook blocks pushes when any non-`PROTECTED:`-prefixed stash is present.
+
 **Definition of done:** PRs merged to main, working tree clean, on main in sync with origin, merged branches deleted (locally + origin), worktrees pruned, Linear issue marked Done with PR links attached. Open PRs don't count as done; merged PRs without a Linear status update don't count either.
 
 **Isolation environment.** When "isolation" or "the isolation environment" comes up in fluxaOS discussion, it means a git worktree inside the target repo at `<repo>/.fluxaos-worktrees/<slug>/`, created per stage run and cleaned up by the cleanup scheduler. Stage runners acquire one via `isolationProvider.acquire(...)` — `<repo>` resolves from the project's `target_repo_path` (or `runtime.workspace_root` when set), and the cleanup scheduler reaps it under the `cleanup.stale_days` threshold. This is also the default pattern for parallel agent work per CLAUDE.md ("Worktrees & Hooks"): each agent runs in its own worktree so the four-command branch audit stays clean and "working tree clean" / "worktrees pruned" in the definition of done above is reachable.
