@@ -5,38 +5,26 @@
 -- Rip-and-replace migration. No backfill of old rows. CLAUDE.md `## Environments`
 -- override authorizes this — no production, no real users.
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 1: Drop old indexes that reference columns being dropped (must precede
--- DROP COLUMN — Drizzle codegen does NOT emit CASCADE by default).
--- ─────────────────────────────────────────────────────────────────────────────
-DROP INDEX IF EXISTS "project_user_slug_idx";
-DROP INDEX IF EXISTS "provider_org_id_name_idx";
+-- Phase 1: Drop old indexes that reference columns being dropped.
+DROP INDEX IF EXISTS "project_user_slug_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "provider_org_id_name_idx";--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 2: Drop the old tenancy tables. They will be recreated below with a
--- different shape.
--- ─────────────────────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS "team_member";
-DROP TABLE IF EXISTS "team";
+-- Phase 2: Drop the old tenancy tables.
+DROP TABLE IF EXISTS "team_member";--> statement-breakpoint
+DROP TABLE IF EXISTS "team";--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 3: Create customer (placeholder).
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE "customer" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "external_billing_id" text,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
+);--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 4: Add organization.customer_id (placeholder; no FK, nullable).
--- ─────────────────────────────────────────────────────────────────────────────
-ALTER TABLE "organization" ADD COLUMN "customer_id" uuid;
+ALTER TABLE "organization" ADD COLUMN "customer_id" uuid;--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 5: Create new team (humans-only).
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE "team" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "org_id" uuid NOT NULL REFERENCES "organization"("id"),
@@ -45,11 +33,9 @@ CREATE TABLE "team" (
   "version" integer NOT NULL DEFAULT 1,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
+);--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 6: Create team_member (humans; PK user_id+team_id).
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE "team_member" (
   "user_id" uuid NOT NULL REFERENCES "user"("id"),
   "team_id" uuid NOT NULL REFERENCES "team"("id"),
@@ -57,11 +43,9 @@ CREATE TABLE "team_member" (
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
   PRIMARY KEY ("user_id", "team_id")
-);
+);--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 7: Create project_member (PK user_id+project_id).
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE "project_member" (
   "user_id" uuid NOT NULL REFERENCES "user"("id"),
   "project_id" uuid NOT NULL REFERENCES "project"("id"),
@@ -69,33 +53,19 @@ CREATE TABLE "project_member" (
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
   PRIMARY KEY ("user_id", "project_id")
-);
+);--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 8: Project — drop user_id FK, add team_id FK.
--- Note: project.user_id is dropped AFTER project_user_slug_idx (Phase 1).
--- Guard: `team_id NOT NULL` with no DEFAULT requires every existing row to
--- supply a value. Migration assumes nuke ran first. Fail fast with a clear
--- message if project has rows, rather than a cryptic "not-null violation".
--- ─────────────────────────────────────────────────────────────────────────────
+-- Phase 8: Project — guard, drop user_id, add team_id NOT NULL FK.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM "project" LIMIT 1) THEN
     RAISE EXCEPTION 'FLX-239 Phase 8: project table must be empty before adding team_id NOT NULL. Run `tsx src/scripts/db/nuke.ts` first.';
   END IF;
-END $$;
-ALTER TABLE "project" DROP COLUMN "user_id";
-ALTER TABLE "project" ADD COLUMN "team_id" uuid NOT NULL REFERENCES "team"("id");
+END $$;--> statement-breakpoint
+ALTER TABLE "project" DROP COLUMN "user_id";--> statement-breakpoint
+ALTER TABLE "project" ADD COLUMN "team_id" uuid NOT NULL REFERENCES "team"("id");--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 9: Denormalization trigger — project.org_id always mirrors team.org_id.
--- Postgres CHECK can't cross rows; this trigger enforces the invariant.
---
--- IMPORTANT: trigger fires on ANY UPDATE (no `OF team_id` clause). Without
--- this, application code that does `UPDATE project SET org_id = X` would
--- silently bypass the invariant. The slightly higher overhead of re-reading
--- team.org_id on every project write is the correct trade.
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION flx239_project_set_org_id_from_team()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -105,103 +75,77 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
 
 CREATE TRIGGER project_set_org_id_from_team
   BEFORE INSERT OR UPDATE ON "project"
   FOR EACH ROW
-  EXECUTE FUNCTION flx239_project_set_org_id_from_team();
+  EXECUTE FUNCTION flx239_project_set_org_id_from_team();--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 10: Drop pre-existing collision columns on feature tables. Must precede
--- ADD COLUMN of new waterfall columns with the SAME name.
--- ─────────────────────────────────────────────────────────────────────────────
-ALTER TABLE "persona" DROP COLUMN "scope";
-ALTER TABLE "persona" DROP COLUMN "project_id";
-ALTER TABLE "skill" DROP COLUMN "scope";
-ALTER TABLE "skill" DROP COLUMN "project_id";
-ALTER TABLE "brand" DROP COLUMN "project_id";
+-- Phase 10: Drop pre-existing collision columns.
+ALTER TABLE "persona" DROP COLUMN "scope";--> statement-breakpoint
+ALTER TABLE "persona" DROP COLUMN "project_id";--> statement-breakpoint
+ALTER TABLE "skill" DROP COLUMN "scope";--> statement-breakpoint
+ALTER TABLE "skill" DROP COLUMN "project_id";--> statement-breakpoint
+ALTER TABLE "brand" DROP COLUMN "project_id";--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 11: Add waterfall scope columns to feature tables. All four scope
--- columns are nullable; the CHECK constraint (Phase 13) enforces the invariant.
--- Existing rows get `kind = 'catalog'` by virtue of the default.
--- ─────────────────────────────────────────────────────────────────────────────
-ALTER TABLE "persona" ADD COLUMN "org_id" uuid;
-ALTER TABLE "persona" ADD COLUMN "team_id" uuid;
-ALTER TABLE "persona" ADD COLUMN "user_id" uuid;
-ALTER TABLE "persona" ADD COLUMN "project_id" uuid;
-ALTER TABLE "persona" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
+-- Phase 11: Add waterfall scope columns; drop NOT NULL + FK on pre-existing org_id columns.
+ALTER TABLE "persona" ADD COLUMN "org_id" uuid;--> statement-breakpoint
+ALTER TABLE "persona" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "persona" ADD COLUMN "user_id" uuid;--> statement-breakpoint
+ALTER TABLE "persona" ADD COLUMN "project_id" uuid;--> statement-breakpoint
+ALTER TABLE "persona" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';--> statement-breakpoint
 
-ALTER TABLE "skill" ADD COLUMN "org_id" uuid;
-ALTER TABLE "skill" ADD COLUMN "team_id" uuid;
-ALTER TABLE "skill" ADD COLUMN "user_id" uuid;
-ALTER TABLE "skill" ADD COLUMN "project_id" uuid;
-ALTER TABLE "skill" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
+ALTER TABLE "skill" ADD COLUMN "org_id" uuid;--> statement-breakpoint
+ALTER TABLE "skill" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "skill" ADD COLUMN "user_id" uuid;--> statement-breakpoint
+ALTER TABLE "skill" ADD COLUMN "project_id" uuid;--> statement-breakpoint
+ALTER TABLE "skill" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';--> statement-breakpoint
 
--- brand.org_id, provider.org_id, routing_profile.org_id all pre-exist (each
--- was NOT NULL FK to organization pre-FLX-239). Do NOT ADD COLUMN for those
--- — would error "column org_id already exists".
---
--- The DROP NOT NULL and DROP CONSTRAINT for those three columns are written
--- HERE (in Phase 11) explicitly rather than relying on Drizzle's db:generate
--- baseline emission ordering. Phase 12's UPDATE statements set org_id = NULL,
--- which requires the NOT NULL constraint to already be gone. Doing this
--- explicitly removes any dependency on where Drizzle places the generated
--- ALTER COLUMN relative to our hand-edited UPDATEs.
-ALTER TABLE "brand" ALTER COLUMN "org_id" DROP NOT NULL;
-ALTER TABLE "brand" DROP CONSTRAINT IF EXISTS "brand_org_id_organization_id_fk";
-ALTER TABLE "provider" ALTER COLUMN "org_id" DROP NOT NULL;
-ALTER TABLE "provider" DROP CONSTRAINT IF EXISTS "provider_org_id_organization_id_fk";
-ALTER TABLE "routing_profile" ALTER COLUMN "org_id" DROP NOT NULL;
-ALTER TABLE "routing_profile" DROP CONSTRAINT IF EXISTS "routing_profile_org_id_organization_id_fk";
+ALTER TABLE "brand" ALTER COLUMN "org_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "brand" DROP CONSTRAINT IF EXISTS "brand_org_id_organization_id_fk";--> statement-breakpoint
+ALTER TABLE "provider" ALTER COLUMN "org_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "provider" DROP CONSTRAINT IF EXISTS "provider_org_id_organization_id_fk";--> statement-breakpoint
+ALTER TABLE "routing_profile" ALTER COLUMN "org_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "routing_profile" DROP CONSTRAINT IF EXISTS "routing_profile_org_id_organization_id_fk";--> statement-breakpoint
 
-ALTER TABLE "brand" ADD COLUMN "team_id" uuid;
-ALTER TABLE "brand" ADD COLUMN "user_id" uuid;
-ALTER TABLE "brand" ADD COLUMN "project_id" uuid;
-ALTER TABLE "brand" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
+ALTER TABLE "brand" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "brand" ADD COLUMN "user_id" uuid;--> statement-breakpoint
+ALTER TABLE "brand" ADD COLUMN "project_id" uuid;--> statement-breakpoint
+ALTER TABLE "brand" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';--> statement-breakpoint
 
-ALTER TABLE "provider" ADD COLUMN "team_id" uuid;
-ALTER TABLE "provider" ADD COLUMN "user_id" uuid;
-ALTER TABLE "provider" ADD COLUMN "project_id" uuid;
-ALTER TABLE "provider" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
+ALTER TABLE "provider" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "provider" ADD COLUMN "user_id" uuid;--> statement-breakpoint
+ALTER TABLE "provider" ADD COLUMN "project_id" uuid;--> statement-breakpoint
+ALTER TABLE "provider" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';--> statement-breakpoint
 
-ALTER TABLE "driver" ADD COLUMN "org_id" uuid;
-ALTER TABLE "driver" ADD COLUMN "team_id" uuid;
-ALTER TABLE "driver" ADD COLUMN "user_id" uuid;
-ALTER TABLE "driver" ADD COLUMN "project_id" uuid;
-ALTER TABLE "driver" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
+ALTER TABLE "driver" ADD COLUMN "org_id" uuid;--> statement-breakpoint
+ALTER TABLE "driver" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "driver" ADD COLUMN "user_id" uuid;--> statement-breakpoint
+ALTER TABLE "driver" ADD COLUMN "project_id" uuid;--> statement-breakpoint
+ALTER TABLE "driver" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';--> statement-breakpoint
 
-ALTER TABLE "routing_profile" ADD COLUMN "team_id" uuid;
-ALTER TABLE "routing_profile" ADD COLUMN "user_id" uuid;
-ALTER TABLE "routing_profile" ADD COLUMN "project_id" uuid;
-ALTER TABLE "routing_profile" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
+ALTER TABLE "routing_profile" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "routing_profile" ADD COLUMN "user_id" uuid;--> statement-breakpoint
+ALTER TABLE "routing_profile" ADD COLUMN "project_id" uuid;--> statement-breakpoint
+ALTER TABLE "routing_profile" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 12: Reset existing rows to catalog kind.
---
--- The DROP NOT NULL + DROP CONSTRAINT statements for org_id on brand,
--- provider, routing_profile were moved UP into Phase 11 (so they precede
--- the UPDATEs below — UPDATE org_id=NULL needs the NOT NULL to be gone).
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE "persona" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
-UPDATE "skill" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
-UPDATE "brand" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
-UPDATE "provider" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
-UPDATE "driver" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
-UPDATE "routing_profile" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
+UPDATE "persona" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;--> statement-breakpoint
+UPDATE "skill" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;--> statement-breakpoint
+UPDATE "brand" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;--> statement-breakpoint
+UPDATE "provider" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;--> statement-breakpoint
+UPDATE "driver" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;--> statement-breakpoint
+UPDATE "routing_profile" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 13: CHECK constraints — exactly one of (org_id, team_id, user_id,
--- project_id) is non-null AND kind matches, OR all four null AND kind=catalog.
--- ─────────────────────────────────────────────────────────────────────────────
+-- Phase 13: CHECK constraints — exactly one scope FK non-null + matching kind, OR all null + catalog.
 ALTER TABLE "persona" ADD CONSTRAINT "persona_scope_check" CHECK (
   (org_id IS NOT NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'org')
   OR (org_id IS NULL AND team_id IS NOT NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'team')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NOT NULL AND project_id IS NULL AND kind = 'user')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NOT NULL AND kind = 'project')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'catalog')
-);
+);--> statement-breakpoint
 
 ALTER TABLE "skill" ADD CONSTRAINT "skill_scope_check" CHECK (
   (org_id IS NOT NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'org')
@@ -209,7 +153,7 @@ ALTER TABLE "skill" ADD CONSTRAINT "skill_scope_check" CHECK (
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NOT NULL AND project_id IS NULL AND kind = 'user')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NOT NULL AND kind = 'project')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'catalog')
-);
+);--> statement-breakpoint
 
 ALTER TABLE "brand" ADD CONSTRAINT "brand_scope_check" CHECK (
   (org_id IS NOT NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'org')
@@ -217,7 +161,7 @@ ALTER TABLE "brand" ADD CONSTRAINT "brand_scope_check" CHECK (
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NOT NULL AND project_id IS NULL AND kind = 'user')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NOT NULL AND kind = 'project')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'catalog')
-);
+);--> statement-breakpoint
 
 ALTER TABLE "provider" ADD CONSTRAINT "provider_scope_check" CHECK (
   (org_id IS NOT NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'org')
@@ -225,7 +169,7 @@ ALTER TABLE "provider" ADD CONSTRAINT "provider_scope_check" CHECK (
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NOT NULL AND project_id IS NULL AND kind = 'user')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NOT NULL AND kind = 'project')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'catalog')
-);
+);--> statement-breakpoint
 
 ALTER TABLE "driver" ADD CONSTRAINT "driver_scope_check" CHECK (
   (org_id IS NOT NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'org')
@@ -233,7 +177,7 @@ ALTER TABLE "driver" ADD CONSTRAINT "driver_scope_check" CHECK (
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NOT NULL AND project_id IS NULL AND kind = 'user')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NOT NULL AND kind = 'project')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'catalog')
-);
+);--> statement-breakpoint
 
 ALTER TABLE "routing_profile" ADD CONSTRAINT "routing_profile_scope_check" CHECK (
   (org_id IS NOT NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'org')
@@ -241,59 +185,53 @@ ALTER TABLE "routing_profile" ADD CONSTRAINT "routing_profile_scope_check" CHECK
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NOT NULL AND project_id IS NULL AND kind = 'user')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NOT NULL AND kind = 'project')
   OR (org_id IS NULL AND team_id IS NULL AND user_id IS NULL AND project_id IS NULL AND kind = 'catalog')
-);
+);--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Phase 14: Partial unique indexes. Five partials per waterfall table — one
--- per scope layer plus catalog. Matches resolveScopedAll's DISTINCT ON (name)
--- assumption: each scope layer enforces uniqueness independently.
--- ─────────────────────────────────────────────────────────────────────────────
+-- Phase 14: Partial unique indexes — 5 per × 6 tables = 30 total.
 
 -- Provider
-CREATE UNIQUE INDEX "provider_org_name_uq" ON "provider" ("org_id", "name") WHERE org_id IS NOT NULL;
-CREATE UNIQUE INDEX "provider_team_name_uq" ON "provider" ("team_id", "name") WHERE team_id IS NOT NULL;
-CREATE UNIQUE INDEX "provider_user_name_uq" ON "provider" ("user_id", "name") WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX "provider_project_name_uq" ON "provider" ("project_id", "name") WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX "provider_catalog_name_uq" ON "provider" ("name") WHERE kind = 'catalog';
+CREATE UNIQUE INDEX "provider_org_name_uq" ON "provider" ("org_id", "name") WHERE org_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "provider_team_name_uq" ON "provider" ("team_id", "name") WHERE team_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "provider_user_name_uq" ON "provider" ("user_id", "name") WHERE user_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "provider_project_name_uq" ON "provider" ("project_id", "name") WHERE project_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "provider_catalog_name_uq" ON "provider" ("name") WHERE kind = 'catalog';--> statement-breakpoint
 
 -- Persona
-CREATE UNIQUE INDEX "persona_org_name_uq" ON "persona" ("org_id", "name") WHERE org_id IS NOT NULL;
-CREATE UNIQUE INDEX "persona_team_name_uq" ON "persona" ("team_id", "name") WHERE team_id IS NOT NULL;
-CREATE UNIQUE INDEX "persona_user_name_uq" ON "persona" ("user_id", "name") WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX "persona_project_name_uq" ON "persona" ("project_id", "name") WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX "persona_catalog_name_uq" ON "persona" ("name") WHERE kind = 'catalog';
+CREATE UNIQUE INDEX "persona_org_name_uq" ON "persona" ("org_id", "name") WHERE org_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "persona_team_name_uq" ON "persona" ("team_id", "name") WHERE team_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "persona_user_name_uq" ON "persona" ("user_id", "name") WHERE user_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "persona_project_name_uq" ON "persona" ("project_id", "name") WHERE project_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "persona_catalog_name_uq" ON "persona" ("name") WHERE kind = 'catalog';--> statement-breakpoint
 
 -- Skill
-CREATE UNIQUE INDEX "skill_org_name_uq" ON "skill" ("org_id", "name") WHERE org_id IS NOT NULL;
-CREATE UNIQUE INDEX "skill_team_name_uq" ON "skill" ("team_id", "name") WHERE team_id IS NOT NULL;
-CREATE UNIQUE INDEX "skill_user_name_uq" ON "skill" ("user_id", "name") WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX "skill_project_name_uq" ON "skill" ("project_id", "name") WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX "skill_catalog_name_uq" ON "skill" ("name") WHERE kind = 'catalog';
+CREATE UNIQUE INDEX "skill_org_name_uq" ON "skill" ("org_id", "name") WHERE org_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "skill_team_name_uq" ON "skill" ("team_id", "name") WHERE team_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "skill_user_name_uq" ON "skill" ("user_id", "name") WHERE user_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "skill_project_name_uq" ON "skill" ("project_id", "name") WHERE project_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "skill_catalog_name_uq" ON "skill" ("name") WHERE kind = 'catalog';--> statement-breakpoint
 
 -- Brand
-CREATE UNIQUE INDEX "brand_org_name_uq" ON "brand" ("org_id", "name") WHERE org_id IS NOT NULL;
-CREATE UNIQUE INDEX "brand_team_name_uq" ON "brand" ("team_id", "name") WHERE team_id IS NOT NULL;
-CREATE UNIQUE INDEX "brand_user_name_uq" ON "brand" ("user_id", "name") WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX "brand_project_name_uq" ON "brand" ("project_id", "name") WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX "brand_catalog_name_uq" ON "brand" ("name") WHERE kind = 'catalog';
+CREATE UNIQUE INDEX "brand_org_name_uq" ON "brand" ("org_id", "name") WHERE org_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "brand_team_name_uq" ON "brand" ("team_id", "name") WHERE team_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "brand_user_name_uq" ON "brand" ("user_id", "name") WHERE user_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "brand_project_name_uq" ON "brand" ("project_id", "name") WHERE project_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "brand_catalog_name_uq" ON "brand" ("name") WHERE kind = 'catalog';--> statement-breakpoint
 
 -- Driver
-CREATE UNIQUE INDEX "driver_org_name_uq" ON "driver" ("org_id", "name") WHERE org_id IS NOT NULL;
-CREATE UNIQUE INDEX "driver_team_name_uq" ON "driver" ("team_id", "name") WHERE team_id IS NOT NULL;
-CREATE UNIQUE INDEX "driver_user_name_uq" ON "driver" ("user_id", "name") WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX "driver_project_name_uq" ON "driver" ("project_id", "name") WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX "driver_catalog_name_uq" ON "driver" ("name") WHERE kind = 'catalog';
+CREATE UNIQUE INDEX "driver_org_name_uq" ON "driver" ("org_id", "name") WHERE org_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "driver_team_name_uq" ON "driver" ("team_id", "name") WHERE team_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "driver_user_name_uq" ON "driver" ("user_id", "name") WHERE user_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "driver_project_name_uq" ON "driver" ("project_id", "name") WHERE project_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "driver_catalog_name_uq" ON "driver" ("name") WHERE kind = 'catalog';--> statement-breakpoint
 
 -- Routing Profile
-CREATE UNIQUE INDEX "routing_profile_org_name_uq" ON "routing_profile" ("org_id", "name") WHERE org_id IS NOT NULL;
-CREATE UNIQUE INDEX "routing_profile_team_name_uq" ON "routing_profile" ("team_id", "name") WHERE team_id IS NOT NULL;
-CREATE UNIQUE INDEX "routing_profile_user_name_uq" ON "routing_profile" ("user_id", "name") WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX "routing_profile_project_name_uq" ON "routing_profile" ("project_id", "name") WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX "routing_profile_catalog_name_uq" ON "routing_profile" ("name") WHERE kind = 'catalog';
+CREATE UNIQUE INDEX "routing_profile_org_name_uq" ON "routing_profile" ("org_id", "name") WHERE org_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "routing_profile_team_name_uq" ON "routing_profile" ("team_id", "name") WHERE team_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "routing_profile_user_name_uq" ON "routing_profile" ("user_id", "name") WHERE user_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "routing_profile_project_name_uq" ON "routing_profile" ("project_id", "name") WHERE project_id IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "routing_profile_catalog_name_uq" ON "routing_profile" ("name") WHERE kind = 'catalog';--> statement-breakpoint
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 15: RLS policies.
--- ─────────────────────────────────────────────────────────────────────────────
 -- Task 1's audit (docs/superpowers/audits/2026-05-18-flx-239-stage-1-rls.txt)
 -- returned 0 rows — no RLS policies reference the old team/team_member tables.
 -- Nothing to drop here.
