@@ -14,6 +14,7 @@ import { PIPELINE_SENTINEL } from '@/core/constants';
 import {
   brand,
   configEntry,
+  customer,
   driver,
   issue,
   issueLabel,
@@ -28,10 +29,13 @@ import {
   pipeline,
   pipelineStage,
   project,
+  projectMember,
   provider,
   routingProfile,
   routingRule,
   skill,
+  team,
+  teamMember,
   user,
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
@@ -54,10 +58,32 @@ const db = dbProvider.getConnection();
 async function seed() {
   console.log('Seeding fluxaOS database...\n');
 
+  // ── 0. Default customer (FLX-239 placeholder) ─────────────────────────
+  // The customer table is a billing placeholder; no routers/UI depend on it
+  // yet. The default org's customer_id points at this row. Seed creates
+  // exactly one row — the seed-check asserts this invariant.
+  const existingCustomers = await db.select().from(customer);
+  if (existingCustomers.length > 1) {
+    throw new Error(
+      `Seed expected 0 or 1 customer rows, found ${existingCustomers.length}. ` +
+        `Run tsx src/scripts/db/nuke.ts and re-seed.`
+    );
+  }
+  let cust = existingCustomers[0];
+  if (!cust) {
+    [cust] = await db.insert(customer).values({}).returning();
+  }
+  console.log(`  customer: ${cust.id}`);
+
   // ── 1. Default organization ────────────────────────────────────────────
   let [org] = await db
     .insert(organization)
-    .values({ name: 'Default', slug: 'default', settings: {} })
+    .values({
+      name: 'Default',
+      slug: 'default',
+      settings: {},
+      customerId: cust.id,
+    })
     .onConflictDoNothing({ target: organization.slug })
     .returning();
 
@@ -69,6 +95,26 @@ async function seed() {
       .where(eq(organization.slug, 'default'));
   }
   console.log(`  org: ${org.name} (${org.id})`);
+
+  // ── 1b. Default team (FLX-239) ────────────────────────────────────────
+  // Team is org-scoped. org_id is immutable post-create.
+  // No unique constraint on team beyond PK — use check-then-insert pattern.
+  let [defaultTeam] = await db
+    .select()
+    .from(team)
+    .where(and(eq(team.orgId, org.id), eq(team.name, 'Default Team')));
+
+  if (!defaultTeam) {
+    [defaultTeam] = await db
+      .insert(team)
+      .values({
+        orgId: org.id,
+        name: 'Default Team',
+        description: 'Default team for the Default org',
+      })
+      .returning();
+  }
+  console.log(`  team: ${defaultTeam.name} (${defaultTeam.id})`);
 
   // ── 2. Default user ────────────────────────────────────────────────────
   const seedEmail = process.env.SEED_USER_EMAIL ?? 'admin@fluxaos.local';
@@ -93,25 +139,52 @@ async function seed() {
   console.log(`  user: ${usr.name} <${usr.email}> (${usr.id})`);
 
   // ── 3. Default project ─────────────────────────────────────────────────
+  // FLX-239: project.user_id dropped; project.team_id added. No unique
+  // constraint beyond PK — use check-then-insert. orgId is required by the
+  // schema (NOT NULL); the Stage 1 BEFORE INSERT trigger writes the same
+  // value, so passing org.id is a no-op overwrite.
   let [proj] = await db
-    .insert(project)
-    .values({
-      orgId: org.id,
-      userId: usr.id,
-      name: 'fluxaOS',
-      slug: 'fluxaos',
-      repoUrl: 'https://github.com/fluxaOS/fluxaos',
-    })
-    .onConflictDoNothing()
-    .returning();
+    .select()
+    .from(project)
+    .where(
+      and(eq(project.teamId, defaultTeam.id), eq(project.slug, 'fluxaos'))
+    );
 
   if (!proj) {
     [proj] = await db
-      .select()
-      .from(project)
-      .where(and(eq(project.userId, usr.id), eq(project.slug, 'fluxaos')));
+      .insert(project)
+      .values({
+        teamId: defaultTeam.id,
+        orgId: org.id,
+        name: 'fluxaOS',
+        slug: 'fluxaos',
+        repoUrl: 'https://github.com/fluxaOS/fluxaos',
+      })
+      .returning();
   }
   console.log(`  project: ${proj.name} (${proj.id})`);
+
+  // ── 3b. team_member + project_member (FLX-239) ────────────────────────
+  // Wire the default user into the default team and the default project.
+  await db
+    .insert(teamMember)
+    .values({
+      userId: usr.id,
+      teamId: defaultTeam.id,
+      role: 'admin',
+    })
+    .onConflictDoNothing();
+  console.log(`  team_member: ${usr.id} → ${defaultTeam.id}`);
+
+  await db
+    .insert(projectMember)
+    .values({
+      userId: usr.id,
+      projectId: proj.id,
+      role: 'admin',
+    })
+    .onConflictDoNothing();
+  console.log(`  project_member: ${usr.id} → ${proj.id}`);
 
   // ── 4. Default pipeline (no unique constraint — check first) ────────
   let [pipe] = await db
@@ -529,16 +602,30 @@ Exit:
   for (const def of skillsDef) {
     const promptTemplate = PIPELINE_PROMPT + ROLE_PROMPTS[def.name];
 
+    // Catalog skill: all four scope columns NULL, kind='catalog'.
+    // Upsert key: name + all scope columns NULL (isolates catalog row from
+    // any future scoped overrides with the same name).
     let [row] = await db
       .select()
       .from(skill)
-      .where(and(eq(skill.scope, 'global'), eq(skill.name, def.name)));
+      .where(
+        and(
+          eq(skill.name, def.name),
+          isNull(skill.orgId),
+          isNull(skill.teamId),
+          isNull(skill.userId),
+          isNull(skill.projectId)
+        )
+      );
 
     const values = {
       name: def.name,
       description: def.description,
       promptTemplate,
-      scope: 'global',
+      kind: 'catalog' as const,
+      orgId: null,
+      teamId: null,
+      userId: null,
       projectId: null,
     };
 
@@ -566,24 +653,62 @@ Exit:
   }
 
   // ── 5e. Provider + Model + Routing ─────────────────────────────────────
+  // Anthropic: org-scoped. Promote any reset row (kind='catalog'/NULL scope
+  // from migration Phase 12) or insert fresh.
   let [defaultProvider] = await db
-    .insert(provider)
-    .values({
-      orgId: org.id,
-      name: 'Anthropic',
-      type: 'anthropic',
-      apiKeyRef: 'env:ANTHROPIC_API_KEY',
-      isHealthy: true,
-    })
-    .onConflictDoNothing()
-    .returning();
+    .select()
+    .from(provider)
+    .where(
+      and(
+        eq(provider.name, 'Anthropic'),
+        eq(provider.orgId, org.id),
+        eq(provider.kind, 'org')
+      )
+    );
 
   if (!defaultProvider) {
-    [defaultProvider] = await db
+    const [resetProvider] = await db
       .select()
       .from(provider)
-      .where(eq(provider.orgId, org.id))
-      .limit(1);
+      .where(
+        and(
+          eq(provider.name, 'Anthropic'),
+          eq(provider.kind, 'catalog'),
+          isNull(provider.orgId)
+        )
+      );
+
+    if (resetProvider) {
+      [defaultProvider] = await db
+        .update(provider)
+        .set({
+          orgId: org.id,
+          teamId: null,
+          userId: null,
+          projectId: null,
+          kind: 'org',
+          type: 'anthropic',
+          apiKeyRef: 'env:ANTHROPIC_API_KEY',
+          isHealthy: true,
+        })
+        .where(eq(provider.id, resetProvider.id))
+        .returning();
+    } else {
+      [defaultProvider] = await db
+        .insert(provider)
+        .values({
+          orgId: org.id,
+          teamId: null,
+          userId: null,
+          projectId: null,
+          kind: 'org',
+          name: 'Anthropic',
+          type: 'anthropic',
+          apiKeyRef: 'env:ANTHROPIC_API_KEY',
+          isHealthy: true,
+        })
+        .returning();
+    }
   }
 
   if (defaultProvider) {
@@ -608,22 +733,57 @@ Exit:
     }
 
     let [defaultProfile] = await db
-      .insert(routingProfile)
-      .values({
-        orgId: org.id,
-        name: 'Default',
-        description: 'Default routing profile',
-        isDefault: true,
-      })
-      .onConflictDoNothing()
-      .returning();
+      .select()
+      .from(routingProfile)
+      .where(
+        and(
+          eq(routingProfile.name, 'Default'),
+          eq(routingProfile.orgId, org.id),
+          eq(routingProfile.kind, 'org')
+        )
+      );
 
     if (!defaultProfile) {
-      [defaultProfile] = await db
+      const [resetProfile] = await db
         .select()
         .from(routingProfile)
-        .where(eq(routingProfile.orgId, org.id))
-        .limit(1);
+        .where(
+          and(
+            eq(routingProfile.name, 'Default'),
+            eq(routingProfile.kind, 'catalog'),
+            isNull(routingProfile.orgId)
+          )
+        );
+
+      if (resetProfile) {
+        [defaultProfile] = await db
+          .update(routingProfile)
+          .set({
+            orgId: org.id,
+            teamId: null,
+            userId: null,
+            projectId: null,
+            kind: 'org',
+            description: 'Default routing profile',
+            isDefault: true,
+          })
+          .where(eq(routingProfile.id, resetProfile.id))
+          .returning();
+      } else {
+        [defaultProfile] = await db
+          .insert(routingProfile)
+          .values({
+            orgId: org.id,
+            teamId: null,
+            userId: null,
+            projectId: null,
+            kind: 'org',
+            name: 'Default',
+            description: 'Default routing profile',
+            isDefault: true,
+          })
+          .returning();
+      }
     }
 
     if (defaultProfile) {
@@ -647,23 +807,61 @@ Exit:
   // when their CLI is configured. Model identifier and costs reflect
   // GPT-5.4 pricing as published; adjust in Settings → Providers if
   // OpenAI updates the price sheet.
+  // OpenAI: org-scoped. Same promote-or-insert pattern as Anthropic.
   let [openaiProvider] = await db
-    .insert(provider)
-    .values({
-      orgId: org.id,
-      name: 'OpenAI',
-      type: 'openai',
-      apiKeyRef: 'env:OPENAI_API_KEY',
-      isHealthy: false,
-    })
-    .onConflictDoNothing()
-    .returning();
+    .select()
+    .from(provider)
+    .where(
+      and(
+        eq(provider.name, 'OpenAI'),
+        eq(provider.orgId, org.id),
+        eq(provider.kind, 'org')
+      )
+    );
 
   if (!openaiProvider) {
-    [openaiProvider] = await db
+    const [resetOpenai] = await db
       .select()
       .from(provider)
-      .where(and(eq(provider.orgId, org.id), eq(provider.type, 'openai')));
+      .where(
+        and(
+          eq(provider.name, 'OpenAI'),
+          eq(provider.kind, 'catalog'),
+          isNull(provider.orgId)
+        )
+      );
+
+    if (resetOpenai) {
+      [openaiProvider] = await db
+        .update(provider)
+        .set({
+          orgId: org.id,
+          teamId: null,
+          userId: null,
+          projectId: null,
+          kind: 'org',
+          type: 'openai',
+          apiKeyRef: 'env:OPENAI_API_KEY',
+          isHealthy: false,
+        })
+        .where(eq(provider.id, resetOpenai.id))
+        .returning();
+    } else {
+      [openaiProvider] = await db
+        .insert(provider)
+        .values({
+          orgId: org.id,
+          teamId: null,
+          userId: null,
+          projectId: null,
+          kind: 'org',
+          name: 'OpenAI',
+          type: 'openai',
+          apiKeyRef: 'env:OPENAI_API_KEY',
+          isHealthy: false,
+        })
+        .returning();
+    }
   }
 
   if (openaiProvider) {
@@ -1077,25 +1275,64 @@ When you receive an issue:
   ];
 
   for (const pd of personaDefs) {
-    // Upsert persona by name within this project
+    // FLX-239: lookup by (name, projectId, kind='project'). On UAT, Phase 12
+    // reset existing personas to kind='catalog' with NULL projectId — we
+    // promote any such reset row back to the right project, or insert fresh.
     let [personaRow] = await db
       .select()
       .from(persona)
       .where(
-        and(eq(persona.name, pd.personaName), eq(persona.projectId, proj.id))
+        and(
+          eq(persona.name, pd.personaName),
+          eq(persona.projectId, proj.id),
+          eq(persona.kind, 'project')
+        )
       );
 
+    // If no project-scoped row exists, look for a reset row (kind='catalog'
+    // with NULL projectId) and promote it. Otherwise insert fresh.
     if (!personaRow) {
-      [personaRow] = await db
-        .insert(persona)
-        .values({
-          projectId: proj.id,
-          name: pd.personaName,
-          soul: pd.soul,
-          scope: 'project',
-        })
-        .returning();
+      const [resetRow] = await db
+        .select()
+        .from(persona)
+        .where(
+          and(
+            eq(persona.name, pd.personaName),
+            eq(persona.kind, 'catalog'),
+            isNull(persona.projectId)
+          )
+        );
+
+      if (resetRow) {
+        // Promote: set projectId, kind='project', soul.
+        [personaRow] = await db
+          .update(persona)
+          .set({
+            projectId: proj.id,
+            orgId: null,
+            teamId: null,
+            userId: null,
+            kind: 'project',
+            soul: pd.soul,
+          })
+          .where(eq(persona.id, resetRow.id))
+          .returning();
+      } else {
+        [personaRow] = await db
+          .insert(persona)
+          .values({
+            projectId: proj.id,
+            orgId: null,
+            teamId: null,
+            userId: null,
+            kind: 'project',
+            name: pd.personaName,
+            soul: pd.soul,
+          })
+          .returning();
+      }
     } else {
+      // Already project-scoped — just refresh soul.
       [personaRow] = await db
         .update(persona)
         .set({ soul: pd.soul })
@@ -1117,23 +1354,63 @@ When you receive an issue:
   // ── Brands: seed one org-scoped brand ─────────────────────────────────
   // Required by brand-screenshot.spec.ts: the spec looks for an <li> whose
   // subtitle is 'organization' (rendered when projectId is null).
+  // Default brand — org-scoped. Promote any reset row or insert fresh.
   const [existingBrand] = await db
     .select()
     .from(brand)
-    .where(and(eq(brand.orgId, org.id), eq(brand.name, 'Default Brand')));
+    .where(
+      and(
+        eq(brand.name, 'Default Brand'),
+        eq(brand.orgId, org.id),
+        eq(brand.kind, 'org')
+      )
+    );
 
   if (!existingBrand) {
-    await db.insert(brand).values({
-      orgId: org.id,
-      projectId: null,
-      name: 'Default Brand',
-      toneOfVoice: 'Professional and clear',
-      styleGuide: 'Follow the fluxaOS voice and tone guidelines.',
-      colors: { primary: '#6366f1', accent: '#8b5cf6' },
-      fonts: { heading: 'Inter', body: 'Inter' },
-      logoUrl: null,
-    });
-    console.log('  brand: Default Brand (org-scoped)');
+    const [resetBrand] = await db
+      .select()
+      .from(brand)
+      .where(
+        and(
+          eq(brand.name, 'Default Brand'),
+          eq(brand.kind, 'catalog'),
+          isNull(brand.orgId)
+        )
+      );
+
+    if (resetBrand) {
+      await db
+        .update(brand)
+        .set({
+          orgId: org.id,
+          teamId: null,
+          userId: null,
+          projectId: null,
+          kind: 'org',
+          toneOfVoice: 'Professional and clear',
+          styleGuide: 'Follow the fluxaOS voice and tone guidelines.',
+          colors: { primary: '#6366f1', accent: '#8b5cf6' },
+          fonts: { heading: 'Inter', body: 'Inter' },
+          logoUrl: null,
+        })
+        .where(eq(brand.id, resetBrand.id));
+      console.log('  brand: Default Brand (promoted from reset row)');
+    } else {
+      await db.insert(brand).values({
+        orgId: org.id,
+        teamId: null,
+        userId: null,
+        projectId: null,
+        kind: 'org',
+        name: 'Default Brand',
+        toneOfVoice: 'Professional and clear',
+        styleGuide: 'Follow the fluxaOS voice and tone guidelines.',
+        colors: { primary: '#6366f1', accent: '#8b5cf6' },
+        fonts: { heading: 'Inter', body: 'Inter' },
+        logoUrl: null,
+      });
+      console.log('  brand: Default Brand (org-scoped)');
+    }
   } else {
     console.log('  brand: Default Brand already exists');
   }
