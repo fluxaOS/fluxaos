@@ -35,7 +35,7 @@
 | 4 | Routing migration | `src/app/p/[projectUuid]/**` (new), `src/lib/resolve-context.ts` | dev server boots; old route paths 404; new route paths render |
 | 5 | Router scope migration | `src/server/routers/*.ts`, `assertProjectAccess` helper | every router test green; tRPC e2e contract unchanged where the surface is preserved |
 | 6 | Feature-table consumers | every place that reads a feature row (pipelines, personas, brands, etc.) | journey tests still green; `resolveScoped` covers all read paths |
-| 7 | E2E spec updates | `e2e/*.spec.ts` (15 specs) | full Playwright suite green; full-issue-lifecycle passes |
+| 7 | E2E spec updates | `e2e/helpers/setup.ts` + ~47 specs (most via the central helper) | full Playwright suite green; full-issue-lifecycle passes |
 | 8 | Cleanup | delete old `[org]/[user]/[project]/**`, old helpers, old slug columns | grep finds zero refs to dead paths; final `npm run verify` clean |
 
 Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4 (resolveContext shape). Stage 6 depends on 3 (helper exists). Stages 6 and 5 can overlap if carefully sliced. Stage 7 depends on 4+5. Stage 8 last.
@@ -48,22 +48,58 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
 
 **Files affected:**
 
-- `src/core/db/schema.ts` — biggest single file in the change. Adds `customer` table, rewrites `team` and `team_member`, adds `project_member`, adds 4 scope columns + `kind` to every feature table (persona, skill, model, provider, driver, brand, pipeline, routing_profile, routing_rule, gate config — ~10 tables).
+- `src/core/db/schema.ts` — biggest single file in the change.
 - `drizzle/*.sql` — new numbered migration files for each schema change (Drizzle generates).
 - `drizzle/meta/_journal.json` — Drizzle journal updated by codegen.
 - `src/scripts/db/nuke.ts` — extended to drop the new tables alongside the old.
 
+**Concrete schema work, broken down:**
+
+*Tenancy tables:*
+- Add `customer` table (`id, external_billing_id text, created_at, updated_at`).
+- Add `organization.customer_id uuid` (nullable, no FK).
+- DROP existing `team` and `team_member` tables (project_id + persona_id model).
+- Add new `team` table (`id, org_id NOT NULL, name, description, version, created_at, updated_at`).
+- Add new `team_member` table (`user_id, team_id, role`, PK `(user_id, team_id)`).
+- Add new `project_member` table (`user_id, project_id, role`, PK `(user_id, project_id)`).
+- Add `project.team_id NOT NULL` (FK to `team.id`).
+- DROP `project.user_id` FK column.
+- Add `BEFORE INSERT OR UPDATE ON project` trigger that overwrites `project.org_id` from `team.org_id` (enforces the denormalization invariant per spec; Postgres CHECK can't cross rows).
+- DROP slug columns from URL-bearing entities (project, issue, run, etc.) — defer to Stage 8 if any consumers still reference them, but list them here for tracking.
+
+*Feature tables (waterfall additions):*
+
+Add four nullable scope columns (`org_id`, `team_id`, `user_id`, `project_id`) + `kind` text discriminator + CHECK constraint to:
+- `persona`, `skill`, `model`, `provider`, `driver`, `brand`, `routingProfile`, `routingRule`, `gateConfig` (if exists; otherwise add via gate-config slice).
+
+For each of those tables that today has `orgId NOT NULL`, **drop the NOT NULL** as part of the migration:
+- `provider.org_id` — drop NOT NULL.
+- `routingProfile.org_id` — drop NOT NULL.
+- `brand.org_id` — drop NOT NULL.
+- (Verify via grep at slice-plan time; any other feature table with `NOT NULL` on a scope column gets the same treatment.)
+
+CHECK constraint logic per feature table: `(num_non_null(org_id, team_id, user_id, project_id) = 1 AND kind = matching_layer) OR (num_non_null(...) = 0 AND kind = 'catalog')`.
+
+UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope columns are NULL where they previously had values (rip-and-replace authorized — the data being lost is dev/UAT seed data only).
+
+*Explicitly out of scope for the waterfall (do NOT add scope columns):*
+- `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `deploy_run`, `stage_gate_result`, `isolation_environment` — execution rows, keep `projectId NOT NULL`.
+- `issue` and all `issue_*` tables — per-project data.
+- `issueType`, `issueState`, `issueStatus`, `issuePriority`, `issueLabel`, `issueTransition` — issue catalog; keeps its existing global-or-project two-layer model.
+- `memory`, `configEntry`, `cronJob`, `personaSkill`, `driverRevision`, `skillRevision` — see spec rationale.
+
+*Auth identity:*
+- No schema change to `user.id`. The invariant "`user.id` = `auth.users.id`" is documented in the spec; Stage 1 adds a SQL comment on the `user.id` column referencing the spec, and a `user.id` seed assertion in Stage 2.
+
 **Scope boundary:**
 
-- Schema changes ONLY. No seed rewrites. No code consuming the new shape. The DB shape lands, migrates clean, and the existing app continues to boot (even though most features will be broken until later stages).
-- The old `team` and `team_member` tables get DROPPED in this stage's migration. Code references that read those tables will break — that's intentional and gets repaired in stage 5.
-- Feature-table scope columns added as NULLABLE everywhere; existing rows get NULL across the four. CHECK constraint is added but allows the all-null-and-`kind='catalog'` case so existing rows aren't violated.
-- Set existing rows' `kind` to `'catalog'` as part of the migration (one UPDATE per feature table; rip-and-replace, so OK).
+- Schema + migration SQL + nuke script. No seed rewrites. No code consuming the new shape.
+- The old `team` and `team_member` tables get DROPPED in this stage's migration. Code references will break — that's intentional and gets repaired in stage 5.
 
 **Hard rules for this stage:**
 
 - No reading any of the new tables from app code in this stage. Schema only.
-- Migration must apply cleanly on a freshly-nuked dev DB AND on a UAT DB with existing rows. The "existing rows" case is only checked manually on the UAT environment — there's no test data preservation requirement, but the migration itself must not crash.
+- Migration must apply cleanly on a freshly-nuked dev DB. For UAT: operator runs `tsx src/scripts/db/nuke.ts && npm run db:migrate` manually before deploying. **No "must apply against existing UAT rows" requirement** — rip-and-replace explicitly authorized.
 
 **Verification gate (must pass before stage 2 starts):**
 
@@ -96,7 +132,9 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
 **Hard rules:**
 
 - All catalog feature rows must have ALL FOUR scope columns NULL and `kind='catalog'`. The CHECK constraint will reject anything else.
-- The default project's `team_id` is the default team. `project.org_id` is denormalized from the team's org.
+- The default project's `team_id` is the default team. `project.org_id` is NOT set by the seed — the Stage 1 trigger fills it from `team.org_id`.
+- **Auth identity invariant:** the seeded default user's `user.id` must equal the corresponding `auth.users.id` of the Supabase auth account (via Supabase admin API, fixed UUID in both). `verify:seed` includes an assertion `SELECT id FROM auth.users WHERE id = <DEFAULT_USER_UUID>` returns one row.
+- **Denormalization invariant:** `verify:seed` includes an assertion `SELECT 1 FROM project p JOIN team t ON t.id = p.team_id WHERE p.org_id <> t.org_id` returns zero rows.
 
 **Verification gate (must pass before stage 3):**
 
@@ -144,11 +182,16 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
     db: Database,
     table: PgTable,
     ctx: ScopeContext,
+    dedupeKey: keyof T,         // column name to deduplicate on (e.g., 'name', 'identifier')
     extraWhere?: SQL,
   ): Promise<T[]>;
   ```
 
-  `resolveScoped` returns the single highest-priority row (first match walking project → user → team → org → catalog). `resolveScopedAll` returns all rows from all layers, with each lower-layer row shadowing same-key upper-layer rows by some key the caller supplies (e.g., persona name). Stage 3 ships both; later stages choose which to use.
+  `resolveScoped` returns the single highest-priority row (first match walking project → user → team → org → catalog). `resolveScopedAll` returns all rows across all layers, deduplicated by `dedupeKey`: for each distinct value of that column, the highest-priority layer wins; lower-layer rows with the same key are dropped. Per-table `dedupeKey` choices (locked at v1, from spec):
+  - `persona.name`, `skill.name`, `routingProfile.name`, `brand.name`, `provider.name`, `driver.name` — natural name keys.
+  - `model`: composite `(providerId, identifier)`. Stage 3 either (a) extends the helper to take a `SQL` key expression, or (b) restricts `dedupeKey` to single columns and the model consumer uses a synthetic key column. Slice plan picks one.
+
+  Stage 3 ships both helpers; later stages choose which to use per call site.
 
 **Hard rules:**
 
@@ -176,8 +219,15 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
   // before
   function resolveContext(orgSlug, userSlug, projectSlug): { orgId, userId, projectId }
   // after
-  function resolveContext(projectUuid): { orgId, teamId, projectId, currentUserId; assertProjectAccess(): void }
+  function resolveContext(projectUuid): {
+    orgId: string;
+    teamId: string;
+    projectId: string;
+    currentUserId: string;        // session user; throws if not authorized
+    assertProjectAccess(): void;  // re-validates per call
+  }
   ```
+  Per spec: member enumeration (who else has access) is NOT in this return type. Pages call a dedicated `project.listMembers(projectId)` tRPC procedure when they need the member list.
 - `src/app/[org]/[user]/[project]/**` — KEPT in place this stage with a small wrapper that 307-redirects to `/p/{uuid}/...` based on URL lookup. This buys overlap room for stage 5/6/7 work without breaking existing bookmarks/dev workflows mid-migration. Deleted in stage 8.
 - Any `<Link>` or `useRouter().push()` that builds an `/{org}/{user}/{project}/...` URL — updated to use a new `projectPath(projectUuid, ...)` helper from `src/lib/url.ts`.
 - Issue / run pages: `src/app/i/[issueUuid]/` and `src/app/r/[runUuid]/` (new top-level routes if they don't already exist).
@@ -226,6 +276,7 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
 
 - Every router that currently uses `userId` for authorization must be audited. Don't blindly replace — some `userId` uses are legitimate scope queries (e.g., "show me MY issue list"), not authorization. Authorization → `assertProjectAccess`. Scope → keep `userId` if still meaningful.
 - The audit goes in the slice plan: a table per router listing every procedure and its mapping (authorization vs scope vs delete).
+- **Auth identity invariant (per spec):** `src/server/trpc.ts`'s viewer resolver matches `user.id === authUserId` (the JWT subject = `auth.users.id`). The new `assertProjectAccess` relies on this. The slice plan must include a Stage-2 / Stage-5 cross-check that the seeded user row has `id = auth.users.id` for the dev/UAT seeded auth account. If they don't match, every `assertProjectAccess` call fails closed — which is correct behavior but would surface as "every project denied" rather than a clear identity error. Add an early-failure assertion in `getViewerContext` that throws a typed error if `fluxaUserId` is null AND the request is not an unauthenticated LAN-bypass path.
 
 **Verification gate (must pass before stage 6 starts):**
 
@@ -279,9 +330,10 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 
 **Files affected:**
 
-- `e2e/*.spec.ts` (15 specs that reference `[org]/[user]/[project]` URL paths or `projectPath()` helper).
-- `e2e/helpers/*` — `projectPath()` helper updated to build `/p/{uuid}/...` paths from UUIDs.
+- `e2e/helpers/setup.ts` — **central chokepoint**. `projectPath()` and any `defaultOrg`/`defaultUser`/`defaultProject` slug-based helpers updated to build `/p/{uuid}/...` paths from a `FLUXAOS_PROJECT_UUID` env var (replacing the three slug env vars). Updating this alone fixes most call sites.
+- `e2e/*.spec.ts` — ~47 specs reference seed defaults or call `projectPath()`. Most go through the helper and need zero changes once the helper is updated. The slice plan begins by running `grep -rln "defaultProject\|defaultOrg\|defaultUser\|projectPath" e2e/` to produce the authoritative list, then categorizes each as "via helper (no change)" vs "direct URL or DB ref (needs edit)."
 - `e2e/full-issue-lifecycle.spec.ts` — the canonical full-lifecycle journey. Must pass against the new URL shape.
+- `.env.example` and Playwright env loading — switch `FLUXAOS_ORG_SLUG`/`USER_SLUG`/`PROJECT_SLUG` to `FLUXAOS_PROJECT_UUID` (with the seed setting it deterministically).
 
 **Scope boundary:**
 
@@ -322,6 +374,11 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 **Hard rules:**
 
 - Every deletion must be preceded by a grep proving zero refs remain. The slice plan template includes a grep checklist per deletion candidate.
+- **Ordering within the stage-8 PR matters.** The 307 redirect (from Stage 4) does a slug→UUID DB lookup using `project.slug`/`organization.slug`/`user.slug`. Slug columns can only be dropped AFTER the redirect code is deleted. Concrete commit order inside the stage-8 PR:
+  1. Delete `src/app/[org]/[user]/[project]/**` route tree (redirect goes away).
+  2. Delete other dead helpers (`assertProjectOwnership`, slug-aware `resolveContext` paths).
+  3. Drop slug columns in a small drizzle migration.
+  Reversing 1 and 3 breaks the dev/UAT server for any in-flight old-URL bookmark hit during the deploy window.
 
 **Verification gate (must pass before declaring FLX-239 done):**
 
@@ -349,15 +406,30 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 
 5. **No production, no users override applies.** Free to nuke + reseed the dev DB at every stage boundary. UAT operator decides when to do the same on UAT.
 
+6. **Realtime subscriptions.** Existing Realtime subscriptions on `issue_event`, `pipeline_run`, `stage_run` etc. continue to work unchanged — those tables don't get scope columns. **No new Realtime subscriptions are added** by FLX-239 (membership tables `project_member`/`team_member` are read at page load, not subscribed). Mid-session membership changes require a page refresh in v1; live membership updates are an explicit follow-on if needed.
+
+7. **Customer placeholder determinism.** The seed creates the default `customer` row with a fixed UUID (committed in the seed source). UAT operator never directly touches the `customer` table; rip-and-replace reseeds restore it to the same UUID. No risk of drift between dev and UAT.
+
 ---
 
 ## Self-review notes
 
 - **Spec coverage:** every Acceptance bullet in the spec maps to a verification gate above. ✓
-- **Placeholder scan:** no TBDs, no "TODO", no "implement later". The phrase "if it helps" appears once (Stage 3, optional schema mixin) — that's explicitly optional, not a placeholder. ✓
-- **Type consistency:** `resolveContext` signature is locked in Stage 4 and used unchanged in Stage 5. `resolveScoped`/`resolveScopedAll` signatures locked in Stage 3 and consumed unchanged in Stage 6. ✓
+- **Placeholder scan:** no TBDs, no "TODO", no "implement later". ✓
+- **Type consistency:** `resolveContext` signature locked in Stage 4 and matches spec ("Routing + page changes" section). `resolveScoped`/`resolveScopedAll` signatures locked in Stage 3 with `dedupeKey` parameter; consumed unchanged in Stage 6. ✓
 - **Scope check:** epic is 8 stages, each a single-PR-sized slice. Reasonable.
 - **Ambiguity:** "Routers that scoped by `userId` for authorization" vs "scope queries" disambiguated in Stage 5 hard rules. ✓
+
+**Revisions from plan-review round 1 (2026-05-18):**
+- Stage 1 expanded with concrete schema work list, explicit out-of-scope tables (pipeline/issue/etc.), NOT NULL drop list (provider/routingProfile/brand), and the `project.org_id` trigger.
+- Stage 2 hard rules now include the auth-identity invariant assertion and the denormalization invariant assertion.
+- Stage 3 `resolveScopedAll` signature now includes `dedupeKey` parameter; per-table dedupeKey choices locked.
+- Stage 4 `resolveContext` return type clarified — no `userIds[]`; member enumeration goes through `project.listMembers`.
+- Stage 5 hard rules now call out the trpc.ts viewer-resolver auth-identity dependency.
+- Stage 7 file count corrected (47 specs via helper, not 15 hardcoded); helper chokepoint strategy added.
+- Stage 8 ordering constraint inside the PR (delete redirect → delete helpers → drop slug columns) explicit.
+- Cross-stage rule 6 (Realtime non-coverage) and 7 (customer placeholder determinism) added.
+- Spec updated in parallel: pipeline removed from feature-table list; auth-identity contract section added; `resolveContext` shape clarified; trigger-based `project.org_id` enforcement specified; `resolveScopedAll` signature locked.
 
 ---
 

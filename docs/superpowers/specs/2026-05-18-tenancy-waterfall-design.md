@@ -41,6 +41,19 @@ A user U can see project P iff:
 1. U is in `project_member` for P (explicit per-user grant), OR
 2. U is in `team_member` for `P.team_id` with sufficient role (default team-wide).
 
+## Auth identity contract
+
+The fluxaOS `user` table is a profile table that mirrors `auth.users` 1:1. Specifically:
+
+- `user.id` (uuid PK) is set to the Supabase `auth.users.id` of the corresponding auth account. This is an invariant, not a coincidence.
+- New user creation (Sign-up flow or admin invite) inserts the `user` row with `id = auth.users.id` as part of the same transaction that records the auth event.
+- The seed sets `user.id` to a fixed UUID and creates a Supabase auth user with the same UUID (via the admin API) so `trpc.ts`'s viewer resolver can match `user.id === authUserId` from the JWT subject.
+- No separate `auth_user_id` column. The invariant is the FK.
+
+`resolveContext` and `assertProjectAccess` look up the session user by JWT subject, hit `user.id`, then check `project_member.user_id` and `team_member.user_id` for access.
+
+If the invariant is ever broken (e.g., a user row is created without a matching auth account), every authorization check for that user fails closed. There is no fallback to LAN bypass for production paths; LAN bypass exists only for unauthenticated dev/Playwright traffic where no JWT is present.
+
 ## Customer placeholder
 
 **Customer is reserved for future billing/identity. Not implemented, not enforced, not in UI in v1.**
@@ -66,7 +79,20 @@ A user U can see project P iff:
 
 ## Waterfall config (Kopia-style)
 
-**Every feature row** follows the same shape — persona, model, harness, skill, provider, driver, pipeline, routing-profile, brand, gate-config, and any future feature row.
+**Every feature row** follows the same shape — persona, model, skill, provider, driver, routing-profile, routing-rule, brand, gate-config, and any future feature config row.
+
+**Explicitly NOT in the waterfall** (these are execution / runtime / non-config rows):
+
+- `pipeline`, `pipeline_stage`, `pipeline_run`, `stage_run`, `deploy_run`, `stage_gate_result`, `isolation_environment` — execution definitions and run records. They stay project-scoped (`projectId NOT NULL`). They *consume* feature config via the waterfall, but their own rows are not waterfall.
+- `issue` and all `issue_*` tables (event, comment, branch, pull_request, commit, transition) — per-project data, not config.
+- `issueType`, `issueState`, `issueStatus`, `issuePriority`, `issueLabel`, `issueTransition` — issue catalog. Already a two-layer model (nullable `projectId` distinguishes global vs project). Stays as-is in v1; can be considered for full waterfall later if needed.
+- `memory` — per-tenant data with its own scope semantics; not a config row.
+- `configEntry` — runtime/daemon configuration (workspace roots, cleanup thresholds); already has its own `scope` column model. Stays as-is in v1.
+- `cronJob` — execution scheduling, not config.
+- `personaSkill`, `team_member`, `project_member` — junction tables; their scope follows their parent rows.
+- `driverRevision`, `skillRevision` — append-only history tables; tied to their parent driver/skill row's scope.
+
+Driver and harness configuration are *features* (in waterfall); their *revisions* are not (they trail the parent row).
 
 ### Schema
 
@@ -87,10 +113,40 @@ CHECK constraint: exactly one of the four scope columns is non-null **and** `kin
 A read at the project layer walks **project → user → team → org → catalog**, returning the first match. Implemented once as a shared helper:
 
 ```ts
-resolveScoped<T>(table, ctx: { projectId, userId, teamId, orgId }): Promise<T | null>
+type ScopeContext = {
+  projectId?: string | null;
+  userId?: string | null;
+  teamId?: string | null;
+  orgId?: string | null;
+};
+
+// Single highest-priority row (or null).
+resolveScoped<T>(
+  db: Database,
+  table: PgTable,
+  ctx: ScopeContext,
+  extraWhere?: SQL,
+): Promise<T | null>;
+
+// All rows from all layers, deduplicated by `dedupeKey`. For each
+// distinct value of `dedupeKey`, the highest-priority layer wins;
+// lower-layer rows with the same key are dropped.
+// dedupeKey is a typed column reference (e.g., persona.name, model.identifier).
+resolveScopedAll<T>(
+  db: Database,
+  table: PgTable,
+  ctx: ScopeContext,
+  dedupeKey: keyof T,
+  extraWhere?: SQL,
+): Promise<T[]>;
 ```
 
-The helper issues a single SQL query with `ORDER BY` over a CASE that ranks rows by layer (project=1, user=2, team=3, org=4, catalog=5), `LIMIT 1`. No N+1.
+The helper issues a single SQL query with `ORDER BY` over a CASE that ranks rows by layer (project=1, user=2, team=3, org=4, catalog=5), `LIMIT 1` for the single variant. `resolveScopedAll` uses `DISTINCT ON (dedupeKey)` with the same ordering. No N+1.
+
+Per-table `dedupeKey` choices (locked at v1):
+- `persona.name`, `skill.name`, `routingProfile.name`, `brand.name` — natural name keys.
+- `model`: composite `(providerId, identifier)` — `resolveScopedAll` is called with a synthetic key column expression, or the helper is extended to take a `SQL` key. Stage 3 picks one and documents it.
+- `provider.name`, `driver.name` — natural name keys.
 
 ### Write
 
@@ -118,7 +174,8 @@ Inserts are explicit at the layer being defined. No cascade-write. No backfill. 
 
 - `user.org_id`: still required.
 - `organization.customer_id`: new nullable column (no FK, no NOT NULL).
-- `project.org_id`: kept and denormalized from `team.org_id` for query speed; CHECK that `project.org_id = (SELECT org_id FROM team WHERE id = project.team_id)`. (Or compute at write time; design detail for plan.)
+- `project.org_id`: kept and denormalized from `team.org_id` for query speed. Postgres CHECK can't reference other rows, so enforcement is via a `BEFORE INSERT OR UPDATE ON project` trigger that **overwrites** `project.org_id` from `team.org_id` (caller can't set it independently). The seed and `project.create` procedure simply set `team_id` and let the trigger fill in `org_id`. Stage 2's `verify:seed` asserts the invariant.
+- `provider.org_id`, `routing_profile.org_id`, `brand.org_id`: today these are `NOT NULL`. Under the waterfall, catalog-scoped rows have all four scope columns NULL, so the NOT NULL constraint must be dropped on every feature table that gains scope columns. Stage 1's migration drops these. The CHECK constraint enforces the new invariant (exactly one scope FK non-null, or all null for catalog).
 
 ## Routing + page changes
 
@@ -129,8 +186,16 @@ Every page under `src/app/[org]/[user]/[project]/**` moves to `src/app/p/[projec
 function resolveContext(orgSlug, userSlug, projectSlug): { orgId, userId, projectId }
 
 // after
-function resolveContext(projectUuid): { orgId, teamId, projectId, userIds[], currentUserId }
+function resolveContext(projectUuid): {
+  orgId: string;
+  teamId: string;
+  projectId: string;
+  currentUserId: string;        // session user; throws if not authorized
+  assertProjectAccess(): void;  // re-validates per call (cheap; access already checked at resolve time)
+}
 ```
+
+Member enumeration (who else has access to this project) is **not** part of `resolveContext`. Pages that need the member list (assignee picker, mention UI, activity feed) call a dedicated `project.listMembers(projectId)` tRPC procedure that returns the union of `project_member` direct grants and `team_member`-via-team grants.
 
 Authorization happens inside `resolveContext`: throws if the current session user lacks access via team or project membership.
 
