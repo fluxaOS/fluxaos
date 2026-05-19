@@ -974,18 +974,21 @@ export const configEntry = pgTable(
 // Relations
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const organizationRelations = relations(organization, ({ one, many }) => ({
-  users: many(user),
-  projects: many(project),
-  providers: many(provider),
-  routingProfiles: many(routingProfile),
-  brands: many(brand),
-  teams: many(team),
-  customer: one(customer, {
-    fields: [organization.customerId],
-    references: [customer.id],
-  }),
-}));
+export const organizationRelations = relations(
+  organization,
+  ({ one, many }) => ({
+    users: many(user),
+    projects: many(project),
+    providers: many(provider),
+    routingProfiles: many(routingProfile),
+    brands: many(brand),
+    teams: many(team),
+    customer: one(customer, {
+      fields: [organization.customerId],
+      references: [customer.id],
+    }),
+  })
+);
 
 export const customerRelations = relations(customer, ({ many }) => ({
   organizations: many(organization),
