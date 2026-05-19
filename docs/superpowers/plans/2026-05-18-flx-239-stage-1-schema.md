@@ -787,7 +787,11 @@ ALTER TABLE "skill" ADD COLUMN "user_id" uuid;
 ALTER TABLE "skill" ADD COLUMN "project_id" uuid;
 ALTER TABLE "skill" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
 
-ALTER TABLE "brand" ADD COLUMN "org_id" uuid;       -- was NOT NULL pre-FLX-239 (see Phase 12)
+-- brand.org_id already exists pre-FLX-239 (was NOT NULL FK to organization).
+-- Drizzle's db:generate baseline emits `ALTER COLUMN org_id DROP NOT NULL` +
+-- `DROP CONSTRAINT brand_org_id_organization_id_fk` from the schema.ts change
+-- in Step 2.8. Do NOT add another ADD COLUMN here — would error
+-- "column org_id of relation brand already exists".
 ALTER TABLE "brand" ADD COLUMN "team_id" uuid;
 ALTER TABLE "brand" ADD COLUMN "user_id" uuid;
 ALTER TABLE "brand" ADD COLUMN "project_id" uuid;
@@ -810,21 +814,26 @@ ALTER TABLE "routing_profile" ADD COLUMN "project_id" uuid;
 ALTER TABLE "routing_profile" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Phase 12: Drop NOT NULL on org_id for tables that already had it. Catalog-
--- scope rows have all four scope columns NULL.
+-- Phase 12: Reset existing rows to catalog kind.
+--
+-- The NOT NULL drops on brand.org_id / provider.org_id / routing_profile.org_id
+-- are handled by Drizzle's db:generate baseline (the schema.ts changes in
+-- Step 2.8/2.9 make these columns nullable; Drizzle emits the ALTER COLUMN
+-- DROP NOT NULL automatically). Do NOT duplicate them here.
+--
+-- The UPDATE statements below ARE needed (Drizzle doesn't emit data DML):
+-- after the migration, existing rows that previously had `org_id` set must
+-- be reset to all-null + kind='catalog' so the new CHECK constraint
+-- (Phase 13) accepts them. Rip-and-replace authorized — these rows are
+-- seed/dev/UAT data only.
 -- ─────────────────────────────────────────────────────────────────────────────
-ALTER TABLE "brand" ALTER COLUMN "org_id" DROP NOT NULL;
-ALTER TABLE "provider" ALTER COLUMN "org_id" DROP NOT NULL;
-ALTER TABLE "routing_profile" ALTER COLUMN "org_id" DROP NOT NULL;
-
--- Reset all existing rows to catalog kind with all scope FKs null. Rip-and-
--- replace authorized — these rows are seed/dev/UAT data only.
 UPDATE "persona" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
 UPDATE "skill" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
 UPDATE "brand" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
 UPDATE "provider" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
 UPDATE "driver" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
 UPDATE "routing_profile" SET kind = 'catalog', org_id = NULL, team_id = NULL, user_id = NULL, project_id = NULL;
+
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 13: CHECK constraints — exactly one of (org_id, team_id, user_id,
@@ -1181,21 +1190,27 @@ test.describe.skip('team CRUD', () => {
 
 If the spec uses bare `test(...)` calls at the file root (not inside a `describe`), wrap each in `test.skip(...)` or change `test(` to `test.skip(`. Read the file first to determine which.
 
-- [ ] **Step 6.2: Skip ONLY the Skills test in flx-252-create-entity-form**
+- [ ] **Step 6.2: Skip the Skills AND Teams tests in flx-252-create-entity-form**
 
-Open `e2e/flx-252-create-entity-form.spec.ts`. The file has one `test.describe(...)` with four `test(...)` blocks inside (Routing Profiles, Teams, Skills, Providers). Only the **Skills** test asserts `getByLabel('Scope')` — the other three test forms that don't depend on the dropped columns and should keep running.
+Open `e2e/flx-252-create-entity-form.spec.ts`. The file has one `test.describe(...)` with four `test(...)` blocks inside (Routing Profiles, Teams, Skills, Providers). TWO of them must be skipped:
 
-Find the line `test('Skills: CreateEntityForm creates a new skill with scope select', async ({` (around line 70) and change it to `test.skip(...)`. Add a comment above:
+1. **Skills test** — asserts `getByLabel('Scope')`. The schema migration dropped `skill.scope`.
+2. **Teams test** — exercises the OLD project-scoped `team` table via `team.create`. Stage 1 drops and replaces the team table; the old shape (with `project_id`) is gone. Until Stage 5 rewrites the team router and Stage 7 rewrites this spec, the Teams test will fail with a server error on `team.create`.
+
+Find each line and add `.skip`:
 
 ```typescript
-// FLX-239 Stage 1: this single test asserts a 'Scope' label on the Skills
-// create form. The schema migration dropped skill.scope. Scheduled for
+// FLX-239 Stage 1: the schema migration dropped skill.scope. Scheduled for
 // rewrite in Stage 7 when the new entity-create form drops the scope field.
-// Routing Profiles / Teams / Providers tests in this file are unaffected.
 test.skip('Skills: CreateEntityForm creates a new skill with scope select', async ({
+
+// FLX-239 Stage 1: the schema migration replaced the old project-scoped
+// team table with a humans-only org-scoped team. team.create router still
+// reads the old shape until Stage 5. Scheduled for rewrite in Stage 7.
+test.skip('Teams: CreateEntityForm creates a new team', async ({ page }) => {
 ```
 
-Do NOT skip the top-level `test.describe(...)`. Do NOT skip Routing Profiles, Teams, or Providers tests.
+Do NOT skip the top-level `test.describe(...)`. Do NOT skip Routing Profiles or Providers tests — they exercise forms that don't depend on dropped columns.
 
 - [ ] **Step 6.3: Skip settings-url-context**
 
@@ -1221,8 +1236,9 @@ git commit -m "e2e(flx-239): skip 3 specs that test dropped-column behavior
 
 team-crud: tests OLD project-scoped team / persona-member model
   (whole file skipped — every test depends on the dropped shape).
-flx-252-create-entity-form: ONLY the 'Skills' test skipped (asserts a
-  dropped Scope label); Routing Profiles / Teams / Providers tests
+flx-252-create-entity-form: 'Skills' test skipped (asserts a dropped
+  Scope label) AND 'Teams' test skipped (exercises old team.create
+  which reads the dropped shape). Routing Profiles / Providers tests
   keep running.
 settings-url-context: tests project.create with userId + old URL tree
   (whole file skipped).
@@ -1328,7 +1344,7 @@ Per the epic plan, this PR's verification gate is:
 
 ### Modified tables
 - `organization` — added `customer_id uuid` (nullable, no FK).
-- `project` — added `team_id NOT NULL FK`; dropped `user_id` FK; dropped `project_user_slug_idx`. New BEFORE INSERT OR UPDATE OF team_id trigger overwrites `project.org_id` from `team.org_id`.
+- `project` — added `team_id NOT NULL FK`; dropped `user_id` FK; dropped `project_user_slug_idx`. New `BEFORE INSERT OR UPDATE` trigger on `project` overwrites `org_id` from `team.org_id` on every write (no column-list filter so direct `UPDATE project SET org_id = X` can't bypass).
 - `persona` — dropped `scope` and `project_id`; added 4 waterfall scope columns + `kind`.
 - `skill` — same shape as persona.
 - `brand` — dropped `project_id` (vestigial); added waterfall columns; dropped `org_id NOT NULL`.
@@ -1341,7 +1357,7 @@ Per the epic plan, this PR's verification gate is:
 - Partial unique indexes: `<table>_org_name_uq` (org-scope rows) + `<table>_catalog_name_uq` (catalog rows) per waterfall feature table.
 
 ### New trigger
-- `flx239_project_set_org_id_from_team` — fires `BEFORE INSERT OR UPDATE OF team_id ON project`; sets `NEW.org_id = team.org_id`; raises if team has null org_id.
+- `flx239_project_set_org_id_from_team` — fires `BEFORE INSERT OR UPDATE ON project` (every write, not column-filtered); sets `NEW.org_id = team.org_id`; raises if team has null org_id.
 
 ## Out of scope (deferred to later stages)
 
@@ -1470,6 +1486,14 @@ Recommend Subagent-Driven for this stage given the schema migration's irreversib
 **Which approach?**
 
 ---
+
+## Revisions from plan-review round 2 (2026-05-19)
+
+Round-2 fresh-eyes review caught two more migration-blocking issues:
+
+- **HIGH-1** Phase 11 `ALTER TABLE brand ADD COLUMN org_id` would crash — `brand.org_id` already exists in the live schema (pre-FLX-239 it was `NOT NULL` FK to organization). Drizzle's `db:generate` baseline handles the NOT NULL drop from the schema.ts edit in Step 2.8; the hand-edit only adds the OTHER waterfall columns to brand. Phase 12's `ALTER COLUMN DROP NOT NULL` statements (also redundant with Drizzle's baseline for brand/provider/routing_profile) removed; Phase 12 now only contains the UPDATE statements (which Drizzle doesn't emit).
+- **HIGH-2** The Teams test in flx-252 was incorrectly left un-skipped. It exercises the old `team.create` router with the old shape; will fail with a server error until Stage 5/7. Step 6.2 now skips both Skills and Teams tests in flx-252; Routing Profiles and Providers tests keep running.
+- **MEDIUM-1** Step 7.8's PR body template still said `BEFORE INSERT OR UPDATE OF team_id` (contradicting round-1's removal of `OF team_id`). Both occurrences fixed.
 
 ## Revisions from plan-review round 1 (2026-05-19)
 
