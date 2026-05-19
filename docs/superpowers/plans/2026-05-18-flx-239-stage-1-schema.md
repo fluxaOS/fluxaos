@@ -358,7 +358,7 @@ export const provider = pgTable(
 );
 ```
 
-Replace the `driver` table (line 230) by inserting waterfall columns AT THE TOP of its column list (preserve existing columns after). Open the file and edit `driver` block:
+Replace lines 230-257 (`driver` table) with the complete block below. The driver table has 17 existing columns; all are preserved verbatim, with the five new waterfall columns inserted between `id,` and `name`:
 
 ```typescript
 export const driver = pgTable('driver', {
@@ -369,11 +369,32 @@ export const driver = pgTable('driver', {
   userId: uuid('user_id'),
   projectId: uuid('project_id'),
   kind: text('kind').notNull().default('catalog'),
-  // ... preserve every other column verbatim from the current driver table ...
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  binary: text('binary').notNull(),
+  defaultArgs: jsonb('default_args').notNull().default(sql`'[]'::jsonb`),
+  modelFlag: text('model_flag'),
+  dirFlag: text('dir_flag'),
+  sessionNameFlag: text('session_name_flag'),
+  promptTransport: text('prompt_transport').notNull().default('argv'),
+  outputFormat: text('output_format').notNull().default('stream-json'),
+  outputFormatFlag: text('output_format_flag'),
+  promptSendDelayMs: integer('prompt_send_delay_ms').notNull().default(0),
+  probeCommand: text('probe_command'),
+  issuePromptTemplate: text('issue_prompt_template'),
+  queuePromptTemplate: text('queue_prompt_template'),
+  envVars: jsonb('env_vars').notNull().default(sql`'{}'::jsonb`),
+  extraArgs: jsonb('extra_args').notNull().default(sql`'{}'::jsonb`),
+  // FLX-78: no driver-specific default in core schema. Driver rows are
+  // seeded with concrete contextLayout values (see src/scripts/db/seed.ts).
+  contextLayout: jsonb('context_layout').notNull(),
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  notes: text('notes'),
+  version: integer('version').notNull().default(1),
+  createdAt,
+  updatedAt,
 });
 ```
-
-When applying this edit, read the current `driver` block first (it spans multiple lines, ~263), then add ONLY the five new column lines after `id,`. Do not modify any other column.
 
 Replace `routingProfile` (lines 686-698) with:
 
@@ -396,7 +417,16 @@ export const routingProfile = pgTable('routing_profile', {
 });
 ```
 
-- [ ] **Step 2.10: Update `personaRelations` and `skillRelations` (drop the project relation; keep brand/routingProfile/parent on persona; keep stageRuns on skill)**
+- [ ] **Step 2.10: Update `personaRelations` and `skillRelations`**
+
+Drops to make in `personaRelations` (live line 1132-1152):
+- DROP `project: one(project, { fields: [persona.projectId], ... })` — column was dropped in Step 2.5.
+- DROP `teamMemberships: many(teamMember)` — old team_member had a `personaId` FK; the new team_member table has no persona FK.
+- KEEP `brand`, `routingProfile`, `parent`, `personaSkills`, `pipelineStages` relations.
+
+Drops to make in `skillRelations` (live line 1154-1161):
+- DROP `project: one(project, { fields: [skill.projectId], ... })` — column was dropped in Step 2.6.
+- KEEP `personaSkills`, `stageRuns` relations.
 
 Replace lines 1132-1161:
 
@@ -521,6 +551,23 @@ Add a new `customerRelations` after `organizationRelations`:
 export const customerRelations = relations(customer, ({ many }) => ({
   organizations: many(organization),
 }));
+```
+
+- [ ] **Step 2.13b: Add auth-identity invariant comment on `user.id`**
+
+Per epic plan: "Stage 1 adds a SQL comment on the `user.id` column referencing the spec." Find the `user` table definition (line 41-61). Insert a JSDoc comment immediately above `id,` inside the `pgTable('user', { ... })` body:
+
+```typescript
+export const user = pgTable(
+  'user',
+  {
+    // FLX-239 invariant: user.id === auth.users.id. The fluxaOS user row's
+    // primary key is the same UUID as the corresponding Supabase auth account.
+    // The seed enforces this; trpc.ts's viewer resolver depends on it.
+    // See docs/superpowers/specs/2026-05-18-tenancy-waterfall-design.md
+    // §"Auth identity contract".
+    id,
+    // ... rest of the table definition unchanged ...
 ```
 
 - [ ] **Step 2.14: Type-check the schema**
@@ -675,13 +722,27 @@ CREATE TABLE "project_member" (
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 8: Project — drop user_id FK, add team_id FK.
 -- Note: project.user_id is dropped AFTER project_user_slug_idx (Phase 1).
+-- Guard: `team_id NOT NULL` with no DEFAULT requires every existing row to
+-- supply a value. Migration assumes nuke ran first. Fail fast with a clear
+-- message if project has rows, rather than a cryptic "not-null violation".
 -- ─────────────────────────────────────────────────────────────────────────────
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "project" LIMIT 1) THEN
+    RAISE EXCEPTION 'FLX-239 Phase 8: project table must be empty before adding team_id NOT NULL. Run `tsx src/scripts/db/nuke.ts` first.';
+  END IF;
+END $$;
 ALTER TABLE "project" DROP COLUMN "user_id";
 ALTER TABLE "project" ADD COLUMN "team_id" uuid NOT NULL REFERENCES "team"("id");
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 9: Denormalization trigger — project.org_id always mirrors team.org_id.
 -- Postgres CHECK can't cross rows; this trigger enforces the invariant.
+--
+-- IMPORTANT: trigger fires on ANY UPDATE (no `OF team_id` clause). Without
+-- this, application code that does `UPDATE project SET org_id = X` would
+-- silently bypass the invariant. The slightly higher overhead of re-reading
+-- team.org_id on every project write is the correct trade.
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION flx239_project_set_org_id_from_team()
 RETURNS TRIGGER AS $$
@@ -695,7 +756,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER project_set_org_id_from_team
-  BEFORE INSERT OR UPDATE OF team_id ON "project"
+  BEFORE INSERT OR UPDATE ON "project"
   FOR EACH ROW
   EXECUTE FUNCTION flx239_project_set_org_id_from_team();
 
@@ -822,27 +883,62 @@ ALTER TABLE "routing_profile" ADD CONSTRAINT "routing_profile_scope_check" CHECK
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 14: Partial unique indexes. Standard UNIQUE doesn't enforce uniqueness
--- when columns are NULL, so we need TWO partials per feature table for the
--- name-uniqueness invariant within each scope layer.
+-- when columns are NULL, so we need FIVE partials per feature table — one per
+-- scope layer (org, team, user, project) plus catalog — so that:
+--   * Two catalog personas with the same name collide.
+--   * Two org-scoped personas with the same (org_id, name) collide.
+--   * Two team-scoped personas with the same (team_id, name) collide.
+--   * ... and so on for user and project scopes.
+-- This matches the assumption baked into resolveScopedAll's dedupeKey='name':
+-- the helper uses DISTINCT ON (name) within a scope; without intra-scope
+-- uniqueness, DISTINCT ON would pick one duplicate arbitrarily.
+--
+-- Audit confirmed: grep 'uniqueIndex.*org_id.*name' against schema.ts at
+-- plan-write time returned ONLY 'provider_org_id_name_idx' (provider only;
+-- routingProfile and brand have no such index). The replacement below
+-- applies the pattern uniformly to all six waterfall feature tables.
 -- ─────────────────────────────────────────────────────────────────────────────
--- Provider: name is unique within org-scope, and unique within catalog.
+
+-- Provider
 CREATE UNIQUE INDEX "provider_org_name_uq" ON "provider" ("org_id", "name") WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX "provider_team_name_uq" ON "provider" ("team_id", "name") WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX "provider_user_name_uq" ON "provider" ("user_id", "name") WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX "provider_project_name_uq" ON "provider" ("project_id", "name") WHERE project_id IS NOT NULL;
 CREATE UNIQUE INDEX "provider_catalog_name_uq" ON "provider" ("name") WHERE kind = 'catalog';
 
--- Repeat the same pattern for any other waterfall table whose name uniqueness
--- matters. Per spec, the v1 feature tables are persona, skill, provider,
--- driver, brand, routing_profile. The slice-plan author (you) decided at
--- implementation time whether to apply the uniqueness pattern to all six or
--- only to those that had it before. Conservative choice: apply to all six.
+-- Persona
 CREATE UNIQUE INDEX "persona_org_name_uq" ON "persona" ("org_id", "name") WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX "persona_team_name_uq" ON "persona" ("team_id", "name") WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX "persona_user_name_uq" ON "persona" ("user_id", "name") WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX "persona_project_name_uq" ON "persona" ("project_id", "name") WHERE project_id IS NOT NULL;
 CREATE UNIQUE INDEX "persona_catalog_name_uq" ON "persona" ("name") WHERE kind = 'catalog';
+
+-- Skill
 CREATE UNIQUE INDEX "skill_org_name_uq" ON "skill" ("org_id", "name") WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX "skill_team_name_uq" ON "skill" ("team_id", "name") WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX "skill_user_name_uq" ON "skill" ("user_id", "name") WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX "skill_project_name_uq" ON "skill" ("project_id", "name") WHERE project_id IS NOT NULL;
 CREATE UNIQUE INDEX "skill_catalog_name_uq" ON "skill" ("name") WHERE kind = 'catalog';
+
+-- Brand
 CREATE UNIQUE INDEX "brand_org_name_uq" ON "brand" ("org_id", "name") WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX "brand_team_name_uq" ON "brand" ("team_id", "name") WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX "brand_user_name_uq" ON "brand" ("user_id", "name") WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX "brand_project_name_uq" ON "brand" ("project_id", "name") WHERE project_id IS NOT NULL;
 CREATE UNIQUE INDEX "brand_catalog_name_uq" ON "brand" ("name") WHERE kind = 'catalog';
+
+-- Driver
 CREATE UNIQUE INDEX "driver_org_name_uq" ON "driver" ("org_id", "name") WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX "driver_team_name_uq" ON "driver" ("team_id", "name") WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX "driver_user_name_uq" ON "driver" ("user_id", "name") WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX "driver_project_name_uq" ON "driver" ("project_id", "name") WHERE project_id IS NOT NULL;
 CREATE UNIQUE INDEX "driver_catalog_name_uq" ON "driver" ("name") WHERE kind = 'catalog';
+
+-- Routing Profile
 CREATE UNIQUE INDEX "routing_profile_org_name_uq" ON "routing_profile" ("org_id", "name") WHERE org_id IS NOT NULL;
+CREATE UNIQUE INDEX "routing_profile_team_name_uq" ON "routing_profile" ("team_id", "name") WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX "routing_profile_user_name_uq" ON "routing_profile" ("user_id", "name") WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX "routing_profile_project_name_uq" ON "routing_profile" ("project_id", "name") WHERE project_id IS NOT NULL;
 CREATE UNIQUE INDEX "routing_profile_catalog_name_uq" ON "routing_profile" ("name") WHERE kind = 'catalog';
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -861,7 +957,27 @@ If Task 1's RLS audit was empty, the Phase 15 comment stays as documentation but
 Run: `cat drizzle/meta/_journal.json | tail -10`
 Expected: the last entry has `"tag": "0030_flx_239_tenancy_waterfall"`. If not, fix the tag manually to match the filename.
 
-- [ ] **Step 3.5: Commit the migration**
+- [ ] **Step 3.5: Verify the Drizzle snapshot reflects the schema**
+
+Before committing, confirm `drizzle/meta/0030_snapshot.json` (created by Step 3.1's `db:generate`) is internally consistent with `schema.ts`. Spot-check:
+
+```bash
+jq '.tables.persona.columns | keys' drizzle/meta/0030_snapshot.json
+# Expected: includes "id", "org_id", "team_id", "user_id", "project_id", "kind", "name"
+# Does NOT include the old "scope" or old "project_id"-as-FK columns (those were dropped).
+
+jq '.tables.provider.columns.org_id.notNull' drizzle/meta/0030_snapshot.json
+# Expected: false (org_id is nullable after the migration).
+
+jq '.tables.customer' drizzle/meta/0030_snapshot.json
+# Expected: a non-null object (the customer table was added).
+```
+
+If any check fails, `db:generate` didn't run correctly. Re-run `npm run db:generate` and re-inspect. If the snapshot is wrong, Step 4.4's drift check will fail.
+
+Note: Drizzle's snapshot does NOT track triggers, partial indexes, CHECK constraints, or hand-written `DO $$ ... $$` blocks. Those live only in the migration SQL file and are intentionally invisible to drift detection. This is the desired behavior.
+
+- [ ] **Step 3.6: Commit the migration**
 
 ```bash
 git add drizzle/0030_flx_239_tenancy_waterfall.sql drizzle/meta/_journal.json drizzle/meta/0030_snapshot.json
@@ -906,40 +1022,46 @@ If `db:migrate` fails:
 
 - [ ] **Step 4.2: Verify the trigger works**
 
-Run via psql or `npx tsx -e`:
+Run via psql or `npx tsx -e`. Wrap in a transaction so any failure rolls back cleanly without leaving audit rows behind:
 
 ```sql
+BEGIN;
 INSERT INTO organization (id, name, slug) VALUES ('00000000-0000-0000-0000-000000000001', 'audit', 'audit') RETURNING id;
 INSERT INTO team (id, org_id, name) VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'audit team') RETURNING id;
--- Insert a project WITHOUT setting org_id (trigger should fill it):
 INSERT INTO "user" (id, org_id, email, name, slug) VALUES ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'a@a', 'a', 'a');
+-- Insert a project WITHOUT setting org_id (trigger should fill it):
 INSERT INTO project (team_id, name, slug) VALUES ('00000000-0000-0000-0000-000000000002', 'audit', 'audit') RETURNING org_id, team_id;
 -- Expected: org_id matches the team's org_id (00000000-0000-0000-0000-000000000001).
--- Cleanup:
-DELETE FROM project WHERE name = 'audit';
-DELETE FROM "user" WHERE slug = 'a';
-DELETE FROM team WHERE name = 'audit team';
-DELETE FROM organization WHERE slug = 'audit';
+ROLLBACK;
 ```
 
-Expected: the SELECT after the project INSERT shows `org_id` populated by the trigger (matching the team's `org_id`). If `org_id` is NULL or doesn't match, the trigger is broken; fix and recommit.
+Expected: the SELECT after the project INSERT shows `org_id` populated by the trigger (matching the team's `org_id`). The `ROLLBACK` cleans up regardless of pass/fail. If `org_id` is NULL or doesn't match, the trigger is broken; fix the migration SQL and re-run from Step 4.1.
 
 - [ ] **Step 4.3: Verify CHECK constraint rejects bad rows**
 
-Run:
+Run, wrapped in a transaction so a successful (but wrong) INSERT can be rolled back:
 
 ```sql
+BEGIN;
 -- A row with conflicting scope (org_id set AND kind = 'project') must fail.
 INSERT INTO persona (org_id, kind, name) VALUES ('00000000-0000-0000-0000-000000000099', 'project', 'bad');
 -- Expected: ERROR: violates check constraint "persona_scope_check"
+ROLLBACK;
 ```
 
-If this INSERT succeeds, the CHECK constraint is wrong. Fix.
+If this INSERT succeeds, the CHECK constraint is wrong. The `ROLLBACK` is reached only on success (which is the bug case); on the expected failure, psql aborts the transaction automatically.
 
 - [ ] **Step 4.4: Verify db:generate produces no drift**
 
 Run: `npm run db:generate 2>&1 | tail -10`
-Expected: "No schema changes detected" or equivalent — no new SQL file produced. If a new file is produced, that means `schema.ts` doesn't match the migration; either `schema.ts` has typos or the migration is missing something. Reconcile and recommit.
+Expected: "No schema changes detected" (or equivalent) — no new SQL file produced. If a new file IS produced:
+
+1. Open the new file. It will contain `ALTER TABLE` statements describing the drift.
+2. For each statement, identify whether the drift is:
+   - **Schema-only drift**: `schema.ts` has a column or table the snapshot didn't capture. Re-run `db:generate` fresh: `rm drizzle/0031_*.sql && rm drizzle/meta/0031_snapshot.json 2>/dev/null; npm run db:generate`.
+   - **Snapshot drift**: snapshot lacks something the migration SQL added by hand (triggers, partial indexes, CHECK). This is expected — those are invisible to Drizzle. The new "drift" file in this case should only re-emit COLUMN changes, NOT trigger/index/CHECK changes. If it does re-emit those, the migration file's column-level changes don't match `schema.ts`.
+
+If the drift is real (column mismatch between `schema.ts` and the 0030 migration), fix the migration SQL or `schema.ts` to reconcile, then re-run `db:generate`. Delete any spurious `0031_*` file produced during diagnosis.
 
 - [ ] **Step 4.5: Verify schema.ts type-checks (focused)**
 
@@ -1059,18 +1181,21 @@ test.describe.skip('team CRUD', () => {
 
 If the spec uses bare `test(...)` calls at the file root (not inside a `describe`), wrap each in `test.skip(...)` or change `test(` to `test.skip(`. Read the file first to determine which.
 
-- [ ] **Step 6.2: Skip flx-252-create-entity-form**
+- [ ] **Step 6.2: Skip ONLY the Skills test in flx-252-create-entity-form**
 
-Open `e2e/flx-252-create-entity-form.spec.ts`. Same treatment:
+Open `e2e/flx-252-create-entity-form.spec.ts`. The file has one `test.describe(...)` with four `test(...)` blocks inside (Routing Profiles, Teams, Skills, Providers). Only the **Skills** test asserts `getByLabel('Scope')` — the other three test forms that don't depend on the dropped columns and should keep running.
+
+Find the line `test('Skills: CreateEntityForm creates a new skill with scope select', async ({` (around line 70) and change it to `test.skip(...)`. Add a comment above:
 
 ```typescript
-// FLX-239 Stage 1: this spec asserts a 'Scope' label on the Skills create
-// form. The schema migration dropped skill.scope. Scheduled for rewrite
-// in Stage 7 when the new entity-create forms drop the scope field.
-test.describe.skip('FLX-252 create entity form', () => {
+// FLX-239 Stage 1: this single test asserts a 'Scope' label on the Skills
+// create form. The schema migration dropped skill.scope. Scheduled for
+// rewrite in Stage 7 when the new entity-create form drops the scope field.
+// Routing Profiles / Teams / Providers tests in this file are unaffected.
+test.skip('Skills: CreateEntityForm creates a new skill with scope select', async ({
 ```
 
-If the spec is structured with multiple `test.describe(...)` blocks, only the ones that depend on `scope` need skipping; the others can stay. Read the file first to decide.
+Do NOT skip the top-level `test.describe(...)`. Do NOT skip Routing Profiles, Teams, or Providers tests.
 
 - [ ] **Step 6.3: Skip settings-url-context**
 
@@ -1094,12 +1219,15 @@ Expected: only the three specs you already skipped. If more appear, skip them wi
 git add e2e/team-crud.spec.ts e2e/flx-252-create-entity-form.spec.ts e2e/settings-url-context.spec.ts
 git commit -m "e2e(flx-239): skip 3 specs that test dropped-column behavior
 
-team-crud: tests OLD project-scoped team / persona-member model.
-flx-252-create-entity-form: asserts a 'Scope' label on Skills form.
-settings-url-context: uses project.create with userId.
+team-crud: tests OLD project-scoped team / persona-member model
+  (whole file skipped — every test depends on the dropped shape).
+flx-252-create-entity-form: ONLY the 'Skills' test skipped (asserts a
+  dropped Scope label); Routing Profiles / Teams / Providers tests
+  keep running.
+settings-url-context: tests project.create with userId + old URL tree
+  (whole file skipped).
 
-Each gets test.describe.skip(...) with FLX-239 comment referencing
-Stage 7 rewrite.
+Each carries a FLX-239 comment referencing Stage 7 rewrite.
 
 Refs FLX-239"
 ```
@@ -1288,7 +1416,18 @@ git log --oneline -3
 
 Expected: file exists; recent log shows the squash-merge commit.
 
-- [ ] **PM3: Hand off to Stage 2**
+- [ ] **PM3: UAT deploy (operator-driven, not part of the merged PR)**
+
+The UAT Docker image must NOT be deployed until UAT's DB has been nuked + migrated. The deploy sequence is:
+
+1. UAT operator runs `tsx src/scripts/db/nuke.ts && npm run db:migrate` against the UAT Supabase project. The dev/UAT URL guard in nuke.ts permits UAT only when the operator explicitly targets it (set DIRECT_URL to UAT in a local one-off shell; do NOT update `.env.local` or `/mnt/stacks/docker/fluxaos/fluxaos.env`).
+2. UAT operator builds and deploys the new Docker image: `./flux server uat build`.
+
+Order matters: the new image expects the new schema. If the image deploys against the old UAT schema, every page 500s on first hit. If the schema migrates against an unchanged old image, the running container's app code immediately starts failing on missing `team.project_id` etc.
+
+The plan does not automate this — UAT cadence is operator-controlled per the project's `## Environments` rules. Just document the sequence so the operator can plan it.
+
+- [ ] **PM4: Hand off to Stage 2**
 
 When ready for Stage 2 (seed rewrite), invoke `superpowers:writing-plans` for stage-2 with the spec + epic plan as input. The Stage 2 plan filename is `docs/superpowers/plans/YYYY-MM-DD-flx-239-stage-2-seed.md`.
 
@@ -1329,3 +1468,26 @@ When ready for Stage 2 (seed rewrite), invoke `superpowers:writing-plans` for st
 Recommend Subagent-Driven for this stage given the schema migration's irreversibility and the number of hand-edited SQL phases that benefit from a fresh eye.
 
 **Which approach?**
+
+---
+
+## Revisions from plan-review round 1 (2026-05-19)
+
+Fresh-eyes review caught two critical issues + multiple high/medium:
+
+**Critical:**
+- (C1) Trigger fired `BEFORE INSERT OR UPDATE OF team_id` — column-list filter allowed `UPDATE project SET org_id = X` to silently bypass the denormalization. Removed `OF team_id` clause; trigger now fires on every project write.
+- (C2) Phase 8 ADD COLUMN `team_id NOT NULL` would fail with cryptic "column contains null values" if the project table wasn't empty. Added a DO-block guard that fails fast with an actionable error message.
+- (C3) `flx-252-create-entity-form.spec.ts` skip was too coarse — only the Skills test depends on dropped `skill.scope`. Routing Profiles / Teams / Providers tests should keep running. Skip is now per-test, not per-describe.
+
+**High:**
+- (H1) `personaRelations.teamMemberships` removal made explicit (was buried in a comment inside the replacement block).
+- (H2) Audit-doc gap on the `uniqueIndex.*org_id.*name` grep result — documented in Phase 14 comment.
+- (H3) Partial unique indexes were only org+catalog; `resolveScopedAll` assumes intra-scope uniqueness for all four scope columns. Added team/user/project partial indexes per table (5 partials per table × 6 tables = 30 indexes).
+- (H4) Snapshot-vs-schema consistency: added Step 3.5 spot-check using `jq` against `drizzle/meta/0030_snapshot.json`. Step 4.4 expanded with concrete drift-diagnosis guidance.
+
+**Medium / Low:**
+- (M2) Trigger + CHECK smoke tests wrapped in BEGIN/ROLLBACK transactions for clean rollback on failure.
+- (M4) `driver` table edit now shows the complete replacement block (17 columns + 5 new) rather than "preserve every other column" shorthand.
+- (L1) Added Step 2.13b: the `user.id` auth-identity invariant comment that the epic plan required but the original slice plan missed.
+- (OQ3) Added PM3: UAT operator deploy sequence (nuke + migrate THEN deploy image, not the reverse).
