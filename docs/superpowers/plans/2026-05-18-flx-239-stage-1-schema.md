@@ -643,7 +643,9 @@ This is fine — we're about to hand-edit.
 
 - [ ] **Step 3.3: Hand-edit the migration to ensure correct ordering and add missing constructs**
 
-Open `drizzle/0030_flx_239_tenancy_waterfall.sql` and prepend / interleave these statements. The full structure of the file after hand-editing:
+**Assembly approach:** the simplest reliable strategy is to **replace the entire generated file contents** with the structured Phase 1 → Phase 15 sequence below. This file is the source of truth; the Drizzle baseline that `db:generate` produced was just a starting reference. Phases below include every operation the baseline would have emitted (ADD COLUMN, DROP COLUMN, DROP NOT NULL, DROP CONSTRAINT, CREATE TABLE) PLUS the operations Drizzle can't express (trigger, partial indexes, CHECK, data UPDATEs, ordering guards). Because Postgres `DROP NOT NULL` and `DROP CONSTRAINT IF EXISTS` are idempotent, accidental duplication is harmless — but the explicit phase structure removes any ambiguity about ordering.
+
+Open `drizzle/0030_flx_239_tenancy_waterfall.sql` and replace its contents with the structured file below. The full structure of the file after hand-editing:
 
 ```sql
 -- FLX-239 Stage 1: tenancy + waterfall scope columns.
@@ -787,11 +789,23 @@ ALTER TABLE "skill" ADD COLUMN "user_id" uuid;
 ALTER TABLE "skill" ADD COLUMN "project_id" uuid;
 ALTER TABLE "skill" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
 
--- brand.org_id already exists pre-FLX-239 (was NOT NULL FK to organization).
--- Drizzle's db:generate baseline emits `ALTER COLUMN org_id DROP NOT NULL` +
--- `DROP CONSTRAINT brand_org_id_organization_id_fk` from the schema.ts change
--- in Step 2.8. Do NOT add another ADD COLUMN here — would error
--- "column org_id of relation brand already exists".
+-- brand.org_id, provider.org_id, routing_profile.org_id all pre-exist (each
+-- was NOT NULL FK to organization pre-FLX-239). Do NOT ADD COLUMN for those
+-- — would error "column org_id already exists".
+--
+-- The DROP NOT NULL and DROP CONSTRAINT for those three columns are written
+-- HERE (in Phase 11) explicitly rather than relying on Drizzle's db:generate
+-- baseline emission ordering. Phase 12's UPDATE statements set org_id = NULL,
+-- which requires the NOT NULL constraint to already be gone. Doing this
+-- explicitly removes any dependency on where Drizzle places the generated
+-- ALTER COLUMN relative to our hand-edited UPDATEs.
+ALTER TABLE "brand" ALTER COLUMN "org_id" DROP NOT NULL;
+ALTER TABLE "brand" DROP CONSTRAINT IF EXISTS "brand_org_id_organization_id_fk";
+ALTER TABLE "provider" ALTER COLUMN "org_id" DROP NOT NULL;
+ALTER TABLE "provider" DROP CONSTRAINT IF EXISTS "provider_org_id_organization_id_fk";
+ALTER TABLE "routing_profile" ALTER COLUMN "org_id" DROP NOT NULL;
+ALTER TABLE "routing_profile" DROP CONSTRAINT IF EXISTS "routing_profile_org_id_organization_id_fk";
+
 ALTER TABLE "brand" ADD COLUMN "team_id" uuid;
 ALTER TABLE "brand" ADD COLUMN "user_id" uuid;
 ALTER TABLE "brand" ADD COLUMN "project_id" uuid;
@@ -816,10 +830,13 @@ ALTER TABLE "routing_profile" ADD COLUMN "kind" text NOT NULL DEFAULT 'catalog';
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Phase 12: Reset existing rows to catalog kind.
 --
--- The NOT NULL drops on brand.org_id / provider.org_id / routing_profile.org_id
--- are handled by Drizzle's db:generate baseline (the schema.ts changes in
--- Step 2.8/2.9 make these columns nullable; Drizzle emits the ALTER COLUMN
--- DROP NOT NULL automatically). Do NOT duplicate them here.
+-- The DROP NOT NULL + DROP CONSTRAINT statements for org_id on brand,
+-- provider, routing_profile were moved UP into Phase 11 (so they precede
+-- the UPDATEs below — UPDATE org_id=NULL needs the NOT NULL to be gone).
+-- Drizzle's db:generate baseline will also emit those ALTER statements
+-- from the schema.ts changes; in Postgres `ALTER COLUMN DROP NOT NULL` is
+-- idempotent and `DROP CONSTRAINT IF EXISTS` is safe, so the double-emission
+-- is harmless.
 --
 -- The UPDATE statements below ARE needed (Drizzle doesn't emit data DML):
 -- after the migration, existing rows that previously had `org_id` set must
@@ -1486,6 +1503,14 @@ Recommend Subagent-Driven for this stage given the schema migration's irreversib
 **Which approach?**
 
 ---
+
+## Revisions from plan-review round 3 (2026-05-19)
+
+Round-3 fresh-eyes review caught one CRITICAL ordering bug:
+
+- **CRITICAL** Phase 12's `UPDATE brand SET ... org_id = NULL` would have failed with a NOT NULL violation if Drizzle's baseline `ALTER COLUMN org_id DROP NOT NULL` happened to be emitted after Phase 12 in the assembled file. Same hazard for `provider` and `routing_profile`. Fix: the three `DROP NOT NULL` + `DROP CONSTRAINT IF EXISTS` pairs are now hand-written explicitly into **Phase 11**, before Phase 12's UPDATEs. Drizzle's baseline may emit them again — that's fine because `DROP NOT NULL` is idempotent and `DROP CONSTRAINT IF EXISTS` is safe.
+
+- **Assembly clarification:** Step 3.3 now explicitly states that the structured Phase 1 → Phase 15 sequence replaces the entire generated file contents, removing any ambiguity about where Drizzle's baseline statements would slot in.
 
 ## Revisions from plan-review round 2 (2026-05-19)
 
