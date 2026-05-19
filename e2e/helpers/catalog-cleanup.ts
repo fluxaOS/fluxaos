@@ -21,24 +21,46 @@ async function withDb(fn: (db: Database) => Promise<void>) {
  */
 export async function cleanupFlx252CreateEntityRows(): Promise<void> {
   await withDb(async (db) => {
-    await db.execute(sql`DELETE FROM "routing_rule" WHERE "profile_id" IN (SELECT "id" FROM "routing_profile" WHERE "name" LIKE 'FLX-252 Profile %')`);
-    await db.execute(sql`DELETE FROM "routing_profile" WHERE "name" LIKE 'FLX-252 Profile %'`);
+    await db.execute(
+      sql`DELETE FROM "routing_rule" WHERE "profile_id" IN (SELECT "id" FROM "routing_profile" WHERE "name" LIKE 'FLX-252 Profile %')`
+    );
+    await db.execute(
+      sql`DELETE FROM "routing_profile" WHERE "name" LIKE 'FLX-252 Profile %'`
+    );
 
-    await db.execute(sql`DELETE FROM "team_member" WHERE "team_id" IN (SELECT "id" FROM "team" WHERE "name" LIKE 'FLX-252 Team %')`);
-    await db.execute(sql`DELETE FROM "team" WHERE "name" LIKE 'FLX-252 Team %'`);
+    await db.execute(
+      sql`DELETE FROM "team_member" WHERE "team_id" IN (SELECT "id" FROM "team" WHERE "name" LIKE 'FLX-252 Team %')`
+    );
+    await db.execute(
+      sql`DELETE FROM "team" WHERE "name" LIKE 'FLX-252 Team %'`
+    );
 
-    await db.execute(sql`DELETE FROM "persona_skill" WHERE "skill_id" IN (SELECT "id" FROM "skill" WHERE "name" LIKE 'FLX-252 Skill %')`);
-    await db.execute(sql`DELETE FROM "skill" WHERE "name" LIKE 'FLX-252 Skill %'`);
+    await db.execute(
+      sql`DELETE FROM "persona_skill" WHERE "skill_id" IN (SELECT "id" FROM "skill" WHERE "name" LIKE 'FLX-252 Skill %')`
+    );
+    await db.execute(
+      sql`DELETE FROM "skill" WHERE "name" LIKE 'FLX-252 Skill %'`
+    );
 
-    await db.execute(sql`DELETE FROM "model" WHERE "provider_id" IN (SELECT "id" FROM "provider" WHERE "name" LIKE 'FLX-252 Provider %')`);
-    await db.execute(sql`DELETE FROM "provider" WHERE "name" LIKE 'FLX-252 Provider %'`);
+    await db.execute(
+      sql`DELETE FROM "model" WHERE "provider_id" IN (SELECT "id" FROM "provider" WHERE "name" LIKE 'FLX-252 Provider %')`
+    );
+    await db.execute(
+      sql`DELETE FROM "provider" WHERE "name" LIKE 'FLX-252 Provider %'`
+    );
   });
 }
 
 export async function cleanupFlx253ConfirmModalRows(): Promise<void> {
   await withDb(async (db) => {
-    await db.execute(sql`DELETE FROM "pipeline_stage" WHERE "name" LIKE 'flx253-cancel-%' OR "name" LIKE 'flx253-confirm-%'`);
-    await db.execute(sql`DELETE FROM "persona_skill" WHERE "skill_id" IN (SELECT "id" FROM "skill" WHERE "name" LIKE 'flx253-skill-%')`);
-    await db.execute(sql`DELETE FROM "skill" WHERE "name" LIKE 'flx253-skill-%'`);
+    await db.execute(
+      sql`DELETE FROM "pipeline_stage" WHERE "name" LIKE 'flx253-cancel-%' OR "name" LIKE 'flx253-confirm-%'`
+    );
+    await db.execute(
+      sql`DELETE FROM "persona_skill" WHERE "skill_id" IN (SELECT "id" FROM "skill" WHERE "name" LIKE 'flx253-skill-%')`
+    );
+    await db.execute(
+      sql`DELETE FROM "skill" WHERE "name" LIKE 'flx253-skill-%'`
+    );
   });
 }
