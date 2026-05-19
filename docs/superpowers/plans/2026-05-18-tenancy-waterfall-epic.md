@@ -65,7 +65,7 @@ Stages 1→2→3 are hard sequential. Stage 4 depends on 3. Stage 5 depends on 4
 - Add `project.team_id NOT NULL` (FK to `team.id`).
 - DROP `project.user_id` FK column.
 - Add `BEFORE INSERT OR UPDATE ON project` trigger that overwrites `project.org_id` from `team.org_id` (enforces the denormalization invariant per spec; Postgres CHECK can't cross rows).
-- DROP slug columns from URL-bearing entities (project, issue, run, etc.) — defer to Stage 8 if any consumers still reference them, but list them here for tracking.
+- **Slug columns are NOT dropped in Stage 1.** All slug column drops (`organization.slug`, `user.slug`, `project.slug`, and any URL-bearing entity slug) are deferred to Stage 8 because the Stage 4 redirect scaffold needs them to translate old URLs to UUIDs. Listed here for tracking only; do not include any `DROP COLUMN slug` in Stage 1's migration SQL.
 
 *Feature tables (waterfall additions):*
 
@@ -118,12 +118,19 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
 
 - Schema + migration SQL + nuke script. No seed rewrites. No code consuming the new shape.
 - The old `team` and `team_member` tables get DROPPED in this stage's migration. Code references will break — that's intentional and gets repaired in stage 5.
-- **e2e/team-crud.spec.ts tests the OLD team concept (project-scoped, persona members).** Stage 1 marks it as `test.skip(...)` with an explicit FLX-239 comment pointing at the cross-stage rule (below). The spec gets a semantic rewrite — not just a URL-helper swap — in Stage 7 when the new Settings → Teams UI lands. Same treatment applies to any other spec that asserts old-team UI behavior (audit at slice-plan time via `grep -l "settings/teams\|teamMember\|persona.*team" e2e/*.spec.ts`).
+- **e2e specs that test dropped-column behavior must be `test.skip(...)`-ed in Stage 1** with an explicit FLX-239 comment pointing at the cross-stage rule (below). The skipped specs get semantic rewrites in Stage 7 when the new UI lands. Known-affected specs (verified at this writing — slice plan re-audits at slice-plan time):
+  - `e2e/team-crud.spec.ts` — tests old project-scoped team with persona members.
+  - `e2e/flx-252-create-entity-form.spec.ts` — asserts a `Scope` label on the Skills create form; `skill.scope` is dropped in Stage 1.
+  - `e2e/settings-url-context.spec.ts` — creates a project via `project.create` with a `userId` field; `project.user_id` is dropped in Stage 1, and the spec navigates to old `/{org}/{user}/{project}/settings/teams` URLs.
+
+  Slice-plan audit at Stage 1 time: `grep -nE "settings/teams|teamMember|persona.*team|getByLabel\\('Scope'\\)|userId:.*project|orgId:.*provider" e2e/*.spec.ts`. Anything that hits gets skipped; the Stage 7 slice plan inherits the list.
 
 **Hard rules for this stage:**
 
 - No reading any of the new tables from app code in this stage. Schema only.
 - Migration must apply cleanly on a freshly-nuked dev DB. For UAT: operator runs `tsx src/scripts/db/nuke.ts && npm run db:migrate` manually before deploying. **No "must apply against existing UAT rows" requirement** — rip-and-replace explicitly authorized.
+- **RLS policy audit before the migration runs.** Postgres drops policies when their owning table is dropped, but policies on *other* tables that REFERENCE a dropped table raise errors. Before merging Stage 1, audit Supabase RLS policies: `SELECT schemaname, tablename, policyname, qual FROM pg_policies WHERE qual LIKE '%team%' OR qual LIKE '%team_member%';` — if any reference the old `team`/`team_member` shape, drop or rewrite them in the same migration.
+- **Triggers are hand-written SQL.** Drizzle's schema definition does not support inline trigger declarations. The `project.org_id` denormalization trigger must be written by hand in the migration SQL file. Drizzle's `db:generate` will not produce it from `schema.ts` alone.
 
 **Verification gate (must pass before stage 2 starts):**
 
@@ -256,7 +263,7 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
   }
   ```
   Per spec: member enumeration (who else has access) is NOT in this return type. Pages call a dedicated `project.listMembers(projectId)` tRPC procedure when they need the member list.
-- `src/app/[org]/[user]/[project]/**` — KEPT in place this stage with a small wrapper that 307-redirects to `/p/{uuid}/...` based on URL lookup. This buys overlap room for stage 5/6/7 work without breaking existing bookmarks/dev workflows mid-migration. Deleted in stage 8.
+- `src/app/[org]/[user]/[project]/**` — KEPT in place this stage with a wrapper that 307-redirects to `/p/{uuid}/...`. The slug-to-UUID lookup logic that the OLD `resolveContext` performs must be extracted into a dedicated `src/lib/resolve-slug-to-uuid.ts` helper (read-only; one query per request) BEFORE `src/lib/resolve-context.ts` is rewritten with the new UUID-based signature. The redirect wrapper calls the helper; the helper reads the slug columns (which survive Stage 1; only dropped in Stage 8). This buys overlap room for stages 5/6/7 work without breaking existing bookmarks/dev workflows mid-migration.
 - Any `<Link>` or `useRouter().push()` that builds an `/{org}/{user}/{project}/...` URL — updated to use a new `projectPath(projectUuid, ...)` helper from `src/lib/url.ts`.
 - Issue / run pages: `src/app/i/[issueUuid]/` and `src/app/r/[runUuid]/` (new top-level routes if they don't already exist).
 
@@ -450,6 +457,13 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 - **Type consistency:** `resolveContext` signature locked in Stage 4 and matches spec ("Routing + page changes" section). `resolveScoped`/`resolveScopedAll` signatures locked in Stage 3 with `dedupeKey` parameter; consumed unchanged in Stage 6. ✓
 - **Scope check:** epic is 8 stages, each a single-PR-sized slice. Reasonable.
 - **Ambiguity:** "Routers that scoped by `userId` for authorization" vs "scope queries" disambiguated in Stage 5 hard rules. ✓
+
+**Revisions from plan-review round 4 (2026-05-18) — verdict was `proceed`; these are sharpenings, not blockers:**
+- Stage 1: slug columns explicitly NOT dropped in Stage 1 (deferred to Stage 8 because Stage 4's redirect needs them). `organization.slug`, `user.slug`, `project.slug` all live through Stages 1–7.
+- Stage 1: skip-spec audit broadened beyond team-crud to include `flx-252-create-entity-form.spec.ts` (Scope field) and `settings-url-context.spec.ts` (uses project.create with userId). Audit grep pattern updated.
+- Stage 1: hard rule added for RLS policy audit before migration (Supabase RLS can reference dropped tables).
+- Stage 1: hard rule added clarifying triggers are hand-written SQL (Drizzle codegen won't produce them).
+- Stage 4: slug-to-UUID lookup logic extracted to `src/lib/resolve-slug-to-uuid.ts` BEFORE `resolve-context.ts` is rewritten, so the redirect scaffold still has a working lookup during Stages 4–7.
 
 **Revisions from plan-review round 3 (2026-05-18):**
 - Stage 1: `brand.project_id` added to the pre-existing-column drop list (would have hit the same collision as persona/skill).
