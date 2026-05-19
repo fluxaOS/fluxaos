@@ -13,6 +13,10 @@ const scripts = [
     name: 'permission-request-allowlist',
     path: 'tests/verify/permission-request-allowlist.ts',
   },
+  {
+    name: 'e2e-proof-gate-reconciliation',
+    path: 'tests/verify/e2e-proof-gate-reconciliation.ts',
+  },
 ];
 
 const root = path.resolve(__dirname, '..', '..');

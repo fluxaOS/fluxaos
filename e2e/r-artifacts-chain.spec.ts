@@ -3,7 +3,11 @@
 // edits the worktree; deploy bridge opens a PR on the target repo.
 // Env required: ANTHROPIC_API_KEY, FLUXAOS_GITHUB_TOKEN,
 // FLUXAOS_TEST_TARGET_REPO, FLUXAOS_TARGET_REPO_PATH, DATABASE_URL.
-// Skips cleanly when any are missing.
+// Skips cleanly when any are missing. FLUXAOS_TARGET_REPO_PATH is
+// legacy/test-only fixture input here: the spec copies it into the seeded
+// project's DB-backed FLX-221 project.target_repo_path before the daemon
+// acquires an isolation environment. Do not treat this env var as operator
+// runtime configuration.
 
 import { execSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
@@ -16,6 +20,8 @@ import { expect, projectPath, test } from './helpers/setup';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const GITHUB_TOKEN = process.env.FLUXAOS_GITHUB_TOKEN;
 const TARGET_REPO = process.env.FLUXAOS_TEST_TARGET_REPO; // 'owner/repo'
+// Legacy/test-only checkout path; persisted into project.target_repo_path
+// below so runtime still exercises the DB-backed FLX-221 path.
 const TARGET_REPO_PATH = process.env.FLUXAOS_TARGET_REPO_PATH;
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
