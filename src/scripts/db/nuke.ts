@@ -64,6 +64,7 @@ const tables = [
   'config_entry',
   'driver',
   'persona_skill',
+  'project_member', // FLX-239
   'team_member',
   'memory',
   'skill',
@@ -77,6 +78,9 @@ const tables = [
   'project',
   'user',
   'organization',
+  // FLX-239: customer last. organization.customer_id has no FK (placeholder),
+  // so the order between organization and customer is logical, not enforced.
+  'customer',
 ];
 
 async function nuke() {
