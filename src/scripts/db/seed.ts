@@ -78,7 +78,12 @@ async function seed() {
   // ── 1. Default organization ────────────────────────────────────────────
   let [org] = await db
     .insert(organization)
-    .values({ name: 'Default', slug: 'default', settings: {}, customerId: cust.id })
+    .values({
+      name: 'Default',
+      slug: 'default',
+      settings: {},
+      customerId: cust.id,
+    })
     .onConflictDoNothing({ target: organization.slug })
     .returning();
 
@@ -141,7 +146,9 @@ async function seed() {
   let [proj] = await db
     .select()
     .from(project)
-    .where(and(eq(project.teamId, defaultTeam.id), eq(project.slug, 'fluxaos')));
+    .where(
+      and(eq(project.teamId, defaultTeam.id), eq(project.slug, 'fluxaos'))
+    );
 
   if (!proj) {
     [proj] = await db

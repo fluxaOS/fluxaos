@@ -136,26 +136,24 @@ async function main() {
   const teams = await db.select().from(team);
   assert(teams.length === 1, `1 team row (got ${teams.length})`);
   if (orgs.length === 1 && teams.length === 1) {
-    assert(
-      teams[0].orgId === orgs[0].id,
-      `team.org_id matches org.id`
-    );
+    assert(teams[0].orgId === orgs[0].id, `team.org_id matches org.id`);
   }
 
   const users = await db.select().from(user);
   assert(users.length === 1, `1 user row (got ${users.length})`);
   if (orgs.length === 1 && users.length === 1) {
-    assert(
-      users[0].orgId === orgs[0].id,
-      `user.org_id matches org.id`
-    );
+    assert(users[0].orgId === orgs[0].id, `user.org_id matches org.id`);
   }
 
   const teamMembers = await db.select().from(teamMember);
-  assert(teamMembers.length === 1, `1 team_member row (got ${teamMembers.length})`);
+  assert(
+    teamMembers.length === 1,
+    `1 team_member row (got ${teamMembers.length})`
+  );
   if (users.length === 1 && teams.length === 1 && teamMembers.length === 1) {
     assert(
-      teamMembers[0].userId === users[0].id && teamMembers[0].teamId === teams[0].id,
+      teamMembers[0].userId === users[0].id &&
+        teamMembers[0].teamId === teams[0].id,
       `team_member links default user to default team`
     );
   }
@@ -170,10 +168,18 @@ async function main() {
   }
 
   const projectMembers = await db.select().from(projectMember);
-  assert(projectMembers.length === 1, `1 project_member row (got ${projectMembers.length})`);
-  if (users.length === 1 && projects.length === 1 && projectMembers.length === 1) {
+  assert(
+    projectMembers.length === 1,
+    `1 project_member row (got ${projectMembers.length})`
+  );
+  if (
+    users.length === 1 &&
+    projects.length === 1 &&
+    projectMembers.length === 1
+  ) {
     assert(
-      projectMembers[0].userId === users[0].id && projectMembers[0].projectId === projects[0].id,
+      projectMembers[0].userId === users[0].id &&
+        projectMembers[0].projectId === projects[0].id,
       `project_member links default user to default project`
     );
   }
@@ -210,7 +216,9 @@ async function main() {
   // surviving rows must be kind='project' with non-null projectId.
   const personas = await db.select().from(persona);
   assert(personas.length === 4, `4 persona rows (got ${personas.length})`);
-  const nonProjectPersonas = personas.filter((p: any) => p.kind !== 'project' || p.projectId === null);
+  const nonProjectPersonas = personas.filter(
+    (p: any) => p.kind !== 'project' || p.projectId === null
+  );
   assert(
     nonProjectPersonas.length === 0,
     `personas: all kind='project' with non-null projectId (got ${nonProjectPersonas.length} violations)`
@@ -253,12 +261,16 @@ async function main() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
-    console.log('  SKIP  auth-identity: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set');
+    console.log(
+      '  SKIP  auth-identity: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set'
+    );
   } else if (users.length === 1) {
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data, error } = await adminClient.auth.admin.getUserById(users[0].id);
+    const { data, error } = await adminClient.auth.admin.getUserById(
+      users[0].id
+    );
     if (error) {
       console.log(
         `  SKIP  auth-identity: admin.getUserById returned error (${error.message ?? 'unknown'}) — ` +
