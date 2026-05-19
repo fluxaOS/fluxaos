@@ -25,10 +25,24 @@ const updatedAt = timestamp('updated_at', { withTimezone: true })
 
 // ─── Organization & Project ─────────────────────────────────────────────────
 
+// ─── Customer (FLX-239 placeholder; not in use until billing epic) ──────────
+// Per spec docs/superpowers/specs/2026-05-18-tenancy-waterfall-design.md
+// `## Customer placeholder`: schema column reserved but no routers/UI/auth
+// depend on it. The seed inserts one default customer row and points the
+// default org at it.
+export const customer = pgTable('customer', {
+  id,
+  externalBillingId: text('external_billing_id'),
+  createdAt,
+  updatedAt,
+});
+
 export const organization = pgTable('organization', {
   id,
   name: text('name').notNull(),
   slug: text('slug').unique().notNull(),
+  // FLX-239: placeholder. Nullable, no FK constraint. Reserved for billing.
+  customerId: uuid('customer_id'),
   settings: jsonb('settings'),
   // FLX-14: 'free' | 'pro' | 'enterprise'. Existing rows grandfathered to
   // 'enterprise' by migration 0017; new rows default to 'free'. Engine
@@ -41,6 +55,11 @@ export const organization = pgTable('organization', {
 export const user = pgTable(
   'user',
   {
+    // FLX-239 invariant: user.id === auth.users.id. The fluxaOS user row's
+    // primary key is the same UUID as the corresponding Supabase auth account.
+    // The seed enforces this; trpc.ts's viewer resolver depends on it.
+    // See docs/superpowers/specs/2026-05-18-tenancy-waterfall-design.md
+    // §"Auth identity contract".
     id,
     // Optimistic concurrency token — required by RecordEditor (FLX-3).
     version: integer('version').notNull().default(1),
@@ -60,36 +79,34 @@ export const user = pgTable(
   (t) => [uniqueIndex('user_org_slug_idx').on(t.orgId, t.slug)]
 );
 
-export const project = pgTable(
-  'project',
-  {
-    id,
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => organization.id),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id),
-    name: text('name').notNull(),
-    slug: text('slug').notNull(),
-    repoUrl: text('repo_url'),
-    defaultBranch: text('default_branch').notNull().default('main'),
-    worktreeCopyFiles: jsonb('worktree_copy_files')
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    defaultPipelineId: uuid('default_pipeline_id'),
-    brandId: uuid('brand_id'),
-    // FLX-221: absolute path to the on-disk clone of this project's target
-    // repo. Per-project column (replaces the prior global env-backed
-    // approach). Nullable — the stage runner fails fast when null at
-    // acquire time. Edited via Settings → Projects (FLX-207 makes it
-    // editable).
-    targetRepoPath: text('target_repo_path'),
-    createdAt,
-    updatedAt,
-  },
-  (t) => [uniqueIndex('project_user_slug_idx').on(t.userId, t.slug)]
-);
+export const project = pgTable('project', {
+  id,
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organization.id),
+  // FLX-239: project belongs to a team. Trigger overwrites org_id from
+  // team.org_id (see drizzle/0030_flx_239_tenancy_waterfall.sql).
+  teamId: uuid('team_id')
+    .notNull()
+    .references(() => team.id),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  repoUrl: text('repo_url'),
+  defaultBranch: text('default_branch').notNull().default('main'),
+  worktreeCopyFiles: jsonb('worktree_copy_files')
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  defaultPipelineId: uuid('default_pipeline_id'),
+  brandId: uuid('brand_id'),
+  // FLX-221: absolute path to the on-disk clone of this project's target
+  // repo. Per-project column (replaces the prior global env-backed
+  // approach). Nullable — the stage runner fails fast when null at
+  // acquire time. Edited via Settings → Projects (FLX-207 makes it
+  // editable).
+  targetRepoPath: text('target_repo_path'),
+  createdAt,
+  updatedAt,
+});
 
 // ─── Pipeline ───────────────────────────────────────────────────────────────
 
@@ -229,6 +246,12 @@ export const stageGateResult = pgTable('stage_gate_result', {
 
 export const driver = pgTable('driver', {
   id,
+  // FLX-239 waterfall scope columns.
+  orgId: uuid('org_id'),
+  teamId: uuid('team_id'),
+  userId: uuid('user_id'),
+  projectId: uuid('project_id'),
+  kind: text('kind').notNull().default('catalog'),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   binary: text('binary').notNull(),
@@ -247,7 +270,6 @@ export const driver = pgTable('driver', {
   extraArgs: jsonb('extra_args').notNull().default(sql`'{}'::jsonb`),
   // FLX-78: no driver-specific default in core schema. Driver rows are
   // seeded with concrete contextLayout values (see src/scripts/db/seed.ts).
-  // Engine fails fast if a driver row is created without one.
   contextLayout: jsonb('context_layout').notNull(),
   isEnabled: boolean('is_enabled').notNull().default(true),
   notes: text('notes'),
@@ -653,9 +675,12 @@ export const provider = pgTable(
   'provider',
   {
     id,
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => organization.id),
+    // FLX-239 waterfall scope columns. orgId was NOT NULL pre-FLX-239.
+    orgId: uuid('org_id'),
+    teamId: uuid('team_id'),
+    userId: uuid('user_id'),
+    projectId: uuid('project_id'),
+    kind: text('kind').notNull().default('catalog'),
     name: text('name').notNull(),
     type: text('type').notNull(),
     baseUrl: text('base_url'),
@@ -666,7 +691,10 @@ export const provider = pgTable(
     createdAt,
     updatedAt,
   },
-  (t) => [uniqueIndex('provider_org_id_name_idx').on(t.orgId, t.name)]
+  // Old `uniqueIndex('provider_org_id_name_idx').on(t.orgId, t.name)` removed;
+  // replaced by partial unique indexes in the migration SQL (see
+  // drizzle/0030_flx_239_tenancy_waterfall.sql).
+  () => []
 );
 
 export const model = pgTable('model', {
@@ -685,9 +713,12 @@ export const model = pgTable('model', {
 
 export const routingProfile = pgTable('routing_profile', {
   id,
-  orgId: uuid('org_id')
-    .notNull()
-    .references(() => organization.id),
+  // FLX-239 waterfall scope columns. orgId was NOT NULL pre-FLX-239.
+  orgId: uuid('org_id'),
+  teamId: uuid('team_id'),
+  userId: uuid('user_id'),
+  projectId: uuid('project_id'),
+  kind: text('kind').notNull().default('catalog'),
   name: text('name').notNull(),
   description: text('description'),
   isDefault: boolean('is_default').default(false),
@@ -715,8 +746,14 @@ export const routingRule = pgTable('routing_rule', {
 
 export const persona = pgTable('persona', {
   id,
-  scope: text('scope').notNull().default('project'),
-  projectId: uuid('project_id').references(() => project.id),
+  // FLX-239 waterfall scope columns. CHECK constraint enforced by migration
+  // SQL: exactly one of org_id/team_id/user_id/project_id is non-null AND
+  // kind matches that layer, OR all four null AND kind = 'catalog'.
+  orgId: uuid('org_id'),
+  teamId: uuid('team_id'),
+  userId: uuid('user_id'),
+  projectId: uuid('project_id'),
+  kind: text('kind').notNull().default('catalog'),
   name: text('name').notNull(),
   soul: text('soul'),
   identity: jsonb('identity'),
@@ -733,8 +770,12 @@ export const persona = pgTable('persona', {
 
 export const skill = pgTable('skill', {
   id,
-  scope: text('scope').notNull().default('project'),
-  projectId: uuid('project_id').references(() => project.id),
+  // FLX-239 waterfall scope columns.
+  orgId: uuid('org_id'),
+  teamId: uuid('team_id'),
+  userId: uuid('user_id'),
+  projectId: uuid('project_id'),
+  kind: text('kind').notNull().default('catalog'),
   name: text('name').notNull(),
   description: text('description'),
   promptTemplate: text('prompt_template'),
@@ -794,11 +835,13 @@ export const personaSkill = pgTable(
   (t) => [primaryKey({ columns: [t.personaId, t.skillId] })]
 );
 
+// FLX-239: team is a permission group of HUMAN users (not AI personas).
+// org_id is immutable post-create (no team-org-move procedure in v1).
 export const team = pgTable('team', {
   id,
-  projectId: uuid('project_id')
+  orgId: uuid('org_id')
     .notNull()
-    .references(() => project.id),
+    .references(() => organization.id),
   name: text('name').notNull(),
   description: text('description'),
   // Optimistic concurrency token — required by RecordEditor (FLX-124).
@@ -807,30 +850,50 @@ export const team = pgTable('team', {
   updatedAt,
 });
 
+// FLX-239: humans-only. (user_id, team_id) is the PK.
 export const teamMember = pgTable(
   'team_member',
   {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id),
     teamId: uuid('team_id')
       .notNull()
       .references(() => team.id),
-    personaId: uuid('persona_id')
-      .notNull()
-      .references(() => persona.id),
     role: text('role'),
     createdAt,
     updatedAt,
   },
-  (t) => [primaryKey({ columns: [t.teamId, t.personaId] })]
+  (t) => [primaryKey({ columns: [t.userId, t.teamId] })]
+);
+
+// FLX-239: per-user explicit project grants (independent of team_member).
+export const projectMember = pgTable(
+  'project_member',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => project.id),
+    role: text('role'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.projectId] })]
 );
 
 // ─── Brand ──────────────────────────────────────────────────────────────────
 
 export const brand = pgTable('brand', {
   id,
-  orgId: uuid('org_id')
-    .notNull()
-    .references(() => organization.id),
+  // FLX-239 waterfall scope columns.
+  orgId: uuid('org_id'),
+  teamId: uuid('team_id'),
+  userId: uuid('user_id'),
   projectId: uuid('project_id'),
+  kind: text('kind').notNull().default('catalog'),
   name: text('name').notNull(),
   colors: jsonb('colors'),
   fonts: jsonb('fonts'),
@@ -911,12 +974,21 @@ export const configEntry = pgTable(
 // Relations
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const organizationRelations = relations(organization, ({ many }) => ({
+export const organizationRelations = relations(organization, ({ one, many }) => ({
   users: many(user),
   projects: many(project),
   providers: many(provider),
   routingProfiles: many(routingProfile),
   brands: many(brand),
+  teams: many(team),
+  customer: one(customer, {
+    fields: [organization.customerId],
+    references: [customer.id],
+  }),
+}));
+
+export const customerRelations = relations(customer, ({ many }) => ({
+  organizations: many(organization),
 }));
 
 export const userRelations = relations(user, ({ one, many }) => ({
@@ -924,7 +996,10 @@ export const userRelations = relations(user, ({ one, many }) => ({
     fields: [user.orgId],
     references: [organization.id],
   }),
-  projects: many(project),
+  // FLX-239: projects relation removed (project.userId dropped). Users
+  // now reach projects via projectMember / teamMember.
+  teamMemberships: many(teamMember),
+  projectMemberships: many(projectMember),
 }));
 
 export const projectRelations = relations(project, ({ one, many }) => ({
@@ -932,13 +1007,18 @@ export const projectRelations = relations(project, ({ one, many }) => ({
     fields: [project.orgId],
     references: [organization.id],
   }),
-  user: one(user, {
-    fields: [project.userId],
-    references: [user.id],
+  // FLX-239: project belongs to a team; user relation removed.
+  team: one(team, {
+    fields: [project.teamId],
+    references: [team.id],
   }),
+  brand: one(brand, {
+    fields: [project.brandId],
+    references: [brand.id],
+  }),
+  members: many(projectMember),
   pipelines: many(pipeline),
   issues: many(issue),
-  teams: many(team),
   isolationEnvironments: many(isolationEnvironment),
 }));
 
@@ -1130,10 +1210,9 @@ export const routingRuleRelations = relations(routingRule, ({ one }) => ({
 }));
 
 export const personaRelations = relations(persona, ({ one, many }) => ({
-  project: one(project, {
-    fields: [persona.projectId],
-    references: [project.id],
-  }),
+  // FLX-239: project relation removed; persona.projectId is now a waterfall
+  // scope column with no FK, not a parent relation. Brand, routingProfile,
+  // parent-persona relations remain.
   brand: one(brand, {
     fields: [persona.brandId],
     references: [brand.id],
@@ -1147,15 +1226,13 @@ export const personaRelations = relations(persona, ({ one, many }) => ({
     references: [persona.id],
   }),
   personaSkills: many(personaSkill),
-  teamMemberships: many(teamMember),
   pipelineStages: many(pipelineStage),
+  // FLX-239: teamMemberships removed (old team_member used persona_id; new
+  // team_member uses user_id).
 }));
 
-export const skillRelations = relations(skill, ({ one, many }) => ({
-  project: one(project, {
-    fields: [skill.projectId],
-    references: [project.id],
-  }),
+export const skillRelations = relations(skill, ({ many }) => ({
+  // FLX-239: project relation removed (waterfall scope column, no FK).
   personaSkills: many(personaSkill),
   stageRuns: many(stageRun),
 }));
@@ -1172,21 +1249,33 @@ export const personaSkillRelations = relations(personaSkill, ({ one }) => ({
 }));
 
 export const teamRelations = relations(team, ({ one, many }) => ({
-  project: one(project, {
-    fields: [team.projectId],
-    references: [project.id],
+  organization: one(organization, {
+    fields: [team.orgId],
+    references: [organization.id],
   }),
   members: many(teamMember),
+  projects: many(project),
 }));
 
 export const teamMemberRelations = relations(teamMember, ({ one }) => ({
+  user: one(user, {
+    fields: [teamMember.userId],
+    references: [user.id],
+  }),
   team: one(team, {
     fields: [teamMember.teamId],
     references: [team.id],
   }),
-  persona: one(persona, {
-    fields: [teamMember.personaId],
-    references: [persona.id],
+}));
+
+export const projectMemberRelations = relations(projectMember, ({ one }) => ({
+  user: one(user, {
+    fields: [projectMember.userId],
+    references: [user.id],
+  }),
+  project: one(project, {
+    fields: [projectMember.projectId],
+    references: [project.id],
   }),
 }));
 
