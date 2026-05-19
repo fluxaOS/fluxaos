@@ -38,7 +38,13 @@ const SETTINGS_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: 'kpis', heading: /KPIs/ },
 ];
 
-test.describe('@flx-244 Settings pages resolve org/project from URL', () => {
+// FLX-239 Stage 1: skipped. This spec fails for two compounding reasons:
+//   (1) its beforeAll calls project.create with `userId` — column dropped
+//       in Stage 1 schema; router shape updated in Stage 5.
+//   (2) it navigates to /{org}/{user}/{scratch}/settings/teams — old URL
+//       tree, dropped in Stage 4 (with the 307 redirect scaffold).
+// Both must be addressed before the spec runs again; rewrite in Stage 7.
+test.describe.skip('@flx-244 Settings pages resolve org/project from URL', () => {
   let scratchProjectId: string | null = null;
 
   test.beforeAll(async ({ browser }) => {

@@ -5,7 +5,13 @@
 
 import { expect, projectPath, test } from './helpers/setup';
 
-test.describe('@flx-61 @journey @team-crud', () => {
+// FLX-239 Stage 1: skipped. This spec tests the OLD project-scoped team /
+// persona-member model. The schema migration dropped that team shape and
+// replaced it with org-scoped human-user teams. The Settings → Teams UI and
+// the team.create/update/delete routers all need to be rewritten for the new
+// shape. Scheduled for semantic rewrite in FLX-239 Stage 7 (E2E spec
+// updates) after Stage 5 updates the router layer.
+test.describe.skip('@flx-61 @journey @team-crud', () => {
   test('Teams tab renders + Create / Edit / Delete round-trip', async ({
     page,
   }) => {
