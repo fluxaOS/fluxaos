@@ -12,6 +12,7 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { config as loadDotenv } from 'dotenv';
+import { cleanupFlx253ConfirmModalRows } from './helpers/catalog-cleanup';
 import { expect, projectPath, test } from './helpers/setup';
 
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -22,7 +23,8 @@ const env = {
 };
 
 test.describe('@flx-253 @confirm-modal @destructive', () => {
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
+    await cleanupFlx253ConfirmModalRows();
     execSync('npx tsx src/scripts/db/nuke.ts', {
       cwd: REPO_ROOT,
       stdio: 'inherit',
@@ -33,6 +35,14 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
       stdio: 'inherit',
       env,
     });
+  });
+
+  test.afterEach(async () => {
+    await cleanupFlx253ConfirmModalRows();
+  });
+
+  test.afterAll(async () => {
+    await cleanupFlx253ConfirmModalRows();
   });
 
   // ── StageEditor ────────────────────────────────────────────────────────────
