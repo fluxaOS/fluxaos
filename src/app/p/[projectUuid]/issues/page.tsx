@@ -1,18 +1,19 @@
+import { projectBasePath } from '@/lib/project-url';
 import { resolveContext } from '@/lib/resolve-context';
 import { IssueListClient } from './client';
 
 export default async function IssuesPage({
   params,
 }: {
-  params: Promise<{ org: string; user: string; project: string }>;
+  params: Promise<{ projectUuid: string }>;
 }) {
-  const { org, user, project } = await params;
-  const ctx = await resolveContext(org, user, project);
+  const { projectUuid } = await params;
+  const ctx = await resolveContext(projectUuid);
 
   return (
     <IssueListClient
       projectId={ctx.project.id}
-      basePath={`/${org}/${user}/${project}`}
+      basePath={projectBasePath(ctx.project.id)}
     />
   );
 }

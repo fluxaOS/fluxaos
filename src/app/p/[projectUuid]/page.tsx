@@ -1,19 +1,20 @@
+import { projectBasePath } from '@/lib/project-url';
 import { resolveContext } from '@/lib/resolve-context';
 import { DashboardClient } from './dashboard-client';
 
 export default async function DashboardPage({
   params,
 }: {
-  params: Promise<{ org: string; user: string; project: string }>;
+  params: Promise<{ projectUuid: string }>;
 }) {
-  const { org, user, project } = await params;
-  const ctx = await resolveContext(org, user, project);
+  const { projectUuid } = await params;
+  const ctx = await resolveContext(projectUuid);
 
   return (
     <DashboardClient
       projectId={ctx.project.id}
       projectName={ctx.project.name}
-      basePath={`/${org}/${user}/${project}`}
+      basePath={projectBasePath(ctx.project.id)}
     />
   );
 }

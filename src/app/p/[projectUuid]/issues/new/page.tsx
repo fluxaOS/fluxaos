@@ -1,18 +1,19 @@
+import { projectBasePath } from '@/lib/project-url';
 import { resolveContext } from '@/lib/resolve-context';
 import { IssueCreateClient } from './client';
 
 export default async function IssueCreatePage({
   params,
 }: {
-  params: Promise<{ org: string; user: string; project: string }>;
+  params: Promise<{ projectUuid: string }>;
 }) {
-  const { org, user, project } = await params;
-  const ctx = await resolveContext(org, user, project);
+  const { projectUuid } = await params;
+  const ctx = await resolveContext(projectUuid);
 
   return (
     <IssueCreateClient
       projectId={ctx.project.id}
-      basePath={`/${org}/${user}/${project}`}
+      basePath={projectBasePath(ctx.project.id)}
     />
   );
 }
