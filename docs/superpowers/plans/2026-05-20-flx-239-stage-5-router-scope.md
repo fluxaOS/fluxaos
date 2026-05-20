@@ -396,7 +396,7 @@ git commit -m "feat(auth): guard project-scoped router reads"
 - Modify: `src/server/routers/persona.ts`
 - Modify: `src/server/routers/skill.ts`
 
-- [ ] **Step 1: Guard direct project inputs**
+- [x] **Step 1: Guard direct project inputs**
 
 When an input includes `projectId`, assert access before reading or writing:
 
@@ -408,11 +408,11 @@ if (input.projectId) {
 }
 ```
 
-- [ ] **Step 2: Guard row-derived project IDs**
+- [x] **Step 2: Guard row-derived project IDs**
 
 For update/delete/history procedures where the input has only `id`, load the row first. If the row has a non-null `projectId`, assert access before mutation. If `projectId` is null/catalog, leave existing role gate only; Stage 6 owns waterfall semantics.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/server/routers/brand.ts src/server/routers/persona.ts src/server/routers/skill.ts
