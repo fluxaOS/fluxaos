@@ -1,7 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { buildGitRouter } from '@/adapters/git-router/validator-registry';
-import { project, projectMember } from '@/core/db/schema';
 import {
   BadRequestError,
   InternalError,
@@ -9,6 +8,7 @@ import {
 } from '@/core/errors/domain';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createProjectService } from '@/core/services';
+import { assertProjectAccess } from '../ownership';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const projectRouter = router({
@@ -19,7 +19,22 @@ export const projectRouter = router({
   list: publicProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(({ ctx, input }) => {
-      return createProjectService(ctx.db).listByOrg(input.orgId);
+      const svc = createProjectService(ctx.db);
+      if (
+        ctx.viewer.fluxaUserId === null &&
+        process.env.FLUXAOS_LAN_AUTH_BYPASS === '1'
+      ) {
+        return svc.listByOrg(input.orgId);
+      }
+      if (ctx.viewer.fluxaUserId === null) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authenticated user required.',
+        });
+      }
+      return svc
+        .listAccessibleByUser(ctx.viewer.fluxaUserId)
+        .then((rows) => rows.filter((row) => row.orgId === input.orgId));
     }),
 
   listByOrg: publicProcedure
@@ -31,7 +46,20 @@ export const projectRouter = router({
   listByUser: publicProcedure
     .input(z.object({ userId: z.string().uuid() }))
     .query(({ ctx, input }) => {
-      return createProjectService(ctx.db).listByUser(input.userId);
+      const svc = createProjectService(ctx.db);
+      if (
+        ctx.viewer.fluxaUserId === null &&
+        process.env.FLUXAOS_LAN_AUTH_BYPASS === '1'
+      ) {
+        return svc.listAccessibleByUser(input.userId);
+      }
+      if (ctx.viewer.fluxaUserId !== input.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Cannot list projects for another user.',
+        });
+      }
+      return svc.listAccessibleByUser(input.userId);
     }),
 
   getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
@@ -56,15 +84,7 @@ export const projectRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { userId, ...data } = input;
-      return await ctx.db.transaction(async (tx) => {
-        const [created] = await tx.insert(project).values(data).returning();
-        await tx.insert(projectMember).values({
-          userId,
-          projectId: created.id,
-        });
-        return created;
-      });
+      return createProjectService(ctx.db).create(input);
     }),
 
   update: protectedMutation(EDIT_ROLES)
@@ -89,6 +109,9 @@ export const projectRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      await assertProjectAccess(ctx.db, id, ctx.viewer.fluxaUserId, {
+        notOwnedCode: 'FORBIDDEN',
+      });
       try {
         return await createProjectService(ctx.db, {
           repoUrlValidator: buildGitRouter(),
@@ -118,7 +141,10 @@ export const projectRouter = router({
 
   delete: protectedMutation(DELETE_ROLES)
     .input(inputId())
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectAccess(ctx.db, input.id, ctx.viewer.fluxaUserId, {
+        notOwnedCode: 'FORBIDDEN',
+      });
       return createProjectService(ctx.db).remove(input.id);
     }),
   /**

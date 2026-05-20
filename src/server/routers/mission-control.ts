@@ -21,12 +21,23 @@ import {
   pipelineStage,
   stageRun,
 } from '@/core/db/schema';
+import { assertProjectAccess } from '../ownership';
 import { publicProcedure, router } from '../trpc';
 
 export const missionRouter = router({
   summary: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await assertProjectAccess(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId,
+        {
+          notOwnedCode: 'FORBIDDEN',
+          notOwnedMsg: 'You do not have access to this project.',
+        }
+      );
+
       const projectPipelines = await ctx.db
         .select({ id: pipeline.id, name: pipeline.name })
         .from(pipeline)

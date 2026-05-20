@@ -100,12 +100,10 @@ async function resolveViewer(db: Database): Promise<Viewer> {
     .where(eq(user.id, authUserId));
 
   if (!row) {
-    return {
-      authUserId,
-      fluxaUserId: null,
-      role: 'viewer',
-      tier: 'free',
-    };
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'Authenticated user is not registered in fluxaOS.',
+    });
   }
   return {
     authUserId,

@@ -3,14 +3,14 @@ import { z } from 'zod/v4';
 import { NotFoundError } from '@/core/errors/domain';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createConfigService } from '@/core/services/config';
-import { assertProjectOwnership } from '../ownership';
+import { assertProjectAccess } from '../ownership';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 export const configRouter = router({
   list: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      await assertProjectOwnership(
+      await assertProjectAccess(
         ctx.db,
         input.projectId,
         ctx.viewer.fluxaUserId,

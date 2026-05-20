@@ -22,7 +22,7 @@ import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-servi
 import { resolveProjectIdForRun } from '@/core/orchestrator/run-helpers';
 import { createPipelineService } from '@/core/services';
 import { createIssueService } from '@/core/services/issue';
-import { assertProjectOwnership } from '../ownership';
+import { assertProjectAccess } from '../ownership';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 import { enrichStageRuns } from './_shared/enrich-stage-runs';
 import { listIssueRunsWithStages } from './pipeline-run-history';
@@ -59,7 +59,7 @@ async function assertRunOwnership(
   if (owningProjectId !== projectId) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
   }
-  await assertProjectOwnership(db, projectId, viewerId);
+  await assertProjectAccess(db, projectId, viewerId);
 }
 
 /**
@@ -131,7 +131,7 @@ async function assertStageRunOwnership(
   if (owningProjectId !== projectId) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
   }
-  await assertProjectOwnership(db, projectId, viewerId);
+  await assertProjectAccess(db, projectId, viewerId);
 }
 
 export const pipelineRouter = router({
@@ -349,7 +349,7 @@ export const pipelineRouter = router({
           .from(pipeline)
           .where(eq(pipeline.id, input.pipelineId));
         if (!row) return [];
-        await assertProjectOwnership(
+        await assertProjectAccess(
           ctx.db,
           row.projectId,
           ctx.viewer.fluxaUserId
@@ -365,7 +365,7 @@ export const pipelineRouter = router({
     listByProject: publicProcedure
       .input(z.object({ projectId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
-        await assertProjectOwnership(
+        await assertProjectAccess(
           ctx.db,
           input.projectId,
           ctx.viewer.fluxaUserId
@@ -555,7 +555,7 @@ export const pipelineRouter = router({
         z.object({ issueId: z.string().uuid(), projectId: z.string().uuid() })
       )
       .query(async ({ ctx, input }) => {
-        await assertProjectOwnership(
+        await assertProjectAccess(
           ctx.db,
           input.projectId,
           ctx.viewer.fluxaUserId

@@ -4,7 +4,23 @@ import { z } from 'zod/v4';
 import { personaSkill, skill } from '@/core/db/schema';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createPersonaService } from '@/core/services';
-import { protectedMutation, publicProcedure, router } from '../trpc';
+import { assertProjectAccess } from '../ownership';
+import {
+  protectedMutation,
+  publicProcedure,
+  router,
+  type TRPCContext,
+} from '../trpc';
+
+async function assertPersonaProjectAccess(
+  ctx: TRPCContext,
+  projectId?: string | null
+) {
+  if (!projectId) return;
+  await assertProjectAccess(ctx.db, projectId, ctx.viewer.fluxaUserId, {
+    notOwnedCode: 'FORBIDDEN',
+  });
+}
 
 export const personaRouter = router({
   /**
@@ -14,8 +30,9 @@ export const personaRouter = router({
    */
   list: publicProcedure
     .input(z.object({ projectId: z.string().uuid().optional() }))
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
       const svc = createPersonaService(ctx.db);
+      await assertPersonaProjectAccess(ctx, input.projectId);
       return input.projectId
         ? svc.listByProject(input.projectId)
         : svc.listGlobal();
@@ -23,8 +40,10 @@ export const personaRouter = router({
 
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
-    .query(({ ctx, input }) => {
-      return createPersonaService(ctx.db).getById(input.id);
+    .query(async ({ ctx, input }) => {
+      const row = await createPersonaService(ctx.db).getById(input.id);
+      await assertPersonaProjectAccess(ctx, row?.projectId);
+      return row;
     }),
 
   create: protectedMutation(EDIT_ROLES)
@@ -40,7 +59,8 @@ export const personaRouter = router({
         parentPersonaId: z.string().uuid().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
+      await assertPersonaProjectAccess(ctx, input.projectId);
       return createPersonaService(ctx.db).create(input);
     }),
 
@@ -58,11 +78,10 @@ export const personaRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      const row = await createPersonaService(ctx.db).updateWithVersion(
-        id,
-        version,
-        data
-      );
+      const svc = createPersonaService(ctx.db);
+      const existing = await svc.getById(id);
+      await assertPersonaProjectAccess(ctx, existing?.projectId);
+      const row = await svc.updateWithVersion(id, version, data);
       if (!row)
         throw new TRPCError({
           code: 'CONFLICT',
@@ -76,6 +95,8 @@ export const personaRouter = router({
     .mutation(async ({ ctx, input }) => {
       return await ctx.db.transaction(async (tx) => {
         const svc = createPersonaService(tx);
+        const existing = await svc.getById(input.id);
+        await assertPersonaProjectAccess(ctx, existing?.projectId);
 
         // FK guard: reject with a meaningful message if anything still points here
         const refs = await svc.countReferences(input.id);
@@ -102,6 +123,10 @@ export const personaRouter = router({
   skills: publicProcedure
     .input(z.object({ personaId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const persona = await createPersonaService(ctx.db).getById(
+        input.personaId
+      );
+      await assertPersonaProjectAccess(ctx, persona?.projectId);
       const rows = await ctx.db
         .select({
           personaId: personaSkill.personaId,
@@ -124,6 +149,10 @@ export const personaRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const persona = await createPersonaService(ctx.db).getById(
+        input.personaId
+      );
+      await assertPersonaProjectAccess(ctx, persona?.projectId);
       const [row] = await ctx.db
         .insert(personaSkill)
         .values({
@@ -145,6 +174,10 @@ export const personaRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const persona = await createPersonaService(ctx.db).getById(
+        input.personaId
+      );
+      await assertPersonaProjectAccess(ctx, persona?.projectId);
       await ctx.db
         .delete(personaSkill)
         .where(

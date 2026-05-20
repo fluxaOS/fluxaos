@@ -3,17 +3,29 @@ import type { skill } from '@/core/db/schema';
 import { Feature } from '@/core/features/features';
 import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createSkillService } from '@/core/services';
+import { assertProjectAccess } from '../ownership';
 import {
   featureGated,
   inputId,
   protectedMutation,
   publicProcedure,
   router,
+  type TRPCContext,
 } from '../trpc';
 
 type SkillInsert = typeof skill.$inferInsert;
 
 const scope = z.enum(['global', 'project']);
+
+async function assertSkillProjectAccess(
+  ctx: TRPCContext,
+  projectId?: string | null
+) {
+  if (!projectId) return;
+  await assertProjectAccess(ctx.db, projectId, ctx.viewer.fluxaUserId, {
+    notOwnedCode: 'FORBIDDEN',
+  });
+}
 
 export const skillRouter = router({
   /**
@@ -23,15 +35,18 @@ export const skillRouter = router({
    */
   list: publicProcedure
     .input(z.object({ projectId: z.string().uuid().optional() }))
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
       const svc = createSkillService(ctx.db);
+      await assertSkillProjectAccess(ctx, input.projectId);
       return input.projectId
         ? svc.listByProject(input.projectId)
         : svc.listGlobal();
     }),
 
-  getById: publicProcedure.input(inputId()).query(({ ctx, input }) => {
-    return createSkillService(ctx.db).getById(input.id);
+  getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {
+    const row = await createSkillService(ctx.db).getById(input.id);
+    await assertSkillProjectAccess(ctx, row?.projectId);
+    return row;
   }),
 
   create: protectedMutation(EDIT_ROLES)
@@ -47,7 +62,8 @@ export const skillRouter = router({
         tags: z.unknown().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
+      await assertSkillProjectAccess(ctx, input.projectId);
       return createSkillService(ctx.db).create(input as SkillInsert);
     }),
 
@@ -66,7 +82,10 @@ export const skillRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      const row = await createSkillService(ctx.db).updateWithVersion(
+      const svc = createSkillService(ctx.db);
+      const existing = await svc.getById(id);
+      await assertSkillProjectAccess(ctx, existing?.projectId);
+      const row = await svc.updateWithVersion(
         id,
         version,
         data as Partial<SkillInsert>
@@ -78,8 +97,11 @@ export const skillRouter = router({
   // FLX-14: revision history is a paid-tier feature.
   listHistory: featureGated(Feature.REVISION_HISTORY)
     .input(inputId())
-    .query(({ ctx, input }) => {
-      return createSkillService(ctx.db).listRevisions(input.id);
+    .query(async ({ ctx, input }) => {
+      const svc = createSkillService(ctx.db);
+      const existing = await svc.getById(input.id);
+      await assertSkillProjectAccess(ctx, existing?.projectId);
+      return svc.listRevisions(input.id);
     }),
 
   revertToRevision: protectedMutation(REVERT_ROLES)
@@ -91,7 +113,10 @@ export const skillRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const row = await createSkillService(ctx.db).revertToRevision(
+      const svc = createSkillService(ctx.db);
+      const existing = await svc.getById(input.id);
+      await assertSkillProjectAccess(ctx, existing?.projectId);
+      const row = await svc.revertToRevision(
         input.id,
         input.version,
         input.revisionNumber
@@ -112,6 +137,8 @@ export const skillRouter = router({
       //  tRPC 500 instead of the friendly "referenced by N" message.)
       return await ctx.db.transaction(async (tx) => {
         const svc = createSkillService(tx);
+        const existing = await svc.getById(input.id);
+        await assertSkillProjectAccess(ctx, existing?.projectId);
 
         // 1. FK guard: reject with a meaningful message if anything still points here
         const refs = await svc.countReferences(input.id);
