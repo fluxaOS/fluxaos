@@ -3,6 +3,7 @@ import type { skill } from '@/core/db/schema';
 import { Feature } from '@/core/features/features';
 import { DELETE_ROLES, EDIT_ROLES, REVERT_ROLES } from '@/core/features/roles';
 import { createSkillService } from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import { assertProjectAccess } from '../ownership';
 import {
   featureGated,
@@ -38,9 +39,13 @@ export const skillRouter = router({
     .query(async ({ ctx, input }) => {
       const svc = createSkillService(ctx.db);
       await assertSkillProjectAccess(ctx, input.projectId);
-      return input.projectId
-        ? svc.listByProject(input.projectId)
-        : svc.listGlobal();
+      if (!input.projectId) return svc.listGlobal();
+      const scope = await resolveProjectScopeContext(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId
+      );
+      return svc.listEffective(scope);
     }),
 
   getById: publicProcedure.input(inputId()).query(async ({ ctx, input }) => {

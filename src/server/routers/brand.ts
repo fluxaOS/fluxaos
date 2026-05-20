@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createBrandService } from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import { assertProjectAccess } from '../ownership';
 import {
   protectedMutation,
@@ -33,10 +34,12 @@ export const brandRouter = router({
     .input(z.object({ orgId: z.string().uuid(), projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await assertBrandProjectAccess(ctx, input.projectId);
-      return createBrandService(ctx.db).listVisibleToProject(
-        input.orgId,
-        input.projectId
+      const scope = await resolveProjectScopeContext(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId
       );
+      return createBrandService(ctx.db).listEffective(scope);
     }),
 
   getById: publicProcedure

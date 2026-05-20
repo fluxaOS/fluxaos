@@ -96,7 +96,7 @@ Steps:
 - [x] Resolve driver/persona/skill/brand rows once before materialization or prompt composition.
 - [x] Resolve routing profiles/providers through waterfall helpers; enumerate child routing rules/models from the resolved parent rows.
 - [x] Preserve fail-fast behavior when configured rows or effective rows are missing.
-- [ ] Commit.
+- [x] Commit.
 
 ### Task 4: Router Consumers
 
@@ -110,9 +110,9 @@ Steps:
 
 Steps:
 
-- [ ] Migrate project-context list endpoints to scope-aware list methods with `ctx.viewer.fluxaUserId`.
-- [ ] Leave admin/catalog edit-by-id endpoints direct after Stage 5 access checks.
-- [ ] For provider/routing settings that currently accept only `orgId`, keep catalog/org views direct unless a `projectId` is added by an existing route context; do not invent a second route contract in this slice.
+- [x] Migrate project-context list endpoints to scope-aware list methods with `ctx.viewer.fluxaUserId`.
+- [x] Leave admin/catalog edit-by-id endpoints direct after Stage 5 access checks.
+- [x] For provider/routing settings that currently accept only `orgId`, keep catalog/org views direct unless a `projectId` is added by an existing route context; do not invent a second route contract in this slice.
 - [ ] Commit.
 
 ### Task 5: Integration Coverage
