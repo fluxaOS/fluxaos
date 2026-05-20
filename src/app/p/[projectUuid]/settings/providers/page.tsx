@@ -11,15 +11,13 @@ import { trpc } from '@/lib/trpc/client';
 import { type ProviderRecord, providerDescriptor } from './descriptor';
 
 export default function ProviderSettingsPage() {
-  const params = useParams<{ org: string; user: string; project: string }>();
+  const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<ProviderRecord | null>(null);
 
   // FLX-244: resolve the org from the URL project slug, not the first DB row.
-  const currentProjectQuery = trpc.project.getBySlug.useQuery({
-    slug: params.project,
-  });
+  const currentProjectQuery = trpc.project.getById.useQuery({ id: params.projectUuid });
   const currentProject = currentProjectQuery.data ?? null;
   if (currentProjectQuery.isSuccess && !currentProject) {
     notFound();

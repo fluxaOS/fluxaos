@@ -10,7 +10,7 @@ import { trpc } from '@/lib/trpc/client';
 import { type BrandRecord, brandDescriptor } from './descriptor';
 
 export default function BrandSettingsPage() {
-  const params = useParams<{ org: string; user: string; project: string }>();
+  const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
@@ -23,11 +23,8 @@ export default function BrandSettingsPage() {
   const [colorsError, setColorsError] = useState<string | null>(null);
   const [fontsError, setFontsError] = useState<string | null>(null);
 
-  // params.project is guaranteed by the [project] route segment; the
-  // [org]/[user]/[project] layout never renders this page without it.
-  const projectSlug = params.project;
-  const currentProjectQuery = trpc.project.getBySlug.useQuery({
-    slug: projectSlug,
+  const currentProjectQuery = trpc.project.getById.useQuery({
+    id: params.projectUuid,
   });
   const currentProject = currentProjectQuery.data ?? null;
   // Slug resolved against the DB but no project exists — the URL is invalid.

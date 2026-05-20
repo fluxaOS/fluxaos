@@ -1,4 +1,4 @@
-// src/app/[org]/[user]/[project]/settings/system/page.tsx
+// src/app/p/[projectUuid]/settings/system/page.tsx
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -11,13 +11,12 @@ import { trpc } from '@/lib/trpc/client';
 import { type ConfigEntryRecord, configEntryDescriptor } from './descriptor';
 
 export default function SystemSettingsPage() {
-  const params = useParams<{ project: string }>();
+  const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
 
-  const projectSlug = params.project ?? '';
-  const currentProjectQuery = trpc.project.getBySlug.useQuery(
-    { slug: projectSlug },
-    { enabled: !!projectSlug }
+  const currentProjectQuery = trpc.project.getById.useQuery(
+    { id: params.projectUuid },
+    { enabled: !!params.projectUuid }
   );
   const projectId = currentProjectQuery.data?.id ?? null;
 

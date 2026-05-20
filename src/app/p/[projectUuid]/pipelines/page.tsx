@@ -1,33 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { SkeletonTable } from '@/components/skeleton';
 import { StatusBadge } from '@/components/status-badge';
+import { projectBaseFromPathname } from '@/lib/project-url';
 import { trpc } from '@/lib/trpc/client';
 
 function useProjectId() {
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgId = orgsQuery.data?.[0]?.id;
-  const projectsQuery = trpc.project.listByOrg.useQuery(
-    { orgId: orgId! },
-    { enabled: !!orgId }
+  const params = useParams<{ projectUuid: string }>();
+  const projectQuery = trpc.project.getById.useQuery(
+    { id: params.projectUuid },
+    { enabled: !!params.projectUuid }
   );
   return {
-    projectId: projectsQuery.data?.[0]?.id ?? null,
-    isLoading: orgsQuery.isLoading || projectsQuery.isLoading,
+    projectId: projectQuery.data?.id ?? null,
+    isLoading: projectQuery.isLoading,
   };
 }
 
 function useBasePath() {
-  const pathname = usePathname();
-  const segments = pathname.split('/').filter(Boolean);
-  return segments.length >= 3
-    ? `/${segments[0]}/${segments[1]}/${segments[2]}`
-    : '/';
+  return projectBaseFromPathname(usePathname());
 }
 
 export default function PipelinesPage() {

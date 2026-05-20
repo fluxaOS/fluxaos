@@ -8,7 +8,7 @@ import { trpc } from '@/lib/trpc/client';
 import { StageEditor } from './StageEditor';
 
 export default function PipelineSettingsPage() {
-  const params = useParams<{ org: string; user: string; project: string }>();
+  const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [editingPipelineId, setEditingPipelineId] = useState<string | null>(
@@ -16,9 +16,7 @@ export default function PipelineSettingsPage() {
   );
 
   // FLX-244: resolve the project from the URL slug, not the first DB row.
-  const currentProjectQuery = trpc.project.getBySlug.useQuery({
-    slug: params.project,
-  });
+  const currentProjectQuery = trpc.project.getById.useQuery({ id: params.projectUuid });
   const projectRow = currentProjectQuery.data ?? null;
   if (currentProjectQuery.isSuccess && !projectRow) {
     notFound();

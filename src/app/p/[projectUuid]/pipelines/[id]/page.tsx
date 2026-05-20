@@ -8,21 +8,18 @@ import { Card } from '@/components/card';
 import { VerdictBadge } from '@/components/gates/VerdictBadge';
 import { RunDetailModal } from '@/components/pipeline/RunDetailModal';
 import { StatusBadge } from '@/components/status-badge';
+import { projectBaseFromPathname } from '@/lib/project-url';
 import { trpc } from '@/lib/trpc/client';
 
 function useBasePath() {
-  const pathname = usePathname();
-  const segments = pathname.split('/').filter(Boolean);
-  return segments.length >= 3
-    ? `/${segments[0]}/${segments[1]}/${segments[2]}`
-    : '/';
+  return projectBaseFromPathname(usePathname());
 }
 
 function useProjectId() {
-  const params = useParams<{ project: string }>();
-  const projectQuery = trpc.project.getBySlug.useQuery(
-    { slug: params.project },
-    { enabled: !!params.project }
+  const params = useParams<{ projectUuid: string }>();
+  const projectQuery = trpc.project.getById.useQuery(
+    { id: params.projectUuid },
+    { enabled: !!params.projectUuid }
   );
   return projectQuery.data?.id ?? null;
 }

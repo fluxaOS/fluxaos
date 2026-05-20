@@ -1,7 +1,7 @@
-// src/app/[org]/[user]/[project]/settings/projects/page.tsx
+// src/app/p/[projectUuid]/settings/projects/page.tsx
 'use client';
 
-import { notFound, useParams, useRouter } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { openConfirmModal } from '@/components/confirm-modal';
 import { PageHeader } from '@/components/page-header';
@@ -11,17 +11,24 @@ import { buildProjectDescriptor } from './buildProjectDescriptor';
 import type { ProjectRecord } from './descriptor';
 
 export default function ProjectsSettingsPage() {
-  const params = useParams<{ org: string; user: string; project: string }>();
-  const router = useRouter();
+  const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
 
-  // Resolve the org from the URL slug — gives us the orgId we need to
-  // scope the project list without an unscoped all-tenants query.
-  const orgQuery = trpc.organization.getBySlug.useQuery({ slug: params.org });
-  const orgId = orgQuery.data?.id ?? null;
+  const currentProjectQuery = trpc.project.getById.useQuery({
+    id: params.projectUuid,
+  });
+  const currentProject = currentProjectQuery.data ?? null;
+  if (currentProjectQuery.isSuccess && !currentProject) {
+    notFound();
+  }
+  const orgId = currentProject?.orgId ?? null;
 
   const projectsQuery = trpc.project.list.useQuery(
+    { orgId: orgId! },
+    { enabled: !!orgId }
+  );
+  const usersQuery = trpc.user.listByOrg.useQuery(
     { orgId: orgId! },
     { enabled: !!orgId }
   );
@@ -30,20 +37,12 @@ export default function ProjectsSettingsPage() {
   const deleteMutation = trpc.project.delete.useMutation();
 
   const projects = projectsQuery.data ?? [];
-  const currentProject =
-    projects.find((project) => project.slug === params.project) ?? null;
-  // Once the projects list has loaded and the URL slug still doesn't
-  // resolve, the route is invalid — surface a 404 instead of silently
-  // falling back to a hard-coded seed slug.
-  if (projectsQuery.isSuccess && projects.length > 0 && !currentProject) {
-    notFound();
-  }
 
   // The seeded project provides org/user/project handles for the
   // create form and the FK option queries below. Multi-org/user is
   // out of scope for alpha (matrix § Out of Scope).
   const seedOrgId = currentProject?.orgId ?? projects[0]?.orgId ?? null;
-  const seedUserId = currentProject?.userId ?? projects[0]?.userId ?? null;
+  const seedUserId = usersQuery.data?.[0]?.id ?? null;
   const seedProjectId = currentProject?.id ?? projects[0]?.id ?? null;
 
   // Pipelines are scoped to the current project — only load once we
@@ -103,7 +102,7 @@ export default function ProjectsSettingsPage() {
     if (slugChanged) {
       const confirmed = await openConfirmModal({
         title: 'Rename project slug?',
-        body: 'Renaming the project slug invalidates all existing URLs and bookmarks for this project. Continue?',
+        body: 'Project slugs are legacy metadata until FLX-239 Stage 8 removes them. Continue?',
         confirmLabel: 'Rename',
         destructive: true,
       });
@@ -115,16 +114,6 @@ export default function ProjectsSettingsPage() {
       ...(patch as Record<string, unknown>),
     });
 
-    // FLX-226: on slug rename, navigate to the new URL BEFORE
-    // invalidating the project list. If invalidate runs first, the
-    // page re-renders with the new list, the URL param is still the
-    // old slug, `currentProject` resolves to null, and notFound()
-    // throws — yielding a 404 instead of the expected redirect.
-    if (slugChanged && typeof patch.slug === 'string') {
-      router.replace(
-        `/${params.org}/${params.user}/${patch.slug}/settings/projects`
-      );
-    }
     await utils.project.list.invalidate();
   };
 

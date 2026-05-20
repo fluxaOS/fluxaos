@@ -16,12 +16,10 @@ import { StatCard } from '@/components/stat-card';
 import { trpc } from '@/lib/trpc/client';
 
 export default function KpisPage() {
-  const params = useParams<{ org: string; user: string; project: string }>();
+  const params = useParams<{ projectUuid: string }>();
 
   // FLX-244: resolve the project from the URL slug, not the first DB row.
-  const currentProjectQuery = trpc.project.getBySlug.useQuery({
-    slug: params.project,
-  });
+  const currentProjectQuery = trpc.project.getById.useQuery({ id: params.projectUuid });
   const currentProject = currentProjectQuery.data ?? null;
   if (currentProjectQuery.isSuccess && !currentProject) {
     notFound();

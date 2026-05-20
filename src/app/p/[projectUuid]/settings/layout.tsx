@@ -1,9 +1,10 @@
-// src/app/[org]/[user]/[project]/settings/layout.tsx
+// src/app/p/[projectUuid]/settings/layout.tsx
 'use client';
 
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { projectPath } from '@/lib/project-url';
 
 type TabSpec = {
   /** URL-suffix relative to /settings (empty string = /settings itself) */
@@ -28,8 +29,8 @@ const TABS: readonly TabSpec[] = [
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const params = useParams();
-  const base = `/${params.org}/${params.user}/${params.project}/settings`;
+  const params = useParams<{ projectUuid: string }>();
+  const base = projectPath(params.projectUuid, '/settings');
 
   return (
     <div className="space-y-6">
