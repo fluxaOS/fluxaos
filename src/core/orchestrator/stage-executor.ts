@@ -122,7 +122,10 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     const scope = await resolveProjectScopeContext(db, pipelineRow.projectId);
 
     const driverRow = stage.driverId
-      ? await createDriverService(db).resolveEffectiveById(stage.driverId, scope)
+      ? await createDriverService(db).resolveEffectiveById(
+          stage.driverId,
+          scope
+        )
       : null;
 
     if (!driverRow?.binary) {

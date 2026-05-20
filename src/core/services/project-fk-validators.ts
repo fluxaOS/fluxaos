@@ -52,6 +52,21 @@ export const FK_VALIDATORS: Record<string, FkValidator> = {
     if (!br) {
       throw new NotFoundError('BRAND_NOT_FOUND');
     }
+    if (br.kind === 'catalog') {
+      return;
+    }
+    if (br.kind === 'project' && br.projectId === projectId) {
+      return;
+    }
+    if (br.kind === 'team' && br.teamId === proj.teamId) {
+      return;
+    }
+    if (br.kind === 'org' && br.orgId === proj.orgId) {
+      return;
+    }
+    if (br.kind === 'user') {
+      throw new BadRequestError('BRAND_NOT_IN_ORG');
+    }
     if (br.orgId !== proj.orgId) {
       throw new BadRequestError('BRAND_NOT_IN_ORG');
     }

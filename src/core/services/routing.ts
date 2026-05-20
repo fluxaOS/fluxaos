@@ -28,6 +28,16 @@ export function createRoutingService(db: DbOrTx) {
   return {
     ...profileCrud,
 
+    async create(data: ProfileInsert): Promise<ProfileSelect> {
+      return profileCrud.create({
+        ...data,
+        kind: 'org',
+        teamId: null,
+        userId: null,
+        projectId: null,
+      });
+    },
+
     async listByOrg(orgId: string): Promise<ProfileSelect[]> {
       return db
         .select()
@@ -35,9 +45,7 @@ export function createRoutingService(db: DbOrTx) {
         .where(eq(routingProfile.orgId, orgId));
     },
 
-    async listEffectiveProfiles(
-      scope: ScopeContext
-    ): Promise<ProfileSelect[]> {
+    async listEffectiveProfiles(scope: ScopeContext): Promise<ProfileSelect[]> {
       return resolveScopedAll<ProfileSelect>(
         db as Database,
         routingProfile,

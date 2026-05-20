@@ -28,6 +28,16 @@ export function createProviderService(db: DbOrTx) {
   return {
     ...providerCrud,
 
+    async create(data: ProviderInsert): Promise<ProviderSelect> {
+      return providerCrud.create({
+        ...data,
+        kind: 'org',
+        teamId: null,
+        userId: null,
+        projectId: null,
+      });
+    },
+
     async listByOrg(orgId: string): Promise<ProviderSelect[]> {
       return db.select().from(provider).where(eq(provider.orgId, orgId));
     },

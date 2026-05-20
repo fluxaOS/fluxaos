@@ -11,6 +11,7 @@ import {
 
 type SkillInsert = typeof skill.$inferInsert;
 type SkillSelect = typeof skill.$inferSelect;
+type SkillCreateInput = SkillInsert & { scope?: 'global' | 'project' };
 
 /**
  * The service accepts either a top-level Database handle or a transaction
@@ -28,6 +29,28 @@ export function createSkillService(db: DbOrTx) {
 
   return {
     ...crud,
+
+    async create(data: SkillCreateInput): Promise<SkillSelect> {
+      const { scope: _scope, ...insert } = data;
+      const scopedData =
+        insert.projectId !== undefined && insert.projectId !== null
+          ? {
+              ...insert,
+              kind: 'project',
+              orgId: null,
+              teamId: null,
+              userId: null,
+            }
+          : {
+              ...insert,
+              kind: 'catalog',
+              orgId: null,
+              teamId: null,
+              userId: null,
+              projectId: null,
+            };
+      return crud.create(scopedData);
+    },
 
     async listByProject(projectId: string): Promise<SkillSelect[]> {
       return db

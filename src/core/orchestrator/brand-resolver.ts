@@ -1,5 +1,5 @@
 import type { Database } from '@/core/db/connection';
-import { brand } from '@/core/db/schema';
+import type { brand } from '@/core/db/schema';
 import { createBrandService } from '@/core/services';
 import type { ScopeContext } from '@/core/services/resolve-scoped';
 

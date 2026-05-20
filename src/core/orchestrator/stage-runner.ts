@@ -25,15 +25,15 @@ import type { StageExecutor } from '@/core/ports/stage-executor';
 import type { StdoutParser, TranscriptEntry } from '@/core/ports/stdout-parser';
 import type { WorkspaceMaterializerPort } from '@/core/ports/workspace-materializer';
 import {
-  cleanup as cleanupMaterializedWorkspace,
-  materialize,
-} from '@/core/skills/materializer';
-import {
   createDriverService,
   createPersonaService,
   createSkillService,
 } from '@/core/services';
 import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
+import {
+  cleanup as cleanupMaterializedWorkspace,
+  materialize,
+} from '@/core/skills/materializer';
 import { resolveStageBrand } from './brand-resolver';
 import { buildCommand, renderTemplate } from './command-builder';
 import type { PipelineRunService } from './pipeline-run-service';
@@ -189,7 +189,10 @@ export async function executeStageRun(
 
   // Persona (optional)
   const personaRow = stage.personaId
-    ? await createPersonaService(db).resolveEffectiveById(stage.personaId, scope)
+    ? await createPersonaService(db).resolveEffectiveById(
+        stage.personaId,
+        scope
+      )
     : null;
 
   // ── Isolation Env + Materialize + Build + Spawn ─────────────────

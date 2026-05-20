@@ -115,6 +115,8 @@ Steps:
 - [x] For provider/routing settings that currently accept only `orgId`, keep catalog/org views direct unless a `projectId` is added by an existing route context; do not invent a second route contract in this slice.
 - [x] Commit.
 
+Result: existing create contracts for brand/persona/skill/provider/routing profile are normalized into valid waterfall rows (`kind` plus exactly one scope FK) before insert; this preserves UI inputs while satisfying Stage 1 scope checks.
+
 ### Task 5: Integration Coverage
 
 **Files:**

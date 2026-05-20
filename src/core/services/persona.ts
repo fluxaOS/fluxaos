@@ -10,6 +10,7 @@ import {
 
 type PersonaInsert = typeof persona.$inferInsert;
 type PersonaSelect = typeof persona.$inferSelect;
+type PersonaCreateInput = PersonaInsert & { scope?: 'global' | 'project' };
 
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 
@@ -21,6 +22,28 @@ export function createPersonaService(db: DbOrTx) {
 
   return {
     ...crud,
+
+    async create(data: PersonaCreateInput): Promise<PersonaSelect> {
+      const { scope: _scope, ...insert } = data;
+      const scopedData =
+        insert.projectId !== undefined && insert.projectId !== null
+          ? {
+              ...insert,
+              kind: 'project',
+              orgId: null,
+              teamId: null,
+              userId: null,
+            }
+          : {
+              ...insert,
+              kind: 'catalog',
+              orgId: null,
+              teamId: null,
+              userId: null,
+              projectId: null,
+            };
+      return crud.create(scopedData);
+    },
 
     async listByProject(projectId: string): Promise<PersonaSelect[]> {
       return db
