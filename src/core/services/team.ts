@@ -1,6 +1,6 @@
 import { count, desc, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { team, teamMember } from '@/core/db/schema';
+import { project, team, teamMember } from '@/core/db/schema';
 import { createVersionedCrudService } from './crud-factory';
 
 type TeamInsert = typeof team.$inferInsert;
@@ -18,11 +18,13 @@ export function createTeamService(db: DbOrTx) {
     ...crud,
 
     async listByProject(projectId: string): Promise<TeamSelect[]> {
-      return db
-        .select()
+      const rows = await db
+        .select({ team })
         .from(team)
-        .where(eq(team.projectId, projectId))
+        .innerJoin(project, eq(project.teamId, team.id))
+        .where(eq(project.id, projectId))
         .orderBy(desc(team.createdAt));
+      return rows.map((row) => row.team);
     },
 
     async countReferences(id: string): Promise<{ members: number }> {

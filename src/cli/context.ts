@@ -31,9 +31,16 @@ export async function resolveContext(
         'Set FLUXAOS_CLI_PROJECT_SLUG, or run `npm run db:seed`.'
     );
   }
+  const users = await client.user.listByOrg.query({ orgId: proj.orgId });
+  const [usr] = users;
+  if (!usr) {
+    throw new Error(
+      `No user found for project "${config.projectSlug}" in org ${proj.orgId}. Run npm run db:seed.`
+    );
+  }
   return {
     orgId: proj.orgId,
-    userId: proj.userId,
+    userId: usr.id,
     projectId: proj.id,
     projectSlug: proj.slug,
     defaultPipelineId: proj.defaultPipelineId ?? null,

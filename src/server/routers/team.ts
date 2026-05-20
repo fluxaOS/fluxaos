@@ -1,5 +1,7 @@
 import { TRPCError } from '@trpc/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
+import { project } from '@/core/db/schema';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createTeamService } from '@/core/services';
 import { protectedMutation, publicProcedure, router } from '../trpc';
@@ -23,7 +25,23 @@ export const teamRouter = router({
         description: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) => createTeamService(ctx.db).create(input)),
+    .mutation(async ({ ctx, input }) => {
+      const [proj] = await ctx.db
+        .select({ orgId: project.orgId })
+        .from(project)
+        .where(eq(project.id, input.projectId));
+      if (!proj) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Project not found: ${input.projectId}`,
+        });
+      }
+      return createTeamService(ctx.db).create({
+        orgId: proj.orgId,
+        name: input.name,
+        description: input.description,
+      });
+    }),
 
   update: protectedMutation(EDIT_ROLES)
     .input(

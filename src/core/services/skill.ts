@@ -36,7 +36,7 @@ export function createSkillService(db: DbOrTx) {
       return db
         .select()
         .from(skill)
-        .where(eq(skill.scope, 'global'))
+        .where(eq(skill.kind, 'catalog'))
         .orderBy(desc(skill.createdAt));
     },
 
@@ -108,7 +108,7 @@ export function createSkillService(db: DbOrTx) {
         .update(skill)
         .set({
           name: target.name,
-          scope: target.scope,
+          kind: target.scope === 'global' ? 'catalog' : 'project',
           description: target.description,
           promptTemplate: target.promptTemplate,
           inputSchema: target.inputSchema,
@@ -188,7 +188,7 @@ async function snapshotSkillRevision(
       row.id
     ),
     name: row.name,
-    scope: row.scope,
+    scope: row.kind === 'catalog' ? 'global' : 'project',
     description: row.description,
     promptTemplate: row.promptTemplate,
     inputSchema: row.inputSchema,

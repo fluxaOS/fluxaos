@@ -42,6 +42,7 @@ export default function ProjectsSettingsPage() {
   // create form and the FK option queries below. Multi-org/user is
   // out of scope for alpha (matrix § Out of Scope).
   const seedOrgId = currentProject?.orgId ?? projects[0]?.orgId ?? null;
+  const seedTeamId = currentProject?.teamId ?? projects[0]?.teamId ?? null;
   const seedUserId = usersQuery.data?.[0]?.id ?? null;
   const seedProjectId = currentProject?.id ?? projects[0]?.id ?? null;
 
@@ -128,7 +129,7 @@ export default function ProjectsSettingsPage() {
         title="Projects"
         description="Configure the target repository and default pipeline. The target repo path is a per-project column; the stage runner refuses to acquire isolation when it is null."
         action={
-          seedOrgId && seedUserId ? (
+          seedOrgId && seedTeamId && seedUserId ? (
             <button
               type="button"
               onClick={() => setShowCreate(!showCreate)}
@@ -140,9 +141,10 @@ export default function ProjectsSettingsPage() {
         }
       />
 
-      {showCreate && seedOrgId && seedUserId && (
+      {showCreate && seedOrgId && seedTeamId && seedUserId && (
         <CreateProjectForm
           orgId={seedOrgId}
+          teamId={seedTeamId}
           userId={seedUserId}
           onCreated={async () => {
             setShowCreate(false);
@@ -167,10 +169,12 @@ export default function ProjectsSettingsPage() {
 
 function CreateProjectForm({
   orgId,
+  teamId,
   userId,
   onCreated,
 }: {
   orgId: string;
+  teamId: string;
   userId: string;
   onCreated: () => void;
 }) {
@@ -189,6 +193,7 @@ function CreateProjectForm({
         if (!name.trim() || !slug.trim()) return;
         createMutation.mutate({
           orgId,
+          teamId,
           userId,
           name: name.trim(),
           slug: slug.trim(),

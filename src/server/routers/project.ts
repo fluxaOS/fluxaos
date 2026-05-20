@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { buildGitRouter } from '@/adapters/git-router/validator-registry';
+import { project, projectMember } from '@/core/db/schema';
 import {
   BadRequestError,
   InternalError,
@@ -47,14 +48,23 @@ export const projectRouter = router({
     .input(
       z.object({
         orgId: z.string().uuid(),
+        teamId: z.string().uuid(),
         userId: z.string().uuid(),
         name: z.string().min(1),
         slug: z.string().min(1),
         repoUrl: z.string().optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
-      return createProjectService(ctx.db).create(input);
+    .mutation(async ({ ctx, input }) => {
+      const { userId, ...data } = input;
+      return await ctx.db.transaction(async (tx) => {
+        const [created] = await tx.insert(project).values(data).returning();
+        await tx.insert(projectMember).values({
+          userId,
+          projectId: created.id,
+        });
+        return created;
+      });
     }),
 
   update: protectedMutation(EDIT_ROLES)

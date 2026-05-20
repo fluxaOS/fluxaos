@@ -10,7 +10,7 @@ type Persona = {
   id: string;
   version: number;
   name: string;
-  scope: string;
+  kind: string;
   soul: string | null;
   brandId: string | null;
 };
@@ -55,7 +55,7 @@ export default function PersonaSettingsPage() {
     [
       ...(projectPersonasQuery.data ?? []),
       ...(globalPersonasQuery.data ?? []),
-    ] as Persona[]
+    ] as unknown as Persona[]
   ).filter((p, idx, arr) => arr.findIndex((x) => x.id === p.id) === idx);
 
   return (
@@ -107,7 +107,7 @@ export default function PersonaSettingsPage() {
                     <div>
                       <span className="font-medium">{p.name}</span>
                       <span className="ml-2 text-xs text-slate-400">
-                        {p.scope}
+                        {p.kind}
                       </span>
                       {p.brandId && (
                         <span className="ml-2 text-xs text-soft-violet">

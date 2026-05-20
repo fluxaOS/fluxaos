@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { project } from '@/core/db/schema';
+import { project, projectMember } from '@/core/db/schema';
 import { BadRequestError, InternalError } from '@/core/errors/domain';
 import { createCrudService } from './crud-factory';
 import { FK_VALIDATORS } from './project-fk-validators';
@@ -66,7 +66,12 @@ export function createProjectService(
     },
 
     async listByUser(userId: string): Promise<ProjectSelect[]> {
-      return db.select().from(project).where(eq(project.userId, userId));
+      const rows = await db
+        .select({ project })
+        .from(project)
+        .innerJoin(projectMember, eq(projectMember.projectId, project.id))
+        .where(eq(projectMember.userId, userId));
+      return rows.map((row) => row.project);
     },
 
     async getBySlug(
@@ -94,10 +99,13 @@ export function createProjectService(
       slug: string
     ): Promise<ProjectSelect | null> {
       const [row] = await db
-        .select()
+        .select({ project })
         .from(project)
-        .where(and(eq(project.userId, userId), eq(project.slug, slug)));
-      return row ?? null;
+        .innerJoin(projectMember, eq(projectMember.projectId, project.id))
+        .where(
+          and(eq(projectMember.userId, userId), eq(project.slug, slug))
+        );
+      return row?.project ?? null;
     },
   };
 }
