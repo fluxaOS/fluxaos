@@ -128,21 +128,23 @@ Steps:
 - [x] Add persona org-over-catalog and project-over-org consumer tests.
 - [x] Add brand org-over-catalog and project-over-org consumer tests.
 - [x] Add a runtime-shaped test proving a configured catalog persona/brand resolves to a project override by `name`.
-- [ ] Commit.
+- [x] Commit.
 
 ### Task 6: Verification
 
 Steps:
 
-- [ ] `npx biome check .`
-- [ ] `npx tsc --noEmit --pretty false`
-- [ ] `npm run lint`
-- [ ] `npm run build`
-- [ ] `set -a; source .env.local; set +a; npx vitest run src/__tests__/integration/resolve-scoped.test.ts`
-- [ ] `set -a; source .env.local; set +a; npx vitest run src/__tests__/integration/project-access.test.ts`
-- [ ] `set -a; source .env.local; set +a; npx vitest run src/__tests__/integration/`
-- [ ] Manual smoke: create a project-level persona override, run a pipeline, verify via `npm run db:events`; document exact blocker if local runtime state prevents it.
+- [x] `npx biome check .`
+- [x] `npx tsc --noEmit --pretty false`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] `set -a; source .env.local; set +a; npx vitest run src/__tests__/integration/resolve-scoped.test.ts`
+- [x] `set -a; source .env.local; set +a; npx vitest run src/__tests__/integration/project-access.test.ts`
+- [x] `set -a; source .env.local; set +a; npx vitest run src/__tests__/integration/`
+- [x] Manual smoke: create a project-level persona override, run a pipeline, verify via `npm run db:events`; document exact blocker if local runtime state prevents it.
 - [ ] Commit verification notes if needed.
+
+Result: static verification passed. ESLint passed with the existing 29 warnings. Focused integration passed for `resolve-scoped.test.ts`, `project-access.test.ts`, `brand-service.test.ts`, `stage-runner-config.test.ts`, `stage-runner-issue-events.test.ts`, `project-update-fk-validation.test.ts`, and `event-orchestrator-prelaunch.test.ts`. Full integration remained red in the current shared DB/runtime state: 40 files passed, 12 failed; 353 tests passed, 19 failed, 5 skipped. Remaining buckets were cleanup/runtime config row state, artifact-root shared config state, existing crud-factory list expectation, known issue catalog duplicate expectation, stale skill reference expectations, and event-orchestrator tests that pass in isolation but fail in the full parallel run due queued/pending shared runs. Manual runtime smoke was blocked by the same dirty shared daemon queue/config state; focused runtime-shaped resolver tests cover the project override behavior.
 
 ## Non-Goals
 
