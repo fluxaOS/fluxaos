@@ -280,7 +280,7 @@ git commit -m "feat(auth): add membership project access checks"
 - Modify: `src/server/routers/issue.ts`
 - Modify: `src/server/routers/pipeline.ts`
 
-- [ ] **Step 1: Replace imports and helper calls**
+- [x] **Step 1: Replace imports and helper calls**
 
 Change imports:
 
@@ -290,7 +290,7 @@ import { assertProjectAccess } from '../ownership';
 
 Replace each `assertProjectOwnership(...)` call with `assertProjectAccess(...)`. Preserve every `notOwnedCode`, `notFoundMsg`, and `notOwnedMsg` option exactly.
 
-- [ ] **Step 2: Rename issue-local wrapper**
+- [x] **Step 2: Rename issue-local wrapper**
 
 In `src/server/routers/issue.ts`, update the helper:
 
@@ -304,7 +304,7 @@ async function assertProjectViewership(
 }
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 Run:
 
@@ -314,7 +314,7 @@ npx tsc --noEmit --pretty false
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/server/routers/config.ts src/server/routers/issue.ts src/server/routers/pipeline.ts

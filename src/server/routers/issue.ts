@@ -16,7 +16,7 @@ import {
   createIssueEventService,
   createIssueService,
 } from '@/core/services';
-import { assertProjectOwnership } from '../ownership';
+import { assertProjectAccess } from '../ownership';
 import type { Viewer } from '../trpc';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
@@ -62,7 +62,7 @@ async function assertProjectViewership(
   projectId: string,
   viewer: Viewer
 ): Promise<void> {
-  await assertProjectOwnership(db, projectId, viewer.fluxaUserId);
+  await assertProjectAccess(db, projectId, viewer.fluxaUserId);
 }
 
 export const issueRouter = router({
