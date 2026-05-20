@@ -152,7 +152,7 @@ describe('project.update FK validation (FLX-228, FLX-229)', () => {
     try {
       const [otherBrand] = await db
         .insert(brand)
-        .values({ orgId: fB.org.id, name: `${stamp('b')}` })
+        .values({ orgId: fB.org.id, kind: 'org', name: `${stamp('b')}` })
         .returning();
 
       await expect(
@@ -180,7 +180,7 @@ describe('project.update FK validation (FLX-228, FLX-229)', () => {
     try {
       const [b] = await db
         .insert(brand)
-        .values({ orgId: f.org.id, name: `${stamp('b')}` })
+        .values({ orgId: f.org.id, kind: 'org', name: `${stamp('b')}` })
         .returning();
 
       await caller.project.update({

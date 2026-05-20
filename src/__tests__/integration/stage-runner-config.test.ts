@@ -309,6 +309,7 @@ async function createStageRunnerHarness(input: {
     .insert(schema.skill)
     .values({
       projectId,
+      kind: 'project',
       name: `flx-83-skill-${RUN}-${callIdx}`,
       promptTemplate: 'Use {{workspace_path}} for source edits.',
     })
@@ -391,6 +392,7 @@ async function createRoutingFixture(stageName: string) {
     .insert(schema.provider)
     .values({
       orgId,
+      kind: 'org',
       name: `FLX-83 Provider ${RUN}-${idx}`,
       type: 'test',
       isHealthy: true,
@@ -410,6 +412,7 @@ async function createRoutingFixture(stageName: string) {
     .insert(schema.routingProfile)
     .values({
       orgId,
+      kind: 'org',
       name: `FLX-83 Routing ${RUN}-${idx}`,
     })
     .returning();

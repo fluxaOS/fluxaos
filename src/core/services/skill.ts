@@ -31,7 +31,8 @@ export function createSkillService(db: DbOrTx) {
     ...crud,
 
     async create(data: SkillCreateInput): Promise<SkillSelect> {
-      const { scope: _scope, ...insert } = data;
+      const insert = { ...data };
+      delete insert.scope;
       const scopedData =
         insert.projectId !== undefined && insert.projectId !== null
           ? {

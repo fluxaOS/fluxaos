@@ -24,7 +24,8 @@ export function createPersonaService(db: DbOrTx) {
     ...crud,
 
     async create(data: PersonaCreateInput): Promise<PersonaSelect> {
-      const { scope: _scope, ...insert } = data;
+      const insert = { ...data };
+      delete insert.scope;
       const scopedData =
         insert.projectId !== undefined && insert.projectId !== null
           ? {
