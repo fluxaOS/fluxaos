@@ -12,10 +12,12 @@ import {
   pipelineRun,
   pipelineStage,
   project,
+  projectMember,
   provider,
   routingProfile,
   routingRule,
   stageRun,
+  team,
   user,
 } from '@/core/db/schema';
 import { createEventOrchestrator } from '@/core/orchestrator/event-orchestrator';
@@ -173,17 +175,24 @@ async function createFixture(input: { maxRetries: number }) {
       slug: org.slug,
     })
     .returning();
+  const [teamRow] = await db
+    .insert(team)
+    .values({ orgId: org.id, name: `${org.slug}-team` })
+    .returning();
   const [projectRow] = await db
     .insert(project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: teamRow.id,
       name: RUN,
       slug: org.slug,
       repoUrl: 'https://github.com/fluxaos/fixture',
       defaultBranch: 'main',
     })
     .returning();
+  await db
+    .insert(projectMember)
+    .values({ userId: userRow.id, projectId: projectRow.id });
   const [driverRow] = await db
     .insert(driver)
     .values({

@@ -4,7 +4,10 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
 import { driver, organization, project, team, user } from '@/core/db/schema';
-import { resolveScoped, resolveScopedAll } from '@/core/services/resolve-scoped';
+import {
+  resolveScoped,
+  resolveScopedAll,
+} from '@/core/services/resolve-scoped';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set');
@@ -91,7 +94,10 @@ async function insertDriver(
   ctx: Awaited<ReturnType<typeof makeScopeFixture>>,
   name = stamp('driver')
 ) {
-  const [row] = await db.insert(driver).values(scopedValues(layer, ctx, name)).returning();
+  const [row] = await db
+    .insert(driver)
+    .values(scopedValues(layer, ctx, name))
+    .returning();
   createdDriverIds.push(row.id);
   return row;
 }
@@ -123,7 +129,9 @@ async function cleanup() {
     await db.delete(team).where(inArray(team.id, [...createdTeamIds]));
   }
   if (createdOrgIds.length) {
-    await db.delete(organization).where(inArray(organization.id, [...createdOrgIds]));
+    await db
+      .delete(organization)
+      .where(inArray(organization.id, [...createdOrgIds]));
   }
 
   createdDriverIds.length = 0;
@@ -161,7 +169,12 @@ describe('resolveScoped', () => {
         await insertDriver(layer, ctx, name);
       }
 
-      const resolved = await resolveScoped<DriverRow>(db, driver, ctx, eq(driver.name, name));
+      const resolved = await resolveScoped<DriverRow>(
+        db,
+        driver,
+        ctx,
+        eq(driver.name, name)
+      );
 
       expect(resolved?.kind).toBe('project');
     } finally {
@@ -169,29 +182,30 @@ describe('resolveScoped', () => {
     }
   });
 
-  it(
-    'chooses the higher-priority row for every layer pair',
-    async () => {
-      for (const higher of priority) {
-        for (const lower of priority.slice(priority.indexOf(higher) + 1)) {
-          const ctx = await makeScopeFixture();
-          const name = stamp(`${higher}-beats-${lower}`);
-          try {
-            await insertDriver(lower, ctx, name);
-            const expected = await insertDriver(higher, ctx, name);
+  it('chooses the higher-priority row for every layer pair', async () => {
+    for (const higher of priority) {
+      for (const lower of priority.slice(priority.indexOf(higher) + 1)) {
+        const ctx = await makeScopeFixture();
+        const name = stamp(`${higher}-beats-${lower}`);
+        try {
+          await insertDriver(lower, ctx, name);
+          const expected = await insertDriver(higher, ctx, name);
 
-            const resolved = await resolveScoped<DriverRow>(db, driver, ctx, eq(driver.name, name));
+          const resolved = await resolveScoped<DriverRow>(
+            db,
+            driver,
+            ctx,
+            eq(driver.name, name)
+          );
 
-            expect(resolved?.id).toBe(expected.id);
-            expect(resolved?.kind).toBe(higher);
-          } finally {
-            await cleanup();
-          }
+          expect(resolved?.id).toBe(expected.id);
+          expect(resolved?.kind).toBe(higher);
+        } finally {
+          await cleanup();
         }
       }
-    },
-    30_000
-  );
+    }
+  }, 30_000);
 
   it('applies extraWhere without falling back to lower-priority non-matches', async () => {
     const ctx = await makeScopeFixture();
@@ -201,7 +215,12 @@ describe('resolveScoped', () => {
       await insertDriver('project', ctx, other);
       const expected = await insertDriver('catalog', ctx, wanted);
 
-      const resolved = await resolveScoped<DriverRow>(db, driver, ctx, eq(driver.name, wanted));
+      const resolved = await resolveScoped<DriverRow>(
+        db,
+        driver,
+        ctx,
+        eq(driver.name, wanted)
+      );
 
       expect(resolved?.id).toBe(expected.id);
       expect(resolved?.name).toBe(wanted);
@@ -229,7 +248,10 @@ describe('resolveScopedAll', () => {
         driver,
         ctx,
         'name',
-        and(eq(driver.binary, 'echo'), inArray(driver.name, [alpha, beta, gamma]))
+        and(
+          eq(driver.binary, 'echo'),
+          inArray(driver.name, [alpha, beta, gamma])
+        )
       );
 
       expect(resolved.map((row) => row.id).sort()).toEqual(

@@ -13,9 +13,9 @@
  * The LAN auth bypass (fluxaUserId === null) is always allowed through.
  */
 import { TRPCError } from '@trpc/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { project } from '@/core/db/schema';
+import { project, projectMember } from '@/core/db/schema';
 
 type OwnershipErrorCode = 'NOT_FOUND' | 'FORBIDDEN';
 
@@ -49,7 +49,7 @@ export async function assertProjectOwnership(
   if (fluxaUserId === null) return; // LAN auth bypass
 
   const [proj] = await db
-    .select({ userId: project.userId })
+    .select({ id: project.id })
     .from(project)
     .where(eq(project.id, projectId));
 
@@ -57,7 +57,17 @@ export async function assertProjectOwnership(
     throw new TRPCError({ code: 'NOT_FOUND', message: notFoundMsg });
   }
 
-  if (proj.userId !== fluxaUserId) {
+  const [membership] = await db
+    .select({ userId: projectMember.userId })
+    .from(projectMember)
+    .where(
+      and(
+        eq(projectMember.projectId, projectId),
+        eq(projectMember.userId, fluxaUserId)
+      )
+    );
+
+  if (!membership) {
     throw new TRPCError({ code: notOwnedCode, message: notOwnedMsg });
   }
 }

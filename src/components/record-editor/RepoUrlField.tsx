@@ -1,7 +1,7 @@
 // src/components/record-editor/RepoUrlField.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
 import type { CustomRendererProps } from './types';
 
@@ -46,29 +46,26 @@ function reasonCopy(reason: string): string {
  */
 export function RepoUrlField<TRecord>(props: CustomRendererProps<TRecord>) {
   const { field, value, editing, onChange, onValidityChange } = props;
-  const persistedRef = useRef<string>(value == null ? '' : String(value));
-  // Reset persistedRef when editing flips on/off — we treat the value
-  // at edit-mode entry as "persisted" for the unchanged-skip logic.
-  const [prevEditing, setPrevEditing] = useState(editing);
-  if (prevEditing !== editing) {
-    setPrevEditing(editing);
-    persistedRef.current = value == null ? '' : String(value);
-  }
-
   const current = value == null ? '' : String(value);
-  const isBlank = current.trim() === '';
-  const isUnchanged = current === persistedRef.current;
-
-  const [validity, setValidity] = useState<Validity>({ kind: 'idle' });
-  const validateMutation = trpc.project.validateRepoUrl.useMutation();
-
-  // Whenever the URL changes, clear any prior validation result. The
-  // operator must re-validate before Save unlocks.
-  const [lastSeen, setLastSeen] = useState(current);
-  if (current !== lastSeen) {
-    setLastSeen(current);
-    if (validity.kind !== 'idle') setValidity({ kind: 'idle' });
+  const [persistedValue, setPersistedValue] = useState(current);
+  const [wasEditing, setWasEditing] = useState(editing);
+  if (wasEditing !== editing) {
+    setWasEditing(editing);
+    setPersistedValue(current);
   }
+
+  const isBlank = current.trim() === '';
+  const isUnchanged = current === persistedValue;
+
+  const [validation, setValidation] = useState<{
+    url: string;
+    validity: Validity;
+  }>({ url: current, validity: { kind: 'idle' } });
+  const validity = useMemo<Validity>(
+    () => (validation.url === current ? validation.validity : { kind: 'idle' }),
+    [validation, current]
+  );
+  const validateMutation = trpc.project.validateRepoUrl.useMutation();
 
   // Report validity upward. Save is blocked when validity is 'error'
   // OR (the field has a non-blank, changed URL that hasn't been
@@ -106,28 +103,37 @@ export function RepoUrlField<TRecord>(props: CustomRendererProps<TRecord>) {
   })();
 
   const handleValidate = async () => {
-    setValidity({ kind: 'validating' });
+    setValidation({ url: current, validity: { kind: 'validating' } });
     try {
       const result = await validateMutation.mutateAsync({ url: current });
       if (result.ok) {
-        setValidity({
-          kind: 'ok',
-          provider: result.provider,
-          owner: result.coords.owner,
-          repo: result.coords.repo,
+        setValidation({
+          url: current,
+          validity: {
+            kind: 'ok',
+            provider: result.provider,
+            owner: result.coords.owner,
+            repo: result.coords.repo,
+          },
         });
       } else {
-        setValidity({
-          kind: 'error',
-          reason: result.reason,
-          detail: result.detail,
+        setValidation({
+          url: current,
+          validity: {
+            kind: 'error',
+            reason: result.reason,
+            detail: result.detail,
+          },
         });
       }
     } catch (err) {
-      setValidity({
-        kind: 'error',
-        reason: 'NETWORK',
-        detail: err instanceof Error ? err.message : String(err),
+      setValidation({
+        url: current,
+        validity: {
+          kind: 'error',
+          reason: 'NETWORK',
+          detail: err instanceof Error ? err.message : String(err),
+        },
       });
     }
   };

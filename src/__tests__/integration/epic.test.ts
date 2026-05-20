@@ -64,17 +64,25 @@ async function arrangeProject(suffix: string) {
     })
     .returning();
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({ orgId: org.id, name: `epic-team-${RUN}-${suffix}` })
+    .returning();
+
   const [proj] = await db
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: user.id,
+      teamId: team.id,
       name: `epic-proj-${RUN}-${suffix}`,
       slug: `epic-proj-${RUN}-${suffix}`,
       repoUrl: 'https://github.com/fluxaos/epic-fixture',
       defaultBranch: 'main',
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: user.id, projectId: proj.id });
 
   const [itype] = await db
     .insert(schema.issueType)

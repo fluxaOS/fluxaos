@@ -1,0 +1,66 @@
+// src/app/p/[projectUuid]/settings/layout.tsx
+'use client';
+
+import Link from 'next/link';
+import { useParams, usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
+import { projectPath } from '@/lib/project-url';
+
+type TabSpec = {
+  /** URL-suffix relative to /settings (empty string = /settings itself) */
+  slug: string;
+  label: string;
+};
+
+const TABS: readonly TabSpec[] = [
+  { slug: '', label: 'Pipelines' },
+  { slug: 'projects', label: 'Projects' },
+  { slug: 'skills', label: 'Skills' },
+  { slug: 'personas', label: 'Personas' },
+  { slug: 'drivers', label: 'Drivers' },
+  { slug: 'providers', label: 'Providers' },
+  { slug: 'routing', label: 'Routing' },
+  { slug: 'brands', label: 'Brands' },
+  { slug: 'teams', label: 'Teams' },
+  { slug: 'users', label: 'Users' },
+  { slug: 'system', label: 'System' },
+  { slug: 'cron', label: 'Cron Jobs' },
+];
+
+export default function SettingsLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const params = useParams<{ projectUuid: string }>();
+  const base = projectPath(params.projectUuid, '/settings');
+
+  return (
+    <div className="space-y-6">
+      <nav
+        aria-label="Settings tabs"
+        className="flex gap-1 border-b border-slate-700/40"
+      >
+        {TABS.map((t) => {
+          const href = t.slug ? `${base}/${t.slug}` : base;
+          // Active logic: exact match for root tab (Pipelines), prefix for the rest.
+          const isActive = t.slug
+            ? pathname.startsWith(`${base}/${t.slug}`)
+            : pathname === base;
+          return (
+            <Link
+              key={t.slug || 'root'}
+              href={href}
+              className={[
+                'px-4 py-2 text-sm font-medium rounded-t-lg transition-colors',
+                isActive
+                  ? 'bg-slate-800/60 text-white border-b-2 border-electric-violet'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/30',
+              ].join(' ')}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
+      </nav>
+      <div>{children}</div>
+    </div>
+  );
+}

@@ -1,24 +1,15 @@
 // e2e/helpers/setup.ts
 import { test as base, type Page } from '@playwright/test';
 
-const orgSlug = process.env.FLUXAOS_ORG_SLUG;
-const userSlug = process.env.FLUXAOS_USER_SLUG;
-const projectSlug = process.env.FLUXAOS_PROJECT_SLUG;
+const projectId = process.env.FLUXAOS_PROJECT_ID;
 
-if (!orgSlug || !userSlug || !projectSlug) {
-  const missing = [
-    !orgSlug && 'FLUXAOS_ORG_SLUG',
-    !userSlug && 'FLUXAOS_USER_SLUG',
-    !projectSlug && 'FLUXAOS_PROJECT_SLUG',
-  ]
-    .filter(Boolean)
-    .join(', ');
+if (!projectId) {
   throw new Error(
-    `e2e setup: missing required env var(s): ${missing}. Set them in .env.local alongside DATABASE_URL.`
+    'e2e setup: missing required env var: FLUXAOS_PROJECT_ID. Set it in .env.local alongside DATABASE_URL.'
   );
 }
 
-const PROJECT_BASE = `/${orgSlug}/${userSlug}/${projectSlug}`;
+const PROJECT_BASE = `/p/${projectId}`;
 
 export const test = base.extend({});
 export const expect = base.expect;

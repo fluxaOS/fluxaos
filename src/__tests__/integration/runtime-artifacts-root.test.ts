@@ -140,12 +140,20 @@ beforeAll(async () => {
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: user.id,
+      teamId: (
+        await db
+          .insert(schema.team)
+          .values({ orgId: org.id, name: `${RUN}-team` })
+          .returning()
+      )[0].id,
       name: `${RUN}-proj`,
       slug: `${RUN}-proj`,
       repoUrl: 'https://github.com/fluxaos/flx-223-fixture',
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: user.id, projectId: proj.id });
   projectId = proj.id;
 
   const [pipe] = await db

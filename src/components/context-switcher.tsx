@@ -1,39 +1,22 @@
 // src/components/context-switcher.tsx
-// FLX-1: surface the org/user/project triplet from the URL with dropdowns
-// to switch between them. Sits at the top of the Nav sidebar.
-//
-// All three slugs are URL-driven; switching navigates to the new path
-// preserving the rest of the route (e.g. /<org>/<user>/<project>/issues).
+// FLX-239: surface the current project from the /p/{projectUuid} URL and
+// switch projects while preserving the current project-relative route.
 'use client';
 
 import { ChevronsUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import {
+  projectPath,
+  projectPathSuffix,
+  projectUuidFromPathname,
+} from '@/lib/project-url';
 import { trpc } from '@/lib/trpc/client';
-
-type Slugs = {
-  orgSlug: string;
-  userSlug: string;
-  projectSlug: string;
-};
-
-function parseSlugs(pathname: string): Slugs | null {
-  const segs = pathname.split('/').filter(Boolean);
-  if (segs.length < 3) return null;
-  const [orgSlug, userSlug, projectSlug] = segs;
-  return { orgSlug, userSlug, projectSlug };
-}
-
-function pathSuffix(pathname: string): string {
-  const segs = pathname.split('/').filter(Boolean);
-  if (segs.length <= 3) return '';
-  return `/${segs.slice(3).join('/')}`;
-}
 
 export function ContextSwitcher() {
   const pathname = usePathname();
-  const slugs = parseSlugs(pathname);
+  const projectUuid = projectUuidFromPathname(pathname);
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -49,28 +32,21 @@ export function ContextSwitcher() {
     return () => window.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Always-fired queries — server returns lightweight rows; the user's
-  // role gates mutations, not these reads.
-  const orgsQuery = trpc.organization.list.useQuery();
-  const orgs = orgsQuery.data ?? [];
-  const currentOrg = orgs.find((o) => o.slug === slugs?.orgSlug) ?? null;
-
-  const usersQuery = trpc.user.listByOrg.useQuery(
-    { orgId: currentOrg?.id ?? '' },
-    { enabled: Boolean(currentOrg) }
+  const currentProjectQuery = trpc.project.getById.useQuery(
+    { id: projectUuid ?? '' },
+    { enabled: Boolean(projectUuid) }
   );
-  const users = usersQuery.data ?? [];
-  const currentUser = users.find((u) => u.slug === slugs?.userSlug) ?? null;
+  const currentProject = currentProjectQuery.data ?? null;
 
-  const projectsQuery = trpc.project.listByUser.useQuery(
-    { userId: currentUser?.id ?? '' },
-    { enabled: Boolean(currentUser) }
+  const projectsQuery = trpc.project.listByOrg.useQuery(
+    { orgId: currentProject?.orgId ?? '' },
+    { enabled: Boolean(currentProject?.orgId) }
   );
   const projects = projectsQuery.data ?? [];
 
-  if (!slugs) return null;
+  if (!projectUuid) return null;
 
-  const suffix = pathSuffix(pathname);
+  const suffix = projectPathSuffix(pathname);
 
   return (
     <div className="px-3 pb-3" ref={wrapperRef}>
@@ -82,12 +58,9 @@ export function ContextSwitcher() {
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900/60 border border-slate-700/40 text-left text-xs hover:bg-slate-900 transition-colors"
       >
         <div className="min-w-0 flex-1">
-          <div className="text-slate-500 truncate">
-            {currentOrg?.name ?? slugs.orgSlug} ·{' '}
-            {currentUser?.name ?? slugs.userSlug}
-          </div>
+          <div className="text-slate-500 truncate">Current project</div>
           <div className="text-slate-200 font-semibold truncate">
-            {slugs.projectSlug}
+            {currentProject?.name ?? projectUuid}
           </div>
         </div>
         <ChevronsUpDown size={14} className="text-slate-500 shrink-0" />
@@ -99,38 +72,16 @@ export function ContextSwitcher() {
           data-testid="context-switcher-popover"
         >
           <Section
-            label="Organization"
-            items={orgs.map((o) => ({
-              key: o.id,
-              label: o.name,
-              href: `/${o.slug}/${slugs.userSlug}/${slugs.projectSlug}${suffix}`,
-              active: o.slug === slugs.orgSlug,
-            }))}
-            onPick={() => setOpen(false)}
-          />
-          <Section
-            label="User"
-            items={users.map((u) => ({
-              key: u.id,
-              label: u.name,
-              href: `/${slugs.orgSlug}/${u.slug}/${slugs.projectSlug}${suffix}`,
-              active: u.slug === slugs.userSlug,
-            }))}
-            onPick={() => setOpen(false)}
-          />
-          <Section
             label="Project"
             items={projects.map((p) => ({
               key: p.id,
               label: p.name,
-              href: `/${slugs.orgSlug}/${slugs.userSlug}/${p.slug}${suffix}`,
-              active: p.slug === slugs.projectSlug,
+              href: projectPath(p.id, suffix),
+              active: p.id === projectUuid,
             }))}
             onPick={() => setOpen(false)}
-            // Hint to operators that the projects index lives under the
-            // current user — link to that index for create flows etc.
-            footerHref={`/${slugs.orgSlug}/${slugs.userSlug}`}
-            footerLabel="View all projects →"
+            footerHref={projectPath(projectUuid, '/settings/projects')}
+            footerLabel="Manage projects ->"
           />
         </div>
       ) : null}

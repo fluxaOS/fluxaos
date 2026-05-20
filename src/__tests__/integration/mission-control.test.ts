@@ -66,8 +66,21 @@ beforeAll(async () => {
     slug: `mc-${RUN}`,
   });
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({ orgId: org.id, name: `mc-team-${RUN}` })
+    .returning();
+  const [team2] = await db
+    .insert(schema.team)
+    .values({
+      orgId: org.id,
+      name: `mc-team2-${RUN}`,
+    })
+    .returning();
+
   const proj = await projSvc.create({
     orgId: org.id,
+    teamId: team.id,
     userId: usr.id,
     name: `mc-proj-${RUN}`,
     slug: `mc-proj-${RUN}`,
@@ -76,6 +89,7 @@ beforeAll(async () => {
 
   const proj2 = await projSvc.create({
     orgId: org.id,
+    teamId: team2.id,
     userId: usr.id,
     name: `mc-proj2-${RUN}`,
     slug: `mc-proj2-${RUN}`,

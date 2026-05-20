@@ -63,8 +63,17 @@ beforeAll(async () => {
     slug: `ictest-user-${RUN}`,
   });
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({
+      orgId: org.id,
+      name: `IC Test Team ${RUN}`,
+    })
+    .returning();
+
   const proj = await projSvc.create({
     orgId: org.id,
+    teamId: team.id,
     userId: usr.id,
     name: 'IC Test Project',
     slug: `ictest-proj-${RUN}`,

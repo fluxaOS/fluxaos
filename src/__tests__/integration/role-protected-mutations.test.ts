@@ -71,7 +71,7 @@ describe('FLX-12 protectedMutation enforcement', () => {
     const [s] = await db
       .insert(skill)
       .values({
-        scope: 'global',
+        kind: 'catalog',
         name: `flx-12-skill-${stamp}`,
       })
       .returning();

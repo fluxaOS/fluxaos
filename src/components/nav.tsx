@@ -21,14 +21,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { projectBaseFromPathname } from '@/lib/project-url';
 import { ContextSwitcher } from './context-switcher';
 
 function useBasePath() {
-  const pathname = usePathname();
-  const segments = pathname.split('/').filter(Boolean);
-  return segments.length >= 3
-    ? `/${segments[0]}/${segments[1]}/${segments[2]}`
-    : '/';
+  return projectBaseFromPathname(usePathname());
 }
 
 export function Nav() {

@@ -1,12 +1,13 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { project } from '@/core/db/schema';
+import { project, projectMember } from '@/core/db/schema';
 import { BadRequestError, InternalError } from '@/core/errors/domain';
 import { createCrudService } from './crud-factory';
 import { FK_VALIDATORS } from './project-fk-validators';
 
 type ProjectInsert = typeof project.$inferInsert;
 type ProjectSelect = typeof project.$inferSelect;
+type ProjectCreateInput = ProjectInsert & { userId: string };
 
 /**
  * Minimal port for the repoUrl validator the service needs. Decouples
@@ -30,6 +31,21 @@ export function createProjectService(
 
   return {
     ...crud,
+
+    async create(data: ProjectCreateInput): Promise<ProjectSelect> {
+      const { userId, ...projectData } = data;
+      return await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(project)
+          .values(projectData)
+          .returning();
+        await tx.insert(projectMember).values({
+          userId,
+          projectId: created.id,
+        });
+        return created;
+      });
+    },
 
     /**
      * FLX-228 / FLX-229: walk FK_VALIDATORS for every key in the patch
@@ -66,7 +82,12 @@ export function createProjectService(
     },
 
     async listByUser(userId: string): Promise<ProjectSelect[]> {
-      return db.select().from(project).where(eq(project.userId, userId));
+      const rows = await db
+        .select({ project })
+        .from(project)
+        .innerJoin(projectMember, eq(projectMember.projectId, project.id))
+        .where(eq(projectMember.userId, userId));
+      return rows.map((row) => row.project);
     },
 
     async getBySlug(
@@ -94,10 +115,11 @@ export function createProjectService(
       slug: string
     ): Promise<ProjectSelect | null> {
       const [row] = await db
-        .select()
+        .select({ project })
         .from(project)
-        .where(and(eq(project.userId, userId), eq(project.slug, slug)));
-      return row ?? null;
+        .innerJoin(projectMember, eq(projectMember.projectId, project.id))
+        .where(and(eq(projectMember.userId, userId), eq(project.slug, slug)));
+      return row?.project ?? null;
     },
   };
 }

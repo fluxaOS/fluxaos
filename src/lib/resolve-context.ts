@@ -1,37 +1,52 @@
 /**
- * Resolves org + user + project from URL slugs.
- * Used by all scoped pages to get the current context.
+ * Resolves org, team, user, and project from the project UUID route.
  */
+import { and, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { bootstrap } from '@/config/bootstrap';
 import { registry } from '@/config/registry';
-import type { DatabaseProvider } from '@/core/ports/database';
 import {
-  createOrganizationService,
-  createProjectService,
-  createUserService,
-} from '@/core/services';
+  organization,
+  project,
+  projectMember,
+  team,
+  user,
+} from '@/core/db/schema';
+import type { DatabaseProvider } from '@/core/ports/database';
 
-export async function resolveContext(
-  orgSlug: string,
-  userSlug: string,
-  projectSlug: string
-) {
+export async function resolveContext(projectUuid: string) {
   bootstrap();
   const db = registry.get<DatabaseProvider>('database').getConnection();
 
-  const orgSvc = createOrganizationService(db);
-  const userSvc = createUserService(db);
-  const projSvc = createProjectService(db);
+  const [row] = await db
+    .select({
+      org: organization,
+      team,
+      user,
+      project,
+    })
+    .from(project)
+    .innerJoin(organization, eq(organization.id, project.orgId))
+    .innerJoin(team, eq(team.id, project.teamId))
+    .innerJoin(projectMember, eq(projectMember.projectId, project.id))
+    .innerJoin(
+      user,
+      and(eq(user.id, projectMember.userId), eq(user.orgId, project.orgId))
+    )
+    .where(eq(project.id, projectUuid))
+    .limit(1);
 
-  const org = await orgSvc.getBySlug(orgSlug);
-  if (!org) notFound();
+  if (!row) notFound();
 
-  const usr = await userSvc.getBySlug(org.id, userSlug);
-  if (!usr) notFound();
-
-  const proj = await projSvc.getByUserSlug(usr.id, projectSlug);
-  if (!proj) notFound();
-
-  return { db, org, user: usr, project: proj };
+  return {
+    db,
+    org: row.org,
+    team: row.team,
+    user: row.user,
+    project: row.project,
+    orgId: row.org.id,
+    teamId: row.team.id,
+    userId: row.user.id,
+    projectId: row.project.id,
+  };
 }

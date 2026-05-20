@@ -29,7 +29,7 @@ export function createPersonaService(db: DbOrTx) {
       return db
         .select()
         .from(persona)
-        .where(eq(persona.scope, 'global'))
+        .where(eq(persona.kind, 'catalog'))
         .orderBy(desc(persona.createdAt));
     },
 

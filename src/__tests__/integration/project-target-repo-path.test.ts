@@ -91,13 +91,21 @@ async function createFixture(): Promise<{
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: (
+        await db
+          .insert(schema.team)
+          .values({ orgId: org.id, name: `${slug}-team` })
+          .returning()
+      )[0].id,
       name: slug,
       slug,
       repoUrl: 'https://github.com/fluxaos/flx-221-fixture',
       defaultBranch: 'main',
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: userRow.id, projectId: projectRow.id });
   const [pipe] = await db
     .insert(schema.pipeline)
     .values({ projectId: projectRow.id, name: slug })

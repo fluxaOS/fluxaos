@@ -147,8 +147,17 @@ async function createFixture() {
     slug: `stage-runner-issue-events-user-${RUN}`,
   });
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({
+      orgId: org.id,
+      name: `StageRunnerIssueEventsTeam-${RUN}`,
+    })
+    .returning();
+
   const project = await createProjectService(db).create({
     orgId: org.id,
+    teamId: team.id,
     userId: user.id,
     name: `StageRunnerIssueEventsProject-${RUN}`,
     slug: `stage-runner-issue-events-project-${RUN}`,

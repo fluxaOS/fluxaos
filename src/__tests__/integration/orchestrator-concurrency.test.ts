@@ -16,6 +16,7 @@ import 'dotenv/config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
+import * as schema from '@/core/db/schema';
 import { createPipelineRunService } from '@/core/orchestrator/pipeline-run-service';
 import {
   createOrganizationService,
@@ -51,8 +52,17 @@ beforeAll(async () => {
     slug: `conc-user-${RUN}`,
   });
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({
+      orgId: org.id,
+      name: `ConcTeam-${RUN}`,
+    })
+    .returning();
+
   const project = await createProjectService(db).create({
     orgId: org.id,
+    teamId: team.id,
     userId: user.id,
     name: `ConcProject-${RUN}`,
     slug: `conc-proj-${RUN}`,
