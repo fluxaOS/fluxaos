@@ -104,17 +104,25 @@ async function makeFixture(
     })
     .returning();
 
+  const [teamRow] = await db
+    .insert(schema.team)
+    .values({ orgId: org.id, name: `deploy-team-${label}-${RUN}` })
+    .returning();
+
   const [projectRow] = await db
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: teamRow.id,
       name: `deploy-proj-${label}-${RUN}`,
       slug: `deploy-proj-${label}-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/deploy-test-fixture',
       defaultBranch: 'main',
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: userRow.id, projectId: projectRow.id });
 
   const [pipelineRow] = await db
     .insert(schema.pipeline)

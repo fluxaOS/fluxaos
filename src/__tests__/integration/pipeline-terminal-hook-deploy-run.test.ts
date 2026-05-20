@@ -70,12 +70,20 @@ async function makeFixture(label: string): Promise<Fixture> {
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: (
+        await db
+          .insert(schema.team)
+          .values({ orgId: org.id, name: `term-hook-team-${label}-${RUN}` })
+          .returning()
+      )[0].id,
       name: `term-hook-proj-${label}-${RUN}`,
       slug: `term-hook-proj-${label}-${RUN}`,
       defaultBranch: 'main',
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: userRow.id, projectId: projectRow.id });
 
   const [pipelineRow] = await db
     .insert(schema.pipeline)

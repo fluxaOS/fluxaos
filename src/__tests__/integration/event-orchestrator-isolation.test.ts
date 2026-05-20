@@ -371,11 +371,15 @@ async function createFixture() {
       slug,
     })
     .returning();
+  const [teamRow] = await db
+    .insert(schema.team)
+    .values({ orgId: org.id, name: `${slug}-team` })
+    .returning();
   const [projectRow] = await db
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: teamRow.id,
       name: RUN,
       slug,
       repoUrl: 'https://github.com/fluxaos/flx-197-fixture',
@@ -384,6 +388,9 @@ async function createFixture() {
       targetRepoPath: repoPath,
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: userRow.id, projectId: projectRow.id });
   const [driverRow] = await db
     .insert(schema.driver)
     .values({

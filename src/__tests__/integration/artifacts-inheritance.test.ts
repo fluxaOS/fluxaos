@@ -77,11 +77,16 @@ beforeAll(async () => {
     })
     .returning();
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({ orgId: org.id, name: `inherit-team-${RUN}` })
+    .returning();
+
   const [proj] = await db
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: user.id,
+      teamId: team.id,
       name: `inherit-proj-${RUN}`,
       slug: `inherit-proj-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/inherit-fixture',
@@ -91,6 +96,9 @@ beforeAll(async () => {
       targetRepoPath: repoPath,
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: user.id, projectId: proj.id });
   projectId = proj.id;
 
   const [pipe] = await db

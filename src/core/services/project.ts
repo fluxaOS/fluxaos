@@ -7,6 +7,7 @@ import { FK_VALIDATORS } from './project-fk-validators';
 
 type ProjectInsert = typeof project.$inferInsert;
 type ProjectSelect = typeof project.$inferSelect;
+type ProjectCreateInput = ProjectInsert & { userId: string };
 
 /**
  * Minimal port for the repoUrl validator the service needs. Decouples
@@ -30,6 +31,21 @@ export function createProjectService(
 
   return {
     ...crud,
+
+    async create(data: ProjectCreateInput): Promise<ProjectSelect> {
+      const { userId, ...projectData } = data;
+      return await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(project)
+          .values(projectData)
+          .returning();
+        await tx.insert(projectMember).values({
+          userId,
+          projectId: created.id,
+        });
+        return created;
+      });
+    },
 
     /**
      * FLX-228 / FLX-229: walk FK_VALIDATORS for every key in the patch

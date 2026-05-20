@@ -67,9 +67,15 @@ beforeAll(async () => {
   });
   userId = usr.id;
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({ orgId, name: `GateTeam-${RUN}` })
+    .returning();
+
   const projSvc = createProjectService(db);
   const proj = await projSvc.create({
     orgId,
+    teamId: team.id,
     userId,
     name: `GateTestProject-${RUN}`,
     slug: `gate-test-project-${RUN}`,

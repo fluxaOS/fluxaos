@@ -68,8 +68,17 @@ beforeAll(async () => {
   });
   userId = user.id;
 
+  const [team] = await db
+    .insert(schema.team)
+    .values({
+      orgId,
+      name: `OrchTeam-${RUN}`,
+    })
+    .returning();
+
   const project = await createProjectService(db).create({
     orgId,
+    teamId: team.id,
     userId,
     name: `OrchProject-${RUN}`,
     slug: `orch-proj-${RUN}`,

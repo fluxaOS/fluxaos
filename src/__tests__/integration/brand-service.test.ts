@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
-import { brand, organization, project, user } from '@/core/db/schema';
+import { brand, organization, project, team, user } from '@/core/db/schema';
 import { resolveStageBrand } from '@/core/orchestrator/brand-resolver';
 import { createBrandService } from '@/core/services';
 import { appRouter } from '@/server/root';
@@ -42,11 +42,16 @@ async function seedOrgUserProject() {
     .returning();
   cleanup.push({ table: 'user', id: usr.id });
 
+  const [teamRow] = await db
+    .insert(team)
+    .values({ orgId: org.id, name: `Brand Team ${stamp}` })
+    .returning();
+
   const [proj] = await db
     .insert(project)
     .values({
       orgId: org.id,
-      userId: usr.id,
+      teamId: teamRow.id,
       name: `Brand Project ${stamp}`,
       slug: `brand-project-${stamp}`,
     })

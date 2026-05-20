@@ -12,7 +12,7 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { organization, pipeline, project, user } from '@/core/db/schema';
+import { organization, pipeline, project, team, user } from '@/core/db/schema';
 import { appRouter } from '@/server/root';
 
 function stamp(label: string): string {
@@ -35,7 +35,12 @@ async function makeFixture(
     .insert(project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: (
+        await db
+          .insert(team)
+          .values({ orgId: org.id, name: `${s}-team` })
+          .returning()
+      )[0].id,
       name: s,
       slug: s,
       repoUrl: 'https://github.com/fluxaos/fixture',

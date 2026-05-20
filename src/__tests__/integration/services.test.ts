@@ -91,15 +91,22 @@ describe('organization + user + project', () => {
     const foundUser = await userSvc.getBySlug(org.id, `test-user-${RUN}`);
     expect(foundUser?.id).toBe(usr.id);
 
-    // Create project (requires userId)
+    const [team] = await db
+      .insert(schema.team)
+      .values({ orgId: org.id, name: 'Test Team' })
+      .returning();
+
+    // Create project and grant the user membership.
     const proj = await projSvc.create({
       orgId: org.id,
+      teamId: team.id,
       userId: usr.id,
       name: 'Test Project',
       slug: `test-proj-${RUN}`,
     });
     projectId = proj.id;
-    expect(proj.userId).toBe(usr.id);
+    const userProjects = await projSvc.listByUser(usr.id);
+    expect(userProjects.some((p) => p.id === proj.id)).toBe(true);
     expect(proj.orgId).toBe(org.id);
   });
 });
@@ -411,8 +418,16 @@ describe('issue service', () => {
   it('getById — returns null for issue looked up under wrong project (cross-tenant rejection)', async () => {
     // Create a second project in the same org to act as the "wrong" project.
     const projSvc = createProjectService(db);
+    const [team2] = await db
+      .insert(schema.team)
+      .values({
+        orgId: _orgId,
+        name: 'Test Team 2',
+      })
+      .returning();
     const proj2 = await projSvc.create({
       orgId: _orgId,
+      teamId: team2.id,
       userId: _userId,
       name: 'Test Project 2',
       slug: `test-proj2-${RUN}`,

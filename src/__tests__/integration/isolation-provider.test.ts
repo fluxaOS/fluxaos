@@ -73,12 +73,20 @@ beforeAll(async () => {
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: user.id,
+      teamId: (
+        await db
+          .insert(schema.team)
+          .values({ orgId: org.id, name: `iso-team-${RUN}` })
+          .returning()
+      )[0].id,
       name: `iso-proj-${RUN}`,
       slug: `iso-proj-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/isolation-test-fixture',
     })
     .returning();
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: user.id, projectId: project.id });
   projectId = project.id;
 
   const [pipeline] = await db

@@ -110,11 +110,17 @@ export async function makeFixture(
     .returning();
   push('user', userRow.id);
 
+  const [teamRow] = await db
+    .insert(schema.team)
+    .values({ orgId: org.id, name: `cleanup-team-${label}-${RUN}` })
+    .returning();
+  push('team', teamRow.id);
+
   const [projectRow] = await db
     .insert(schema.project)
     .values({
       orgId: org.id,
-      userId: userRow.id,
+      teamId: teamRow.id,
       name: `cleanup-proj-${label}-${RUN}`,
       slug: `cleanup-proj-${label}-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/cleanup-test-fixture',
@@ -122,6 +128,9 @@ export async function makeFixture(
     })
     .returning();
   push('project', projectRow.id);
+  await db
+    .insert(schema.projectMember)
+    .values({ userId: userRow.id, projectId: projectRow.id });
 
   const [pipelineRow] = await db
     .insert(schema.pipeline)
@@ -388,7 +397,7 @@ export async function deleteOrgFixture(
           .catch(() => [])
       : [];
 
-  // Resolve persona/skill/team IDs under these projects for junction tables.
+  // Resolve persona/skill/team IDs under this org for junction tables.
   const personaIds: string[] =
     projectIds.length > 0
       ? await db
@@ -409,15 +418,12 @@ export async function deleteOrgFixture(
           .catch(() => [])
       : [];
 
-  const teamIds: string[] =
-    projectIds.length > 0
-      ? await db
-          .select({ id: schema.team.id })
-          .from(schema.team)
-          .where(inArray(schema.team.projectId, projectIds))
-          .then((rows) => rows.map((r) => r.id))
-          .catch(() => [])
-      : [];
+  const teamIds: string[] = await db
+    .select({ id: schema.team.id })
+    .from(schema.team)
+    .where(eq(schema.team.orgId, orgId))
+    .then((rows) => rows.map((r) => r.id))
+    .catch(() => []);
 
   // Routing profile IDs under this org (for routingRule children).
   const routingProfileIds: string[] = await db
@@ -630,11 +636,11 @@ export async function deleteOrgFixture(
       .catch(() => undefined);
   }
 
-  // 23. team (FK → project)
+  // 23. project_member (FK → project/user)
   if (projectIds.length > 0) {
     await db
-      .delete(schema.team)
-      .where(inArray(schema.team.projectId, projectIds))
+      .delete(schema.projectMember)
+      .where(inArray(schema.projectMember.projectId, projectIds))
       .catch(() => undefined);
   }
 
@@ -680,13 +686,21 @@ export async function deleteOrgFixture(
       .catch(() => undefined);
   }
 
-  // 30. user (FK → org)
+  // 30. team (FK → org; project rows referencing it are gone)
+  if (teamIds.length > 0) {
+    await db
+      .delete(schema.team)
+      .where(inArray(schema.team.id, teamIds))
+      .catch(() => undefined);
+  }
+
+  // 31. user (FK → org)
   await db
     .delete(schema.user)
     .where(eq(schema.user.orgId, orgId))
     .catch(() => undefined);
 
-  // 31. organization
+  // 32. organization
   await db
     .delete(schema.organization)
     .where(eq(schema.organization.id, orgId))

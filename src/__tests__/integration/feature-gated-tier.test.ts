@@ -67,7 +67,7 @@ describe('FLX-14 featureGated enforcement', () => {
     const [s] = await db
       .insert(skill)
       .values({
-        scope: 'global',
+        kind: 'catalog',
         name: `flx-14-skill-${stamp}`,
       })
       .returning();

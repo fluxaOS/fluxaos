@@ -24,7 +24,9 @@ import {
   pipelineRun,
   pipelineStage,
   project,
+  projectMember,
   stageRun,
+  team,
   user,
 } from '@/core/db/schema';
 import { createDaemon, loadDaemonEnvFiles, parseEnv } from '@/scripts/daemon';
@@ -199,17 +201,24 @@ describe('R-DAEMON factory', () => {
         slug: stamp,
       })
       .returning();
+    const [teamRow] = await db
+      .insert(team)
+      .values({ orgId: org.id, name: `${stamp}-team` })
+      .returning();
     const [projectRow] = await db
       .insert(project)
       .values({
         orgId: org.id,
-        userId: userRow.id,
+        teamId: teamRow.id,
         name: stamp,
         slug: stamp,
         repoUrl: 'https://github.com/fluxaos/fixture',
         defaultBranch: 'main',
       })
       .returning();
+    await db
+      .insert(projectMember)
+      .values({ userId: userRow.id, projectId: projectRow.id });
     const [pipe] = await db
       .insert(pipeline)
       .values({ projectId: projectRow.id, name: stamp })
