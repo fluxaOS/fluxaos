@@ -43,7 +43,7 @@
 **Files:**
 - Create: `src/__tests__/integration/project-access.test.ts`
 
-- [ ] **Step 1: Write the failing access tests**
+- [x] **Step 1: Write the failing access tests**
 
 Create the test with this fixture shape:
 
@@ -158,7 +158,7 @@ it('preserves LAN bypass when enabled', async () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -175,7 +175,7 @@ Expected: compile/test failure because `assertProjectAccess` is not exported yet
 - Modify: `src/server/ownership.ts`
 - Modify: `src/server/trpc.ts`
 
-- [ ] **Step 1: Replace owner logic with access logic**
+- [x] **Step 1: Replace owner logic with access logic**
 
 In `src/server/ownership.ts`, import `teamMember` and select the project team:
 
@@ -240,7 +240,7 @@ export async function assertProjectAccess(
 export const assertProjectOwnership = assertProjectAccess;
 ```
 
-- [ ] **Step 2: Make authenticated missing-user state explicit**
+- [x] **Step 2: Make authenticated missing-user state explicit**
 
 In `src/server/trpc.ts`, change the `if (!row)` branch in `resolveViewer`:
 
@@ -255,7 +255,7 @@ if (!row) {
 
 Do not change the LAN-bypass branch at the top.
 
-- [ ] **Step 3: Verify the focused test passes**
+- [x] **Step 3: Verify the focused test passes**
 
 Run:
 
@@ -266,7 +266,7 @@ npx vitest run src/__tests__/integration/project-access.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/server/ownership.ts src/server/trpc.ts src/__tests__/integration/project-access.test.ts
