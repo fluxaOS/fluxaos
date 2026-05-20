@@ -2,6 +2,11 @@ import { count, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { persona, routingProfile, routingRule } from '@/core/db/schema';
 import { createCrudService, createVersionedCrudService } from './crud-factory';
+import {
+  resolveScoped,
+  resolveScopedAll,
+  type ScopeContext,
+} from './resolve-scoped';
 
 type ProfileInsert = typeof routingProfile.$inferInsert;
 type ProfileSelect = typeof routingProfile.$inferSelect;
@@ -28,6 +33,31 @@ export function createRoutingService(db: DbOrTx) {
         .select()
         .from(routingProfile)
         .where(eq(routingProfile.orgId, orgId));
+    },
+
+    async listEffectiveProfiles(
+      scope: ScopeContext
+    ): Promise<ProfileSelect[]> {
+      return resolveScopedAll<ProfileSelect>(
+        db as Database,
+        routingProfile,
+        scope,
+        'name'
+      );
+    },
+
+    async resolveEffectiveProfileById(
+      id: string,
+      scope: ScopeContext
+    ): Promise<ProfileSelect | null> {
+      const base = await profileCrud.getById(id);
+      if (!base) return null;
+      return resolveScoped<ProfileSelect>(
+        db as Database,
+        routingProfile,
+        scope,
+        eq(routingProfile.name, base.name)
+      );
     },
 
     /**

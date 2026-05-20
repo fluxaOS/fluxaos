@@ -2,6 +2,11 @@ import { and, count, desc, eq, isNull, or } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { brand, persona } from '@/core/db/schema';
 import { createVersionedCrudService } from './crud-factory';
+import {
+  resolveScoped,
+  resolveScopedAll,
+  type ScopeContext,
+} from './resolve-scoped';
 
 type BrandInsert = typeof brand.$inferInsert;
 type BrandSelect = typeof brand.$inferSelect;
@@ -39,6 +44,29 @@ export function createBrandService(db: DbOrTx) {
         .from(brand)
         .where(eq(brand.projectId, projectId))
         .orderBy(desc(brand.createdAt));
+    },
+
+    async listEffective(scope: ScopeContext): Promise<BrandSelect[]> {
+      return resolveScopedAll<BrandSelect>(
+        db as Database,
+        brand,
+        scope,
+        'name'
+      );
+    },
+
+    async resolveEffectiveById(
+      id: string,
+      scope: ScopeContext
+    ): Promise<BrandSelect | null> {
+      const base = await crud.getById(id);
+      if (!base) return null;
+      return resolveScoped<BrandSelect>(
+        db as Database,
+        brand,
+        scope,
+        eq(brand.name, base.name)
+      );
     },
 
     async listVisibleToProject(

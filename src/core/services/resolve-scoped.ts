@@ -1,6 +1,7 @@
 import { and, eq, isNull, or, type SQL, sql } from 'drizzle-orm';
 import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core';
 import type { Database } from '@/core/db/connection';
+import { project } from '@/core/db/schema';
 
 export type ScopeContext = {
   projectId?: string | null;
@@ -8,6 +9,32 @@ export type ScopeContext = {
   teamId?: string | null;
   orgId?: string | null;
 };
+
+export async function resolveProjectScopeContext(
+  db: Database,
+  projectId: string,
+  userId?: string | null
+): Promise<ScopeContext> {
+  const [row] = await db
+    .select({
+      projectId: project.id,
+      teamId: project.teamId,
+      orgId: project.orgId,
+    })
+    .from(project)
+    .where(eq(project.id, projectId));
+
+  if (!row) {
+    throw new Error(`Project not found for scope resolution: ${projectId}`);
+  }
+
+  return {
+    projectId: row.projectId,
+    teamId: row.teamId,
+    userId: userId ?? null,
+    orgId: row.orgId,
+  };
+}
 
 type WaterfallKind = 'catalog' | 'org' | 'team' | 'user' | 'project';
 

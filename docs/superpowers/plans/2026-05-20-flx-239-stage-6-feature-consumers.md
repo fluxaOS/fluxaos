@@ -61,7 +61,7 @@ Production feature-table reads found by `rg "from\\((persona|skill|brand|provide
 
 - [x] Create FLX-263 in Linear and mark In Progress.
 - [x] Branch from merged Stage 5 main as `flx-263-stage6-feature-consumers`.
-- [ ] Commit this slice plan.
+- [x] Commit this slice plan.
 
 ### Task 2: Scope Context And Service Read APIs
 
@@ -76,10 +76,10 @@ Production feature-table reads found by `rg "from\\((persona|skill|brand|provide
 
 Steps:
 
-- [ ] Add `resolveProjectScopeContext(db, projectId, userId?)`.
-- [ ] Add scope-aware list methods for persona, skill, brand, provider, routing profile, and driver using `resolveScopedAll`.
-- [ ] Add scope-aware "effective by configured row id" helpers where runtime FKs need natural-key resolution.
-- [ ] Keep mutation, revision, count, and direct edit-by-id methods unchanged.
+- [x] Add `resolveProjectScopeContext(db, projectId, userId?)`.
+- [x] Add scope-aware list methods for persona, skill, brand, provider, routing profile, and driver using `resolveScopedAll`.
+- [x] Add scope-aware "effective by configured row id" helpers where runtime FKs need natural-key resolution.
+- [x] Keep mutation, revision, count, and direct edit-by-id methods unchanged.
 - [ ] Commit.
 
 ### Task 3: Runtime Consumers

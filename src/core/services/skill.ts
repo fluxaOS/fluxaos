@@ -3,6 +3,11 @@ import type { Database } from '@/core/db/connection';
 import { nextRevisionNumber } from '@/core/db/revision';
 import { personaSkill, skill, skillRevision, stageRun } from '@/core/db/schema';
 import { createCrudService } from './crud-factory';
+import {
+  resolveScoped,
+  resolveScopedAll,
+  type ScopeContext,
+} from './resolve-scoped';
 
 type SkillInsert = typeof skill.$inferInsert;
 type SkillSelect = typeof skill.$inferSelect;
@@ -30,6 +35,29 @@ export function createSkillService(db: DbOrTx) {
         .from(skill)
         .where(eq(skill.projectId, projectId))
         .orderBy(desc(skill.createdAt));
+    },
+
+    async listEffective(scope: ScopeContext): Promise<SkillSelect[]> {
+      return resolveScopedAll<SkillSelect>(
+        db as Database,
+        skill,
+        scope,
+        'name'
+      );
+    },
+
+    async resolveEffectiveById(
+      id: string,
+      scope: ScopeContext
+    ): Promise<SkillSelect | null> {
+      const base = await crud.getById(id);
+      if (!base) return null;
+      return resolveScoped<SkillSelect>(
+        db as Database,
+        skill,
+        scope,
+        eq(skill.name, base.name)
+      );
     },
 
     async listGlobal(): Promise<SkillSelect[]> {

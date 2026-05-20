@@ -8,6 +8,11 @@ import {
   stageRun,
 } from '@/core/db/schema';
 import { NotFoundError } from '@/core/errors/domain';
+import {
+  resolveScoped,
+  resolveScopedAll,
+  type ScopeContext,
+} from './resolve-scoped';
 
 type DbOrTx = Parameters<Parameters<Database['transaction']>[0]>[0] | Database;
 type DriverSelect = typeof driver.$inferSelect;
@@ -100,6 +105,24 @@ export function createDriverService(db: Database) {
   return {
     async list(): Promise<DriverSelect[]> {
       return db.select().from(driver).orderBy(driver.name);
+    },
+
+    async listEffective(scope: ScopeContext): Promise<DriverSelect[]> {
+      return resolveScopedAll<DriverSelect>(db, driver, scope, 'name');
+    },
+
+    async resolveEffectiveById(
+      id: string,
+      scope: ScopeContext
+    ): Promise<DriverSelect | null> {
+      const [base] = await db.select().from(driver).where(eq(driver.id, id));
+      if (!base) return null;
+      return resolveScoped<DriverSelect>(
+        db,
+        driver,
+        scope,
+        eq(driver.name, base.name)
+      );
     },
 
     async getBySlug(slug: string): Promise<DriverSelect | null> {
