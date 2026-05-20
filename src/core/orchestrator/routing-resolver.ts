@@ -10,12 +10,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { DEFAULT_SORT_STRATEGY } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
-import {
-  model,
-  pipelineStage,
-  project,
-  routingRule,
-} from '@/core/db/schema';
+import { model, pipelineStage, project, routingRule } from '@/core/db/schema';
 import { createProviderService, createRoutingService } from '@/core/services';
 import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import type { ResolvedRouting } from './types';
@@ -62,9 +57,8 @@ export function createRoutingResolver(db: Database): RoutingResolver {
       // 3. Find matching routing rules from effective routing profiles.
       // First try: rules with a stage name pattern that matches this stage
       // Then fall back to rules with no stage name (wildcard)
-      const profiles = await createRoutingService(db).listEffectiveProfiles(
-        scope
-      );
+      const profiles =
+        await createRoutingService(db).listEffectiveProfiles(scope);
       const profileIds = profiles.map((profile) => profile.id);
       const rules =
         profileIds.length > 0

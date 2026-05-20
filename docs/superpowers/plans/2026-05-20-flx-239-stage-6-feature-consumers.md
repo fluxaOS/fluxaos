@@ -113,7 +113,7 @@ Steps:
 - [x] Migrate project-context list endpoints to scope-aware list methods with `ctx.viewer.fluxaUserId`.
 - [x] Leave admin/catalog edit-by-id endpoints direct after Stage 5 access checks.
 - [x] For provider/routing settings that currently accept only `orgId`, keep catalog/org views direct unless a `projectId` is added by an existing route context; do not invent a second route contract in this slice.
-- [ ] Commit.
+- [x] Commit.
 
 ### Task 5: Integration Coverage
 
@@ -123,9 +123,9 @@ Steps:
 
 Steps:
 
-- [ ] Add persona org-over-catalog and project-over-org consumer tests.
-- [ ] Add brand org-over-catalog and project-over-org consumer tests.
-- [ ] Add a runtime-shaped test proving a configured catalog persona/brand resolves to a project override by `name`.
+- [x] Add persona org-over-catalog and project-over-org consumer tests.
+- [x] Add brand org-over-catalog and project-over-org consumer tests.
+- [x] Add a runtime-shaped test proving a configured catalog persona/brand resolves to a project override by `name`.
 - [ ] Commit.
 
 ### Task 6: Verification
