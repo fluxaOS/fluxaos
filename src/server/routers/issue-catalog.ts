@@ -6,11 +6,21 @@
  * Transitions have list, create, delete (hard).
  * Health verifies all required catalogs and config entries exist.
  */
+import { TRPCError } from '@trpc/server';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 import { CONFIG_KEY } from '@/core/constants';
+import { issueTransition } from '@/core/db/schema';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createIssueCatalogService } from '@/core/services';
-import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
+import { assertProjectAccess } from '../ownership';
+import {
+  inputId,
+  protectedMutation,
+  publicProcedure,
+  router,
+  type TRPCContext,
+} from '../trpc';
 
 // ─── Reusable input schemas ──────────────────────────────────────────────────
 
@@ -61,6 +71,30 @@ const labelInput = z.object({
   sortOrder: z.number().int(),
 });
 
+async function assertIssueCatalogAccess(
+  ctx: TRPCContext,
+  projectId: string
+) {
+  await assertProjectAccess(ctx.db, projectId, ctx.viewer.fluxaUserId, {
+    notOwnedCode: 'FORBIDDEN',
+    notOwnedMsg: 'You do not have access to this project.',
+  });
+}
+
+async function assertCatalogRowAccess(
+  ctx: TRPCContext,
+  row: { projectId: string | null } | null,
+  id: string
+) {
+  if (!row || !row.projectId) {
+    throw new TRPCError({
+      code: 'NOT_FOUND',
+      message: `Issue catalog row not found: ${id}`,
+    });
+  }
+  await assertIssueCatalogAccess(ctx, row.projectId);
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const issueCatalogRouter = router({
@@ -68,134 +102,179 @@ export const issueCatalogRouter = router({
   types: router({
     list: publicProcedure
       .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.list(input.projectId)
-      ),
+      .query(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).types.list(input.projectId);
+      }),
     create: protectedMutation(EDIT_ROLES)
       .input(typeInput)
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.create(input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).types.create(input);
+      }),
     update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(typeInput.partial()))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
-        return createIssueCatalogService(ctx.db).types.update(id, data);
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.types.getById(id);
+        await assertCatalogRowAccess(ctx, existing, id);
+        return svc.types.update(id, data);
       }),
     deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).types.deactivate(input.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.types.getById(input.id);
+        await assertCatalogRowAccess(ctx, existing, input.id);
+        return svc.types.deactivate(input.id);
+      }),
   }),
 
   // ─── States ────────────────────────────────────────────────────────────────
   states: router({
     list: publicProcedure
       .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.list(input.projectId)
-      ),
+      .query(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).states.list(input.projectId);
+      }),
     create: protectedMutation(EDIT_ROLES)
       .input(stateInput)
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.create(input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).states.create(input);
+      }),
     update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(stateInput.partial()))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
-        return createIssueCatalogService(ctx.db).states.update(id, data);
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.states.getById(id);
+        await assertCatalogRowAccess(ctx, existing, id);
+        return svc.states.update(id, data);
       }),
     deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).states.deactivate(input.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.states.getById(input.id);
+        await assertCatalogRowAccess(ctx, existing, input.id);
+        return svc.states.deactivate(input.id);
+      }),
   }),
 
   // ─── Statuses ──────────────────────────────────────────────────────────────
   statuses: router({
     list: publicProcedure
       .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.list(input.projectId)
-      ),
+      .query(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).statuses.list(input.projectId);
+      }),
     create: protectedMutation(EDIT_ROLES)
       .input(statusInput)
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.create(input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).statuses.create(input);
+      }),
     update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(statusInput.partial()))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
-        return createIssueCatalogService(ctx.db).statuses.update(id, data);
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.statuses.getById(id);
+        await assertCatalogRowAccess(ctx, existing, id);
+        return svc.statuses.update(id, data);
       }),
     deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).statuses.deactivate(input.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.statuses.getById(input.id);
+        await assertCatalogRowAccess(ctx, existing, input.id);
+        return svc.statuses.deactivate(input.id);
+      }),
   }),
 
   // ─── Priorities ────────────────────────────────────────────────────────────
   priorities: router({
     list: publicProcedure
       .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.list(input.projectId)
-      ),
+      .query(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).priorities.list(
+          input.projectId
+        );
+      }),
     create: protectedMutation(EDIT_ROLES)
       .input(priorityInput)
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.create(input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).priorities.create(input);
+      }),
     update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(priorityInput.partial()))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
-        return createIssueCatalogService(ctx.db).priorities.update(id, data);
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.priorities.getById(id);
+        await assertCatalogRowAccess(ctx, existing, id);
+        return svc.priorities.update(id, data);
       }),
     deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).priorities.deactivate(input.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.priorities.getById(input.id);
+        await assertCatalogRowAccess(ctx, existing, input.id);
+        return svc.priorities.deactivate(input.id);
+      }),
   }),
 
   // ─── Labels ────────────────────────────────────────────────────────────────
   labels: router({
     list: publicProcedure
       .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.list(input.projectId)
-      ),
+      .query(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).labels.list(input.projectId);
+      }),
     create: protectedMutation(EDIT_ROLES)
       .input(labelInput)
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.create(input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).labels.create(input);
+      }),
     update: protectedMutation(EDIT_ROLES)
       .input(inputId().merge(labelInput.partial()))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
-        return createIssueCatalogService(ctx.db).labels.update(id, data);
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.labels.getById(id);
+        await assertCatalogRowAccess(ctx, existing, id);
+        return svc.labels.update(id, data);
       }),
     deactivate: protectedMutation(EDIT_ROLES)
       .input(inputId())
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).labels.deactivate(input.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const svc = createIssueCatalogService(ctx.db);
+        const existing = await svc.labels.getById(input.id);
+        await assertCatalogRowAccess(ctx, existing, input.id);
+        return svc.labels.deactivate(input.id);
+      }),
   }),
 
   // ─── Transitions ───────────────────────────────────────────────────────────
   transitions: router({
     list: publicProcedure
       .input(projectIdInput)
-      .query(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).transitions.list(input.projectId)
-      ),
+      .query(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).transitions.list(
+          input.projectId
+        );
+      }),
     create: protectedMutation(EDIT_ROLES)
       .input(
         z.object({
@@ -206,20 +285,27 @@ export const issueCatalogRouter = router({
           sortOrder: z.number().int().optional(),
         })
       )
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).transitions.create(input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        await assertIssueCatalogAccess(ctx, input.projectId);
+        return createIssueCatalogService(ctx.db).transitions.create(input);
+      }),
     delete: protectedMutation(DELETE_ROLES)
       .input(inputId())
-      .mutation(({ ctx, input }) =>
-        createIssueCatalogService(ctx.db).transitions.delete(input.id)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const [existing] = await ctx.db
+          .select({ projectId: issueTransition.projectId })
+          .from(issueTransition)
+          .where(eq(issueTransition.id, input.id));
+        await assertCatalogRowAccess(ctx, existing ?? null, input.id);
+        return createIssueCatalogService(ctx.db).transitions.delete(input.id);
+      }),
   }),
 
   // ─── Health check ──────────────────────────────────────────────────────────
   health: publicProcedure
     .input(projectIdInput)
     .query(async ({ ctx, input }) => {
+      await assertIssueCatalogAccess(ctx, input.projectId);
       const svc = createIssueCatalogService(ctx.db);
       const missing: string[] = [];
 

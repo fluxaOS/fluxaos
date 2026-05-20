@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createCronService } from '@/core/services/cron';
+import { assertProjectAccess } from '../ownership';
 import { inputId, protectedMutation, publicProcedure, router } from '../trpc';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -17,6 +18,14 @@ export const cronRouter = router({
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await assertProjectAccess(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId,
+        {
+          notOwnedCode: 'FORBIDDEN',
+        }
+      );
       return createCronService(ctx.db).listByProject(input.projectId);
     }),
 
@@ -48,6 +57,14 @@ export const cronRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertProjectAccess(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId,
+        {
+          notOwnedCode: 'FORBIDDEN',
+        }
+      );
       return createCronService(ctx.db).create(input);
     }),
 
@@ -66,12 +83,44 @@ export const cronRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, version, ...data } = input;
-      return createCronService(ctx.db).update(id, version, data);
+      const svc = createCronService(ctx.db);
+      const existing = await svc.getById(id);
+      if (!existing) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Cron job not found: ${id}`,
+        });
+      }
+      await assertProjectAccess(
+        ctx.db,
+        existing.projectId,
+        ctx.viewer.fluxaUserId,
+        {
+          notOwnedCode: 'FORBIDDEN',
+        }
+      );
+      return svc.update(id, version, data);
     }),
 
   delete: protectedMutation(DELETE_ROLES)
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      return createCronService(ctx.db).delete(input.id, input.version);
+      const svc = createCronService(ctx.db);
+      const existing = await svc.getById(input.id);
+      if (!existing) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Cron job not found: ${input.id}`,
+        });
+      }
+      await assertProjectAccess(
+        ctx.db,
+        existing.projectId,
+        ctx.viewer.fluxaUserId,
+        {
+          notOwnedCode: 'FORBIDDEN',
+        }
+      );
+      return svc.delete(input.id, input.version);
     }),
 });

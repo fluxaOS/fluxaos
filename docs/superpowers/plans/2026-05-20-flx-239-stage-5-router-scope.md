@@ -330,7 +330,7 @@ git commit -m "refactor(auth): migrate project ownership callers"
 - Modify: `src/server/routers/project.ts`
 - Modify: `src/server/routers/team.ts`
 
-- [ ] **Step 1: Guard project summary and issue catalogs**
+- [x] **Step 1: Guard project summary and issue catalogs**
 
 At the top of project-scoped query handlers, add:
 
@@ -343,7 +343,7 @@ await assertProjectAccess(ctx.db, input.projectId, ctx.viewer.fluxaUserId, {
 
 Use this in `mission.summary`, all issue-catalog `list` procedures, `transitions.create/delete`, and `health`.
 
-- [ ] **Step 2: Guard cron project reads and writes**
+- [x] **Step 2: Guard cron project reads and writes**
 
 For `cron.listByProject` and `cron.create`, assert directly on `input.projectId`.
 
@@ -357,7 +357,7 @@ await assertProjectAccess(ctx.db, existing.projectId, ctx.viewer.fluxaUserId, {
 });
 ```
 
-- [ ] **Step 3: Make project listing membership-aware**
+- [x] **Step 3: Make project listing membership-aware**
 
 In `src/core/services/project.ts`, add:
 
@@ -376,13 +376,13 @@ async listAccessibleByUser(userId: string): Promise<ProjectSelect[]> {
 
 Import `or` and `teamMember`. Use this from `project.list` when `ctx.viewer.fluxaUserId` is non-null. Preserve LAN bypass with an explicit `if (ctx.viewer.fluxaUserId === null && process.env.FLUXAOS_LAN_AUTH_BYPASS === '1')` branch that returns all projects for dev/Playwright only; outside that branch, throw `UNAUTHORIZED`.
 
-- [ ] **Step 4: Guard team router project access**
+- [x] **Step 4: Guard team router project access**
 
 Use `assertProjectAccess` in `team.listByProject` and `team.create`.
 
 For `team.update/delete`, resolve projects using that `team.id` through `project.teamId`. If no project references the team, treat it as org-admin-only and leave role gate as the guard for this stage.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/services/project.ts src/server/routers/mission-control.ts src/server/routers/issue-catalog.ts src/server/routers/cron.ts src/server/routers/project.ts src/server/routers/team.ts

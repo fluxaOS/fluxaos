@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
-import { project, projectMember } from '@/core/db/schema';
+import { project, projectMember, teamMember } from '@/core/db/schema';
 import { BadRequestError, InternalError } from '@/core/errors/domain';
 import { createCrudService } from './crud-factory';
 import { FK_VALIDATORS } from './project-fk-validators';
@@ -88,6 +88,19 @@ export function createProjectService(
         .innerJoin(projectMember, eq(projectMember.projectId, project.id))
         .where(eq(projectMember.userId, userId));
       return rows.map((row) => row.project);
+    },
+
+    async listAccessibleByUser(userId: string): Promise<ProjectSelect[]> {
+      const rows = await db
+        .select({ project })
+        .from(project)
+        .leftJoin(projectMember, eq(projectMember.projectId, project.id))
+        .leftJoin(teamMember, eq(teamMember.teamId, project.teamId))
+        .where(
+          or(eq(projectMember.userId, userId), eq(teamMember.userId, userId))
+        );
+      const byId = new Map(rows.map((row) => [row.project.id, row.project]));
+      return [...byId.values()];
     },
 
     async getBySlug(
