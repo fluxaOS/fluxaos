@@ -7,6 +7,7 @@ import type { Database } from '@/core/db/connection';
 import { brand, organization, project, team, user } from '@/core/db/schema';
 import { resolveStageBrand } from '@/core/orchestrator/brand-resolver';
 import { createBrandService } from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import { appRouter } from '@/server/root';
 
 const url = process.env.DATABASE_URL;
@@ -194,7 +195,8 @@ describe('stage brand resolver', () => {
     });
     cleanup.push({ table: 'brand', id: personaBrand.id });
 
-    const resolved = await resolveStageBrand(db, {
+    const scope = await resolveProjectScopeContext(db, proj.id);
+    const resolved = await resolveStageBrand(db, scope, {
       personaBrandId: personaBrand.id,
       projectBrandId: projectBrand.id,
     });
@@ -214,7 +216,8 @@ describe('stage brand resolver', () => {
     });
     cleanup.push({ table: 'brand', id: projectBrand.id });
 
-    const resolved = await resolveStageBrand(db, {
+    const scope = await resolveProjectScopeContext(db, proj.id);
+    const resolved = await resolveStageBrand(db, scope, {
       personaBrandId: null,
       projectBrandId: projectBrand.id,
     });
@@ -223,7 +226,7 @@ describe('stage brand resolver', () => {
   });
 
   it('returns null when no brand is configured', async () => {
-    const resolved = await resolveStageBrand(db, {
+    const resolved = await resolveStageBrand(db, {}, {
       personaBrandId: null,
       projectBrandId: null,
     });

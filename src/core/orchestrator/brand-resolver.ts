@@ -1,26 +1,28 @@
-import { eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { brand } from '@/core/db/schema';
+import { createBrandService } from '@/core/services';
+import type { ScopeContext } from '@/core/services/resolve-scoped';
 
 type BrandSelect = typeof brand.$inferSelect;
 
 async function findBrand(
   db: Database,
+  scope: ScopeContext,
   brandId: string | null | undefined
 ): Promise<BrandSelect | null> {
   if (!brandId) return null;
-  const [row] = await db.select().from(brand).where(eq(brand.id, brandId));
-  return row ?? null;
+  return createBrandService(db).resolveEffectiveById(brandId, scope);
 }
 
 export async function resolveStageBrand(
   db: Database,
+  scope: ScopeContext,
   input: {
     personaBrandId: string | null | undefined;
     projectBrandId: string | null | undefined;
   }
 ): Promise<BrandSelect | null> {
-  const personaBrand = await findBrand(db, input.personaBrandId);
+  const personaBrand = await findBrand(db, scope, input.personaBrandId);
   if (personaBrand) return personaBrand;
-  return findBrand(db, input.projectBrandId);
+  return findBrand(db, scope, input.projectBrandId);
 }

@@ -18,15 +18,7 @@ import {
   STAGE_RUN_STATUS,
 } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
-import {
-  driver,
-  issue,
-  persona,
-  pipelineRun,
-  pipelineStage,
-  skill,
-  stageRun,
-} from '@/core/db/schema';
+import { issue, pipelineRun, pipelineStage, stageRun } from '@/core/db/schema';
 import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageExecutor } from '@/core/ports/stage-executor';
@@ -36,6 +28,12 @@ import {
   cleanup as cleanupMaterializedWorkspace,
   materialize,
 } from '@/core/skills/materializer';
+import {
+  createDriverService,
+  createPersonaService,
+  createSkillService,
+} from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import { resolveStageBrand } from './brand-resolver';
 import { buildCommand, renderTemplate } from './command-builder';
 import type { PipelineRunService } from './pipeline-run-service';
@@ -134,15 +132,33 @@ export async function executeStageRun(
   if (!stage)
     throw new Error(`Pipeline stage not found: ${sRun.pipelineStageId}`);
 
-  // Driver (required)
-  let driverRow: typeof driver.$inferSelect | null = null;
-  if (stage.driverId) {
-    const [h] = await db
-      .select()
-      .from(driver)
-      .where(eq(driver.id, stage.driverId));
-    driverRow = h ?? null;
+  // Issue (optional)
+  let issueRow: typeof issue.$inferSelect | null = null;
+  if (run.issueId) {
+    const [i] = await db.select().from(issue).where(eq(issue.id, run.issueId));
+    issueRow = i ?? null;
   }
+
+  // Routing
+  const routingResolver = createRoutingResolver(db);
+  const projectId = await resolveProjectId({
+    db,
+    issueRow,
+    pipelineId: run.pipelineId,
+  });
+  if (!projectId) {
+    throw new Error(
+      `Stage-runner cannot run without a projectId (runId=${runId}). ` +
+        'Both issueRow.projectId and pipeline.projectId resolved to null.'
+    );
+  }
+
+  const scope = await resolveProjectScopeContext(db, projectId);
+
+  // Driver (required)
+  const driverRow = stage.driverId
+    ? await createDriverService(db).resolveEffectiveById(stage.driverId, scope)
+    : null;
   if (!driverRow) {
     await runService.appendEvent(stageRunId, EVENT_TYPE.error, {
       error: 'No driver configured for stage',
@@ -165,48 +181,19 @@ export async function executeStageRun(
   }
 
   // Skill (optional) — stored on stageRun, not pipelineStage
-  let skillRow: typeof skill.$inferSelect | null = null;
-  if (sRun.skillId) {
-    const [s] = await db.select().from(skill).where(eq(skill.id, sRun.skillId));
-    skillRow = s ?? null;
-  }
-
-  // Issue (optional)
-  let issueRow: typeof issue.$inferSelect | null = null;
-  if (run.issueId) {
-    const [i] = await db.select().from(issue).where(eq(issue.id, run.issueId));
-    issueRow = i ?? null;
-  }
-
-  // Routing
-  const routingResolver = createRoutingResolver(db);
-  const projectId = await resolveProjectId({
-    db,
-    issueRow,
-    pipelineId: run.pipelineId,
-  });
-  const routing = projectId
-    ? await routingResolver.resolve(stage.id, projectId)
+  const skillRow = sRun.skillId
+    ? await createSkillService(db).resolveEffectiveById(sRun.skillId, scope)
     : null;
 
+  const routing = await routingResolver.resolve(stage.id, projectId);
+
   // Persona (optional)
-  let personaRow: typeof persona.$inferSelect | null = null;
-  if (stage.personaId) {
-    const [p] = await db
-      .select()
-      .from(persona)
-      .where(eq(persona.id, stage.personaId));
-    personaRow = p ?? null;
-  }
+  const personaRow = stage.personaId
+    ? await createPersonaService(db).resolveEffectiveById(stage.personaId, scope)
+    : null;
 
   // ── Isolation Env + Materialize + Build + Spawn ─────────────────
 
-  if (!projectId) {
-    throw new Error(
-      `Stage-runner cannot run without a projectId (runId=${runId}). ` +
-        'Both issueRow.projectId and pipeline.projectId resolved to null.'
-    );
-  }
   if (!routing?.modelIdentifier) {
     throw new Error(
       `No routing model resolved for stage '${stage.name}' (${stage.id}) in project ${projectId}. ` +
@@ -224,7 +211,7 @@ export async function executeStageRun(
     issueNumber: issueRow?.number ?? null,
   });
 
-  const resolvedBrand = await resolveStageBrand(db, {
+  const resolvedBrand = await resolveStageBrand(db, scope, {
     personaBrandId: personaRow?.brandId ?? null,
     projectBrandId: projectRow.brandId,
   });

@@ -7,17 +7,17 @@
  *
  * Zero vendor imports. Receives Database via DI.
  */
-import { and, eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { DEFAULT_SORT_STRATEGY } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
   model,
   pipelineStage,
   project,
-  provider,
-  routingProfile,
   routingRule,
 } from '@/core/db/schema';
+import { createProviderService, createRoutingService } from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import type { ResolvedRouting } from './types';
 
 export interface RoutingResolver {
@@ -57,53 +57,82 @@ export function createRoutingResolver(db: Database): RoutingResolver {
 
       if (!proj) return null;
 
-      // 3. Find matching routing rules
+      const scope = await resolveProjectScopeContext(db, projectId);
+
+      // 3. Find matching routing rules from effective routing profiles.
       // First try: rules with a stage name pattern that matches this stage
       // Then fall back to rules with no stage name (wildcard)
-      const rules = await db
-        .select({
-          id: routingRule.id,
-          stageName: routingRule.stageName,
-          allowedModelsPattern: routingRule.allowedModelsPattern,
-          preferredDriver: routingRule.preferredDriver,
-          sortStrategy: routingRule.sortStrategy,
-          maxCostUsd: routingRule.maxCostUsd,
-          profileId: routingRule.profileId,
-        })
-        .from(routingRule)
-        .innerJoin(routingProfile, eq(routingRule.profileId, routingProfile.id))
-        .where(eq(routingProfile.orgId, proj.orgId));
+      const profiles = await createRoutingService(db).listEffectiveProfiles(
+        scope
+      );
+      const profileIds = profiles.map((profile) => profile.id);
+      const rules =
+        profileIds.length > 0
+          ? await db
+              .select({
+                id: routingRule.id,
+                stageName: routingRule.stageName,
+                allowedModelsPattern: routingRule.allowedModelsPattern,
+                preferredDriver: routingRule.preferredDriver,
+                sortStrategy: routingRule.sortStrategy,
+                maxCostUsd: routingRule.maxCostUsd,
+                profileId: routingRule.profileId,
+              })
+              .from(routingRule)
+              .where(inArray(routingRule.profileId, profileIds))
+          : [];
 
       // Match: exact stage name > null (wildcard)
       const exactMatch = rules.find((r) => r.stageName === stage.name);
       const wildcardMatch = rules.find((r) => r.stageName === null);
       const rule = exactMatch ?? wildcardMatch;
 
-      // 4. Get available providers + models for this org
-      const providers = await db
-        .select({
-          providerId: provider.id,
-          providerName: provider.name,
-          providerType: provider.type,
-          baseUrl: provider.baseUrl,
-          apiKeyRef: provider.apiKeyRef,
-          isHealthy: provider.isHealthy,
-          modelId: model.id,
-          modelName: model.name,
-          modelIdentifier: model.identifier,
-          costPer1kInput: model.costPer1kInput,
-          costPer1kOutput: model.costPer1kOutput,
-        })
-        .from(provider)
-        .innerJoin(model, eq(model.providerId, provider.id))
-        .where(
-          and(eq(provider.orgId, proj.orgId), eq(provider.isHealthy, true))
-        );
-
-      if (providers.length === 0) return null;
+      // 4. Get available providers + models for this scope. Models inherit
+      // through their resolved provider row.
+      const providers = await createProviderService(db).listEffective(scope);
+      const healthyProviders = providers.filter((row) => row.isHealthy);
+      const providerById = new Map(
+        healthyProviders.map((provider) => [provider.id, provider])
+      );
+      const providerIds = healthyProviders.map((provider) => provider.id);
+      const modelRows =
+        providerIds.length > 0
+          ? await db
+              .select({
+                providerId: model.providerId,
+                modelId: model.id,
+                modelName: model.name,
+                modelIdentifier: model.identifier,
+                costPer1kInput: model.costPer1kInput,
+                costPer1kOutput: model.costPer1kOutput,
+              })
+              .from(model)
+              .where(inArray(model.providerId, providerIds))
+          : [];
+      const candidates = modelRows.flatMap((row) => {
+        const provider = providerById.get(row.providerId);
+        if (!provider) return [];
+        return [
+          {
+            providerId: provider.id,
+            providerName: provider.name,
+            providerType: provider.type,
+            baseUrl: provider.baseUrl,
+            apiKeyRef: provider.apiKeyRef,
+            isHealthy: provider.isHealthy,
+            modelId: row.modelId,
+            modelName: row.modelName,
+            modelIdentifier: row.modelIdentifier,
+            costPer1kInput: row.costPer1kInput,
+            costPer1kOutput: row.costPer1kOutput,
+          },
+        ];
+      });
 
       // 5. Filter by routing rule constraints
-      let candidates = providers;
+      if (candidates.length === 0) return null;
+
+      let matchingCandidates = candidates;
 
       if (rule?.allowedModelsPattern) {
         const pattern = rule.allowedModelsPattern;
@@ -126,31 +155,31 @@ export function createRoutingResolver(db: Database): RoutingResolver {
           );
           return null;
         }
-        candidates = candidates.filter((c) =>
+        matchingCandidates = matchingCandidates.filter((c) =>
           compiled!.test(c.modelIdentifier)
         );
       }
 
       if (rule?.maxCostUsd) {
         const maxCost = Number(rule.maxCostUsd);
-        candidates = candidates.filter(
+        matchingCandidates = matchingCandidates.filter(
           (c) => Number(c.costPer1kInput ?? 0) <= maxCost
         );
       }
 
-      if (candidates.length === 0) return null;
+      if (matchingCandidates.length === 0) return null;
 
       // 6. Sort by strategy
       const strategy = rule?.sortStrategy ?? DEFAULT_SORT_STRATEGY;
       if (strategy === 'cost') {
-        candidates.sort(
+        matchingCandidates.sort(
           (a, b) =>
             Number(a.costPer1kInput ?? 0) - Number(b.costPer1kInput ?? 0)
         );
       }
       // 'quality' = first available (no cost sorting)
 
-      const pick = candidates[0];
+      const pick = matchingCandidates[0];
 
       // 7. Resolve driver: per-stage override wins over the matched rule's
       // configured driver. This is scope precedence (stage-level beats

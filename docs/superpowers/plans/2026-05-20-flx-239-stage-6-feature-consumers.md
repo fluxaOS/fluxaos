@@ -80,7 +80,7 @@ Steps:
 - [x] Add scope-aware list methods for persona, skill, brand, provider, routing profile, and driver using `resolveScopedAll`.
 - [x] Add scope-aware "effective by configured row id" helpers where runtime FKs need natural-key resolution.
 - [x] Keep mutation, revision, count, and direct edit-by-id methods unchanged.
-- [ ] Commit.
+- [x] Commit.
 
 ### Task 3: Runtime Consumers
 
@@ -92,10 +92,10 @@ Steps:
 
 Steps:
 
-- [ ] Resolve the project scope context once per stage run/launch.
-- [ ] Resolve driver/persona/skill/brand rows once before materialization or prompt composition.
-- [ ] Resolve routing profiles/providers through waterfall helpers; enumerate child routing rules/models from the resolved parent rows.
-- [ ] Preserve fail-fast behavior when configured rows or effective rows are missing.
+- [x] Resolve the project scope context once per stage run/launch.
+- [x] Resolve driver/persona/skill/brand rows once before materialization or prompt composition.
+- [x] Resolve routing profiles/providers through waterfall helpers; enumerate child routing rules/models from the resolved parent rows.
+- [x] Preserve fail-fast behavior when configured rows or effective rows are missing.
 - [ ] Commit.
 
 ### Task 4: Router Consumers
