@@ -424,7 +424,7 @@ git commit -m "feat(auth): guard project-scoped feature rows"
 **Files:**
 - Modify tests only if a fixture fails because it lacks `project_member` or `team_member`.
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
 ```bash
 set -a; source .env.local; set +a
@@ -435,7 +435,7 @@ npx vitest run src/__tests__/integration/issue-comment.test.ts
 
 Expected: all selected tests pass.
 
-- [ ] **Step 2: Run full static verification**
+- [x] **Step 2: Run full static verification**
 
 ```bash
 npx biome check .
@@ -446,7 +446,7 @@ npm run build
 
 Expected: all pass; ESLint may report existing warnings only.
 
-- [ ] **Step 3: Run full router integration gate**
+- [x] **Step 3: Run full router integration gate**
 
 ```bash
 set -a; source .env.local; set +a
@@ -455,12 +455,16 @@ npx vitest run src/__tests__/integration/
 
 Expected: green, except pre-existing unrelated failures must be documented with exact test names and current failure text. Do not hide a new authorization failure under that exception.
 
-- [ ] **Step 4: Commit any fixture-only repairs**
+Result: `npx vitest run src/__tests__/integration/` was not green in the current shared database state: 19 files failed, 33 passed; 35 tests failed, 331 passed, 6 skipped. Failures were not new Stage 5 authorization denials. The visible failure buckets were Stage 6 waterfall fixture constraints (`provider_scope_check`, `brand_scope_check`, `skill_scope_check`), the known `services.test.ts` duplicate catalog key expectation, local runtime cleanup/workspace/artifact config state, teardown timeouts, one `brand-service.test.ts` teardown FK cleanup issue, and one `skill-crud.test.ts` missing references expectation.
+
+- [x] **Step 4: Commit any fixture-only repairs**
 
 ```bash
 git add src/__tests__/integration
 git commit -m "test(auth): seed memberships for router tests"
 ```
+
+Result: no fixture-only repairs were needed for Stage 5 authorization coverage.
 
 ## Self-Review Notes
 

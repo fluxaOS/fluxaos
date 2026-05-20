@@ -71,10 +71,7 @@ const labelInput = z.object({
   sortOrder: z.number().int(),
 });
 
-async function assertIssueCatalogAccess(
-  ctx: TRPCContext,
-  projectId: string
-) {
+async function assertIssueCatalogAccess(ctx: TRPCContext, projectId: string) {
   await assertProjectAccess(ctx.db, projectId, ctx.viewer.fluxaUserId, {
     notOwnedCode: 'FORBIDDEN',
     notOwnedMsg: 'You do not have access to this project.',
@@ -86,7 +83,7 @@ async function assertCatalogRowAccess(
   row: { projectId: string | null } | null,
   id: string
 ) {
-  if (!row || !row.projectId) {
+  if (!row?.projectId) {
     throw new TRPCError({
       code: 'NOT_FOUND',
       message: `Issue catalog row not found: ${id}`,
