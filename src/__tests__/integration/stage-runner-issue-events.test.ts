@@ -215,7 +215,12 @@ async function createFixture() {
 async function createRouting(orgId: string, stageName: string) {
   const [providerRow] = await db
     .insert(schema.provider)
-    .values({ orgId, name: `Issue Events Provider ${RUN}`, type: 'test' })
+    .values({
+      orgId,
+      kind: 'org',
+      name: `Issue Events Provider ${RUN}`,
+      type: 'test',
+    })
     .returning();
   const [_modelRow] = await db
     .insert(schema.model)
@@ -227,7 +232,7 @@ async function createRouting(orgId: string, stageName: string) {
     .returning();
   const [profileRow] = await db
     .insert(schema.routingProfile)
-    .values({ orgId, name: `Issue Events Routing ${RUN}` })
+    .values({ orgId, kind: 'org', name: `Issue Events Routing ${RUN}` })
     .returning();
   await db
     .insert(schema.routingRule)

@@ -2,6 +2,11 @@ import { count, eq } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { model, provider } from '@/core/db/schema';
 import { createCrudService, createVersionedCrudService } from './crud-factory';
+import {
+  resolveScoped,
+  resolveScopedAll,
+  type ScopeContext,
+} from './resolve-scoped';
 
 type ProviderInsert = typeof provider.$inferInsert;
 type ProviderSelect = typeof provider.$inferSelect;
@@ -23,8 +28,41 @@ export function createProviderService(db: DbOrTx) {
   return {
     ...providerCrud,
 
+    async create(data: ProviderInsert): Promise<ProviderSelect> {
+      return providerCrud.create({
+        ...data,
+        kind: 'org',
+        teamId: null,
+        userId: null,
+        projectId: null,
+      });
+    },
+
     async listByOrg(orgId: string): Promise<ProviderSelect[]> {
       return db.select().from(provider).where(eq(provider.orgId, orgId));
+    },
+
+    async listEffective(scope: ScopeContext): Promise<ProviderSelect[]> {
+      return resolveScopedAll<ProviderSelect>(
+        db as Database,
+        provider,
+        scope,
+        'name'
+      );
+    },
+
+    async resolveEffectiveById(
+      id: string,
+      scope: ScopeContext
+    ): Promise<ProviderSelect | null> {
+      const base = await providerCrud.getById(id);
+      if (!base) return null;
+      return resolveScoped<ProviderSelect>(
+        db as Database,
+        provider,
+        scope,
+        eq(provider.name, base.name)
+      );
     },
 
     async countReferences(id: string): Promise<{ models: number }> {

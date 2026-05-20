@@ -22,20 +22,23 @@ import {
 } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
 import {
-  driver,
   issue,
-  persona,
   pipeline,
   pipelineRun,
   pipelineStage,
   project,
-  skill,
   stageRun,
 } from '@/core/db/schema';
 import { IngestOutputSchema } from '@/core/pipeline/result-doc';
 import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
+import {
+  createDriverService,
+  createPersonaService,
+  createSkillService,
+} from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import type { PipelineRunService } from './pipeline-run-service';
 import { blockIssueOnRun } from './run-helpers';
 import { acquireIsolationEnv } from './stage-runner-env';
@@ -116,9 +119,14 @@ export function createStageExecutor(deps: StageExecutorDeps) {
       throw new Error(`Pipeline not found: ${run.pipelineId}`);
     }
 
-    const [driverRow] = stage.driverId
-      ? await db.select().from(driver).where(eq(driver.id, stage.driverId))
-      : [null];
+    const scope = await resolveProjectScopeContext(db, pipelineRow.projectId);
+
+    const driverRow = stage.driverId
+      ? await createDriverService(db).resolveEffectiveById(
+          stage.driverId,
+          scope
+        )
+      : null;
 
     if (!driverRow?.binary) {
       const msg = stage.driverId
@@ -195,10 +203,10 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         `Stage '${stage.name}' has no personaId configured — every stage must have a persona assigned`
       );
     }
-    const [personaRow] = await db
-      .select({ soul: persona.soul })
-      .from(persona)
-      .where(eq(persona.id, stage.personaId));
+    const personaRow = await createPersonaService(db).resolveEffectiveById(
+      stage.personaId,
+      scope
+    );
     if (!personaRow) {
       throw new Error(`Persona not found: ${stage.personaId}`);
     }
@@ -208,13 +216,7 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     const personaSoul = personaRow.soul;
 
     // Load all skills from DB as tool-manual references
-    const skillRows = await db
-      .select({
-        name: skill.name,
-        description: skill.description,
-        promptTemplate: skill.promptTemplate,
-      })
-      .from(skill);
+    const skillRows = await createSkillService(db).listEffective(scope);
 
     const skills = skillRows.filter(
       (s): s is typeof s & { promptTemplate: string } =>

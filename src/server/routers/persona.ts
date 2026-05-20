@@ -4,6 +4,7 @@ import { z } from 'zod/v4';
 import { personaSkill, skill } from '@/core/db/schema';
 import { DELETE_ROLES, EDIT_ROLES } from '@/core/features/roles';
 import { createPersonaService } from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import { assertProjectAccess } from '../ownership';
 import {
   protectedMutation,
@@ -33,9 +34,13 @@ export const personaRouter = router({
     .query(async ({ ctx, input }) => {
       const svc = createPersonaService(ctx.db);
       await assertPersonaProjectAccess(ctx, input.projectId);
-      return input.projectId
-        ? svc.listByProject(input.projectId)
-        : svc.listGlobal();
+      if (!input.projectId) return svc.listGlobal();
+      const scope = await resolveProjectScopeContext(
+        ctx.db,
+        input.projectId,
+        ctx.viewer.fluxaUserId
+      );
+      return svc.listEffective(scope);
     }),
 
   getById: publicProcedure

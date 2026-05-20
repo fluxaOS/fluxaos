@@ -7,6 +7,7 @@ import type { Database } from '@/core/db/connection';
 import { brand, organization, project, team, user } from '@/core/db/schema';
 import { resolveStageBrand } from '@/core/orchestrator/brand-resolver';
 import { createBrandService } from '@/core/services';
+import { resolveProjectScopeContext } from '@/core/services/resolve-scoped';
 import { appRouter } from '@/server/root';
 
 const url = process.env.DATABASE_URL;
@@ -18,7 +19,7 @@ const db: Database = provider.getConnection();
 const RUN = Date.now().toString(36);
 let fixtureCount = 0;
 const cleanup: {
-  table: 'brand' | 'project' | 'user' | 'organization';
+  table: 'brand' | 'project' | 'team' | 'user' | 'organization';
   id: string;
 }[] = [];
 
@@ -46,6 +47,7 @@ async function seedOrgUserProject() {
     .insert(team)
     .values({ orgId: org.id, name: `Brand Team ${stamp}` })
     .returning();
+  cleanup.push({ table: 'team', id: teamRow.id });
 
   const [proj] = await db
     .insert(project)
@@ -75,6 +77,9 @@ afterAll(async () => {
     }
     if (item.table === 'project') {
       await db.delete(project).where(eq(project.id, item.id));
+    }
+    if (item.table === 'team') {
+      await db.delete(team).where(eq(team.id, item.id));
     }
     if (item.table === 'user') {
       await db.delete(user).where(eq(user.id, item.id));
@@ -194,7 +199,8 @@ describe('stage brand resolver', () => {
     });
     cleanup.push({ table: 'brand', id: personaBrand.id });
 
-    const resolved = await resolveStageBrand(db, {
+    const scope = await resolveProjectScopeContext(db, proj.id);
+    const resolved = await resolveStageBrand(db, scope, {
       personaBrandId: personaBrand.id,
       projectBrandId: projectBrand.id,
     });
@@ -214,7 +220,8 @@ describe('stage brand resolver', () => {
     });
     cleanup.push({ table: 'brand', id: projectBrand.id });
 
-    const resolved = await resolveStageBrand(db, {
+    const scope = await resolveProjectScopeContext(db, proj.id);
+    const resolved = await resolveStageBrand(db, scope, {
       personaBrandId: null,
       projectBrandId: projectBrand.id,
     });
@@ -223,10 +230,14 @@ describe('stage brand resolver', () => {
   });
 
   it('returns null when no brand is configured', async () => {
-    const resolved = await resolveStageBrand(db, {
-      personaBrandId: null,
-      projectBrandId: null,
-    });
+    const resolved = await resolveStageBrand(
+      db,
+      {},
+      {
+        personaBrandId: null,
+        projectBrandId: null,
+      }
+    );
 
     expect(resolved).toBeNull();
   });

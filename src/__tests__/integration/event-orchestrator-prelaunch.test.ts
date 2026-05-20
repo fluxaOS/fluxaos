@@ -212,14 +212,20 @@ async function createFixture(input: { maxRetries: number }) {
     .returning();
   const [providerRow] = await db
     .insert(provider)
-    .values({ orgId: org.id, name: RUN, type: 'test', isHealthy: true })
+    .values({
+      orgId: org.id,
+      kind: 'org',
+      name: RUN,
+      type: 'test',
+      isHealthy: true,
+    })
     .returning();
   await db
     .insert(model)
     .values({ providerId: providerRow.id, name: RUN, identifier: RUN });
   const [profileRow] = await db
     .insert(routingProfile)
-    .values({ orgId: org.id, name: RUN })
+    .values({ orgId: org.id, kind: 'org', name: RUN })
     .returning();
   await db
     .insert(routingRule)
@@ -248,6 +254,7 @@ async function createFixture(input: { maxRetries: number }) {
   return {
     org,
     userRow,
+    teamRow,
     projectRow,
     driverRow,
     providerRow,
@@ -274,7 +281,11 @@ async function cleanupFixture(
   await db.delete(model).where(eq(model.providerId, fixture.providerRow.id));
   await db.delete(provider).where(eq(provider.id, fixture.providerRow.id));
   await db.delete(driver).where(eq(driver.id, fixture.driverRow.id));
+  await db
+    .delete(projectMember)
+    .where(eq(projectMember.projectId, fixture.projectRow.id));
   await db.delete(project).where(eq(project.id, fixture.projectRow.id));
+  await db.delete(team).where(eq(team.id, fixture.teamRow.id));
   await db.delete(user).where(eq(user.id, fixture.userRow.id));
   await db.delete(organization).where(eq(organization.id, fixture.org.id));
 }

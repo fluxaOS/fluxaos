@@ -3,7 +3,17 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import type { Database } from '@/core/db/connection';
-import { driver, organization, project, team, user } from '@/core/db/schema';
+import {
+  brand,
+  driver,
+  organization,
+  persona,
+  project,
+  team,
+  user,
+} from '@/core/db/schema';
+import { resolveStageBrand } from '@/core/orchestrator/brand-resolver';
+import { createBrandService, createPersonaService } from '@/core/services';
 import {
   resolveScoped,
   resolveScopedAll,
@@ -16,6 +26,8 @@ const provider = new SupabaseDatabaseProvider(url);
 const db: Database = provider.getConnection();
 
 const createdDriverIds: string[] = [];
+const createdPersonaIds: string[] = [];
+const createdBrandIds: string[] = [];
 const createdProjectIds: string[] = [];
 const createdUserIds: string[] = [];
 const createdTeamIds: string[] = [];
@@ -102,8 +114,54 @@ async function insertDriver(
   return row;
 }
 
+async function insertPersona(
+  layer: ScopeLayer,
+  ctx: Awaited<ReturnType<typeof makeScopeFixture>>,
+  name = stamp('persona'),
+  soul = `${layer} soul`
+) {
+  const [row] = await db
+    .insert(persona)
+    .values({
+      name,
+      soul,
+      kind: layer,
+      orgId: layer === 'org' ? ctx.orgId : null,
+      teamId: layer === 'team' ? ctx.teamId : null,
+      userId: layer === 'user' ? ctx.userId : null,
+      projectId: layer === 'project' ? ctx.projectId : null,
+    })
+    .returning();
+  createdPersonaIds.push(row.id);
+  return row;
+}
+
+async function insertBrand(
+  layer: ScopeLayer,
+  ctx: Awaited<ReturnType<typeof makeScopeFixture>>,
+  name = stamp('brand'),
+  toneOfVoice = `${layer} tone`
+) {
+  const [row] = await db
+    .insert(brand)
+    .values({
+      name,
+      toneOfVoice,
+      kind: layer,
+      orgId: layer === 'org' ? ctx.orgId : null,
+      teamId: layer === 'team' ? ctx.teamId : null,
+      userId: layer === 'user' ? ctx.userId : null,
+      projectId: layer === 'project' ? ctx.projectId : null,
+    })
+    .returning();
+  createdBrandIds.push(row.id);
+  return row;
+}
+
 beforeEach(async () => {
   createdDriverIds.length = 0;
+  createdPersonaIds.length = 0;
+  createdBrandIds.length = 0;
   createdProjectIds.length = 0;
   createdUserIds.length = 0;
   createdTeamIds.length = 0;
@@ -116,6 +174,12 @@ afterAll(async () => {
 });
 
 async function cleanup() {
+  if (createdPersonaIds.length) {
+    await db.delete(persona).where(inArray(persona.id, [...createdPersonaIds]));
+  }
+  if (createdBrandIds.length) {
+    await db.delete(brand).where(inArray(brand.id, [...createdBrandIds]));
+  }
   if (createdDriverIds.length) {
     await db.delete(driver).where(inArray(driver.id, [...createdDriverIds]));
   }
@@ -135,6 +199,8 @@ async function cleanup() {
   }
 
   createdDriverIds.length = 0;
+  createdPersonaIds.length = 0;
+  createdBrandIds.length = 0;
   createdProjectIds.length = 0;
   createdUserIds.length = 0;
   createdTeamIds.length = 0;
@@ -260,6 +326,141 @@ describe('resolveScopedAll', () => {
       expect(resolved.map((row) => row.kind).sort()).toEqual(
         ['org', 'project', 'user'].sort()
       );
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('feature consumers', () => {
+  it('persona effective list prefers org over catalog', async () => {
+    const ctx = await makeScopeFixture();
+    const name = stamp('persona-org');
+    try {
+      await insertPersona('catalog', ctx, name, 'catalog persona');
+      const orgPersona = await insertPersona('org', ctx, name, 'org persona');
+
+      const resolved = await createPersonaService(db).listEffective(ctx);
+
+      expect(resolved.find((row) => row.name === name)?.id).toBe(orgPersona.id);
+      expect(resolved.find((row) => row.name === name)?.soul).toBe(
+        'org persona'
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('persona effective list prefers project over org', async () => {
+    const ctx = await makeScopeFixture();
+    const name = stamp('persona-project');
+    try {
+      await insertPersona('org', ctx, name, 'org persona');
+      const projectPersona = await insertPersona(
+        'project',
+        ctx,
+        name,
+        'project persona'
+      );
+
+      const resolved = await createPersonaService(db).listEffective(ctx);
+
+      expect(resolved.find((row) => row.name === name)?.id).toBe(
+        projectPersona.id
+      );
+      expect(resolved.find((row) => row.name === name)?.soul).toBe(
+        'project persona'
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('brand effective list prefers org over catalog', async () => {
+    const ctx = await makeScopeFixture();
+    const name = stamp('brand-org');
+    try {
+      await insertBrand('catalog', ctx, name, 'catalog tone');
+      const orgBrand = await insertBrand('org', ctx, name, 'org tone');
+
+      const resolved = await createBrandService(db).listEffective(ctx);
+
+      expect(resolved.find((row) => row.name === name)?.id).toBe(orgBrand.id);
+      expect(resolved.find((row) => row.name === name)?.toneOfVoice).toBe(
+        'org tone'
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('brand effective list prefers project over org', async () => {
+    const ctx = await makeScopeFixture();
+    const name = stamp('brand-project');
+    try {
+      await insertBrand('org', ctx, name, 'org tone');
+      const projectBrand = await insertBrand(
+        'project',
+        ctx,
+        name,
+        'project tone'
+      );
+
+      const resolved = await createBrandService(db).listEffective(ctx);
+
+      expect(resolved.find((row) => row.name === name)?.id).toBe(
+        projectBrand.id
+      );
+      expect(resolved.find((row) => row.name === name)?.toneOfVoice).toBe(
+        'project tone'
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('runtime selectors resolve configured catalog rows to project overrides by name', async () => {
+    const ctx = await makeScopeFixture();
+    const personaName = stamp('runtime-persona');
+    const brandName = stamp('runtime-brand');
+    try {
+      const catalogPersona = await insertPersona(
+        'catalog',
+        ctx,
+        personaName,
+        'catalog runtime persona'
+      );
+      const projectPersona = await insertPersona(
+        'project',
+        ctx,
+        personaName,
+        'project runtime persona'
+      );
+      const catalogBrand = await insertBrand(
+        'catalog',
+        ctx,
+        brandName,
+        'catalog runtime tone'
+      );
+      const projectBrand = await insertBrand(
+        'project',
+        ctx,
+        brandName,
+        'project runtime tone'
+      );
+
+      const resolvedPersona = await createPersonaService(
+        db
+      ).resolveEffectiveById(catalogPersona.id, ctx);
+      const resolvedBrand = await resolveStageBrand(db, ctx, {
+        personaBrandId: catalogBrand.id,
+        projectBrandId: null,
+      });
+
+      expect(resolvedPersona?.id).toBe(projectPersona.id);
+      expect(resolvedPersona?.soul).toBe('project runtime persona');
+      expect(resolvedBrand?.id).toBe(projectBrand.id);
+      expect(resolvedBrand?.toneOfVoice).toBe('project runtime tone');
     } finally {
       await cleanup();
     }

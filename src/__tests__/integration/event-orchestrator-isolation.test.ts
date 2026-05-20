@@ -410,14 +410,20 @@ async function createFixture() {
     .returning();
   const [providerRow] = await db
     .insert(schema.provider)
-    .values({ orgId: org.id, name: RUN, type: 'test', isHealthy: true })
+    .values({
+      orgId: org.id,
+      kind: 'org',
+      name: RUN,
+      type: 'test',
+      isHealthy: true,
+    })
     .returning();
   await db
     .insert(schema.model)
     .values({ providerId: providerRow.id, name: RUN, identifier: RUN });
   const [profileRow] = await db
     .insert(schema.routingProfile)
-    .values({ orgId: org.id, name: RUN })
+    .values({ orgId: org.id, kind: 'org', name: RUN })
     .returning();
   await db
     .insert(schema.routingRule)
@@ -426,6 +432,7 @@ async function createFixture() {
     .insert(schema.persona)
     .values({
       projectId: projectRow.id,
+      kind: 'project',
       name: RUN,
       soul: 'test soul',
     })
