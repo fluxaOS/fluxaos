@@ -83,13 +83,15 @@ async function assertCatalogRowAccess(
   row: { projectId: string | null } | null,
   id: string
 ) {
-  if (!row?.projectId) {
+  if (!row) {
     throw new TRPCError({
       code: 'NOT_FOUND',
       message: `Issue catalog row not found: ${id}`,
     });
   }
-  await assertIssueCatalogAccess(ctx, row.projectId);
+  if (row.projectId) {
+    await assertIssueCatalogAccess(ctx, row.projectId);
+  }
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
