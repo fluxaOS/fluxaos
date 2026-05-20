@@ -102,9 +102,7 @@ export function createProjectService(
         .select({ project })
         .from(project)
         .innerJoin(projectMember, eq(projectMember.projectId, project.id))
-        .where(
-          and(eq(projectMember.userId, userId), eq(project.slug, slug))
-        );
+        .where(and(eq(projectMember.userId, userId), eq(project.slug, slug)));
       return row?.project ?? null;
     },
   };

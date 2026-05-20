@@ -19,7 +19,9 @@ export default function KpisPage() {
   const params = useParams<{ projectUuid: string }>();
 
   // FLX-244: resolve the project from the URL slug, not the first DB row.
-  const currentProjectQuery = trpc.project.getById.useQuery({ id: params.projectUuid });
+  const currentProjectQuery = trpc.project.getById.useQuery({
+    id: params.projectUuid,
+  });
   const currentProject = currentProjectQuery.data ?? null;
   if (currentProjectQuery.isSuccess && !currentProject) {
     notFound();

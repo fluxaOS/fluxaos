@@ -1,4 +1,4 @@
-import { and, eq, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, or, type SQL, sql } from 'drizzle-orm';
 import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core';
 import type { Database } from '@/core/db/connection';
 
@@ -60,11 +60,17 @@ function catalogPredicate(table: ScopedTable): SQL {
   ) as SQL;
 }
 
-function scopedWhere(table: ScopedTable, ctx: ScopeContext, extraWhere?: SQL): SQL {
+function scopedWhere(
+  table: ScopedTable,
+  ctx: ScopeContext,
+  extraWhere?: SQL
+): SQL {
   const layerPredicates: SQL[] = [catalogPredicate(table)];
 
   if (ctx.orgId) {
-    layerPredicates.push(and(eq(table.orgId, ctx.orgId), eq(table.kind, 'org')) as SQL);
+    layerPredicates.push(
+      and(eq(table.orgId, ctx.orgId), eq(table.kind, 'org')) as SQL
+    );
   }
   if (ctx.teamId) {
     layerPredicates.push(
@@ -86,7 +92,10 @@ function scopedWhere(table: ScopedTable, ctx: ScopeContext, extraWhere?: SQL): S
   return extraWhere ? (and(scopePredicate, extraWhere) as SQL) : scopePredicate;
 }
 
-function priorityExpression(table: ScopedTable, ctx: ScopeContext): SQL<number> {
+function priorityExpression(
+  table: ScopedTable,
+  ctx: ScopeContext
+): SQL<number> {
   return sql<number>`case
     when ${table.projectId} = ${ctx.projectId ?? null} and ${table.kind} = 'project' then 1
     when ${table.userId} = ${ctx.userId ?? null} and ${table.kind} = 'user' then 2

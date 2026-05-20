@@ -15,7 +15,9 @@ export default function TeamsSettingsPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   // FLX-244: resolve the project from the URL slug, not the first DB row.
-  const currentProjectQuery = trpc.project.getById.useQuery({ id: params.projectUuid });
+  const currentProjectQuery = trpc.project.getById.useQuery({
+    id: params.projectUuid,
+  });
   const currentProject = currentProjectQuery.data ?? null;
   if (currentProjectQuery.isSuccess && !currentProject) {
     notFound();

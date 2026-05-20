@@ -16,7 +16,9 @@ export default function PipelineSettingsPage() {
   );
 
   // FLX-244: resolve the project from the URL slug, not the first DB row.
-  const currentProjectQuery = trpc.project.getById.useQuery({ id: params.projectUuid });
+  const currentProjectQuery = trpc.project.getById.useQuery({
+    id: params.projectUuid,
+  });
   const projectRow = currentProjectQuery.data ?? null;
   if (currentProjectQuery.isSuccess && !projectRow) {
     notFound();
