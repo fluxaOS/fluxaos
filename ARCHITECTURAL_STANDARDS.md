@@ -562,7 +562,8 @@ When modifying these commands or if git adds new commonly-used options:
 
 1. **Location:** `src/fluxaos/cli/git_parser_commands.py` → `USAGE_EXAMPLES` dict
 2. **Update:** Add/modify examples in the epilog text
-3. **Sync:** Run `fhc sync` to push changes to all projects
+3. **Sync:** Run `fhc sync --project all` to push changes to all projects
+   (bare `fhc sync` syncs only fh-commons into itself)
 
 ### Why Manual Maintenance?
 
@@ -649,7 +650,8 @@ For ` sync` changes specifically, acceptance means:
 1. Focused automated regression tests pass.
 2. A targeted live sync passes against the smallest relevant real
    project/category.
-3. Full live ` sync` runs across all configured projects.
+3. Full live ` sync --project all` runs across all configured projects
+   (bare ` sync` syncs only fh-commons into itself).
 4. Downstream files, hooks, commits, or PRs are inspected for the changed
    artifact.
 5. Dirty checkout, NFS-busy, fast-forward, branch cleanup, or PR warnings are
