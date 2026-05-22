@@ -1,7 +1,7 @@
 # fluxaOS vs. Archon — Competitive Analysis & Adoption Roadmap
 
 **Date:** 2026-05-22
-**Method:** 4-stream parallel research (codebase, Linear, vision docs, live UX walkthrough of both apps) followed by an adversarial debate (bull-Archon, bull-fluxaOS, devil's advocate) and refereed synthesis.
+**Method:** 4-stream parallel research (codebase, Linear, vision docs, live UX walkthrough of both apps) followed by an adversarial debate (bull-Archon, bull-fluxaOS, devil's advocate) and refereed synthesis. A second UX walkthrough (v2) was run after the debate to clear the v1 blockers — see §8.
 **Subject:** Archon — an MIT-licensed AI workflow orchestrator by Cole Medin — instance at `archon.jdp21.com` (v0.3.12). fluxaOS instance at `dev-flux.jdp21.com`.
 **Prior art:** `docs/superpowers/research/2026-04-18-archon-feature-analysis.md`, `2026-04-22-archon-prior-art.md`.
 
@@ -144,9 +144,35 @@ These are the expensive, debated items. The devil's advocate's warning applies h
 
 ---
 
-## 7. Provenance
+## 8. v2 Walkthrough — Blockers Cleared, Verified Findings
 
-- Research: fluxaOS codebase survey, full FLX Linear inventory (~264 issues), vision-doc extraction (`docs/superpowers/specs,plans` + invariants + mockups), live UX walkthroughs of both apps (2026-05-22).
+The v1 walkthrough hit dead ends in both apps (fluxaOS issue form unseeded; Archon no project / not logged in). A second walkthrough was run after re-seeding fluxaOS's dev DB and registering an Archon project. It changes three things in this report's favor of *accuracy* — two confirmations, one correction.
+
+### 8.1 Confirmed — fluxaOS has a native issue tracker; issue creation works end-to-end
+With the catalog seeded, the issue form's Type (Bug/Feature/Task/Research/Enhancement) and Priority (Critical/High/Medium/Low) selects populate correctly. A new issue (#3) was **filed end-to-end via the UI** — created, redirected to its detail page, appeared in the list. The v1 "can't create an issue" failure was confirmed to be unseeded-catalog state, not a code defect. The issue detail view is genuinely rich (Type/Priority/State/Assignee/Labels, Markdown summary, acceptance-criteria checklist, relationships, pipeline-stage strip, run history, activity feed, comments).
+
+### 8.2 Confirmed by direct inspection — Archon has NO native issue tracker
+The v1 walkthrough only saw workflow *cards* named "Create Issue" / "Fix Github Issue" and inferred. The v2 walkthrough checked every Archon nav surface, Settings, and inside a registered project: **there is no Issues view, no issue list, no per-project issues tab.** Archon's "Create Issue" / "Fix Github Issue" / "Issue Review Full" are *workflow definitions* that operate on **GitHub** issues — Archon stores and tracks no issues itself. So the §2 / §3 claim "fluxaOS owns a native issue tracker Archon structurally lacks" is now **verified, not inferred**. This is a real, durable fluxaOS differentiator.
+
+Separately: Archon ships a **Gitea** connector (Forgejo is a Gitea-compatible fork) but it is **"Not configured"** — as are GitHub and GitLab. Forgejo support was *not* wired up at install. Worth a follow-up if Archon issue-workflows are ever to be exercised.
+
+### 8.3 Correction — fluxaOS's dead flows are NOT all "just unseeded data"
+The v1 report (and the bull-fluxaOS case) characterized fluxaOS's broken flows as seed/polish bugs. The v2 walkthrough, run on a properly seeded DB *with a working pipeline present*, proves that is only half true:
+
+- **Pipeline runs fail.** Creating an issue auto-triggers a pipeline; "Run Stage" triggers one manually. Both create real runs — and **every run fails within ~1–2s at the `research` stage with no output, no gate results, no error, no `failed` event.** This is a real orchestrator/executor defect, not seed data. Filed as **FLX-264**. (Leading hypothesis: a stale daemon — the running daemon predated the nuke+reseed; it was restarted but the fix is unverified. The silent, event-less failure also independently violates Invariant 9.)
+- **"Just Do It" is a genuine code bug.** Confirmed on a seeded DB with a working pipeline: the Go button fires **zero network requests**. It is an unwired control, not a missing-pipeline symptom. Filed as **FLX-265**.
+
+**Implication for the roadmap:** Phase 0's "fix the dead flows" is *more* load-bearing than the v1 report implied, and Phase 1's "prove one workload end-to-end" is now known to be blocked by a concrete, filed bug (FLX-264) — not a vague seeding gap. The verdict stands and is reinforced: fix execution before strategy.
+
+### 8.4 Side effect — a real bug fixed in passing
+Re-seeding surfaced that `src/scripts/db/nuke.ts` had a broken FK deletion order (`team`/`organization` deleted before `project`, a regression from the FLX-239 tenancy rework) — leftover rows survived every nuke. Fixed in this branch (`fix(nuke): correct FK deletion order for FLX-239 tenancy chain`).
+
+---
+
+## 9. Provenance
+
+- Research: fluxaOS codebase survey, full FLX Linear inventory (~264 issues), vision-doc extraction (`docs/superpowers/specs,plans` + invariants + mockups), live UX walkthroughs of both apps — v1 (pre-debate) and v2 (post-debate, blockers cleared), both 2026-05-22.
 - Debate: bull-Archon, bull-fluxaOS, devil's advocate (adversarial; full texts in the working set).
-- Working files: `/tmp/archon-analysis/` — `flux-codebase/`, `flux-linear/`, `flux-vision/`, `ux-walkthrough/`, `debate/`.
+- Filed follow-ups: **FLX-264** (pipeline runs fail at research stage), **FLX-265** (dead "Just Do It" button).
+- Working files: `/tmp/archon-analysis/` — `flux-codebase/`, `flux-linear/`, `flux-vision/`, `ux-walkthrough/` (incl. `*-v2.md`, `issues-comparison.md`), `debate/`.
 - Archon is MIT-licensed (Cole Medin). All adoption items above carry an attribution requirement.
