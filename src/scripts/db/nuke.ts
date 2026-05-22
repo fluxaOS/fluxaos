@@ -69,14 +69,16 @@ const tables = [
   'memory',
   'skill',
   'persona',
-  'team',
   'brand',
   'routing_rule',
   'routing_profile',
   'model',
   'provider',
+  // FLX-239 tenancy chain: project.team_id -> team, team.org_id -> organization.
+  // Children must be deleted before parents: project -> team -> organization -> customer.
   'project',
   'user',
+  'team',
   'organization',
   // FLX-239: customer last. organization.customer_id has no FK (placeholder),
   // so the order between organization and customer is logical, not enforced.
