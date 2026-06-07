@@ -30,7 +30,7 @@ No "production-impacting" framing applies here. The override in this project's C
 | `npm run db:events` | List events (all, or `-- --run <id>`) |
 | `npm run verify` | Run all verification checks |
 | `npm run verify:seed` | Verify seed data is correct |
-| `npm run daemon` | Start the orchestrator daemon (foreground; systemd unit: `ops/systemd/fluxaos-daemon.service`) |
+| `npm run daemon` | Start the orchestrator daemon in foreground for dev. UAT/prod on titan uses Docker Compose `fluxaos-daemon`; the systemd unit is local/dev-only. |
 | `npx vitest` | Integration tests (real Supabase) |
 | `tsx src/scripts/db/nuke.ts` | Drop all user data, keep schema |
 | `npm run pipeline:init-result-doc` | Initialize a result doc for a stage run (debug/test) |
@@ -51,7 +51,7 @@ src/
   config/       # Bootstrap + adapter registry
   __tests__/    # Integration tests (real Supabase, no unit tests)
 e2e/            # Playwright journey tests (the verification gate)
-ops/            # systemd unit, git-hooks/, install-hooks.sh
+ops/            # Docker homelab template, local/dev systemd unit, git-hooks/, install-hooks.sh
 docs/           # session-quick-start, invariants, planning, superpowers/
 ```
 
@@ -65,7 +65,7 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 - **Config-driven** — fail fast on missing config, no silent defaults
 - **No fallbacks ever** — *"If the primary mechanism doesn't work, that's a bug to fix — not a scenario to code around."* No `?? 'default'` patterns, no fallback chains, no polling fallbacks, no degraded-mode / graceful-degradation alternatives. One path; if it fails, surface the error. See [`ARCHITECTURAL_STANDARDS.md` §2](ARCHITECTURAL_STANDARDS.md#2-no-fallbacks---fail-fast).
 - **DI everywhere** — services are factories receiving `Database`, zero vendor imports in `src/core/`
-- **Orchestrator vs Workers** — systemd daemon manages pipeline state; AI workers are read-only executors that report via comments
+- **Orchestrator vs Workers** — the daemon manages pipeline state (Docker Compose in UAT/prod, foreground/systemd only for dev); AI workers are read-only executors that report via comments
 - **No unit tests** — integration tests against real Supabase only; see Agent Behavior
 - **Edit, never Write** — never overwrite existing files; build missing endpoints instead of deleting UI
 

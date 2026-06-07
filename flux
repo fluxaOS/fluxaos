@@ -42,8 +42,9 @@ Notes:
   --root <path>  serve a different directory (e.g. a worktree) instead of the repo root.
   --port <port>  listen on a different port (overrides FLUX_DEV_PORT and the 3004 default).
   server dev reset stops the server, nukes + reseeds the DB, then starts fresh.
-  server uat manages the Docker Compose web service in /mnt/stacks/docker/fluxaos.
-  orchestrator is an alias for daemon orchestrator.
+  server uat manages the Docker Compose web + daemon services in /mnt/stacks/docker/fluxaos.
+  orchestrator is an alias for daemon orchestrator; systemd daemon commands are dev-only.
+  On titan, UAT/prod daemon ownership is Docker Compose, not user systemd.
   env audit verifies dev + UAT env files point at the right Supabase project refs (FLX-230).
 USAGE
 }
@@ -238,20 +239,20 @@ server_uat() {
   case "${action}" in
     start)
       require_stack_dir
-      run docker compose --project-directory "${STACK_DIR}" up -d fluxaos-web
+      run docker compose --project-directory "${STACK_DIR}" up -d fluxaos-web fluxaos-daemon
       ;;
     stop)
       require_stack_dir
-      run docker compose --project-directory "${STACK_DIR}" stop fluxaos-web
+      run docker compose --project-directory "${STACK_DIR}" stop fluxaos-web fluxaos-daemon
       ;;
     restart)
       require_stack_dir
-      run docker compose --project-directory "${STACK_DIR}" restart fluxaos-web
+      run docker compose --project-directory "${STACK_DIR}" restart fluxaos-web fluxaos-daemon
       ;;
     status)
       require_stack_dir
       print_uat_endpoint
-      run docker compose --project-directory "${STACK_DIR}" ps fluxaos-web
+      run docker compose --project-directory "${STACK_DIR}" ps fluxaos-web fluxaos-daemon
       ;;
     build)
       [[ -x "${STACK_DIR}/build.sh" ]] || fail "UAT build script is not executable: ${STACK_DIR}/build.sh"

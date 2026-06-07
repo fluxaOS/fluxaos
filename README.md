@@ -54,8 +54,8 @@ npm run dev -- -H 0.0.0.0 -p 3004
 
 # 7. Start the daemon (terminal 2)
 npm run daemon
-# Or use the systemd user-unit at ops/systemd/fluxaos-daemon.service
-# and `systemctl --user enable --now fluxaos-daemon`.
+# Local/dev-only durable option: use ops/systemd/fluxaos-daemon.service.
+# Do not enable this on titan for UAT/prod; Docker Compose owns fluxaos-daemon there.
 
 # 8. Open the UI
 open http://localhost:3004
@@ -68,7 +68,7 @@ For an end-to-end smoke test, see `e2e/r-smoke.spec.ts` — the alpha-acceptance
 
 ## flux CLI
 
-`./flux` is the operator lifecycle helper at the repo root. It manages the dev server, the UAT Docker service, and the orchestrator daemon without requiring you to remember `docker compose` paths or `systemctl` invocations.
+`./flux` is the operator lifecycle helper at the repo root. It manages the dev server, the UAT Docker web+daemon services, and local/dev orchestrator systemd units without requiring you to remember `docker compose` paths or `systemctl` invocations.
 
 ```
 flux server dev start|stop|restart|reset|status [--root <path>] [--port <port>]
@@ -87,15 +87,15 @@ flux orchestrator ...        # alias for flux daemon orchestrator
 | `flux server dev status` | Shows PID, port, and endpoint (`dev-flux.jdp21.com = 192.168.54.101:3004`) |
 | `--root <path>` | Serve a different directory (e.g. a worktree) instead of the repo root |
 | `--port <port>` | Override the default port (3004) |
-| `flux server uat start` | `docker compose up -d fluxaos-web` in `/mnt/stacks/docker/fluxaos` |
-| `flux server uat stop` | `docker compose stop fluxaos-web` |
-| `flux server uat restart` | `docker compose restart fluxaos-web` |
-| `flux server uat status` | `docker compose ps fluxaos-web` + endpoint |
+| `flux server uat start` | `docker compose up -d fluxaos-web fluxaos-daemon` in `/mnt/stacks/docker/fluxaos` |
+| `flux server uat stop` | `docker compose stop fluxaos-web fluxaos-daemon` |
+| `flux server uat restart` | `docker compose restart fluxaos-web fluxaos-daemon` |
+| `flux server uat status` | `docker compose ps fluxaos-web fluxaos-daemon` + endpoint |
 | `flux server uat build` | Runs `/mnt/stacks/docker/fluxaos/build.sh` |
 | `flux daemon list` | Lists registered daemons (`orchestrator fluxaos-daemon`) |
-| `flux daemon orchestrator install` | Copies + patches the systemd user-unit, enables it |
-| `flux daemon orchestrator uninstall` | Disables + removes the unit |
-| `flux daemon orchestrator start\|stop\|restart\|status` | `systemctl --user` pass-through |
+| `flux daemon orchestrator install` | Local/dev only: copies + patches the systemd user-unit, enables it |
+| `flux daemon orchestrator uninstall` | Local/dev only: disables + removes the unit |
+| `flux daemon orchestrator start\|stop\|restart\|status` | Local/dev only: `systemctl --user` pass-through |
 
 Set `FLUX_DRY_RUN=1` to print every shell command without executing it — useful for verifying what a reset or uninstall would do before committing.
 
@@ -131,8 +131,8 @@ See `ops/README.md` for the operator runbook.
           │                             │
    ┌──────┴──────┐               ┌──────┴──────┐
    │   Daemon    │  Realtime     │  Supabase   │
-   │ (tsx +      │  pipeline_run │  Postgres + │
-   │  systemd)   │  subscription │  Auth + RT  │
+   │ (Docker in  │  pipeline_run │  Postgres + │
+   │  UAT/prod)  │  subscription │  Auth + RT  │
    └──────┬──────┘               └─────────────┘
           │
    ┌──────┴──────┐    ┌──────────┐    ┌──────────┐
@@ -155,7 +155,7 @@ See `ops/README.md` for the operator runbook.
 | Realtime | Supabase Realtime |
 | AI Provider | Anthropic SDK (`@anthropic-ai/sdk`) |
 | Subprocess | `node:child_process` |
-| Daemon | tsx + systemd user-unit |
+| Daemon | `tsx` for foreground dev; Docker Compose service for UAT/prod; systemd user-unit is local/dev-only |
 | Integration tests | Vitest (real Supabase, no mocks) |
 | Journey tests | Playwright |
 | Linting | ESLint + Biome (formatter) |
@@ -190,7 +190,7 @@ src/
 ├── server/             # tRPC routers
 └── __tests__/          # Vitest integration tests
 e2e/                    # Playwright journey tests
-ops/                    # systemd user-unit + ops runbook
+ops/                    # Docker homelab template, local/dev systemd unit, ops runbook
 docs/                   # Specs, plans, handoffs, RCAs
 tests/verify/           # Verification scripts (seed-check, run-all)
 drizzle/                # Migrations + meta snapshots
@@ -270,20 +270,14 @@ tsx src/scripts/db/nuke.ts   # drop all user data, keep schema
 
 ## Operator runbook
 
-See `ops/README.md` for the systemd user-unit setup. tl;dr:
+See `ops/README.md` for the operator runbook. UAT/prod on titan is Docker-owned:
 
 ```bash
-# Enable lingering so the user-unit survives logout
-loginctl enable-linger
-
-# Copy the unit and start
-cp ops/systemd/fluxaos-daemon.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now fluxaos-daemon
-
-# Tail logs
-journalctl --user -u fluxaos-daemon -f
+./flux server uat status
+./flux server uat restart
 ```
+
+The systemd user-unit in `ops/systemd/` is for local/dev daemon durability only. Do not run it beside the Docker `fluxaos-daemon` service on titan.
 
 ### `flux` operator helper
 

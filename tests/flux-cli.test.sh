@@ -70,18 +70,21 @@ assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "up"
 assert_contains "${output}" "fluxaos-web"
+assert_contains "${output}" "fluxaos-daemon"
 
 output=$(run_flux server uat stop 2>&1)
 assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "stop"
 assert_contains "${output}" "fluxaos-web"
+assert_contains "${output}" "fluxaos-daemon"
 
 output=$(run_flux server uat restart 2>&1)
 assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "restart"
 assert_contains "${output}" "fluxaos-web"
+assert_contains "${output}" "fluxaos-daemon"
 
 output=$(run_flux server uat status 2>&1)
 assert_contains "${output}" "uat-flux.jdp21.com"
@@ -90,6 +93,7 @@ assert_contains "${output}" "docker"
 assert_contains "${output}" "compose"
 assert_contains "${output}" "ps"
 assert_contains "${output}" "fluxaos-web"
+assert_contains "${output}" "fluxaos-daemon"
 
 output=$(FLUX_DRY_RUN=1 FLUX_STACK_DIR="${ROOT_DIR}/tests/fixtures/missing-stack" "${FLUX}" server uat build 2>&1 || true)
 assert_contains "${output}" "UAT build script is not executable"
