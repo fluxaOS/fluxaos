@@ -116,7 +116,9 @@ Set these in `.env.local` before starting the daemon:
 
 Plus the R-RUNTIME and cleanup-scheduler envs already documented in `CLAUDE.md`.
 
-### Install as a systemd user unit
+### Install as a systemd user unit — local/dev only
+
+Do not install or enable this unit on titan for UAT/prod. The durable homelab daemon there is the Docker Compose `fluxaos-daemon` service in `/mnt/stacks/docker/fluxaos`. Running both creates duplicate orchestrators.
 
 ```bash
 # 1. Copy the unit file into your user systemd directory.
@@ -137,7 +139,7 @@ journalctl --user -u fluxaos-daemon -f
 systemctl --user status fluxaos-daemon
 ```
 
-The unit file uses `%h/dev/fluxaos` for the repo path. Adjust if you checked out elsewhere. `Restart=always` means the daemon comes back automatically on crash; `KillMode=mixed + TimeoutStopSec=120` gives SIGTERM-then-SIGKILL semantics with a 2-minute drain window (align with `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS`). Runtime paths and cleanup thresholds are DB-backed rows, not daemon env vars.
+The unit file uses `%h/dev/fluxaos` for the repo path. Adjust if you checked out elsewhere. `Restart=always` means the daemon comes back automatically on crash; `KillMode=mixed + TimeoutStopSec=120` gives SIGTERM-then-SIGKILL semantics with a 2-minute drain window (align with `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS`). Runtime paths and cleanup thresholds are DB-backed rows, not daemon env vars. Before using this on a shared host, verify `docker compose --project-directory /mnt/stacks/docker/fluxaos ps fluxaos-daemon` is not already the intended daemon owner.
 
 ### Sentinel log line
 

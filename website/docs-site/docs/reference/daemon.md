@@ -19,16 +19,26 @@ The orchestrator daemon is a long-running background process that executes pipel
 
 ## Starting the daemon
 
-**Production (systemd):**
+**UAT/prod on titan (Docker Compose):**
+```bash
+./flux server uat status
+./flux server uat restart
+# Equivalent low-level check:
+docker compose --project-directory /mnt/stacks/docker/fluxaos ps fluxaos-daemon
+```
+
+**Development foreground:**
+```bash
+npm run daemon
+```
+
+**Development durable user unit only:**
 ```bash
 systemctl --user start fluxaos-daemon
 systemctl --user status fluxaos-daemon
 ```
 
-**Development:**
-```bash
-npm run daemon
-```
+Do not run the user systemd daemon beside the Docker Compose `fluxaos-daemon` service; that creates duplicate orchestrators.
 
 The daemon reads all `FLUXAOS_*` environment variables at startup. `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` is required — the daemon refuses to start without it. See [Environment Variables](./env-vars).
 
@@ -37,16 +47,19 @@ The daemon reads all `FLUXAOS_*` environment variables at startup. `FLUXAOS_DAEM
 If pipeline runs sit at **Pending** status and don't progress, the daemon is likely not running.
 
 ```bash
-# Check systemd status
+# UAT/prod Docker owner
+docker compose --project-directory /mnt/stacks/docker/fluxaos ps fluxaos-daemon
+
+# Development user-unit owner, if intentionally installed
 systemctl --user status fluxaos-daemon
 
-# Or look for the process
-ps aux | grep 'npm run daemon\|tsx.*daemon'
+# Or look for a foreground dev process
+ps aux | grep 'npm run daemon\|tsx.*daemon\|daemon.mjs'
 ```
 
 ## Graceful shutdown
 
-Send `SIGTERM` (systemd stop) or `Ctrl+C` (dev). The daemon:
+Send `SIGTERM` (`docker compose stop`, systemd stop, or `Ctrl+C` in dev). The daemon:
 1. Stops accepting new runs
 2. Waits for running stages to finish (up to `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS`)
 3. Force-kills any stages still running after the grace period
