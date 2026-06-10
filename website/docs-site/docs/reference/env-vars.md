@@ -39,9 +39,7 @@ Set env vars in `.env` (committed, non-secret defaults) or `.env.local` (gitigno
 | Variable | Type | Default | Purpose |
 |----------|------|---------|---------|
 | `FLUXAOS_API_URL` | URL | none | Full tRPC endpoint used by `npm run cli -- <command>`, e.g. `http://localhost:3004/api/trpc`. |
-| `FLUXAOS_CLI_ORG_SLUG` | string | `default` | Org slug targeted by the CLI. |
-| `FLUXAOS_CLI_USER_SLUG` | string | `admin` | User slug targeted by the CLI. |
-| `FLUXAOS_CLI_PROJECT_SLUG` | string | `my-project` | Project slug targeted by the CLI. |
+| `FLUXAOS_CLI_PROJECT_ID` | UUID | none | Project UUID targeted by the CLI (tenancy slugs were dropped in FLX-239 Stage 8 — UUIDs are the only addressing scheme). The seeded project is `00000000-0000-4000-8000-000000000001`. |
 
 ## Development / testing
 
