@@ -2,6 +2,7 @@
 
 import { Activity, CircleDot, Loader, Play, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/card';
 import { CatalogBadge } from '@/components/catalog-badge';
@@ -21,18 +22,30 @@ export function DashboardClient({
   projectName: string;
   basePath: string;
 }) {
+  const router = useRouter();
   const [prompt, setPrompt] = useState('');
 
   // ── Catalog queries ──────────────────────────────────────────────────────
   const statesQuery = trpc.issueCatalog.states.list.useQuery({ projectId });
+  const typesQuery = trpc.issueCatalog.types.list.useQuery({ projectId });
   const prioritiesQuery = trpc.issueCatalog.priorities.list.useQuery({
     projectId,
   });
 
   const states = statesQuery.data ?? [];
+  const types = typesQuery.data ?? [];
   const priorities = prioritiesQuery.data ?? [];
 
   const priorityMap = new Map(priorities.map((p) => [p.id, p]));
+
+  // ── Just Do It — create an issue and let the pipeline take over ─────────
+  // Same mutation + catalog derivation as the New Issue form: default to the
+  // first active type/priority from the project's catalogs.
+  const createIssueMutation = trpc.issue.create.useMutation({
+    onSuccess: (data) => {
+      router.push(`${basePath}/issues/${data.number}`);
+    },
+  });
 
   // ── Issue queries ────────────────────────────────────────────────────────
   const issuesQuery = trpc.issue.list.useQuery({ projectId });
@@ -163,7 +176,18 @@ export function DashboardClient({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              // pipeline.justDoIt not yet implemented
+              if (
+                !prompt.trim() ||
+                types.length === 0 ||
+                priorities.length === 0
+              )
+                return;
+              createIssueMutation.mutate({
+                projectId,
+                title: prompt.trim(),
+                typeId: types[0].id,
+                priorityId: priorities[0].id,
+              });
             }}
             className="flex gap-3 relative z-1"
           >
@@ -176,13 +200,23 @@ export function DashboardClient({
             />
             <button
               type="submit"
-              disabled={!prompt.trim()}
+              disabled={
+                !prompt.trim() ||
+                types.length === 0 ||
+                priorities.length === 0 ||
+                createIssueMutation.isPending
+              }
               className="px-5 py-3 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(124,58,237,0.4)] hover:shadow-[0_6px_24px_rgba(124,58,237,0.5)] hover:-translate-y-0.5 flex items-center gap-2"
             >
               <Sparkles size={14} />
-              Go
+              {createIssueMutation.isPending ? 'Creating…' : 'Go'}
             </button>
           </form>
+          {createIssueMutation.error && (
+            <p className="text-sm text-red-400 mt-3 relative z-1">
+              {createIssueMutation.error.message}
+            </p>
+          )}
         </Card>
 
         {/* Pipeline Health */}
