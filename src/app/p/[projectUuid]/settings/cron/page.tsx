@@ -14,7 +14,7 @@ export default function CronSettingsPage() {
   const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
 
-  // FLX-244: resolve the project from the URL slug, not the first DB row.
+  // FLX-244: resolve the project from the URL UUID, not the first DB row.
   const currentProjectQuery = trpc.project.getById.useQuery({
     id: params.projectUuid,
   });

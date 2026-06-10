@@ -190,7 +190,7 @@ describe('R-DAEMON factory', () => {
     const stamp = `daemon-recovery-${Date.now()}`;
     const [org] = await db
       .insert(organization)
-      .values({ name: stamp, slug: stamp })
+      .values({ name: stamp })
       .returning();
     const [userRow] = await db
       .insert(user)
@@ -198,7 +198,6 @@ describe('R-DAEMON factory', () => {
         orgId: org.id,
         email: `${stamp}@test.local`,
         name: stamp,
-        slug: stamp,
       })
       .returning();
     const [teamRow] = await db
@@ -211,7 +210,6 @@ describe('R-DAEMON factory', () => {
         orgId: org.id,
         teamId: teamRow.id,
         name: stamp,
-        slug: stamp,
         repoUrl: 'https://github.com/fluxaos/fixture',
         defaultBranch: 'main',
       })

@@ -1,4 +1,4 @@
-// src/app/[org]/[user]/[project]/settings/users/page.tsx
+// src/app/p/[projectUuid]/settings/users/page.tsx
 'use client';
 
 import { notFound, useParams } from 'next/navigation';
@@ -14,7 +14,7 @@ export default function UsersSettingsPage() {
   const params = useParams<{ projectUuid: string }>();
   const utils = trpc.useUtils();
 
-  // FLX-244: resolve the org from the URL project slug, not the first DB row.
+  // FLX-244: resolve the org from the URL project UUID, not the first DB row.
   const currentProjectQuery = trpc.project.getById.useQuery({
     id: params.projectUuid,
   });
@@ -37,7 +37,6 @@ export default function UsersSettingsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newSlug, setNewSlug] = useState('');
   const [newAvatarUrl, setNewAvatarUrl] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -70,12 +69,10 @@ export default function UsersSettingsPage() {
         orgId,
         name: newName.trim(),
         email: newEmail.trim(),
-        slug: newSlug.trim(),
         avatarUrl: newAvatarUrl.trim() || undefined,
       });
       setNewName('');
       setNewEmail('');
-      setNewSlug('');
       setNewAvatarUrl('');
       setShowCreate(false);
       await utils.user.listByOrg.invalidate({ orgId });
@@ -92,7 +89,7 @@ export default function UsersSettingsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Users"
-        description="Org-scoped users — name, email, kebab-case slug, optional avatar."
+        description="Org-scoped users — name, email, optional avatar."
         action={
           orgId ? (
             <button
@@ -141,19 +138,6 @@ export default function UsersSettingsPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-slate-400 block mb-1">
-                Slug <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                aria-label="User slug"
-                placeholder="kebab-case"
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-white"
-                value={newSlug}
-                onChange={(e) => setNewSlug(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 block mb-1">
                 Avatar URL
               </label>
               <input
@@ -169,10 +153,7 @@ export default function UsersSettingsPage() {
               type="button"
               className="px-4 py-2 rounded-lg text-sm font-medium bg-electric-violet text-white hover:bg-accent-hover transition-all disabled:opacity-50"
               disabled={
-                !newName.trim() ||
-                !newEmail.trim() ||
-                !newSlug.trim() ||
-                createMutation.isPending
+                !newName.trim() || !newEmail.trim() || createMutation.isPending
               }
               onClick={onCreate}
             >

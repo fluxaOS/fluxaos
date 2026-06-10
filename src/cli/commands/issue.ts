@@ -141,7 +141,7 @@ async function viewIssue(
     loadCatalogs(client, context.projectId),
   ]);
   if (!result) {
-    console.error(`Issue #${num} not found in project ${context.projectSlug}.`);
+    console.error(`Issue #${num} not found in project ${context.projectId}.`);
     return 1;
   }
   if (args.json) {

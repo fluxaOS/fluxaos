@@ -125,11 +125,6 @@ export function createDriverService(db: Database) {
       );
     },
 
-    async getBySlug(slug: string): Promise<DriverSelect | null> {
-      const [row] = await db.select().from(driver).where(eq(driver.slug, slug));
-      return row ?? null;
-    },
-
     async getById(id: string): Promise<DriverSelect | null> {
       const [row] = await db.select().from(driver).where(eq(driver.id, id));
       return row ?? null;

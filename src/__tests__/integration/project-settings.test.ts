@@ -23,13 +23,10 @@ async function makeFixture(
   db: ReturnType<SupabaseDatabaseProvider['getConnection']>
 ) {
   const s = stamp('fix');
-  const [org] = await db
-    .insert(organization)
-    .values({ name: s, slug: s })
-    .returning();
+  const [org] = await db.insert(organization).values({ name: s }).returning();
   const [userRow] = await db
     .insert(user)
-    .values({ orgId: org.id, email: `${s}@test.local`, name: s, slug: s })
+    .values({ orgId: org.id, email: `${s}@test.local`, name: s })
     .returning();
   const [projectRow] = await db
     .insert(project)
@@ -42,7 +39,6 @@ async function makeFixture(
           .returning()
       )[0].id,
       name: s,
-      slug: s,
       repoUrl: 'https://github.com/fluxaos/fixture',
       defaultBranch: 'main',
     })

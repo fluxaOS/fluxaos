@@ -19,7 +19,7 @@ export default function RoutingSettingsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<RoutingProfileRecord | null>(null);
 
-  // FLX-244: resolve the org from the URL project slug, not the first DB row.
+  // FLX-244: resolve the org from the URL project UUID, not the first DB row.
   const currentProjectQuery = trpc.project.getById.useQuery({
     id: params.projectUuid,
   });

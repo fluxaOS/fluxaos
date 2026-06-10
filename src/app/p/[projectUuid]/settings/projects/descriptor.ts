@@ -1,4 +1,4 @@
-// src/app/[org]/[user]/[project]/settings/projects/descriptor.ts
+// src/app/p/[projectUuid]/settings/projects/descriptor.ts
 //
 // FLX-207 / FLX-229: ProjectRecord carries the FK IDs directly. The
 // descriptor itself is built per-render by buildProjectDescriptor() so
@@ -14,7 +14,6 @@ export type ProjectRecord = {
   id: string;
   version: number;
   name: string;
-  slug: string;
   repoUrl: string | null;
   defaultBranch: string;
   defaultPipelineId: string | null;

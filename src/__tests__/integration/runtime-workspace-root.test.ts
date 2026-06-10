@@ -122,7 +122,7 @@ beforeAll(async () => {
 
   const [org] = await db
     .insert(schema.organization)
-    .values({ name: `${RUN}-org`, slug: `${RUN}-org` })
+    .values({ name: `${RUN}-org` })
     .returning();
   _orgId = org.id;
 
@@ -132,7 +132,6 @@ beforeAll(async () => {
       orgId: org.id,
       email: `${RUN}@test.local`,
       name: 'FLX222',
-      slug: `${RUN}-user`,
     })
     .returning();
 
@@ -147,7 +146,6 @@ beforeAll(async () => {
           .returning()
       )[0].id,
       name: `${RUN}-proj`,
-      slug: `${RUN}-proj`,
       repoUrl: 'https://github.com/fluxaos/flx-222-fixture',
     })
     .returning();

@@ -55,7 +55,7 @@ beforeAll(async () => {
 
   const [org] = await db
     .insert(schema.organization)
-    .values({ name: `iso-org-${RUN}`, slug: `iso-org-${RUN}` })
+    .values({ name: `iso-org-${RUN}` })
     .returning();
   _orgId = org.id;
 
@@ -65,7 +65,6 @@ beforeAll(async () => {
       orgId: org.id,
       email: `iso-${RUN}@test.local`,
       name: 'Iso',
-      slug: `iso-${RUN}`,
     })
     .returning();
 
@@ -80,7 +79,6 @@ beforeAll(async () => {
           .returning()
       )[0].id,
       name: `iso-proj-${RUN}`,
-      slug: `iso-proj-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/isolation-test-fixture',
     })
     .returning();

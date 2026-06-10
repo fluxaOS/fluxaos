@@ -19,8 +19,8 @@ test.describe('@flx-208 @journey @settings-projects-help-text', () => {
       timeout: 15_000,
     });
 
-    // The seeded project (slug = "fluxaos") is the canonical row — the
-    // route path itself uses it. Click it to open the RecordEditor
+    // The seeded project ("fluxaOS") is the canonical row. Click it to
+    // open the RecordEditor
     // detail panel; helpText renders in viewing mode for readonly fields.
     const seededRow = page.locator('li', { hasText: 'fluxaOS' }).first();
     await expect(seededRow).toBeVisible({ timeout: 10_000 });

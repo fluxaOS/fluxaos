@@ -2,9 +2,13 @@
 //
 // FLX-207 / FLX-226 / FLX-227 / FLX-229 journey. Exercises the full
 // Projects form lifecycle: dropdown selections, repoUrl validate,
-// slug rename confirm + redirect.
+// name rename persistence.
 //
-// All slug-rename testing happens on a throwaway project created via
+// FLX-271 (FLX-239 Stage 8): project.slug was dropped, so the former
+// slug-rename confirm + redirect flow no longer exists. The rename tests
+// now cover the name field and assert the slug field is gone.
+//
+// All rename testing happens on a throwaway project created via
 // the API at beforeAll and deleted at afterAll. The seed project is
 // only used for the read-only form structure assertions (no readonly
 // inputs remain, etc.) and dropdown-select tests on fields that are
@@ -17,10 +21,10 @@ import { expect, projectPath, test } from './helpers/setup';
 // still renders the display name.
 const SEED_PROJECT_NAME = 'fluxaOS';
 
-// Throwaway project slugs for the slug-rename test. Timestamp-suffixed
-// so parallel runs don't collide on the unique (userId, slug) index.
-const SCRATCH_SLUG = `e2e-projects-form-${Date.now()}`;
-const SCRATCH_RENAMED = `${SCRATCH_SLUG}-renamed`;
+// Throwaway project names for the rename test. Timestamp-suffixed so
+// parallel runs don't collide.
+const SCRATCH_NAME = `e2e-projects-form-${Date.now()}`;
+const SCRATCH_RENAMED = `${SCRATCH_NAME}-renamed`;
 
 test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
   test('seed project: read-only structure + dropdown + repo validate (happy path)', async ({
@@ -98,9 +102,9 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
     );
   });
 
-  // ─── slug rename tests use a throwaway project ─────────────────────────
+  // ─── rename tests use a throwaway project ──────────────────────────────
   //
-  // The slug rename test MUST NOT mutate the seed project. beforeAll
+  // The rename test MUST NOT mutate the seed project. beforeAll
   // creates a scratch project via the tRPC HTTP API; afterAll deletes
   // it. Wire format follows e2e/r-smoke.spec.ts:66-69 — httpBatchLink
   // with `?batch=1` and `'0'` wrapper on POSTs.
@@ -109,7 +113,7 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
   // UUID; project.create (Stage 5 shape) requires orgId + teamId + userId
   // and wires the user into a project_member row.
 
-  test.describe('slug rename (throwaway project)', () => {
+  test.describe('name rename (throwaway project)', () => {
     let scratchProjectId: string | null = null;
 
     test.beforeAll(async ({ browser }) => {
@@ -152,8 +156,7 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
                 orgId,
                 teamId,
                 userId,
-                name: SCRATCH_SLUG,
-                slug: SCRATCH_SLUG,
+                name: SCRATCH_NAME,
               },
             },
           }
@@ -191,59 +194,40 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
       }
     });
 
-    test('cancel keeps current slug', async ({ page }) => {
+    test('project form has no slug field (FLX-271)', async ({ page }) => {
       await page.goto(projectPath('/settings/projects'));
       await expect(
         page.getByRole('heading', { name: 'Projects', exact: true })
       ).toBeVisible({ timeout: 15_000 });
-      await page.locator('li', { hasText: SCRATCH_SLUG }).first().click();
+      await page.locator('li', { hasText: SCRATCH_NAME }).first().click();
       await page
         .getByRole('button', { name: /^Edit$/, exact: false })
         .first()
         .click();
 
-      const slugInput = page.getByLabel('Slug', { exact: true });
-      await slugInput.fill(SCRATCH_RENAMED);
-      await page.getByRole('button', { name: /^Save$/, exact: false }).click();
-
-      // Modal appears; click Cancel — the rename must not persist.
-      await expect(page.getByRole('dialog')).toBeVisible();
-      await page.getByTestId('confirm-modal-cancel').click();
-
-      // URL is UUID-based (slug renames never move the page) and the
-      // rename must not have persisted: after a reload no row carries
-      // the renamed slug. (hasText SCRATCH_RENAMED is the discriminating
-      // check — SCRATCH_SLUG is a prefix of SCRATCH_RENAMED.)
-      await expect(page).toHaveURL(/\/settings\/projects$/);
-      await page.reload();
-      await expect(
-        page.locator('li', { hasText: SCRATCH_SLUG }).first()
-      ).toBeVisible({ timeout: 10_000 });
-      await expect(
-        page.locator('li', { hasText: SCRATCH_RENAMED })
-      ).toHaveCount(0);
+      // FLX-271: tenancy slugs were dropped in FLX-239 Stage 8 — no Slug
+      // input may remain anywhere on the Projects form.
+      await expect(page.getByLabel('Slug', { exact: true })).toHaveCount(0);
     });
 
-    test('confirm persists the new slug (URL unchanged — UUID routes)', async ({
+    test('name rename persists (URL unchanged — UUID routes)', async ({
       page,
     }) => {
       await page.goto(projectPath('/settings/projects'));
       await expect(
         page.getByRole('heading', { name: 'Projects', exact: true })
       ).toBeVisible({ timeout: 15_000 });
-      await page.locator('li', { hasText: SCRATCH_SLUG }).first().click();
+      await page.locator('li', { hasText: SCRATCH_NAME }).first().click();
       await page
         .getByRole('button', { name: /^Edit$/, exact: false })
         .first()
         .click();
 
-      const slugInput = page.getByLabel('Slug', { exact: true });
-      await slugInput.fill(SCRATCH_RENAMED);
+      const nameInput = page.getByLabel('Name', { exact: true });
+      await nameInput.fill(SCRATCH_RENAMED);
       await page.getByRole('button', { name: /^Save$/, exact: false }).click();
-      await page.getByTestId('confirm-modal-confirm').click();
 
-      // FLX-239: slugs are legacy metadata — the rename persists on the
-      // row, but the UUID URL does not change (no redirect).
+      // The rename persists on the row and the UUID URL does not change.
       const renamedRow = page.locator('li', { hasText: SCRATCH_RENAMED });
       await expect(renamedRow.first()).toBeVisible({ timeout: 10_000 });
       await expect(page).toHaveURL(/\/settings\/projects$/);

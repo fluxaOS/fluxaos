@@ -100,9 +100,7 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
       issueTitle: fixture.issueRow.title,
       pipelineRunId: fixture.run.id,
       orgId: fixture.org.id,
-      orgSlug: fixture.org.slug,
       projectId: fixture.projectRow.id,
-      projectSlug: fixture.projectRow.slug,
       stageName: fixture.stage.name,
     }));
 
@@ -232,11 +230,8 @@ describe('FLX-197 — auto-dispatch acquires isolation environment', () => {
                 stage: fixture.stage.name,
                 attempt: 1,
               },
-              org: { id: fixture.org.id, slug: fixture.org.slug },
-              project: {
-                id: fixture.projectRow.id,
-                slug: fixture.projectRow.slug,
-              },
+              org: { id: fixture.org.id },
+              project: { id: fixture.projectRow.id },
               timing: { startedAt: now, endedAt: now, duration_sec: 0 },
               verdict: 'blocked',
               summary: 'stub-blocked',
@@ -317,9 +312,7 @@ function createPassingStubRunner(
     issueTitle: string;
     pipelineRunId: string;
     orgId: string;
-    orgSlug: string;
     projectId: string;
-    projectSlug: string;
     stageName: string;
   }
 ): StageGraphRunner {
@@ -341,8 +334,8 @@ function createPassingStubRunner(
             stage: c.stageName,
             attempt: 1,
           },
-          org: { id: c.orgId, slug: c.orgSlug },
-          project: { id: c.projectId, slug: c.projectSlug },
+          org: { id: c.orgId },
+          project: { id: c.projectId },
           timing: { startedAt: now, endedAt: now, duration_sec: 0 },
           verdict: 'pass',
           summary: 'stub-pass',
@@ -355,10 +348,10 @@ function createPassingStubRunner(
 }
 
 async function createFixture() {
-  const slug = `${RUN}-${Math.random().toString(36).slice(2, 8)}`;
+  const uniq = `${RUN}-${Math.random().toString(36).slice(2, 8)}`;
   const [org] = await db
     .insert(schema.organization)
-    .values({ name: RUN, slug })
+    .values({ name: RUN })
     .returning();
   orgIds.push(org.id);
 
@@ -366,14 +359,13 @@ async function createFixture() {
     .insert(schema.user)
     .values({
       orgId: org.id,
-      email: `${slug}@test.local`,
+      email: `${uniq}@test.local`,
       name: RUN,
-      slug,
     })
     .returning();
   const [teamRow] = await db
     .insert(schema.team)
-    .values({ orgId: org.id, name: `${slug}-team` })
+    .values({ orgId: org.id, name: `${uniq}-team` })
     .returning();
   const [projectRow] = await db
     .insert(schema.project)
@@ -381,7 +373,6 @@ async function createFixture() {
       orgId: org.id,
       teamId: teamRow.id,
       name: RUN,
-      slug,
       repoUrl: 'https://github.com/fluxaos/flx-197-fixture',
       defaultBranch: 'main',
       // FLX-221: per-project target repo path column.
@@ -394,8 +385,10 @@ async function createFixture() {
   const [driverRow] = await db
     .insert(schema.driver)
     .values({
-      name: RUN,
-      slug,
+      // `uniq`, not RUN: driver_catalog_name_uq is unique on name, and
+      // createFixture runs once per test in this file (FLX-277 family).
+      name: uniq,
+      slug: uniq,
       binary: 'true',
       defaultArgs: [],
       promptTransport: 'argv',

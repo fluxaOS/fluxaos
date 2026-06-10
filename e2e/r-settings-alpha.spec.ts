@@ -26,7 +26,8 @@ test.describe('@r-settings-alpha @journey', () => {
     });
 
     // The RecordEditor renders a clickable row (li) for the seeded project
-    // 'fluxaOS' (slug 'fluxaos'). Opening it exposes the editable fields.
+    // 'fluxaOS' (hasText matching is case-insensitive). Opening it exposes
+    // the editable fields.
     const projectRow = page.locator('li', { hasText: 'fluxaos' }).first();
     await expect(projectRow).toBeVisible({ timeout: 10_000 });
     await projectRow.click();
@@ -73,22 +74,22 @@ test.describe('@r-settings-alpha @journey', () => {
   });
 
   // FLX-213 — the Projects, Brands, and Personas settings pages used to
-  // fall back to a hard-coded 'fluxaos' slug literal if URL resolution
+  // fall back to a hard-coded 'fluxaos' literal if URL resolution
   // failed. The fallback was removed; pages must now resolve the project
-  // strictly from `params.project`. This journey exercises that path
-  // against the seeded slug to confirm the pages still render and load
-  // their project-scoped data without any hard-coded slug, and that an
-  // invalid project slug surfaces a 404 instead of silently rerouting to
-  // the seeded slug's data.
-  test('settings pages resolve project from URL slug (no hard-coded fallback)', async ({
+  // strictly from the URL UUID (FLX-239; tenancy slugs dropped in FLX-271).
+  // This journey exercises that path against the seeded project to confirm
+  // the pages still render and load their project-scoped data without any
+  // hard-coded literal, and that an unknown project UUID surfaces a 404
+  // instead of silently rerouting to the seeded project's data.
+  test('settings pages resolve project from URL UUID (no hard-coded fallback)', async ({
     page,
   }) => {
-    // ── Valid slug: each settings page must render its heading. ────────
+    // ── Valid UUID: each settings page must render its heading. ────────
     await page.goto(projectPath('/settings/projects'));
     await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
       timeout: 15_000,
     });
-    // The seeded project row must be present — proves the URL slug
+    // The seeded project row must be present — proves the URL UUID
     // resolved into a real project (no fallback masking a bad lookup).
     await expect(
       page.locator('li', { hasText: 'fluxaos' }).first()

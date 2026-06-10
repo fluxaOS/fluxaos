@@ -27,7 +27,7 @@ export default function BrandSettingsPage() {
     id: params.projectUuid,
   });
   const currentProject = currentProjectQuery.data ?? null;
-  // Slug resolved against the DB but no project exists — the URL is invalid.
+  // UUID resolved against the DB but no project exists — the URL is invalid.
   if (currentProjectQuery.isSuccess && !currentProject) {
     notFound();
   }

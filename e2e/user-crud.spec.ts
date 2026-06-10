@@ -22,13 +22,12 @@ test.describe('@flx-3 @journey @users-crud', () => {
     const stamp = Date.now();
     const newName = `CRUD User ${stamp}`;
     const newEmail = `crud-${stamp}@example.test`;
-    const newSlug = `crud-${stamp}`;
 
     // ── Create ──────────────────────────────────────────────────────────
+    // FLX-271: user.slug was dropped — the create form is name + email.
     await page.getByRole('button', { name: 'New User' }).click();
     await page.getByLabel('User name').fill(newName);
     await page.getByLabel('User email').fill(newEmail);
-    await page.getByLabel('User slug').fill(newSlug);
     await page.getByRole('button', { name: /^Create/ }).click();
 
     // Newly created user appears in the RecordEditor list.

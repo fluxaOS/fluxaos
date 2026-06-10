@@ -2,8 +2,8 @@
  * `fluxaos status` — server reachability + project context summary.
  *
  * Calls organization.list (cheap, public, zero-input) plus
- * project.getBySlug to verify both that the API is responding and that
- * the configured project slug resolves. Prints OK / NOT FOUND in text
+ * project.getById to verify both that the API is responding and that
+ * the configured project id resolves. Prints OK / NOT FOUND in text
  * mode, or a structured JSON object in --json mode.
  */
 
@@ -19,14 +19,14 @@ export async function runStatus(
   const result: {
     apiUrl: string;
     apiReachable: boolean;
-    projectSlug: string;
+    projectId: string;
     projectFound: boolean;
-    projectId?: string;
+    projectName?: string;
     error?: string;
   } = {
     apiUrl: config.apiUrl,
     apiReachable: false,
-    projectSlug: config.projectSlug,
+    projectId: config.projectId,
     projectFound: false,
   };
 
@@ -45,12 +45,10 @@ export async function runStatus(
   }
 
   try {
-    const proj = await client.project.getBySlug.query({
-      slug: config.projectSlug,
-    });
+    const proj = await client.project.getById.query({ id: config.projectId });
     if (proj) {
       result.projectFound = true;
-      result.projectId = proj.id;
+      result.projectName = proj.name;
     }
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
@@ -65,8 +63,8 @@ export async function runStatus(
     `API:     ${config.apiUrl} ${result.apiReachable ? 'OK' : 'DOWN'}`
   );
   console.log(
-    `Project: ${config.projectSlug} ${
-      result.projectFound ? `OK (${result.projectId})` : 'NOT FOUND'
+    `Project: ${config.projectId} ${
+      result.projectFound ? `OK (${result.projectName})` : 'NOT FOUND'
     }`
   );
   return result.apiReachable && result.projectFound ? 0 : 1;

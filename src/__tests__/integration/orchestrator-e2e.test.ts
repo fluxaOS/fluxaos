@@ -54,7 +54,6 @@ let stageId: string;
 beforeAll(async () => {
   const org = await createOrganizationService(db).create({
     name: `OrchTestOrg-${RUN}`,
-    slug: `orch-test-${RUN}`,
     settings: {},
   });
   orgId = org.id;
@@ -64,7 +63,6 @@ beforeAll(async () => {
     orgId,
     email: `orch-test-${RUN}@test.local`,
     name: 'Orch User',
-    slug: `orch-user-${RUN}`,
   });
   userId = user.id;
 
@@ -81,7 +79,6 @@ beforeAll(async () => {
     teamId: team.id,
     userId,
     name: `OrchProject-${RUN}`,
-    slug: `orch-proj-${RUN}`,
   });
   projectId = project.id;
 

@@ -11,9 +11,7 @@
  *
  * Env (all required; see src/cli/config.ts for full docs):
  *   FLUXAOS_API_URL              e.g. http://localhost:3004/api/trpc
- *   FLUXAOS_CLI_ORG_SLUG         e.g. default
- *   FLUXAOS_CLI_USER_SLUG        e.g. admin
- *   FLUXAOS_CLI_PROJECT_SLUG     e.g. fluxaos
+ *   FLUXAOS_CLI_PROJECT_ID       e.g. 00000000-0000-4000-8000-000000000001
  *
  * Auth: requires FLUXAOS_LAN_AUTH_BYPASS=1 on the server. Real Supabase
  * OAuth from the CLI is out of scope for FLX-2.

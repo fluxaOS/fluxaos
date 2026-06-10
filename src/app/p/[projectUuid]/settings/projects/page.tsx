@@ -3,7 +3,6 @@
 
 import { notFound, useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { openConfirmModal } from '@/components/confirm-modal';
 import { PageHeader } from '@/components/page-header';
 import { RecordEditor } from '@/components/record-editor/RecordEditor';
 import { trpc } from '@/lib/trpc/client';
@@ -81,7 +80,6 @@ export default function ProjectsSettingsPage() {
     id: p.id,
     version: 1,
     name: p.name,
-    slug: p.slug,
     repoUrl: p.repoUrl,
     defaultBranch: p.defaultBranch,
     defaultPipelineId: p.defaultPipelineId,
@@ -94,22 +92,6 @@ export default function ProjectsSettingsPage() {
     patch: Partial<ProjectRecord>,
     _expectedVersion: number
   ) => {
-    // FLX-226: slug rename = confirm + redirect after save. We compare
-    // against the record's current slug (not URL params) so the modal
-    // copy matches what the operator actually changed.
-    const target = records.find((r) => r.id === id);
-    const slugChanged =
-      'slug' in patch && target != null && patch.slug !== target.slug;
-    if (slugChanged) {
-      const confirmed = await openConfirmModal({
-        title: 'Rename project slug?',
-        body: 'Project slugs are legacy metadata until FLX-239 Stage 8 removes them. Continue?',
-        confirmLabel: 'Rename',
-        destructive: true,
-      });
-      if (!confirmed) return;
-    }
-
     await updateMutation.mutateAsync({
       id,
       ...(patch as Record<string, unknown>),
@@ -179,7 +161,6 @@ function CreateProjectForm({
   onCreated: () => void;
 }) {
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
 
   const createMutation = trpc.project.create.useMutation({
@@ -190,13 +171,12 @@ function CreateProjectForm({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (!name.trim() || !slug.trim()) return;
+        if (!name.trim()) return;
         createMutation.mutate({
           orgId,
           teamId,
           userId,
           name: name.trim(),
-          slug: slug.trim(),
           repoUrl: repoUrl.trim() || undefined,
         });
       }}
@@ -209,16 +189,6 @@ function CreateProjectForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           aria-label="Project name"
-          className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
-        />
-      </label>
-      <label className="flex-1 min-w-[180px]">
-        <span className="text-xs text-slate-400">Slug</span>
-        <input
-          type="text"
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          aria-label="Project slug"
           className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-1.5 text-sm text-foreground mt-1"
         />
       </label>
@@ -235,7 +205,7 @@ function CreateProjectForm({
       </label>
       <button
         type="submit"
-        disabled={!name.trim() || !slug.trim() || createMutation.isPending}
+        disabled={!name.trim() || createMutation.isPending}
         className="px-4 py-1.5 bg-electric-violet hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
       >
         {createMutation.isPending ? 'Creating…' : 'Create'}

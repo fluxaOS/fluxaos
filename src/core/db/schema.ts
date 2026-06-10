@@ -40,7 +40,6 @@ export const customer = pgTable('customer', {
 export const organization = pgTable('organization', {
   id,
   name: text('name').notNull(),
-  slug: text('slug').unique().notNull(),
   // FLX-239: placeholder. Nullable, no FK constraint. Reserved for billing.
   customerId: uuid('customer_id'),
   settings: jsonb('settings'),
@@ -52,32 +51,27 @@ export const organization = pgTable('organization', {
   updatedAt,
 });
 
-export const user = pgTable(
-  'user',
-  {
-    // FLX-239 invariant: user.id === auth.users.id. The fluxaOS user row's
-    // primary key is the same UUID as the corresponding Supabase auth account.
-    // The seed enforces this; trpc.ts's viewer resolver depends on it.
-    // See docs/superpowers/specs/2026-05-18-tenancy-waterfall-design.md
-    // §"Auth identity contract".
-    id,
-    // Optimistic concurrency token — required by RecordEditor (FLX-3).
-    version: integer('version').notNull().default(1),
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => organization.id),
-    email: text('email').notNull(),
-    name: text('name').notNull(),
-    slug: text('slug').notNull(),
-    avatarUrl: text('avatar_url'),
-    // FLX-12: 'admin' | 'maintainer' | 'viewer'. Grandfathered to 'admin'
-    // for existing rows. Engine treats unknown values as 'viewer'.
-    role: text('role').notNull().default('admin'),
-    createdAt,
-    updatedAt,
-  },
-  (t) => [uniqueIndex('user_org_slug_idx').on(t.orgId, t.slug)]
-);
+export const user = pgTable('user', {
+  // FLX-239 invariant: user.id === auth.users.id. The fluxaOS user row's
+  // primary key is the same UUID as the corresponding Supabase auth account.
+  // The seed enforces this; trpc.ts's viewer resolver depends on it.
+  // See docs/superpowers/specs/2026-05-18-tenancy-waterfall-design.md
+  // §"Auth identity contract".
+  id,
+  // Optimistic concurrency token — required by RecordEditor (FLX-3).
+  version: integer('version').notNull().default(1),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organization.id),
+  email: text('email').notNull(),
+  name: text('name').notNull(),
+  avatarUrl: text('avatar_url'),
+  // FLX-12: 'admin' | 'maintainer' | 'viewer'. Grandfathered to 'admin'
+  // for existing rows. Engine treats unknown values as 'viewer'.
+  role: text('role').notNull().default('admin'),
+  createdAt,
+  updatedAt,
+});
 
 export const project = pgTable('project', {
   id,
@@ -90,7 +84,6 @@ export const project = pgTable('project', {
     .notNull()
     .references(() => team.id),
   name: text('name').notNull(),
-  slug: text('slug').notNull(),
   repoUrl: text('repo_url'),
   defaultBranch: text('default_branch').notNull().default('main'),
   worktreeCopyFiles: jsonb('worktree_copy_files')

@@ -78,7 +78,7 @@ test.describe('@r-artifacts @journey', () => {
             "worktree_copy_files" = '[]'::jsonb,
             "target_repo_path" = ${TARGET_REPO_PATH!},
             "updated_at" = NOW()
-        WHERE "slug" = 'fluxaos'
+        WHERE "id" = '00000000-0000-4000-8000-000000000001'
       `;
 
     const [issueRow] = await sql<

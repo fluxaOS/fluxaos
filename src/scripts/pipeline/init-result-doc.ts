@@ -124,8 +124,8 @@ async function main() {
       stage: stage.name,
       attempt: sRun.attempt,
     },
-    org: { id: orgRow.id, slug: orgRow.slug },
-    project: { id: proj.id, slug: proj.slug },
+    org: { id: orgRow.id },
+    project: { id: proj.id },
     timing: { startedAt: new Date().toISOString() },
   };
 

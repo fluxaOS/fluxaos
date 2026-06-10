@@ -77,23 +77,22 @@ async function seed() {
   console.log(`  customer: ${cust.id}`);
 
   // ── 1. Default organization ────────────────────────────────────────────
+  // FLX-271: org.slug dropped — no unique constraint beyond PK, so use the
+  // same check-then-insert pattern as team (keyed on name).
   let [org] = await db
-    .insert(organization)
-    .values({
-      name: 'Default',
-      slug: 'default',
-      settings: {},
-      customerId: cust.id,
-    })
-    .onConflictDoNothing({ target: organization.slug })
-    .returning();
+    .select()
+    .from(organization)
+    .where(eq(organization.name, 'Default'));
 
   if (!org) {
-    // Already exists — fetch it
     [org] = await db
-      .select()
-      .from(organization)
-      .where(eq(organization.slug, 'default'));
+      .insert(organization)
+      .values({
+        name: 'Default',
+        settings: {},
+        customerId: cust.id,
+      })
+      .returning();
   }
   console.log(`  org: ${org.name} (${org.id})`);
 
@@ -120,22 +119,21 @@ async function seed() {
   // ── 2. Default user ────────────────────────────────────────────────────
   const seedEmail = process.env.SEED_USER_EMAIL ?? 'admin@fluxaos.local';
 
+  // FLX-271: user.slug dropped — check-then-insert keyed on (orgId, email).
   let [usr] = await db
-    .insert(user)
-    .values({
-      orgId: org.id,
-      email: seedEmail,
-      name: 'Admin',
-      slug: 'admin',
-    })
-    .onConflictDoNothing()
-    .returning();
+    .select()
+    .from(user)
+    .where(and(eq(user.orgId, org.id), eq(user.email, seedEmail)));
 
   if (!usr) {
     [usr] = await db
-      .select()
-      .from(user)
-      .where(and(eq(user.orgId, org.id), eq(user.slug, 'admin')));
+      .insert(user)
+      .values({
+        orgId: org.id,
+        email: seedEmail,
+        name: 'Admin',
+      })
+      .returning();
   }
   console.log(`  user: ${usr.name} <${usr.email}> (${usr.id})`);
 
@@ -149,9 +147,7 @@ async function seed() {
   let [proj] = await db
     .select()
     .from(project)
-    .where(
-      and(eq(project.teamId, defaultTeam.id), eq(project.slug, 'fluxaos'))
-    );
+    .where(eq(project.id, SEED_PROJECT_ID));
 
   if (!proj) {
     [proj] = await db
@@ -161,7 +157,6 @@ async function seed() {
         teamId: defaultTeam.id,
         orgId: org.id,
         name: 'fluxaOS',
-        slug: 'fluxaos',
         repoUrl: 'https://github.com/fluxaOS/fluxaos',
       })
       .returning();

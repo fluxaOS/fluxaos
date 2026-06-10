@@ -38,7 +38,7 @@ export async function runRun(
 
   if (!context.defaultPipelineId) {
     console.error(
-      `Project "${context.projectSlug}" has no default pipeline. ` +
+      `Project "${context.projectId}" has no default pipeline. ` +
         'Set one in Settings → Pipelines, then retry.'
     );
     return 1;
@@ -50,7 +50,7 @@ export async function runRun(
   });
   if (!issue) {
     console.error(
-      `Issue #${issueNumber} not found in project ${context.projectSlug}.`
+      `Issue #${issueNumber} not found in project ${context.projectId}.`
     );
     return 1;
   }

@@ -56,14 +56,14 @@ const skipReason = !apiUrl
 describe.skipIf(skipReason !== null)(
   `CLI integration (server: ${apiUrl})`,
   () => {
-    it('resolves project context by slug', async () => {
+    it('resolves project context by id', async () => {
       const config = loadConfig();
       const client = createCliClient(config);
       const context = await resolveContext(client, config);
       expect(context.projectId).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
       );
-      expect(context.projectSlug).toBe(config.projectSlug);
+      expect(context.projectId).toBe(config.projectId);
     });
 
     it('issue.list returns rows for the seeded project', async () => {

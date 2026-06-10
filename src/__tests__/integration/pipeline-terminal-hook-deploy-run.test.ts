@@ -51,7 +51,6 @@ async function makeFixture(label: string): Promise<Fixture> {
     .insert(schema.organization)
     .values({
       name: `term-hook-org-${label}-${RUN}`,
-      slug: `term-hook-org-${label}-${RUN}`,
     })
     .returning();
   orgIds.push(org.id);
@@ -62,7 +61,6 @@ async function makeFixture(label: string): Promise<Fixture> {
       orgId: org.id,
       email: `term-hook-${label}-${RUN}@test.local`,
       name: 'TermHook',
-      slug: `term-hook-${label}-${RUN}`,
     })
     .returning();
 
@@ -77,7 +75,6 @@ async function makeFixture(label: string): Promise<Fixture> {
           .returning()
       )[0].id,
       name: `term-hook-proj-${label}-${RUN}`,
-      slug: `term-hook-proj-${label}-${RUN}`,
       defaultBranch: 'main',
     })
     .returning();

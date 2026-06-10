@@ -21,14 +21,6 @@ export function createUserService(db: Database) {
         .orderBy(user.name);
     },
 
-    async getBySlug(orgId: string, slug: string): Promise<UserSelect | null> {
-      const [row] = await db
-        .select()
-        .from(user)
-        .where(and(eq(user.orgId, orgId), eq(user.slug, slug)));
-      return row ?? null;
-    },
-
     async updateWithVersion(
       id: string,
       version: number,

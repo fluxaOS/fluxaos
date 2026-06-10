@@ -40,7 +40,6 @@ let pipelineId: string;
 beforeAll(async () => {
   const org = await createOrganizationService(db).create({
     name: `ConcTestOrg-${RUN}`,
-    slug: `conc-test-${RUN}`,
     settings: {},
   });
   _orgId = org.id;
@@ -49,7 +48,6 @@ beforeAll(async () => {
     orgId: org.id,
     email: `conc-test-${RUN}@test.local`,
     name: 'Conc User',
-    slug: `conc-user-${RUN}`,
   });
 
   const [team] = await db
@@ -65,7 +63,6 @@ beforeAll(async () => {
     teamId: team.id,
     userId: user.id,
     name: `ConcProject-${RUN}`,
-    slug: `conc-proj-${RUN}`,
   });
 
   const pipeline = await createPipelineService(db).create({

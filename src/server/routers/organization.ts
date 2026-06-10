@@ -26,17 +26,10 @@ export const organizationRouter = router({
     return createOrganizationService(ctx.db).getById(input.id);
   }),
 
-  getBySlug: publicProcedure
-    .input(z.object({ slug: z.string() }))
-    .query(({ ctx, input }) => {
-      return createOrganizationService(ctx.db).getBySlug(input.slug);
-    }),
-
   create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
         name: z.string().min(1),
-        slug: z.string().min(1),
         settings: z.record(z.string(), z.unknown()).optional(),
         // FLX-14: subscription tier defaults to 'free' at the DB layer if
         // the caller omits it — only operators should set it explicitly.
@@ -52,7 +45,6 @@ export const organizationRouter = router({
       z.object({
         id: z.string().uuid(),
         name: z.string().min(1).optional(),
-        slug: z.string().min(1).optional(),
         settings: z.record(z.string(), z.unknown()).optional(),
         // FLX-14: tier change is gated by EDIT_ROLES (admin / maintainer).
         // In a real billing flow this would be set by the billing webhook

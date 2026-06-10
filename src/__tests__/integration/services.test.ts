@@ -5,7 +5,7 @@
  * Catalogs are tested FIRST (DA Finding #29) — if catalogs break, issue tests
  * fail with confusing FK errors.
  *
- * Each test run uses unique slugs: `test-${Date.now()}` (DA Finding #28).
+ * Each test run uses unique names: `test-${Date.now()}` (DA Finding #28).
  */
 import 'dotenv/config';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -70,25 +70,23 @@ describe('organization + user + project', () => {
 
     // Create org
     const org = await orgSvc.create({
-      name: 'Test Org',
-      slug: `test-org-${RUN}`,
+      name: `Test Org ${RUN}`,
       settings: {},
     });
     _orgId = org.id;
-    expect(org.slug).toBe(`test-org-${RUN}`);
+    expect(org.name).toBe(`Test Org ${RUN}`);
 
     // Create user
     const usr = await userSvc.create({
       orgId: org.id,
       email: `test-${RUN}@example.com`,
       name: 'Test User',
-      slug: `test-user-${RUN}`,
     });
     _userId = usr.id;
     expect(usr.name).toBe('Test User');
 
-    // Verify getBySlug works
-    const foundUser = await userSvc.getBySlug(org.id, `test-user-${RUN}`);
+    // Verify getById works
+    const foundUser = await userSvc.getById(usr.id);
     expect(foundUser?.id).toBe(usr.id);
 
     const [team] = await db
@@ -102,7 +100,6 @@ describe('organization + user + project', () => {
       teamId: team.id,
       userId: usr.id,
       name: 'Test Project',
-      slug: `test-proj-${RUN}`,
     });
     projectId = proj.id;
     const userProjects = await projSvc.listByUser(usr.id);
@@ -430,7 +427,6 @@ describe('issue service', () => {
       teamId: team2.id,
       userId: _userId,
       name: 'Test Project 2',
-      slug: `test-proj2-${RUN}`,
     });
 
     // issueId belongs to projectId (project 1). Looking it up under proj2 must

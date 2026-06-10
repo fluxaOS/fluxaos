@@ -113,7 +113,7 @@ test.describe('@r-runtime @journey', () => {
           "worktree_copy_files" = '[]'::jsonb,
           "target_repo_path" = ${TARGET_REPO_PATH!},
           "updated_at" = NOW()
-      WHERE "slug" = 'fluxaos'
+      WHERE "id" = '00000000-0000-4000-8000-000000000001'
     `;
 
     // Capture the seeded issue row (for id + project id) up-front.

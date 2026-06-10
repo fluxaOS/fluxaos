@@ -32,14 +32,6 @@ export function createOrganizationService(db: Database) {
     async listAll(): Promise<OrgSelect[]> {
       return db.select().from(organization);
     },
-
-    async getBySlug(slug: string): Promise<OrgSelect | null> {
-      const [row] = await db
-        .select()
-        .from(organization)
-        .where(eq(organization.slug, slug));
-      return row ?? null;
-    },
   };
 }
 

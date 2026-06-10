@@ -162,22 +162,22 @@ describe('FLX-94 pre-launch stage failures', () => {
 });
 
 async function createFixture(input: { maxRetries: number }) {
+  const uniq = `${RUN}-${Math.random()}`;
   const [org] = await db
     .insert(organization)
-    .values({ name: RUN, slug: `${RUN}-${Math.random()}` })
+    .values({ name: uniq })
     .returning();
   const [userRow] = await db
     .insert(user)
     .values({
       orgId: org.id,
-      email: `${org.slug}@test.local`,
+      email: `${uniq}@test.local`,
       name: RUN,
-      slug: org.slug,
     })
     .returning();
   const [teamRow] = await db
     .insert(team)
-    .values({ orgId: org.id, name: `${org.slug}-team` })
+    .values({ orgId: org.id, name: `${uniq}-team` })
     .returning();
   const [projectRow] = await db
     .insert(project)
@@ -185,7 +185,6 @@ async function createFixture(input: { maxRetries: number }) {
       orgId: org.id,
       teamId: teamRow.id,
       name: RUN,
-      slug: org.slug,
       repoUrl: 'https://github.com/fluxaos/fixture',
       defaultBranch: 'main',
     })
@@ -197,7 +196,7 @@ async function createFixture(input: { maxRetries: number }) {
     .insert(driver)
     .values({
       name: RUN,
-      slug: org.slug,
+      slug: uniq,
       binary: 'false',
       defaultArgs: [],
       promptTransport: 'argv',

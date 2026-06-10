@@ -92,7 +92,6 @@ test.describe('@flx-244 Settings pages resolve org/project from URL', () => {
               teamId,
               userId,
               name: SCRATCH_NAME,
-              slug: SCRATCH_NAME,
             },
           },
         }

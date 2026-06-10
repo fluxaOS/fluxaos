@@ -21,13 +21,10 @@ async function makeFixture(
   label: string
 ) {
   const s = stamp(label);
-  const [org] = await db
-    .insert(organization)
-    .values({ name: s, slug: s })
-    .returning();
+  const [org] = await db.insert(organization).values({ name: s }).returning();
   const [userRow] = await db
     .insert(user)
-    .values({ orgId: org.id, email: `${s}@test.local`, name: s, slug: s })
+    .values({ orgId: org.id, email: `${s}@test.local`, name: s })
     .returning();
   const [projRow] = await db
     .insert(project)
@@ -40,7 +37,6 @@ async function makeFixture(
           .returning()
       )[0].id,
       name: s,
-      slug: s,
       defaultBranch: 'main',
     })
     .returning();
