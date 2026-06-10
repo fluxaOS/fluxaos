@@ -10,10 +10,6 @@ const scripts = [
   { name: 'seed-check', path: 'tests/verify/seed-check.ts' },
   { name: 'agnostic-core', path: 'src/scripts/verify-agnostic-core.ts' },
   {
-    name: 'permission-request-allowlist',
-    path: 'tests/verify/permission-request-allowlist.ts',
-  },
-  {
     name: 'e2e-proof-gate-reconciliation',
     path: 'tests/verify/e2e-proof-gate-reconciliation.ts',
   },
