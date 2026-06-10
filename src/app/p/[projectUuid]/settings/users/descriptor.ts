@@ -1,4 +1,4 @@
-// src/app/[org]/[user]/[project]/settings/users/descriptor.ts
+// src/app/p/[projectUuid]/settings/users/descriptor.ts
 import type { RecordDescriptor } from '@/components/record-editor/types';
 import { ROLE_VALUES } from '@/core/features/roles';
 
@@ -8,7 +8,6 @@ export type UserRecord = {
   orgId: string;
   name: string;
   email: string;
-  slug: string;
   avatarUrl: string | null;
   role: string;
 };
@@ -27,19 +26,6 @@ export const userDescriptor: RecordDescriptor<UserRecord> = {
       validate: (v) => {
         if (typeof v !== 'string' || !v) return 'Required';
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : 'Invalid email';
-      },
-    },
-    {
-      key: 'slug',
-      label: 'Slug',
-      fieldType: 'text',
-      required: true,
-      placeholder: 'kebab-case identifier',
-      validate: (v) => {
-        if (typeof v !== 'string' || !v) return 'Required';
-        return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v)
-          ? null
-          : 'Must be kebab-case (lowercase letters, digits, dashes)';
       },
     },
     {

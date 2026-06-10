@@ -66,12 +66,6 @@ export const projectRouter = router({
     return createProjectService(ctx.db).getById(input.id);
   }),
 
-  getBySlug: publicProcedure
-    .input(z.object({ slug: z.string().min(1) }))
-    .query(({ ctx, input }) => {
-      return createProjectService(ctx.db).getFirstBySlug(input.slug);
-    }),
-
   create: protectedMutation(EDIT_ROLES)
     .input(
       z.object({
@@ -79,7 +73,6 @@ export const projectRouter = router({
         teamId: z.string().uuid(),
         userId: z.string().uuid(),
         name: z.string().min(1),
-        slug: z.string().min(1),
         repoUrl: z.string().optional(),
       })
     )
@@ -92,11 +85,6 @@ export const projectRouter = router({
       z.object({
         id: z.string().uuid(),
         name: z.string().min(1).optional(),
-        slug: z
-          .string()
-          .min(1)
-          .regex(/^[a-z0-9-]+$/, 'SLUG_INVALID_FORMAT')
-          .optional(),
         repoUrl: z.string().url().nullable().optional(),
         defaultBranch: z.string().min(1).optional(),
         defaultPipelineId: z.string().uuid().nullable().optional(),

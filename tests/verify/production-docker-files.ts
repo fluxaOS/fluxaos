@@ -143,12 +143,12 @@ assertIncludes(
   rootPage,
   "import { redirect } from 'next/navigation';"
 );
+// FLX-271 (FLX-239 Stage 8): the root page redirects to the UUID route —
+// tenancy slugs no longer exist.
 assertIncludes(
   'src/app/page.tsx',
   rootPage,
-  `redirect(\`/${shellExpansion('org.slug')}/${shellExpansion(
-    'usr.slug'
-  )}/${shellExpansion('proj.slug')}\`);`
+  `redirect(\`/p/${shellExpansion('proj.id')}\`);`
 );
 
 const compose = read('ops/docker/homelab/docker-compose.yml');

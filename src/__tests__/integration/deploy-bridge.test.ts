@@ -89,7 +89,6 @@ async function makeFixture(
     .insert(schema.organization)
     .values({
       name: `deploy-org-${label}-${RUN}`,
-      slug: `deploy-org-${label}-${RUN}`,
     })
     .returning();
   orgIds.push(org.id);
@@ -100,7 +99,6 @@ async function makeFixture(
       orgId: org.id,
       email: `deploy-${label}-${RUN}@test.local`,
       name: 'Deploy',
-      slug: `deploy-${label}-${RUN}`,
     })
     .returning();
 
@@ -115,7 +113,6 @@ async function makeFixture(
       orgId: org.id,
       teamId: teamRow.id,
       name: `deploy-proj-${label}-${RUN}`,
-      slug: `deploy-proj-${label}-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/deploy-test-fixture',
       defaultBranch: 'main',
     })

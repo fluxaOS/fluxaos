@@ -63,7 +63,7 @@ beforeAll(async () => {
 
   const [org] = await db
     .insert(schema.organization)
-    .values({ name: `inherit-org-${RUN}`, slug: `inherit-org-${RUN}` })
+    .values({ name: `inherit-org-${RUN}` })
     .returning();
   _orgId = org.id;
 
@@ -73,7 +73,6 @@ beforeAll(async () => {
       orgId: org.id,
       email: `inherit-${RUN}@test.local`,
       name: 'Inherit',
-      slug: `inherit-${RUN}`,
     })
     .returning();
 
@@ -88,7 +87,6 @@ beforeAll(async () => {
       orgId: org.id,
       teamId: team.id,
       name: `inherit-proj-${RUN}`,
-      slug: `inherit-proj-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/inherit-fixture',
       defaultBranch: 'main',
       // FLX-221: target repo path is per-project; acquireIsolationEnv

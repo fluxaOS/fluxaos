@@ -218,6 +218,7 @@ Every tRPC router that authorizes access via `userId` or `orgId` (e.g., "user ow
 - Seed creates one customer + one org + one team + one user, with the user as team member, and a default project under the team, with the user as project member.
 - `resolveScoped<T>()` helper exists, unit-tested at the project layer with rows at every level.
 - All pages routed via `/p/{uuid}/...`. Old `[org]/[user]/[project]/...` routes return 307 during Stages 4–7 (temporary scaffold) and 404 after Stage 8 cleanup.
+  - **Deviation note (2026-06-10, FLX-271):** the 307 scaffold never survived to Stage 8. Stage 4 (FLX-263) deleted the entire old `[org]/[user]/[project]` route tree outright instead of shipping a redirect wrapper, so old routes have returned 404 since Stage 4. The 2026-06-10 audit adjusted Stage 8 scope accordingly: no redirect teardown — Stage 8 (FLX-271) only removed the `assertProjectOwnership` alias, the remaining slug-aware helpers (`*.getBySlug`, `getFirstBySlug`, `getByUserSlug`), and dropped the `organization.slug` / `user.slug` / `project.slug` columns (migration `drizzle/0033_flx_271_drop_tenancy_slugs.sql`).
 - `assertProjectAccess` enforces access on every router that touches a project.
 - Existing journey tests updated to use new URL shape; full-issue-lifecycle journey passes end-to-end.
 

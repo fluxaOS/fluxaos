@@ -239,6 +239,13 @@
       "when": 1781449260000,
       "tag": "0032_flx_266_realtime_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781449320000,
+      "tag": "0033_flx_271_drop_tenancy_slugs",
+      "breakpoints": true
     }
   ]
 }

@@ -272,6 +272,8 @@ UPDATE all existing rows to set `kind = 'catalog'` and ensure all four scope col
 - Routing + `resolveContext` shape ONLY. Routers' tRPC procedures continue to take whatever inputs they take (slug-based or id-based — stage 5 cleans those up).
 - The 307 redirect from old to new path is a TEMPORARY scaffold to keep stages 5–7 unblocked. Stage 8 deletes it.
 
+> **Deviation note (2026-06-10, FLX-271):** the 307 scaffold was never built. Stage 4 (FLX-263) deleted the old `[org]/[user]/[project]` route tree outright — old routes have returned 404 since Stage 4, and `src/lib/resolve-slug-to-uuid.ts` was never created. Stages 5–7 proceeded unblocked anyway (no bookmark traffic exists in a no-users dev/UAT environment). The 2026-06-10 audit adjusted Stage 8 scope to match: no redirect teardown.
+
 **Hard rules:**
 
 - `resolveContext(projectUuid)` MUST authorize the current session user against `project_member` OR `team_member`-for-project's-team. If neither, throw — no silent passthrough.
@@ -394,6 +396,8 @@ Every place that reads a feature row at a tenant context. Identified by grep'ing
 ---
 
 ## Stage 8 — Cleanup
+
+> **Deviation note (2026-06-10, FLX-271):** Stage 4 (FLX-263) deleted the entire old `[org]/[user]/[project]` route tree instead of shipping the planned 307-redirect wrapper, so item 1 of the commit-order list below (and the redirect-before-slug-drop ordering constraint) was already satisfied long before Stage 8 ran. The 2026-06-10 audit re-scoped Stage 8 (FLX-271) to: delete the `assertProjectOwnership` alias and remaining slug-aware helpers (`organization.getBySlug`, `user.getBySlug`, `project.getBySlug`/`getFirstBySlug`/`getByUserSlug`, the CLI's slug-based context resolution), drop the tenancy slug columns (`organization.slug`, `user.slug`, `project.slug` — migration `drizzle/0033_flx_271_drop_tenancy_slugs.sql`), and amend this document plus the spec. `driver.slug`, `driver_revision.slug`, and `cron_job.slug` are machine identifiers for config records (not URL tenancy slugs) and were kept.
 
 **Spec sections satisfied:** "Schema changes (deleted)" — remove dead code that survived earlier stages because it was load-bearing.
 

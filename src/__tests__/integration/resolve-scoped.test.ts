@@ -44,10 +44,7 @@ function stamp(label: string): string {
 
 async function makeScopeFixture() {
   const s = stamp('tenant');
-  const [org] = await db
-    .insert(organization)
-    .values({ name: s, slug: s })
-    .returning();
+  const [org] = await db.insert(organization).values({ name: s }).returning();
   createdOrgIds.push(org.id);
 
   const [teamRow] = await db
@@ -58,7 +55,7 @@ async function makeScopeFixture() {
 
   const [userRow] = await db
     .insert(user)
-    .values({ orgId: org.id, email: `${s}@test.local`, name: s, slug: s })
+    .values({ orgId: org.id, email: `${s}@test.local`, name: s })
     .returning();
   createdUserIds.push(userRow.id);
 
@@ -68,7 +65,6 @@ async function makeScopeFixture() {
       orgId: org.id,
       teamId: teamRow.id,
       name: s,
-      slug: s,
       repoUrl: 'https://github.com/fluxaos/fixture',
       defaultBranch: 'main',
     })

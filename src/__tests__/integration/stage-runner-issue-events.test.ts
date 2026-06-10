@@ -135,7 +135,6 @@ async function makeRepo(prefix: string): Promise<string> {
 async function createFixture() {
   const org = await createOrganizationService(db).create({
     name: `StageRunnerIssueEventsOrg-${RUN}`,
-    slug: `stage-runner-issue-events-${RUN}`,
     settings: {},
   });
   fixtureOrgId = org.id;
@@ -144,7 +143,6 @@ async function createFixture() {
     orgId: org.id,
     email: `stage-runner-issue-events-${RUN}@test.local`,
     name: 'Stage Runner Issue Events User',
-    slug: `stage-runner-issue-events-user-${RUN}`,
   });
 
   const [team] = await db
@@ -160,7 +158,6 @@ async function createFixture() {
     teamId: team.id,
     userId: user.id,
     name: `StageRunnerIssueEventsProject-${RUN}`,
-    slug: `stage-runner-issue-events-project-${RUN}`,
     repoUrl: `https://github.com/fluxaos/stage-runner-issue-events-${RUN}`,
     // FLX-221: per-project column for the on-disk target repo clone.
     targetRepoPath: fixtureTargetRepoPath,

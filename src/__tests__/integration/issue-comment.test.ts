@@ -51,7 +51,6 @@ beforeAll(async () => {
 
   const org = await orgSvc.create({
     name: 'ICTest Org',
-    slug: `ictest-org-${RUN}`,
     settings: {},
   });
   _orgId = org.id;
@@ -60,7 +59,6 @@ beforeAll(async () => {
     orgId: org.id,
     email: `ictest-${RUN}@example.com`,
     name: 'IC Test User',
-    slug: `ictest-user-${RUN}`,
   });
 
   const [team] = await db
@@ -76,7 +74,6 @@ beforeAll(async () => {
     teamId: team.id,
     userId: usr.id,
     name: 'IC Test Project',
-    slug: `ictest-proj-${RUN}`,
   });
   projectId = proj.id;
 

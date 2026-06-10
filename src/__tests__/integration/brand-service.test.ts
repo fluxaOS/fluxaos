@@ -28,7 +28,7 @@ async function seedOrgUserProject() {
   const stamp = `${RUN}-${fixtureCount}`;
   const [org] = await db
     .insert(organization)
-    .values({ name: `brand-org-${stamp}`, slug: `brand-org-${stamp}` })
+    .values({ name: `brand-org-${stamp}` })
     .returning();
   cleanup.push({ table: 'organization', id: org.id });
 
@@ -38,7 +38,6 @@ async function seedOrgUserProject() {
       orgId: org.id,
       email: `brand-${stamp}@example.com`,
       name: `Brand User ${stamp}`,
-      slug: `brand-user-${stamp}`,
     })
     .returning();
   cleanup.push({ table: 'user', id: usr.id });
@@ -55,7 +54,6 @@ async function seedOrgUserProject() {
       orgId: org.id,
       teamId: teamRow.id,
       name: `Brand Project ${stamp}`,
-      slug: `brand-project-${stamp}`,
     })
     .returning();
   cleanup.push({ table: 'project', id: proj.id });

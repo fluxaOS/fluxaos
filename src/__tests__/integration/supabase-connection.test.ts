@@ -15,29 +15,28 @@ const provider = new SupabaseDatabaseProvider(url);
 const db = provider.getConnection();
 
 describe('supabase postgres connection', () => {
-  const testSlug = `test-${Date.now()}`;
+  const testName = `test-${Date.now()}`;
 
   afterAll(async () => {
     // Clean up test data
-    await db.delete(organization).where(eq(organization.slug, testSlug));
+    await db.delete(organization).where(eq(organization.name, testName));
   });
 
   it('inserts and reads back a row from the organization table', async () => {
     const [inserted] = await db
       .insert(organization)
-      .values({ name: 'Test Org', slug: testSlug, settings: {} })
+      .values({ name: testName, settings: {} })
       .returning();
 
     expect(inserted).toBeDefined();
-    expect(inserted.name).toBe('Test Org');
-    expect(inserted.slug).toBe(testSlug);
+    expect(inserted.name).toBe(testName);
     expect(inserted.id).toBeTruthy();
 
     // Read it back
     const [found] = await db
       .select()
       .from(organization)
-      .where(eq(organization.slug, testSlug));
+      .where(eq(organization.name, testName));
 
     expect(found).toBeDefined();
     expect(found.id).toBe(inserted.id);

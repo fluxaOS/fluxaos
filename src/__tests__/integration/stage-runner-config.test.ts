@@ -74,7 +74,6 @@ beforeAll(async () => {
 
   const org = await createOrganizationService(db).create({
     name: `StageRunnerConfigOrg-${RUN}`,
-    slug: `stage-runner-config-${RUN}`,
     settings: {},
   });
   orgId = org.id;
@@ -84,7 +83,6 @@ beforeAll(async () => {
     orgId,
     email: `stage-runner-config-${RUN}@test.local`,
     name: 'Stage Runner Config User',
-    slug: `stage-runner-config-user-${RUN}`,
   });
   userId = user.id;
 
@@ -101,7 +99,6 @@ beforeAll(async () => {
     teamId: team.id,
     userId,
     name: `StageRunnerConfigProject-${RUN}`,
-    slug: `stage-runner-config-project-${RUN}`,
     repoUrl: `https://github.com/fluxaos/stage-runner-config-${RUN}`,
     // FLX-221: targetRepoPath is per-project now; seed it on the row.
     targetRepoPath,

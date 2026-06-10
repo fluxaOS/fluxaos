@@ -24,7 +24,6 @@ beforeAll(async () => {
     .insert(schema.organization)
     .values({
       name: `access-org-${RUN}`,
-      slug: `access-org-${RUN}`,
     })
     .returning();
   orgId = org.id;
@@ -43,7 +42,6 @@ beforeAll(async () => {
       orgId,
       email: `direct-${RUN}@test.local`,
       name: 'Direct User',
-      slug: `direct-${RUN}`,
     })
     .returning();
   directUserId = directUser.id;
@@ -54,7 +52,6 @@ beforeAll(async () => {
       orgId,
       email: `team-${RUN}@test.local`,
       name: 'Team User',
-      slug: `team-${RUN}`,
     })
     .returning();
   teamUserId = teamUser.id;
@@ -65,7 +62,6 @@ beforeAll(async () => {
       orgId,
       email: `outsider-${RUN}@test.local`,
       name: 'Outsider',
-      slug: `outsider-${RUN}`,
     })
     .returning();
   outsiderUserId = outsider.id;
@@ -76,7 +72,6 @@ beforeAll(async () => {
       orgId,
       teamId: team.id,
       name: `access-project-${RUN}`,
-      slug: `access-project-${RUN}`,
     })
     .returning();
   projectId = project.id;

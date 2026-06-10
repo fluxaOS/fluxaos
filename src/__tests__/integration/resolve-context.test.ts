@@ -50,7 +50,6 @@ beforeAll(async () => {
     .insert(schema.organization)
     .values({
       name: `rctx-org-${RUN}`,
-      slug: `rctx-org-${RUN}`,
     })
     .returning();
   orgId = org.id;
@@ -69,7 +68,6 @@ beforeAll(async () => {
       orgId,
       email: `rctx-direct-${RUN}@test.local`,
       name: 'Direct User',
-      slug: `rctx-direct-${RUN}`,
     })
     .returning();
   directUserId = directUser.id;
@@ -80,7 +78,6 @@ beforeAll(async () => {
       orgId,
       email: `rctx-team-${RUN}@test.local`,
       name: 'Team User',
-      slug: `rctx-team-${RUN}`,
     })
     .returning();
   teamUserId = teamUser.id;
@@ -91,7 +88,6 @@ beforeAll(async () => {
       orgId,
       email: `rctx-outsider-${RUN}@test.local`,
       name: 'Outsider',
-      slug: `rctx-outsider-${RUN}`,
     })
     .returning();
   outsiderUserId = outsider.id;
@@ -102,7 +98,6 @@ beforeAll(async () => {
       orgId,
       teamId: team.id,
       name: `rctx-project-${RUN}`,
-      slug: `rctx-project-${RUN}`,
     })
     .returning();
   projectId = project.id;

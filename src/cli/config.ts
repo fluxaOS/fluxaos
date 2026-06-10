@@ -6,14 +6,14 @@
  * running fluxaOS app server; the CLI just speaks to its tRPC surface.
  *
  * Required env:
- *   FLUXAOS_API_URL          — full tRPC endpoint, e.g. http://localhost:3004/api/trpc
- *   FLUXAOS_CLI_ORG_SLUG     — org slug to target
- *   FLUXAOS_CLI_USER_SLUG    — user slug to target
- *   FLUXAOS_CLI_PROJECT_SLUG — project slug to target
+ *   FLUXAOS_API_URL        — full tRPC endpoint, e.g. http://localhost:3004/api/trpc
+ *   FLUXAOS_CLI_PROJECT_ID — UUID of the project to target (FLX-271: slugs
+ *                            were dropped in FLX-239 Stage 8; UUID is the
+ *                            only addressing scheme)
  *
- * All four must be set — no silent defaults. CLI invocations must name the
- * project explicitly so renaming the seeded project (or operating against a
- * non-seeded project) does not silently route to a stale slug.
+ * Both must be set — no silent defaults. CLI invocations must name the
+ * project explicitly so operating against a non-seeded project does not
+ * silently route to a stale row.
  *
  * Auth model (current scope):
  *   FLUXAOS_LAN_AUTH_BYPASS=1 must be set on the server. This is the
@@ -26,9 +26,7 @@ import 'dotenv/config';
 
 export type CliConfig = {
   apiUrl: string;
-  orgSlug: string;
-  userSlug: string;
-  projectSlug: string;
+  projectId: string;
 };
 
 export class CliConfigError extends Error {
@@ -57,10 +55,19 @@ export function loadConfig(): CliConfig {
     throw new CliConfigError(`FLUXAOS_API_URL is not a valid URL: ${apiUrl}`);
   }
 
-  return {
-    apiUrl,
-    orgSlug: requireEnv('FLUXAOS_CLI_ORG_SLUG', 'default'),
-    userSlug: requireEnv('FLUXAOS_CLI_USER_SLUG', 'admin'),
-    projectSlug: requireEnv('FLUXAOS_CLI_PROJECT_SLUG', 'my-project'),
-  };
+  const projectId = requireEnv(
+    'FLUXAOS_CLI_PROJECT_ID',
+    '00000000-0000-4000-8000-000000000001'
+  );
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      projectId
+    )
+  ) {
+    throw new CliConfigError(
+      `FLUXAOS_CLI_PROJECT_ID is not a valid UUID: ${projectId}`
+    );
+  }
+
+  return { apiUrl, projectId };
 }

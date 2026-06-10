@@ -102,5 +102,3 @@ export async function assertProjectAccess(
     throw new TRPCError({ code: notOwnedCode, message: notOwnedMsg });
   }
 }
-
-export const assertProjectOwnership = assertProjectAccess;

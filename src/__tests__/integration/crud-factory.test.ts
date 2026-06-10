@@ -43,7 +43,6 @@ describe('createCrudService (non-versioned)', () => {
     const ts = Date.now();
     const created = await svc.create({
       name: `CRUD-TEST-${ts}`,
-      slug: `crud-test-${ts}`,
     });
     orgCleanup.push(created.id);
 

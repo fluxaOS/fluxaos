@@ -45,13 +45,6 @@ export const userRouter = router({
         orgId: z.string().uuid(),
         name: z.string().min(1),
         email: z.string().email(),
-        slug: z
-          .string()
-          .min(1)
-          .regex(
-            /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-            'slug must be kebab-case (lowercase, digits, dashes only)'
-          ),
         avatarUrl: z.string().url().nullable().optional(),
         role: roleEnum.optional(),
       })
@@ -67,11 +60,6 @@ export const userRouter = router({
         version: z.number().int(),
         name: z.string().min(1).optional(),
         email: z.string().email().optional(),
-        slug: z
-          .string()
-          .min(1)
-          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be kebab-case')
-          .optional(),
         avatarUrl: z.string().url().nullable().optional(),
         role: roleEnum.optional(),
       })

@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import type { Database } from '@/core/db/connection';
 import { project, projectMember, teamMember } from '@/core/db/schema';
 import { BadRequestError, InternalError } from '@/core/errors/domain';
@@ -120,38 +120,6 @@ export function createProjectService(
         );
       const byId = new Map(rows.map((row) => [row.project.id, row.project]));
       return [...byId.values()];
-    },
-
-    async getBySlug(
-      orgId: string,
-      slug: string
-    ): Promise<ProjectSelect | null> {
-      const [row] = await db
-        .select()
-        .from(project)
-        .where(and(eq(project.orgId, orgId), eq(project.slug, slug)));
-      return row ?? null;
-    },
-
-    async getFirstBySlug(slug: string): Promise<ProjectSelect | null> {
-      const [row] = await db
-        .select()
-        .from(project)
-        .where(eq(project.slug, slug))
-        .limit(1);
-      return row ?? null;
-    },
-
-    async getByUserSlug(
-      userId: string,
-      slug: string
-    ): Promise<ProjectSelect | null> {
-      const [row] = await db
-        .select({ project })
-        .from(project)
-        .innerJoin(projectMember, eq(projectMember.projectId, project.id))
-        .where(and(eq(projectMember.userId, userId), eq(project.slug, slug)));
-      return row?.project ?? null;
     },
   };
 }

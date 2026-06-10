@@ -49,7 +49,6 @@ async function arrangeProject(suffix: string) {
     .insert(schema.organization)
     .values({
       name: `epic-org-${RUN}-${suffix}`,
-      slug: `epic-org-${RUN}-${suffix}`,
     })
     .returning();
   orgIds.push(org.id);
@@ -60,7 +59,6 @@ async function arrangeProject(suffix: string) {
       orgId: org.id,
       email: `epic-${RUN}-${suffix}@test.local`,
       name: 'Epic',
-      slug: `epic-${RUN}-${suffix}`,
     })
     .returning();
 
@@ -75,7 +73,6 @@ async function arrangeProject(suffix: string) {
       orgId: org.id,
       teamId: team.id,
       name: `epic-proj-${RUN}-${suffix}`,
-      slug: `epic-proj-${RUN}-${suffix}`,
       repoUrl: 'https://github.com/fluxaos/epic-fixture',
       defaultBranch: 'main',
     })

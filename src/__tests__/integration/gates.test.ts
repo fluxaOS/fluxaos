@@ -52,7 +52,6 @@ beforeAll(async () => {
   const orgSvc = createOrganizationService(db);
   const org = await orgSvc.create({
     name: `GateTestOrg-${RUN}`,
-    slug: `gate-test-org-${RUN}`,
     settings: {},
   });
   orgId = org.id;
@@ -63,7 +62,6 @@ beforeAll(async () => {
     orgId,
     email: `gate-test-${RUN}@test.local`,
     name: 'Gate Tester',
-    slug: `gate-tester-${RUN}`,
   });
   userId = usr.id;
 
@@ -78,7 +76,6 @@ beforeAll(async () => {
     teamId: team.id,
     userId,
     name: `GateTestProject-${RUN}`,
-    slug: `gate-test-project-${RUN}`,
   });
   projectId = proj.id;
 

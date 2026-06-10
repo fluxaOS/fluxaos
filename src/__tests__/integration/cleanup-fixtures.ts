@@ -94,7 +94,6 @@ export async function makeFixture(
     .insert(schema.organization)
     .values({
       name: `cleanup-org-${label}-${RUN}`,
-      slug: `cleanup-org-${label}-${RUN}`,
     })
     .returning();
   push('organization', org.id);
@@ -105,7 +104,6 @@ export async function makeFixture(
       orgId: org.id,
       email: `cleanup-${label}-${RUN}@test.local`,
       name: 'Cleanup',
-      slug: `cleanup-${label}-${RUN}`,
     })
     .returning();
   push('user', userRow.id);
@@ -122,7 +120,6 @@ export async function makeFixture(
       orgId: org.id,
       teamId: teamRow.id,
       name: `cleanup-proj-${label}-${RUN}`,
-      slug: `cleanup-proj-${label}-${RUN}`,
       repoUrl: 'https://github.com/fluxaos/cleanup-test-fixture',
       defaultBranch: 'main',
     })

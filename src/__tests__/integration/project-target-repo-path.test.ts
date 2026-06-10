@@ -72,19 +72,18 @@ async function createFixture(): Promise<{
   projectId: string;
   pipelineId: string;
 }> {
-  const slug = `${RUN}-${Math.random().toString(36).slice(2, 8)}`;
+  const uniq = `${RUN}-${Math.random().toString(36).slice(2, 8)}`;
   const [org] = await db
     .insert(schema.organization)
-    .values({ name: slug, slug })
+    .values({ name: uniq })
     .returning();
   orgIds.push(org.id);
   const [userRow] = await db
     .insert(schema.user)
     .values({
       orgId: org.id,
-      email: `${slug}@test.local`,
-      name: slug,
-      slug,
+      email: `${uniq}@test.local`,
+      name: uniq,
     })
     .returning();
   const [projectRow] = await db
@@ -94,11 +93,10 @@ async function createFixture(): Promise<{
       teamId: (
         await db
           .insert(schema.team)
-          .values({ orgId: org.id, name: `${slug}-team` })
+          .values({ orgId: org.id, name: `${uniq}-team` })
           .returning()
       )[0].id,
-      name: slug,
-      slug,
+      name: uniq,
       repoUrl: 'https://github.com/fluxaos/flx-221-fixture',
       defaultBranch: 'main',
     })
@@ -108,7 +106,7 @@ async function createFixture(): Promise<{
     .values({ userId: userRow.id, projectId: projectRow.id });
   const [pipe] = await db
     .insert(schema.pipeline)
-    .values({ projectId: projectRow.id, name: slug })
+    .values({ projectId: projectRow.id, name: uniq })
     .returning();
   return {
     orgId: org.id,

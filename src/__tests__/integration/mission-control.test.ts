@@ -54,7 +54,6 @@ beforeAll(async () => {
 
   const org = await orgSvc.create({
     name: `mc-${RUN}`,
-    slug: `mc-${RUN}`,
     settings: {},
   });
   _orgId = org.id;
@@ -63,7 +62,6 @@ beforeAll(async () => {
     orgId: org.id,
     email: `mc-${RUN}@test.local`,
     name: `mc-${RUN}`,
-    slug: `mc-${RUN}`,
   });
 
   const [team] = await db
@@ -83,7 +81,6 @@ beforeAll(async () => {
     teamId: team.id,
     userId: usr.id,
     name: `mc-proj-${RUN}`,
-    slug: `mc-proj-${RUN}`,
   });
   projectId = proj.id;
 
@@ -92,7 +89,6 @@ beforeAll(async () => {
     teamId: team2.id,
     userId: usr.id,
     name: `mc-proj2-${RUN}`,
-    slug: `mc-proj2-${RUN}`,
   });
   secondProjectId = proj2.id;
 

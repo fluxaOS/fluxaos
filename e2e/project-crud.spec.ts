@@ -14,21 +14,19 @@ test.describe('@flx-60 @journey @project-crud', () => {
     });
 
     const uniqueName = `CRUD Project ${Date.now()}`;
-    const uniqueSlug = `crud-project-${Date.now()}`;
     const initialRepo = 'https://github.com/fluxaos/spec-target';
 
     // ── Create ────────────────────────────────────────────────────────────
+    // FLX-271: project.slug was dropped — the create form is name + repo URL.
     await page.getByRole('button', { name: 'New Project' }).click();
     await page.getByLabel('Project name').fill(uniqueName);
-    await page.getByLabel('Project slug').fill(uniqueSlug);
     await page.getByLabel('Project repo URL').fill(initialRepo);
     await page.getByRole('button', { name: /^Create/ }).click();
 
     // RecordEditor renders rows as <li> with descriptor.title(p) === p.name
-    // and descriptor.subtitle(p) === p.slug.
+    // and descriptor.subtitle(p) === p.id (UUID).
     const row = page.locator('li', { hasText: uniqueName });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row.getByText(uniqueSlug)).toBeVisible();
 
     // ── Edit ──────────────────────────────────────────────────────────────
     // Click row → detail card → Edit → change a field → Save.

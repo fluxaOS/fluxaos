@@ -1,4 +1,4 @@
-// src/app/[org]/[user]/[project]/settings/projects/buildProjectDescriptor.tsx
+// src/app/p/[projectUuid]/settings/projects/buildProjectDescriptor.tsx
 //
 // FLX-207 + FLX-229: the Projects descriptor is built per-render because
 // FK dropdown options (pipelines, brands) come from tRPC queries. The
@@ -23,21 +23,10 @@ export function buildProjectDescriptor({
   return {
     entityName: 'project',
     title: (p) => p.name,
-    subtitle: (p) => p.slug,
+    // FLX-271: project.slug dropped — the UUID is the only stable identity.
+    subtitle: (p) => p.id,
     fields: [
       { key: 'name', label: 'Name', fieldType: 'text', required: true },
-      {
-        key: 'slug',
-        label: 'Slug',
-        fieldType: 'text',
-        required: true,
-        validate: (v) =>
-          typeof v === 'string' && /^[a-z0-9-]+$/.test(v)
-            ? null
-            : 'Slug must contain only lowercase letters, digits, and hyphens.',
-        helpText:
-          'URL identity. Changing this invalidates existing bookmarks; you will be redirected to the new URL after save.',
-      },
       {
         key: 'repoUrl',
         label: 'Repo URL',
