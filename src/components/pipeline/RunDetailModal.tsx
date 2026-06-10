@@ -105,6 +105,7 @@ export function RunDetailModal({
         status: sr.status,
         attempt: sr.attempt ?? 1,
         durationSec,
+        errorMessage: sr.errorMessage,
       };
     });
   }, [stageRuns, now]);
@@ -427,6 +428,14 @@ export function RunDetailModal({
                           {selectedStageRun.exitCode != null
                             ? ` (exit ${selectedStageRun.exitCode})`
                             : ''}
+                          {selectedStageRun.errorMessage && (
+                            <p
+                              data-testid="stage-error-message"
+                              className="mt-1.5 pt-1.5 border-t border-red-400/20 text-red-300 whitespace-pre-wrap break-words"
+                            >
+                              {selectedStageRun.errorMessage}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

@@ -8,6 +8,7 @@ interface StageTimelineItem {
   status: string;
   attempt?: number;
   durationSec?: number | null;
+  errorMessage?: string | null;
 }
 
 interface StageTimelineProps {
@@ -88,6 +89,12 @@ export function StageTimeline({
                   {formatDuration(stage.durationSec)}
                 </span>
               )}
+              {stage.status === STAGE_RUN_STATUS.failed &&
+                stage.errorMessage && (
+                  <p className="text-[10px] text-red-400 truncate">
+                    {stage.errorMessage}
+                  </p>
+                )}
             </div>
           </button>
         );
