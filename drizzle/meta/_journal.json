@@ -225,6 +225,20 @@
       "when": 1778515440000,
       "tag": "0030_flx_239_tenancy_waterfall",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781449200000,
+      "tag": "0031_flx_266_config_entry_unique_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781449260000,
+      "tag": "0032_flx_266_realtime_publication",
+      "breakpoints": true
     }
   ]
 }

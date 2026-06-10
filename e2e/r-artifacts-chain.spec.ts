@@ -9,12 +9,12 @@
 // acquires an isolation environment. Do not treat this env var as operator
 // runtime configuration.
 
-import { execSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -33,8 +33,6 @@ if (!TARGET_REPO_PATH) missingCreds.push('FLUXAOS_TARGET_REPO_PATH');
 if (!DATABASE_URL) missingCreds.push('DATABASE_URL (or DIRECT_URL)');
 
 const HAS_ALL_CREDS = missingCreds.length === 0;
-
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 type TrackedPR = {
   owner: string;
@@ -67,16 +65,7 @@ test.describe('@r-artifacts @journey', () => {
     }
 
     // ── Nuke + reseed the database ──────────────────────────────────
-    execSync('tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
 
     // ── Point the seed project at the disposable test repo ─────────
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
@@ -195,9 +184,8 @@ test.describe('@r-artifacts @journey', () => {
       { version: number }[]
     >`SELECT version FROM "issue" WHERE "id" = ${issueRow.id}`;
 
-    const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3003';
     const transitionResp = await page.request.post(
-      `${baseUrl}/api/trpc/issue.transition?batch=1`,
+      `/api/trpc/issue.transition?batch=1`,
       {
         data: {
           '0': {
@@ -214,7 +202,7 @@ test.describe('@r-artifacts @journey', () => {
     ).toBe(true);
 
     const trpcResp = await page.request.post(
-      `${baseUrl}/api/trpc/pipeline.runs.trigger?batch=1`,
+      `/api/trpc/pipeline.runs.trigger?batch=1`,
       {
         data: {
           '0': {

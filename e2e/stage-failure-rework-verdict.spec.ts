@@ -1,23 +1,32 @@
 // FLX-84: daemon rework verdict journey.
 //
-// Deterministic daemon journey with a DB-configured stub driver. The first
-// stage emits a `rework` signal; the engine must move the issue to the
-// configured rework state and run the rework stage next.
+// Deterministic daemon journey with a DB-configured stub driver. The review
+// stage writes a result doc with verdict 'fail'; the engine must map that to
+// the rework verdict, route via the stage's on_fail to the rework stage, run
+// it to completion (verdict 'pass' + on_pass '__complete__'), and clean up
+// the isolation env. (FLX-239 Stage 7: rewritten for the result-doc verdict
+// contract — the legacy flux:signal/skill_signal gate path has no consumer
+// in the modern engine.)
 
 import 'dotenv/config';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import {
+  readSeedProjectTargetRepoPath,
+  resetDb,
+  writeSeedProjectTargetRepoPath,
+} from './helpers/reset-db';
 import { expect, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 let targetRepoPath: string | null = null;
+let operatorTargetRepoPath: string | null = null;
 let handle: DaemonHandle | null = null;
 
 test.describe('@flx-84 @daemon @journey', () => {
@@ -27,16 +36,10 @@ test.describe('@flx-84 @daemon @journey', () => {
   test.beforeAll(async () => {
     targetRepoPath = createTempGitRepo();
 
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
+    // The fixture points the seed project at a temp repo; capture the
+    // operator's value so afterAll can restore it for later suite specs.
+    operatorTargetRepoPath = await readSeedProjectTargetRepoPath();
 
     // FLX-221: target_repo_path is a per-project column.
     await configureReworkFixture(targetRepoPath);
@@ -46,6 +49,11 @@ test.describe('@flx-84 @daemon @journey', () => {
 
   test.afterAll(async () => {
     if (handle) await handle.shutdown().catch(() => undefined);
+    // Restore the operator's target repo path — the temp fixture dir is
+    // deleted below and must not leak into later suite specs.
+    await writeSeedProjectTargetRepoPath(operatorTargetRepoPath).catch(
+      () => undefined
+    );
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
     }
@@ -83,18 +91,17 @@ test.describe('@flx-84 @daemon @journey', () => {
             'daemon did not run review → rework stage sequence after rework verdict',
         })
         .toMatchObject({
-          issueState: 'rework',
-          pipelineStatus: 'failed',
+          pipelineStatus: 'completed',
           stageRuns: [
             {
               stageName: 'review',
               status: 'completed',
-              skillSignal: 'rework',
-              gateVerdict: 'rework',
+              resultVerdict: 'fail',
             },
             {
               stageName: 'rework',
-              status: 'failed',
+              status: 'completed',
+              resultVerdict: 'pass',
             },
           ],
           isolationStatus: 'inactive',
@@ -148,19 +155,19 @@ async function configureReworkFixture(repoPath: string): Promise<void> {
       RETURNING id
     `;
 
-    await sql`
-      INSERT INTO "config_entry" ("project_id", "key", "value")
-      VALUES (${projectRow.id}, 'issues.state.on_rework_key', '"rework"'::jsonb)
-      ON CONFLICT ("scope", "project_id", "key")
-      DO UPDATE SET "value" = EXCLUDED."value", "updated_at" = NOW()
-    `;
-
+    // Modern verdict contract: the driver updates the result doc that
+    // init-result-doc seeded at RESULT_DOC_PATH. doc.run.stage is the
+    // authoritative stage discriminator (prompt content is persona-composed
+    // and unreliable for matching). review -> 'fail' (routes via on_fail),
+    // rework -> 'pass' (routes via on_pass '__complete__').
     const stubScript = [
-      "const prompt = process.argv.join(' ');",
-      'const isReworkStage = /\\brework\\b/.test(prompt.toLowerCase());',
-      "const verdict = isReworkStage ? 'proceed' : 'rework';",
-      "console.log(JSON.stringify({'flux:signal': {verdict, summary: 'FLX-84 stub'}}));",
-      'if (isReworkStage) process.exit(1);',
+      "const fs = require('node:fs');",
+      'const p = process.env.RESULT_DOC_PATH;',
+      "const doc = JSON.parse(fs.readFileSync(p, 'utf8'));",
+      "const isReworkStage = doc.run.stage === 'rework';",
+      "doc.verdict = isReworkStage ? 'pass' : 'fail';",
+      "doc.summary = 'FLX-84 stub verdict for stage ' + doc.run.stage;",
+      'fs.writeFileSync(p, JSON.stringify(doc, null, 2));',
     ].join('');
 
     const [driverRow] = await sql<{ id: string }[]>`
@@ -200,19 +207,21 @@ async function configureReworkFixture(repoPath: string): Promise<void> {
     await sql`
       INSERT INTO "pipeline_stage" (
         "pipeline_id", "name", "sort_order", "gate_mode", "max_retries",
-        "driver_id", "gate_rules"
+        "driver_id", "persona_id", "on_fail", "on_pass"
       )
       VALUES
         (
-          ${pipelineRow.id},
-          'review',
-          10,
-          'rules',
-          0,
-          ${driverRow.id},
-          '{"logic":"AND","rules":[{"field":"skill_signal","operator":"equals","value":"proceed","severity":"required","onFail":"rework","label":"Skill must signal proceed"}]}'::jsonb
+          ${pipelineRow.id}, 'review', 10, 'auto', 0, ${driverRow.id},
+          (SELECT id FROM "persona" WHERE "project_id" = ${projectRow.id} LIMIT 1),
+          'rework',
+          NULL
         ),
-        (${pipelineRow.id}, 'rework', 20, 'auto', 0, ${driverRow.id}, NULL)
+        (
+          ${pipelineRow.id}, 'rework', 20, 'auto', 0, ${driverRow.id},
+          (SELECT id FROM "persona" WHERE "project_id" = ${projectRow.id} LIMIT 1),
+          NULL,
+          '__complete__'
+        )
     `;
 
     await sql`
@@ -251,14 +260,13 @@ async function loadReworkJourneyState(
     {
       stage_name: string;
       status: string;
-      skill_signal: string | null;
-      gate_verdict: string | null;
+      result_verdict: string | null;
     }[]
   >`
-    SELECT ps.name AS stage_name, sr.status, sr.skill_signal, sgr.verdict AS gate_verdict
+    SELECT ps.name AS stage_name, sr.status,
+           sr.result_doc->>'verdict' AS result_verdict
     FROM "stage_run" sr
     JOIN "pipeline_stage" ps ON ps.id = sr.pipeline_stage_id
-    LEFT JOIN "stage_gate_result" sgr ON sgr.stage_run_id = sr.id
     WHERE sr.pipeline_run_id = ${runId}
     ORDER BY sr.created_at ASC
   `;
@@ -278,8 +286,7 @@ async function loadReworkJourneyState(
     stageRuns: stageRuns.map((sr) => ({
       stageName: sr.stage_name,
       status: sr.status,
-      skillSignal: sr.skill_signal,
-      gateVerdict: sr.gate_verdict,
+      resultVerdict: sr.result_verdict,
     })),
     isolationStatus: isoRow?.status ?? null,
     worktreeExists: isoRow ? existsSync(isoRow.working_path) : null,

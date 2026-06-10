@@ -21,7 +21,13 @@ export default function SkillsSettingsPage() {
   const deleteMutation = trpc.skill.delete.useMutation();
   const createMutation = trpc.skill.create.useMutation();
 
-  const records = (listQuery.data ?? []) as unknown as SkillRecord[];
+  // FLX-239: skill rows carry `kind` (waterfall discriminator); the UI keeps
+  // the scope alias — 'global' for catalog rows, 'project' otherwise — so the
+  // list subtitle and the create form's Scope select speak the same language.
+  const records = (listQuery.data ?? []).map((row) => ({
+    ...row,
+    scope: row.kind === 'catalog' ? 'global' : 'project',
+  })) as unknown as SkillRecord[];
 
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<SkillRecord | null>(null);

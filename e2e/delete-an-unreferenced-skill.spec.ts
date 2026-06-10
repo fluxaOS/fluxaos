@@ -7,6 +7,17 @@ test.describe('@r-ui-1 @settings @skills @crud', () => {
 
     await gotoSettings(page, 'skills');
 
+    // Wait for the initial skill.list fetch to land (seeded row visible)
+    // BEFORE creating. Creating while that fetch is in flight loses the
+    // post-create invalidation to request dedupe (FLX-279) and the new row
+    // never appears without a reload.
+    await expect(
+      page
+        .getByTestId('record-editor-list')
+        .locator('li', { hasText: 'research' })
+        .first()
+    ).toBeVisible({ timeout: 15_000 });
+
     // Create.
     // NOTE: The skills Create form renders its Name <label> as a sibling
     // wrapping the <input> (no htmlFor/id pair), so Playwright's getByLabel

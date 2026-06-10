@@ -1,27 +1,9 @@
-import { execSync } from 'node:child_process';
-import path from 'node:path';
-import { config as loadDotenv } from 'dotenv';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
-const REPO_ROOT = path.resolve(__dirname, '..');
-const env = {
-  ...process.env,
-  ...loadDotenv({ path: path.join(REPO_ROOT, '.env') }).parsed,
-  ...loadDotenv({ path: path.join(REPO_ROOT, '.env.local') }).parsed,
-};
-
 test.describe('@dogfood @pipeline-stage-crud', () => {
-  test.beforeAll(() => {
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env,
-    });
+  test.beforeAll(async () => {
+    await resetDb();
   });
 
   test('operator can edit and delete a pipeline stage', async ({ page }) => {
@@ -55,8 +37,10 @@ test.describe('@dogfood @pipeline-stage-crud', () => {
     const updatedRow = pipeline.locator('tr', { hasText: updatedStageName });
     await expect(updatedRow).toBeVisible({ timeout: 10_000 });
 
-    page.once('dialog', (dialog) => dialog.accept());
+    // FLX-253: destructive actions use ConfirmModal, not window.confirm.
     await updatedRow.getByRole('button', { name: 'Delete' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId('confirm-modal-confirm').click();
     await expect(
       pipeline.locator('tr', { hasText: updatedStageName })
     ).toHaveCount(0, { timeout: 10_000 });

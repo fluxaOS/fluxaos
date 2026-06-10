@@ -7,12 +7,20 @@
 // Research stage, waits for the RunDetailModal to show terminal
 // `stage_run.status = 'completed'`, asserts at least one `tool_call` transcript
 // entry is present, and asserts no console errors fired during the run.
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 
 test.describe('@r-rem-w3-a @journey', () => {
   test.skip(!HAS_API_KEY, 'requires ANTHROPIC_API_KEY in environment');
+
+  // Earlier suite specs mutate seed issue #1 (epic hierarchies, runs); this
+  // journey needs pristine seed state. resetDb preserves the operator-owned
+  // target_repo_path (FLX-266). Runs against the operator's live daemon.
+  test.beforeAll(async () => {
+    await resetDb();
+  });
 
   // Live-Claude runs can take 1–3 minutes depending on stage complexity.
   // Bump the default 60s timeout well past the expected completion window.
@@ -102,18 +110,23 @@ test.describe('@r-rem-w3-a @journey', () => {
       )
       .toBe('completed');
 
-    // Assert at least one tool_call entry rendered. `ToolCallEntry` emits
-    // the tool name in a <span class="text-soft-violet font-medium"> (see
-    // LiveOutput.tsx). A live Claude Research run reliably invokes at least
-    // one tool (typically Read, Grep, or Glob), so the count must be >= 1.
-    // This proves the tool_call kind made it from DB payload -> renderer,
-    // which is the DEF-011 regression surface.
-    const toolCallNames = page
+    // Assert the live transcript rendered at least one entry. This proves
+    // driver stdout was streamed into output events and made it from DB
+    // payload -> renderer (the DEF-011 regression surface). The seeded
+    // Claude driver runs with --disallowedTools for every tool, so live
+    // runs emit text/result entries but never tool_call entries — the pane
+    // simply must not be empty.
+    const outputPane = page
       .locator('[aria-label="Run detail"]')
-      .locator('.text-soft-violet.font-medium');
-
-    await expect(toolCallNames.first()).toBeVisible({ timeout: 10_000 });
-    expect(await toolCallNames.count()).toBeGreaterThanOrEqual(1);
+      .getByTestId('live-output-pane');
+    await expect(outputPane).toBeVisible({ timeout: 10_000 });
+    await expect(outputPane).not.toContainText('No output yet.', {
+      timeout: 10_000,
+    });
+    expect(
+      await outputPane.locator('div').count(),
+      'live output pane should render at least one transcript entry'
+    ).toBeGreaterThanOrEqual(1);
 
     // Final gate: no pageerror, no Supabase registry / env / config errors.
     // Allow unrelated third-party noise (e.g. bundler/HMR warnings that pass

@@ -26,6 +26,7 @@ import {
   user,
 } from '@/core/db/schema';
 import { close, db } from '@/scripts/db/connection';
+import { SEED_PROJECT_ID } from '@/scripts/db/seed-ids';
 
 let failures = 0;
 
@@ -164,6 +165,12 @@ async function main() {
     assert(
       projects[0].teamId === teams[0].id,
       `project.team_id matches team.id`
+    );
+    // FLX-266: the seed inserts the default project with a fixed UUID so
+    // FLUXAOS_PROJECT_ID survives nuke + reseed.
+    assert(
+      projects[0].id === SEED_PROJECT_ID,
+      `project.id is the deterministic SEED_PROJECT_ID (got ${projects[0].id})`
     );
   }
 

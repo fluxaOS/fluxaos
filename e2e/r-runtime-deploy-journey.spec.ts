@@ -44,11 +44,11 @@
 //   - GitHub API confirms the branch is live on the remote and the PR is open
 //   - No pageerror / registry / env console errors fired during the UI drive
 
-import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -67,8 +67,6 @@ if (!TARGET_REPO_PATH) missingCreds.push('FLUXAOS_TARGET_REPO_PATH');
 if (!DATABASE_URL) missingCreds.push('DATABASE_URL (or DIRECT_URL)');
 
 const HAS_ALL_CREDS = missingCreds.length === 0;
-
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 type TrackedPR = {
   owner: string;
@@ -102,16 +100,7 @@ test.describe('@r-runtime @journey', () => {
     // ── Nuke + reseed the database ────────────────────────────────────────
     // Both scripts read DIRECT_URL / DATABASE_URL from the same env the test
     // uses, so they hit the same Postgres we'll query below.
-    execSync('tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
 
     // ── Point the seed project at the disposable test repo ───────────────
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });

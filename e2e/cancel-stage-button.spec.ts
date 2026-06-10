@@ -1,19 +1,24 @@
 // FLX-22: browser journey for cancelling a long-running stage from the run modal.
 
 import 'dotenv/config';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import {
+  readSeedProjectTargetRepoPath,
+  resetDb,
+  writeSeedProjectTargetRepoPath,
+} from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 let targetRepoPath: string | null = null;
+let operatorTargetRepoPath: string | null = null;
 let handle: DaemonHandle | null = null;
 
 test.describe('@flx-22 @ui @daemon @journey', () => {
@@ -23,16 +28,10 @@ test.describe('@flx-22 @ui @daemon @journey', () => {
   test.beforeAll(async () => {
     targetRepoPath = createTempGitRepo();
 
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
+    // The fixture below points the seed project at a temp repo; capture the
+    // operator's value so afterAll can restore it for later suite specs.
+    operatorTargetRepoPath = await readSeedProjectTargetRepoPath();
 
     // FLX-221: the target repo path is now a per-project column. Set it
     // on the seeded project row before spawning the daemon — the daemon
@@ -46,6 +45,11 @@ test.describe('@flx-22 @ui @daemon @journey', () => {
     if (handle && handle.daemon.exitCode === null) {
       await handle.shutdown().catch(() => undefined);
     }
+    // Restore the operator's target repo path — the temp fixture dir is
+    // deleted below and must not leak into later suite specs.
+    await writeSeedProjectTargetRepoPath(operatorTargetRepoPath).catch(
+      () => undefined
+    );
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
     }
@@ -178,9 +182,12 @@ async function configureCancelFixture(repoPath: string): Promise<void> {
     await sql`
       INSERT INTO "pipeline_stage" (
         "pipeline_id", "name", "sort_order", "gate_mode", "max_retries",
-        "driver_id", "timeout_sec"
+        "driver_id", "timeout_sec", "persona_id"
       )
-      VALUES (${pipelineRow.id}, 'research', 10, 'auto', 0, ${driverRow.id}, 60)
+      VALUES (
+        ${pipelineRow.id}, 'research', 10, 'auto', 0, ${driverRow.id}, 60,
+        (SELECT id FROM "persona" WHERE "project_id" = ${projectRow.id} LIMIT 1)
+      )
     `;
 
     expect(existsSync(path.join(repoPath, '.git'))).toBe(true);

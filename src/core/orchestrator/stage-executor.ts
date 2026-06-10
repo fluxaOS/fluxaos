@@ -33,6 +33,7 @@ import { IngestOutputSchema } from '@/core/pipeline/result-doc';
 import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
+import type { StdoutParser } from '@/core/ports/stdout-parser';
 import {
   createDriverService,
   createPersonaService,
@@ -48,6 +49,12 @@ export interface StageExecutorDeps {
   runService: PipelineRunService;
   fluxaosConfig: FluxaosConfig | undefined;
   stageGraphRunner: StageGraphRunner | undefined;
+  /**
+   * FLX-266: shapes driver stdout lines into transcript entries for live
+   * output events. The daemon always injects it; stub-runner test
+   * harnesses may omit it (their stubs never emit driver stdout).
+   */
+  stdoutParser: StdoutParser | undefined;
   /**
    * Pipeline-scoped worktree provider. The auto-dispatch path acquires an
    * isolation env on the first stage and reuses it across stages via the
@@ -69,10 +76,23 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     runService,
     fluxaosConfig,
     stageGraphRunner,
+    stdoutParser,
     isolation,
     gitOps,
     finishRun,
   } = deps;
+
+  /**
+   * True when the stage_run was cancelled out from under the executor
+   * (Cancel endpoint kills the pid + flips the rows mid-execution, FLX-266).
+   */
+  async function wasCancelled(stageRunId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ status: stageRun.status })
+      .from(stageRun)
+      .where(eq(stageRun.id, stageRunId));
+    return row?.status === STAGE_RUN_STATUS.cancelled;
+  }
 
   async function launchStage(
     run: typeof pipelineRun.$inferSelect,
@@ -290,6 +310,34 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     let ingestOutput: string;
     let graphError: string | undefined;
 
+    // FLX-266: persist the driver pid the moment it spawns (cancel-by-pid
+    // + recovery sweeps read stage_run.pid) and stream stdout lines into
+    // output events (LiveOutput subscribes via Realtime). Both writes are
+    // fire-and-forget — observability must never block execution.
+    const onDriverStart = (pid: number): void => {
+      runService
+        .recordPid(sRun.id, pid)
+        .catch((err) =>
+          console.error(`[stage-executor] recordPid failed: ${String(err)}`)
+        );
+    };
+    let lineNumber = 0;
+    const lineParser = stdoutParser?.getParser(driverRow.outputFormat ?? '');
+    const onDriverStdout = lineParser
+      ? (line: string): void => {
+          lineNumber++;
+          for (const entry of lineParser(line, lineNumber)) {
+            runService
+              .appendEvent(sRun.id, EVENT_TYPE.output, { ...entry })
+              .catch((err) =>
+                console.error(
+                  `[stage-executor] appendEvent failed: ${String(err)}`
+                )
+              );
+          }
+        }
+      : undefined;
+
     try {
       const result = await stageGraphRunner.run({
         stageRunId: sRun.id,
@@ -307,16 +355,38 @@ export function createStageExecutor(deps: StageExecutorDeps) {
         initResultDocScript: fluxaosConfig.initResultDocScript,
         ingestResultDocScript: fluxaosConfig.ingestResultDocScript,
         timeoutSec: stage.timeoutSec,
+        onDriverStart,
+        onDriverStdout,
       });
       ingestOutput = result.ingestOutput;
       graphError = result.error;
     } catch (err) {
+      if (await wasCancelled(sRun.id)) {
+        // Re-affirm the cancelled status through finishRun so the terminal
+        // hook fires (env release + pending-queue drain). completeRun
+        // re-writes the same 'cancelled' value — never an overwrite.
+        await finishRun(run, PIPELINE_RUN_STATUS.cancelled);
+        return;
+      }
       await runService.completeStageRun(sRun.id, STAGE_RUN_STATUS.failed, {
         driver: driverBinary,
         trigger: TRIGGER_TYPE.automated,
         errorMessage: err instanceof Error ? err.message : String(err),
       });
       await handleStageFailed(run, stage, sRun);
+      return;
+    }
+
+    // FLX-266: the Cancel endpoint kills the driver pid and marks the
+    // stage + run cancelled while the graph is still unwinding. The
+    // post-execution bookkeeping below (complete + verdict routing) must
+    // never overwrite that cancellation — completeStageRun's WHERE guard
+    // protects the stage row, this guard protects the run status. Routing
+    // through finishRun with the SAME 'cancelled' status fires the terminal
+    // hook (isolation-env release + pending-queue drain) without rewriting
+    // history.
+    if (await wasCancelled(sRun.id)) {
+      await finishRun(run, PIPELINE_RUN_STATUS.cancelled);
       return;
     }
 
@@ -399,6 +469,20 @@ export function createStageExecutor(deps: StageExecutorDeps) {
     signalReason?: string | null,
     signalMeta?: Record<string, unknown> | null
   ): Promise<void> {
+    // FLX-86: the issue can be deleted while a stage is in flight. The
+    // run's subject is gone — fail the run (terminal hook releases the
+    // env) instead of routing onward or blocking a dangling issue.
+    if (run.issueId) {
+      const [issueRow] = await db
+        .select({ id: issue.id })
+        .from(issue)
+        .where(eq(issue.id, run.issueId));
+      if (!issueRow) {
+        await finishRun(run, PIPELINE_RUN_STATUS.failed);
+        return;
+      }
+    }
+
     // Map verdict to routing column
     let targetStageName: string | null = null;
 

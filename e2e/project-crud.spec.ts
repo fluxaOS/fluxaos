@@ -35,9 +35,17 @@ test.describe('@flx-60 @journey @project-crud', () => {
     await row.click();
     await page.getByRole('button', { name: 'Edit' }).click();
 
-    const updatedRepo = 'https://github.com/fluxaos/spec-target-edited';
-    const repoInput = page.getByLabel('Repo URL');
+    // FLX-227: a changed repoUrl must be validated through the field's
+    // Validate button before Save unblocks (RepoUrlField gates the save
+    // patch on un-validated changes), and the URL must be a real public
+    // repo because project.update re-validates server-side.
+    const updatedRepo = 'https://github.com/fluxaOS/fluxaos';
+    const repoInput = page.getByTestId('repo-url-input-repoUrl');
     await repoInput.fill(updatedRepo);
+    await page.getByTestId('repo-url-validate').click();
+    await expect(page.getByTestId('repo-url-validity-ok')).toBeVisible({
+      timeout: 15_000,
+    });
     await page.getByRole('button', { name: 'Save' }).click();
 
     // Wait for save to settle: RecordEditor exits editing state on success,

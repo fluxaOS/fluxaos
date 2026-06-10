@@ -37,6 +37,7 @@ import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -136,16 +137,7 @@ test.describe('@flx-69 @journey @alpha-bar', () => {
     }
 
     // Reset DB and target repo so the run starts clean.
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
     execSync(
       'git fetch origin --prune && git reset --hard origin/main && git clean -fdx',
       {

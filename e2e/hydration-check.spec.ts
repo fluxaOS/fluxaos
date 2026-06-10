@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { projectPath, test } from './helpers/setup';
 
 test('capture hydration errors on dashboard', async ({ page }) => {
   const hydrationErrors: string[] = [];
@@ -11,7 +11,9 @@ test('capture hydration errors on dashboard', async ({ page }) => {
     }
   });
 
-  await page.goto('/default/admin/fluxaos');
+  // FLX-239 Stage 7: UUID-only routing — observe the real dashboard, not
+  // the retired slug URL (which 404s and would make this check vacuous).
+  await page.goto(projectPath('/'));
   await page.waitForTimeout(3000);
 
   console.log('=== CONSOLE ERRORS/WARNINGS ===');

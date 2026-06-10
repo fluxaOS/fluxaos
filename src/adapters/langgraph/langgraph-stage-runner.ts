@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { promisify } from 'node:util';
 import {
@@ -13,6 +13,95 @@ import type { StageGraphInput } from '@/core/ports/stage-graph-runner';
 export type { StageGraphInput };
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Driver lifecycle callbacks, keyed by stageRunId (FLX-266).
+ *
+ * Functions cannot ride through graph state — the checkpointer serializes
+ * state between nodes and would drop (or choke on) them. runStageGraph
+ * registers the caller's callbacks here before invoking the graph and
+ * removes them in a finally; executeNode looks them up by stageRunId.
+ */
+const driverCallbacks = new Map<
+  string,
+  {
+    onDriverStart?: (pid: number) => void;
+    onDriverStdout?: (line: string) => void;
+  }
+>();
+
+/**
+ * Spawn the driver with streaming stdout. Replaces the old execFileAsync
+ * call (FLX-266): buffered execution never exposed the child pid (breaking
+ * cancel-by-pid + recovery sweeps) and discarded stdout until exit
+ * (breaking LiveOutput event streaming).
+ */
+function runDriver(params: {
+  command: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+  cwd?: string;
+  timeoutSec?: number;
+  onStart?: (pid: number) => void;
+  onStdoutLine?: (line: string) => void;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(params.command, params.args, {
+      env: params.env,
+      cwd: params.cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let timedOut = false;
+    const hasTimeout =
+      typeof params.timeoutSec === 'number' && params.timeoutSec > 0;
+    const timer = hasTimeout
+      ? setTimeout(
+          () => {
+            timedOut = true;
+            child.kill('SIGKILL');
+          },
+          (params.timeoutSec as number) * 1000
+        )
+      : null;
+
+    if (child.pid) params.onStart?.(child.pid);
+
+    let lineBuffer = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      lineBuffer += chunk.toString();
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? '';
+      for (const line of lines) {
+        if (line.trim()) params.onStdoutLine?.(line);
+      }
+    });
+    // stderr is intentionally drained but not streamed — parity with the
+    // previous execFileAsync behavior (only stdout carried agent output).
+    child.stderr?.on('data', () => {});
+
+    child.on('error', (err) => {
+      if (timer) clearTimeout(timer);
+      reject(err);
+    });
+
+    child.on('close', () => {
+      if (timer) clearTimeout(timer);
+      if (lineBuffer.trim()) params.onStdoutLine?.(lineBuffer);
+      if (timedOut) {
+        const abortErr = new Error(
+          `driver killed after timeout of ${params.timeoutSec}s`
+        );
+        abortErr.name = 'AbortError';
+        reject(abortErr);
+        return;
+      }
+      // Non-zero exit is not an engine error — ingest handles the partial
+      // result doc, matching the previous execFileAsync catch behavior.
+      resolve();
+    });
+  });
+}
 
 const StageState = Annotation.Root({
   stageRunId: Annotation<string>(),
@@ -69,27 +158,17 @@ async function executeNode(
       ARTIFACTS_DIR: state.artifactsDir,
     };
 
-    const timeoutSec = state.timeoutSec;
-    const hasTimeout = typeof timeoutSec === 'number' && timeoutSec > 0;
+    const callbacks = driverCallbacks.get(state.stageRunId);
 
-    if (hasTimeout) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutSec * 1000);
-      try {
-        await execFileAsync(state.driverCommand, state.driverArgs, {
-          env: agentEnv,
-          cwd: state.cwd,
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
-    } else {
-      await execFileAsync(state.driverCommand, state.driverArgs, {
-        env: agentEnv,
-        cwd: state.cwd,
-      });
-    }
+    await runDriver({
+      command: state.driverCommand,
+      args: state.driverArgs,
+      env: agentEnv,
+      cwd: state.cwd,
+      timeoutSec: state.timeoutSec,
+      onStart: callbacks?.onDriverStart,
+      onStdoutLine: callbacks?.onDriverStdout,
+    });
 
     return { executed: true };
   } catch (err) {
@@ -102,8 +181,8 @@ async function executeNode(
         error: `stage timed out after ${state.timeoutSec}s`,
       };
     }
-    // Agent exited non-zero — not an engine error; ingest handles partial result doc
-    return { executed: true };
+    // Spawn-level failure (binary missing, EACCES, …) — engine error.
+    return { error: `driver spawn failed: ${String(err)}` };
   }
 }
 
@@ -154,13 +233,26 @@ export async function runStageGraph(
 ): Promise<{ ingestOutput: string; error?: string }> {
   const graph = buildStageGraph(input, checkpointer);
 
-  const config = { configurable: { thread_id: threadId ?? input.stageRunId } };
-  const result = await graph.invoke(input, config as never);
+  // Callbacks ride outside graph state (see driverCallbacks). Strip them
+  // from the invoke payload so the checkpointer never sees functions.
+  const { onDriverStart, onDriverStdout, ...stateInput } = input;
+  if (onDriverStart || onDriverStdout) {
+    driverCallbacks.set(input.stageRunId, { onDriverStart, onDriverStdout });
+  }
 
-  return {
-    ingestOutput:
-      result.ingestOutput ??
-      JSON.stringify({ valid: false, reason: 'no ingest output' }),
-    error: result.error,
-  };
+  try {
+    const config = {
+      configurable: { thread_id: threadId ?? input.stageRunId },
+    };
+    const result = await graph.invoke(stateInput, config as never);
+
+    return {
+      ingestOutput:
+        result.ingestOutput ??
+        JSON.stringify({ valid: false, reason: 'no ingest output' }),
+      error: result.error,
+    };
+  } finally {
+    driverCallbacks.delete(input.stageRunId);
+  }
 }

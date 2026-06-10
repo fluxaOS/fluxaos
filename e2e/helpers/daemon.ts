@@ -12,6 +12,7 @@
 // + 30s slack).
 
 import { type ChildProcess, spawn } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const DEFAULT_BOOT_TIMEOUT_MS = 30_000;
@@ -67,8 +68,23 @@ export async function spawnDaemon(
 
   const stdout: string[] = [];
   const stderr: string[] = [];
-  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk.toString()));
-  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk.toString()));
+  // Optional disk tee for postmortems — spec-spawned daemons otherwise die
+  // with their logs trapped in memory. Set FLUXAOS_E2E_DAEMON_LOG to a path.
+  const teePath = process.env.FLUXAOS_E2E_DAEMON_LOG;
+  const tee = (prefix: string) => (chunk: Buffer) => {
+    if (!teePath) return;
+    appendFileSync(teePath, `[${prefix}] ${chunk.toString()}`);
+  };
+  const teeOut = tee('out');
+  const teeErr = tee('err');
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout.push(chunk.toString());
+    teeOut(chunk);
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr.push(chunk.toString());
+    teeErr(chunk);
+  });
 
   await new Promise<void>((resolveReady, rejectReady) => {
     const timer = setTimeout(() => {

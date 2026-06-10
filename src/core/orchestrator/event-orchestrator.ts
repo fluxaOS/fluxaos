@@ -26,6 +26,7 @@ import type { GitOpsPort } from '@/core/ports/git';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
+import type { StdoutParser } from '@/core/ports/stdout-parser';
 import { createPipelineRunService } from './pipeline-run-service';
 import type { PipelineTerminalHook } from './pipeline-terminal-hook';
 import { resolveProjectIdForRun } from './run-helpers';
@@ -75,7 +76,11 @@ export function createEventOrchestrator(
   deps: EventOrchestratorDeps,
   config: Partial<EventOrchestratorConfig> = {},
   fluxaosConfig?: FluxaosConfig,
-  stageGraphRunner?: StageGraphRunner
+  stageGraphRunner?: StageGraphRunner,
+  // FLX-266: parses driver stdout lines into transcript entries so the
+  // executor can persist live output events (LiveOutput UI). The daemon
+  // always injects it; test harnesses with stub graph runners may omit it.
+  stdoutParser?: StdoutParser
 ): EventOrchestrator {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const runService = createPipelineRunService(db);
@@ -92,6 +97,7 @@ export function createEventOrchestrator(
     runService,
     fluxaosConfig,
     stageGraphRunner,
+    stdoutParser,
     isolation: deps.isolation,
     gitOps: deps.gitOps,
     finishRun,

@@ -4,19 +4,30 @@
 // stage_run to finish within the configured grace window, and exit cleanly.
 
 import 'dotenv/config';
-import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import {
+  readSeedProjectTargetRepoPath,
+  resetDb,
+  writeSeedProjectTargetRepoPath,
+} from './helpers/reset-db';
 import { expect, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 let targetRepoPath: string | null = null;
+let operatorTargetRepoPath: string | null = null;
 let handle: DaemonHandle | null = null;
 
 test.describe('@flx-85 @daemon @journey', () => {
@@ -26,16 +37,9 @@ test.describe('@flx-85 @daemon @journey', () => {
   test.beforeAll(async () => {
     targetRepoPath = createTempGitRepo();
 
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
+    // Capture the operator's value before the fixture overwrites it.
+    operatorTargetRepoPath = await readSeedProjectTargetRepoPath();
 
     // FLX-221: target_repo_path is a per-project column; set it on the
     // seeded project row before spawning the daemon.
@@ -48,6 +52,11 @@ test.describe('@flx-85 @daemon @journey', () => {
     if (handle && handle.daemon.exitCode === null) {
       await handle.shutdown().catch(() => undefined);
     }
+    // Restore the operator's target repo path — the temp fixture dir is
+    // deleted below and must not leak into later suite specs.
+    await writeSeedProjectTargetRepoPath(operatorTargetRepoPath).catch(
+      () => undefined
+    );
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
     }
@@ -62,36 +71,99 @@ test.describe('@flx-85 @daemon @journey', () => {
       const [pipelineRow] = await sql<{ id: string }[]>`
         SELECT id FROM "pipeline" WHERE project_id = ${issueRow.project_id} LIMIT 1
       `;
-      const [runRow] = await sql<{ id: string }[]>`
-        INSERT INTO "pipeline_run" ("pipeline_id", "issue_id", "status")
-        VALUES (${pipelineRow.id}, ${issueRow.id}, 'pending')
-        RETURNING id
-      `;
 
-      const running = await waitForRunningStage(sql, runRow.id);
-      expect(running.stageRunId).toBeTruthy();
-      expect(running.childPid).toBeGreaterThan(0);
+      // The suite runs alongside the operator's live daemon (the
+      // full-issue-lifecycle contract), and pipeline_run claims are a
+      // Realtime race between it and the daemon this spec spawned. Drain
+      // semantics only hold for a run OWNED by the spec daemon (its child
+      // process tree), so retry until our daemon wins the claim; runs the
+      // operator daemon claims complete on their own (2.5s stub driver).
+      let owned: {
+        runId: string;
+        stageRunId: string;
+        childPid: number;
+      } | null = null;
+      for (let attempt = 0; attempt < 8 && !owned; attempt++) {
+        const [runRow] = await sql<{ id: string }[]>`
+          INSERT INTO "pipeline_run" ("pipeline_id", "issue_id", "status")
+          VALUES (${pipelineRow.id}, ${issueRow.id}, 'pending')
+          RETURNING id
+        `;
+        const running = await waitForRunningStage(sql, runRow.id);
+        if (
+          isProcessAlive(running.childPid) &&
+          isDescendantOf(running.childPid, handle!.daemon.pid as number)
+        ) {
+          // In-flight AND owned by the spec daemon — drain is testable.
+          owned = { runId: runRow.id, ...running };
+          break;
+        }
+        // Lost the claim (or the stub already finished) — wait for this
+        // run to reach a terminal status so it cannot interfere with the
+        // next attempt, then re-insert.
+        await expect
+          .poll(
+            async () => {
+              const [row] = await sql<{ status: string }[]>`
+                SELECT status FROM "pipeline_run" WHERE id = ${runRow.id}
+              `;
+              return row?.status ?? null;
+            },
+            { timeout: 30_000, intervals: [500, 1_000] }
+          )
+          .toMatch(/^(completed|failed|cancelled|blocked|timed_out)$/);
+      }
+      expect(
+        owned,
+        'spec daemon never won a pipeline_run claim in 8 attempts'
+      ).not.toBeNull();
+      if (!owned) return;
 
       const exited = waitForExit(handle!.daemon);
       handle!.daemon.kill('SIGTERM');
       const exitCode = await exited;
       expect(exitCode).toBe(0);
 
+      // Scope to the spec-owned run — other runs belong to the operator
+      // daemon and are not part of the drain contract.
       const [runningRows] = await sql<{ count: number }[]>`
-        SELECT COUNT(*)::int AS count FROM "stage_run" WHERE status = 'running'
+        SELECT COUNT(*)::int AS count FROM "stage_run"
+        WHERE status = 'running' AND pipeline_run_id = ${owned.runId}
       `;
       expect(runningRows.count).toBe(0);
 
       const [stageAfter] = await sql<{ status: string }[]>`
-        SELECT status FROM "stage_run" WHERE id = ${running.stageRunId}
+        SELECT status FROM "stage_run" WHERE id = ${owned.stageRunId}
       `;
       expect(stageAfter.status).toBe('completed');
-      expect(isProcessAlive(running.childPid)).toBe(false);
+      expect(isProcessAlive(owned.childPid)).toBe(false);
     } finally {
       await sql.end();
     }
   });
 });
+
+/** Walk /proc ppid chain — true when `ancestorPid` is an ancestor of (or
+ *  equal to) `pid`. Linux-only, matching the rest of this daemon journey. */
+function isDescendantOf(pid: number, ancestorPid: number): boolean {
+  let current = pid;
+  for (let hops = 0; hops < 32; hops++) {
+    if (current === ancestorPid) return true;
+    let stat: string;
+    try {
+      stat = readFileSync(`/proc/${current}/stat`, 'utf8');
+    } catch {
+      return false;
+    }
+    // Field 4 (after the parenthesised comm, which may contain spaces).
+    const ppid = Number(
+      stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1] ?? 0
+    );
+    if (!Number.isInteger(ppid) || ppid <= 1) return false;
+    current = ppid;
+  }
+  return false;
+}
 
 function createTempGitRepo(): string {
   const repoPath = mkdtempSync(path.join(tmpdir(), 'fluxaos-flx85-'));
@@ -171,9 +243,12 @@ async function configureDrainFixture(repoPath: string): Promise<void> {
     await sql`
       INSERT INTO "pipeline_stage" (
         "pipeline_id", "name", "sort_order", "gate_mode", "max_retries",
-        "driver_id", "timeout_sec"
+        "driver_id", "timeout_sec", "persona_id"
       )
-      VALUES (${pipelineRow.id}, 'research', 10, 'auto', 0, ${driverRow.id}, 30)
+      VALUES (
+        ${pipelineRow.id}, 'research', 10, 'auto', 0, ${driverRow.id}, 30,
+        (SELECT id FROM "persona" WHERE "project_id" = ${projectRow.id} LIMIT 1)
+      )
     `;
 
     expect(existsSync(path.join(repoPath, '.git'))).toBe(true);
@@ -182,47 +257,24 @@ async function configureDrainFixture(repoPath: string): Promise<void> {
   }
 }
 
-async function waitForRunningStage(sql: postgres.Sql, runId: string) {
-  return expect
+async function waitForRunningStage(
+  sql: postgres.Sql,
+  runId: string
+): Promise<{ stageRunId: string; childPid: number }> {
+  // Poll until the stage_run is running AND its FLX85_PID output event has
+  // landed — the event is written by the stdout stream a beat after the
+  // driver spawns, so requiring both in one query avoids the race where a
+  // running row exists but the pid is not yet observable.
+  let found: { stageRunId: string; childPid: number } | null = null;
+  await expect
     .poll(
       async () => {
         const [row] = await sql<
           {
             stage_run_id: string;
-            child_pid: number | null;
+            child_pid: number;
           }[]
         >`
-        SELECT sr.id AS stage_run_id,
-               substring(e.payload->>'text' FROM 'FLX85_PID:([0-9]+)')::int AS child_pid
-        FROM "stage_run" sr
-        LEFT JOIN "event" e ON e.stage_run_id = sr.id
-          AND e.type = 'output'
-          AND e.payload->>'text' LIKE 'FLX85_PID:%'
-        WHERE sr.pipeline_run_id = ${runId}
-          AND sr.status = 'running'
-        ORDER BY sr.created_at DESC
-        LIMIT 1
-      `;
-        return {
-          stageRunId: row?.stage_run_id ?? null,
-          childPid: row?.child_pid ?? null,
-        };
-      },
-      {
-        timeout: 30_000,
-        intervals: [250, 500, 1_000],
-        message:
-          'stage_run never entered running status with a child pid event',
-      }
-    )
-    .not.toMatchObject({ stageRunId: null, childPid: null })
-    .then(async () => {
-      const [row] = await sql<
-        {
-          stage_run_id: string;
-          child_pid: number;
-        }[]
-      >`
         SELECT sr.id AS stage_run_id,
                substring(e.payload->>'text' FROM 'FLX85_PID:([0-9]+)')::int AS child_pid
         FROM "stage_run" sr
@@ -233,8 +285,22 @@ async function waitForRunningStage(sql: postgres.Sql, runId: string) {
         ORDER BY sr.created_at DESC
         LIMIT 1
       `;
-      return { stageRunId: row.stage_run_id, childPid: row.child_pid };
-    });
+        if (row?.stage_run_id && row.child_pid > 0) {
+          found = { stageRunId: row.stage_run_id, childPid: row.child_pid };
+          return true;
+        }
+        return false;
+      },
+      {
+        timeout: 30_000,
+        intervals: [250, 500, 1_000],
+        message:
+          'stage_run never entered running status with a child pid event',
+      }
+    )
+    .toBe(true);
+  if (!found) throw new Error('unreachable: poll resolved without a row');
+  return found;
 }
 
 function waitForExit(child: NonNullable<DaemonHandle['daemon']>) {

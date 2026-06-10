@@ -34,6 +34,7 @@ import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -65,15 +66,13 @@ let handle: DaemonHandle | null = null;
 
 async function transition(
   page: import('@playwright/test').Page,
-  baseUrl: string,
   issueId: string,
   toStateId: string,
   version: number
 ): Promise<void> {
-  const resp = await page.request.post(
-    `${baseUrl}/api/trpc/issue.transition?batch=1`,
-    { data: { '0': { id: issueId, toStateId, version } } }
-  );
+  const resp = await page.request.post(`/api/trpc/issue.transition?batch=1`, {
+    data: { '0': { id: issueId, toStateId, version } },
+  });
   if (!resp.ok()) {
     const body = await resp.text();
     throw new Error(
@@ -154,16 +153,7 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     }
 
     // ── 1. Nuke + reseed ──────────────────────────────────────────────────
-    execSync('tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
 
     // ── 1b. Reset target repo to a clean main ────────────────────────────
     // Each test run injects a unique-named file into the target so the
@@ -203,8 +193,6 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
       { id: string; project_id: string; number: number; version: number }[]
     >`SELECT id, project_id, number, version FROM "issue" WHERE "number" = 1 LIMIT 1`;
     expect(parentRow, 'seed did not produce issue #1').toBeTruthy();
-
-    const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3013';
 
     const pageErrors: Error[] = [];
     const consoleErrors: string[] = [];
@@ -416,20 +404,13 @@ test.describe('@r-smoke @journey @alpha-acceptance', () => {
     expect(deployStateId, 'seed missing deploy state').toBeTruthy();
     expect(completeStateId, 'seed missing complete state').toBeTruthy();
 
-    await transition(
-      page,
-      baseUrl,
-      childRow.id,
-      deployStateId!,
-      childAfter.version
-    );
+    await transition(page, childRow.id, deployStateId!, childAfter.version);
 
     const [childAfterDeploy] = await sql<
       { version: number }[]
     >`SELECT version FROM "issue" WHERE "id" = ${childRow.id}`;
     await transition(
       page,
-      baseUrl,
       childRow.id,
       completeStateId!,
       childAfterDeploy.version

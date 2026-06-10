@@ -5,26 +5,14 @@
 // the corresponding settings pages so operators can wire routing rules.
 
 import 'dotenv/config';
-import { execSync } from 'node:child_process';
-import path from 'node:path';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
-
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 test.describe('@flx-6 @journey @openai-adapter', () => {
   test.setTimeout(60_000);
 
-  test.beforeAll(() => {
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+  test.beforeAll(async () => {
+    await resetDb();
   });
 
   test('Drivers page shows OpenAI Codex CLI seeded as disabled', async ({

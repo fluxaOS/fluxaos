@@ -45,11 +45,11 @@ test.describe('@flx-252 @journey @create-entity-form', () => {
     await expect(row).toBeVisible({ timeout: 10_000 });
   });
 
-  // FLX-239 Stage 1: skipped. Exercises team.create against the OLD
-  // project-scoped team shape (with project_id). Stage 1 schema migration
-  // dropped that shape; team.create router will be rewritten in Stage 5 and
-  // this test rewritten in Stage 7.
-  test.skip('Teams: CreateEntityForm creates a new team', async ({ page }) => {
+  // FLX-239 Stage 7 (FLX-266): re-enabled for the org-scoped team model.
+  // The Teams page resolves the project from the /p/{uuid} URL and
+  // team.create derives team.org_id from that project — the form surface
+  // (Name / Description / Create) is unchanged.
+  test('Teams: CreateEntityForm creates a new team', async ({ page }) => {
     await page.goto(projectPath('/settings/teams'));
     await expect(page.getByRole('heading', { name: 'Teams' })).toBeVisible({
       timeout: 15_000,
@@ -71,10 +71,12 @@ test.describe('@flx-252 @journey @create-entity-form', () => {
     await expect(row).toBeVisible({ timeout: 10_000 });
   });
 
-  // FLX-239 Stage 1: skipped. Asserts `getByLabel('Scope')` on the Skills
-  // create form. The schema migration dropped skill.scope; the create form
-  // will lose the field in Stage 6. Scheduled for rewrite in Stage 7.
-  test.skip('Skills: CreateEntityForm creates a new skill with scope select', async ({
+  // FLX-239 Stage 7 (FLX-266): re-enabled. The skill.scope COLUMN is gone,
+  // but the create form's Scope select survives as a UI-level alias: the
+  // skill service maps scope='global' → kind='catalog' (all four waterfall
+  // scope columns NULL) and scope='project' → kind='project'. This test
+  // creates a global (catalog) skill via the default Scope selection.
+  test('Skills: CreateEntityForm creates a new skill with scope select', async ({
     page,
   }) => {
     await page.goto(projectPath('/settings/skills'));

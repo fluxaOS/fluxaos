@@ -68,7 +68,13 @@ test.describe('@journey @full-lifecycle', () => {
       .poll(
         async () => {
           await page.reload();
-          const text = await runStatus.textContent().catch(() => null);
+          // Bounded read: the issue page does not live-refresh run state on
+          // pipeline_run INSERT, so the indicator may be absent until a
+          // later reload. An unbounded textContent() would hang the poll
+          // callback forever and the reload loop would never iterate.
+          const text = await runStatus
+            .textContent({ timeout: 5_000 })
+            .catch(() => null);
           if (!text) return null;
           // "Run: completed · Cost: $..." → "completed"
           const match = text.match(/Run:\s*(\w+)/);

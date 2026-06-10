@@ -191,17 +191,36 @@ export function createIssueWatcher(
 
     inFlight.add(issueId);
     try {
-      await dispatch(issueId, projectId, row);
+      await dispatch(issueId, projectId);
     } finally {
       inFlight.delete(issueId);
     }
   }
 
-  async function dispatch(
-    issueId: string,
-    projectId: string,
-    row: IssueRealtimeRow
-  ): Promise<void> {
+  async function dispatch(issueId: string, projectId: string): Promise<void> {
+    // FLX-266: Realtime payloads are point-in-time snapshots that can arrive
+    // after the issue has been closed or re-statused (e.g. an e2e reset
+    // parking the seed issues). Re-read the row and decide on CURRENT state —
+    // never on the payload's stale status.
+    const [fresh] = await db
+      .select({
+        statusId: issue.statusId,
+        isClosed: issue.isClosed,
+      })
+      .from(issue)
+      .where(eq(issue.id, issueId));
+
+    if (!fresh) {
+      logger.info({
+        event: 'issue_watcher.skipped',
+        reason: 'issue_missing',
+        issueId,
+      });
+      return;
+    }
+
+    const row = { is_closed: fresh.isClosed, status_id: fresh.statusId };
+
     // Guard: skip closed issues.
     if (row.is_closed) {
       logger.info({
