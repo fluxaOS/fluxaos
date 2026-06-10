@@ -2,14 +2,12 @@
 // surface them via the Show hooks toggle.
 
 import 'dotenv/config';
-import { execSync } from 'node:child_process';
-import path from 'node:path';
 import postgres from 'postgres';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 const HOOK_TEXT = 'FLX-47 init lifecycle entry — should be hidden by default';
 const TEXT_TEXT = 'FLX-47 normal output entry — always visible';
@@ -18,17 +16,8 @@ test.describe('@flx-47 @ui @transcript', () => {
   test.skip(!HAS_DB, 'requires DATABASE_URL or DIRECT_URL');
   test.setTimeout(60_000);
 
-  test.beforeAll(() => {
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+  test.beforeAll(async () => {
+    await resetDb();
   });
 
   test('verbose mode hides hook/init system entries until Show hooks toggled', async ({

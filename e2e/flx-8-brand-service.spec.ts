@@ -68,17 +68,37 @@ test.describe('@flx-8 @journey @brand-service', () => {
     });
 
     // ── Project default brand ─────────────────────────────────────────────
+    // FLX-229 folded the standalone "Default brand for <project>" section
+    // into the RecordEditor form: select the project row → Edit → set the
+    // "Default brand" dropdown → Save.
     await page.goto(projectPath('/settings/projects'));
     await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({
       timeout: 15_000,
     });
-    await page
-      .getByLabel(/Default brand for fluxaOS/i)
-      .selectOption({ label: brandName });
+    const projectRow = page
+      .getByTestId('record-editor-list')
+      .locator('li', { hasText: 'fluxaOS' });
+    await projectRow.first().click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByLabel('Default brand').selectOption({ label: brandName });
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Persistence: reload, reselect, re-enter edit and confirm the brand
+    // dropdown kept the selection.
     await page.reload();
-    await expect(page.getByLabel(/Default brand for fluxaOS/i)).toHaveValue(
-      /.+/
-    );
+    await projectRow.first().click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByLabel('Default brand')).toHaveValue(/.+/);
+
+    // Restore: clear the default brand so re-runs start from a clean slate.
+    await page.getByLabel('Default brand').selectOption({ value: '' });
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible({
+      timeout: 10_000,
+    });
 
     expect(errors).toEqual([]);
   });

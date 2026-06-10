@@ -1,7 +1,7 @@
 // FLX-87: daemon journey for a deploy push conflict.
 
 import 'dotenv/config';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -13,13 +13,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import {
+  readSeedProjectTargetRepoPath,
+  resetDb,
+  writeSeedProjectTargetRepoPath,
+} from './helpers/reset-db';
 import { expect, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 let targetRepoPath: string | null = null;
+let operatorTargetRepoPath: string | null = null;
 let bareRemotePath: string | null = null;
 let handle: DaemonHandle | null = null;
 
@@ -32,16 +37,9 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
     targetRepoPath = repos.targetRepoPath;
     bareRemotePath = repos.bareRemotePath;
 
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
+    // Capture the operator's value before the fixture overwrites it.
+    operatorTargetRepoPath = await readSeedProjectTargetRepoPath();
 
     // FLX-221: target_repo_path is a per-project column.
     await configureDeployConflictFixture(targetRepoPath);
@@ -53,6 +51,11 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
     if (handle && handle.daemon.exitCode === null) {
       await handle.shutdown().catch(() => undefined);
     }
+    // Restore the operator's target repo path — the temp fixture dirs are
+    // deleted below and must not leak into later suite specs.
+    await writeSeedProjectTargetRepoPath(operatorTargetRepoPath).catch(
+      () => undefined
+    );
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
     }
@@ -61,7 +64,7 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
     }
   });
 
-  test('deploy push conflict fails the stage/run and releases the worktree', async () => {
+  test('deploy push conflict records a failed deploy_run and releases the worktree', async () => {
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
     try {
       const [issueRow] = await sql<{ id: string; project_id: string }[]>`
@@ -82,6 +85,10 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
         activeEnv.branchName
       );
 
+      // FLX-197: deploy is post-pipeline. The push conflict is recorded on
+      // the run's own deploy_run row (status=failed); pipeline_run and
+      // stage_run stay completed — they describe pipeline execution, which
+      // succeeded. The terminal hook must still release the env.
       await expect
         .poll(() => loadDeployConflictState(sql, runRow.id), {
           timeout: 45_000,
@@ -89,8 +96,9 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
           message: 'deploy conflict did not fail and clean up the run',
         })
         .toMatchObject({
-          pipelineStatus: 'failed',
-          latestStageStatus: 'failed',
+          pipelineStatus: 'completed',
+          latestStageStatus: 'completed',
+          deployRunStatus: 'failed',
           isolationStatus: 'inactive',
           worktreeExists: false,
           branchRows: 0,
@@ -98,7 +106,7 @@ test.describe('@flx-87 @daemon @deploy @journey', () => {
         });
 
       const finalState = await loadDeployConflictState(sql, runRow.id);
-      expect(finalState.latestStageError).toContain('deploy failed: git push');
+      expect(finalState.deployRunError).toContain('git push failed');
       expect(readRemoteBranchSha(bareRemotePath!, activeEnv.branchName)).toBe(
         remoteConflictSha
       );
@@ -161,10 +169,15 @@ async function configureDeployConflictFixture(repoPath: string): Promise<void> {
       RETURNING id
     `;
 
+    // The driver subprocess runs with cwd = the isolation worktree
+    // (stage-executor passes envWorkingPath), so the stub takes the
+    // workspace from process.cwd(). It must NOT read argv: prompt
+    // composition is persona-based (FLX-106) and driver prompt templates
+    // like {{workspace_path}} are never rendered into argv.
     const stubScript = [
       "const fs = require('node:fs');",
       "const path = require('node:path');",
-      'const workspace = process.argv.at(-1);',
+      'const workspace = process.cwd();',
       "fs.writeFileSync(path.join(workspace, 'flx87-deploy.txt'), 'local deploy change\\n');",
       "console.log('FLX87_WORKSPACE:' + workspace);",
       'setTimeout(() => {',
@@ -204,9 +217,13 @@ async function configureDeployConflictFixture(repoPath: string): Promise<void> {
     await sql`
       INSERT INTO "pipeline_stage" (
         "pipeline_id", "name", "sort_order", "gate_mode", "max_retries",
-        "driver_id", "timeout_sec"
+        "driver_id", "timeout_sec", "persona_id", "on_pass"
       )
-      VALUES (${pipelineRow.id}, 'implement', 10, 'auto', 0, ${driverRow.id}, 30)
+      VALUES (
+        ${pipelineRow.id}, 'implement', 10, 'auto', 0, ${driverRow.id}, 30,
+        (SELECT id FROM "persona" WHERE "project_id" = ${projectRow.id} LIMIT 1),
+        '__complete__'
+      )
     `;
   } finally {
     await sql.end();
@@ -328,10 +345,19 @@ async function loadDeployConflictState(sql: postgres.Sql, runId: string) {
     FROM "issue_pull_request"
     WHERE "issue_id" = ${runRow.issue_id}
   `;
+  const [deployRow] = await sql<
+    { status: string; error_message: string | null }[]
+  >`
+    SELECT status, error_message
+    FROM "deploy_run"
+    WHERE "pipeline_run_id" = ${runId}
+    LIMIT 1
+  `;
   return {
     pipelineStatus: runRow.status,
     latestStageStatus: stageRow?.status ?? null,
-    latestStageError: stageRow?.error_message ?? null,
+    deployRunStatus: deployRow?.status ?? null,
+    deployRunError: deployRow?.error_message ?? null,
     isolationStatus: envRow?.status ?? null,
     worktreeExists: envRow ? existsSync(envRow.working_path) : null,
     branchRows: branchRow.count,

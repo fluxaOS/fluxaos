@@ -20,6 +20,18 @@ export interface StageGraphInput {
    * no timeout (infinite — use only for stages that self-terminate).
    */
   timeoutSec?: number;
+  /**
+   * Invoked with the driver subprocess pid the moment it spawns (FLX-266).
+   * The orchestrator persists it to stage_run.pid — cancel-by-pid and the
+   * recovery sweep both read that column; without it neither works.
+   */
+  onDriverStart?: (pid: number) => void;
+  /**
+   * Invoked once per complete driver stdout line as it streams (FLX-266).
+   * The orchestrator persists output events — the LiveOutput UI subscribes
+   * to them via Realtime.
+   */
+  onDriverStdout?: (line: string) => void;
 }
 
 export interface StageGraphResult {

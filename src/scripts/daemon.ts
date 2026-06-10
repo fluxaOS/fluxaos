@@ -51,6 +51,7 @@ import type { DatabaseProvider } from '@/core/ports';
 import type { IsolationProvider } from '@/core/ports/isolation';
 import type { RealtimeProvider } from '@/core/ports/realtime';
 import type { StageGraphRunner } from '@/core/ports/stage-graph-runner';
+import type { StdoutParser } from '@/core/ports/stdout-parser';
 import { createIssueService } from '@/core/services/issue';
 import { getCleanupSchedulerEnabled } from '@/core/services/runtime-config';
 
@@ -177,6 +178,8 @@ export async function createDaemon(): Promise<Daemon> {
   });
 
   const stageGraphRunner = registry.get<StageGraphRunner>('stageGraphRunner');
+  // FLX-266: live output events + pid recording need the stdout parser.
+  const stdoutParser = registry.get<StdoutParser>('stdoutParser');
 
   const orchestrator = createEventOrchestrator(
     db,
@@ -185,7 +188,8 @@ export async function createDaemon(): Promise<Daemon> {
     { isolation, gitOps },
     {},
     fluxaosConfig,
-    stageGraphRunner
+    stageGraphRunner,
+    stdoutParser
   );
 
   const cleanupService = createCleanupService({

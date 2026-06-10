@@ -8,11 +8,19 @@
 //   control reflects the in-flight transition (Realtime invalidation).
 
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
 
 test.describe('@r-mission-control', () => {
+  // Earlier suite specs leave runs/issues behind; the empty states (and the
+  // daemon journey below, which drives seed issue #1) require pristine seed
+  // state. resetDb preserves operator-owned target_repo_path (FLX-266).
+  test.beforeAll(async () => {
+    await resetDb();
+  });
+
   test('renders four sections with empty states when nothing is running', async ({
     page,
   }) => {
@@ -55,6 +63,7 @@ test.describe('@r-mission-control @daemon @journey', () => {
   let handle: DaemonHandle | null = null;
 
   test.beforeAll(async () => {
+    await resetDb();
     handle = await spawnDaemon();
   });
 

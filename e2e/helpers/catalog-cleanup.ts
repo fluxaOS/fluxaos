@@ -51,6 +51,20 @@ export async function cleanupFlx252CreateEntityRows(): Promise<void> {
   });
 }
 
+/**
+ * team-crud.spec.ts creates `CRUD Team <ts>` rows (org-scoped — FLX-239).
+ * A failed run can strand one mid-round-trip; sweep by prefix so the
+ * seed-check's exactly-one-team assertion stays meaningful.
+ */
+export async function cleanupTeamCrudRows(): Promise<void> {
+  await withDb(async (db) => {
+    await db.execute(
+      sql`DELETE FROM "team_member" WHERE "team_id" IN (SELECT "id" FROM "team" WHERE "name" LIKE 'CRUD Team %')`
+    );
+    await db.execute(sql`DELETE FROM "team" WHERE "name" LIKE 'CRUD Team %'`);
+  });
+}
+
 export async function cleanupFlx253ConfirmModalRows(): Promise<void> {
   await withDb(async (db) => {
     await db.execute(

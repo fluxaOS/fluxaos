@@ -104,23 +104,25 @@ test.describe('@r-settings-alpha @journey', () => {
       timeout: 15_000,
     });
 
-    // ── Invalid slug: pages must 404, not silently render the seeded
-    //    project's data via a fallback literal. ──────────────────────────
-    await page.goto('/default/admin/does-not-exist-flx-213/settings/projects', {
+    // ── Unknown project UUID: pages must 404, not silently render the
+    //    seeded project's data via a fallback literal. (FLX-239 Stage 7:
+    //    slug URLs are gone — a valid-but-unknown UUID is the bogus case.)
+    const bogus = '00000000-0000-4000-8000-00000000dead';
+    await page.goto(`/p/${bogus}/settings/projects`, {
       waitUntil: 'domcontentloaded',
     });
     await expect(
       page.getByRole('heading', { name: 'Projects' })
     ).not.toBeVisible({ timeout: 10_000 });
 
-    await page.goto('/default/admin/does-not-exist-flx-213/settings/brands', {
+    await page.goto(`/p/${bogus}/settings/brands`, {
       waitUntil: 'domcontentloaded',
     });
     await expect(page.getByRole('heading', { name: 'Brands' })).not.toBeVisible(
       { timeout: 10_000 }
     );
 
-    await page.goto('/default/admin/does-not-exist-flx-213/settings/personas', {
+    await page.goto(`/p/${bogus}/settings/personas`, {
       waitUntil: 'domcontentloaded',
     });
     await expect(

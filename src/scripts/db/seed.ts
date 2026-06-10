@@ -39,6 +39,7 @@ import {
   user,
 } from '@/core/db/schema';
 import { renderMarkdown } from '@/core/markdown';
+import { SEED_PROJECT_ID } from '@/scripts/db/seed-ids';
 
 // Seed issues INSERT/SELECT/UPDATE only (no DDL). The pgbouncer pooled URL
 // is the right shape — same as runtime app traffic.
@@ -143,6 +144,8 @@ async function seed() {
   // constraint beyond PK — use check-then-insert. orgId is required by the
   // schema (NOT NULL); the Stage 1 BEFORE INSERT trigger writes the same
   // value, so passing org.id is a no-op overwrite.
+  // FLX-266: inserted with the fixed SEED_PROJECT_ID so FLUXAOS_PROJECT_ID
+  // in .env.local stays valid across nuke + reseed cycles.
   let [proj] = await db
     .select()
     .from(project)
@@ -154,6 +157,7 @@ async function seed() {
     [proj] = await db
       .insert(project)
       .values({
+        id: SEED_PROJECT_ID,
         teamId: defaultTeam.id,
         orgId: org.id,
         name: 'fluxaOS',

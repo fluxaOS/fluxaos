@@ -10,13 +10,12 @@
 // inputs remain, etc.) and dropdown-select tests on fields that are
 // safely re-savable.
 
-import { expect, test } from '@playwright/test';
+import { expect, projectPath, test } from './helpers/setup';
 
-// Seed slugs — confirmed from src/scripts/db/seed.ts (org='default',
-// user='admin', project='fluxaos'). If the seed changes, update these.
-const SEED_ORG = 'default';
-const SEED_USER = 'admin';
-const SEED_PROJECT = 'fluxaos';
+// Seed project display name — confirmed from src/scripts/db/seed.ts.
+// URL addressing is UUID-only (FLX-239 Stage 7); the RecordEditor list
+// still renders the display name.
+const SEED_PROJECT_NAME = 'fluxaOS';
 
 // Throwaway project slugs for the slug-rename test. Timestamp-suffixed
 // so parallel runs don't collide on the unique (userId, slug) index.
@@ -27,9 +26,7 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
   test('seed project: read-only structure + dropdown + repo validate (happy path)', async ({
     page,
   }) => {
-    await page.goto(
-      `/${SEED_ORG}/${SEED_USER}/${SEED_PROJECT}/settings/projects`
-    );
+    await page.goto(projectPath('/settings/projects'));
 
     // Wait for the projects list to hydrate before assertions.
     await expect(
@@ -43,7 +40,7 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
 
     // Select the row (RecordEditor list-row pattern) so the detail
     // panel mounts, then click Edit.
-    await page.locator('li', { hasText: SEED_PROJECT }).first().click();
+    await page.locator('li', { hasText: SEED_PROJECT_NAME }).first().click();
     await page
       .getByRole('button', { name: /^Edit$/, exact: false })
       .first()
@@ -78,13 +75,11 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
   test('seed project: repoUrl validation surfaces error for non-existent repo', async ({
     page,
   }) => {
-    await page.goto(
-      `/${SEED_ORG}/${SEED_USER}/${SEED_PROJECT}/settings/projects`
-    );
+    await page.goto(projectPath('/settings/projects'));
     await expect(
       page.getByRole('heading', { name: 'Projects', exact: true })
     ).toBeVisible({ timeout: 15_000 });
-    await page.locator('li', { hasText: SEED_PROJECT }).first().click();
+    await page.locator('li', { hasText: SEED_PROJECT_NAME }).first().click();
     await page
       .getByRole('button', { name: /^Edit$/, exact: false })
       .first()
@@ -109,6 +104,10 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
   // creates a scratch project via the tRPC HTTP API; afterAll deletes
   // it. Wire format follows e2e/r-smoke.spec.ts:66-69 — httpBatchLink
   // with `?batch=1` and `'0'` wrapper on POSTs.
+  //
+  // FLX-239 Stage 7: org + owning team resolve from the seed project's
+  // UUID; project.create (Stage 5 shape) requires orgId + teamId + userId
+  // and wires the user into a project_member row.
 
   test.describe('slug rename (throwaway project)', () => {
     let scratchProjectId: string | null = null;
@@ -116,18 +115,20 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
     test.beforeAll(async ({ browser }) => {
       const page = await browser.newPage();
       try {
-        const orgRes = await page.request.get(
-          `/api/trpc/organization.getBySlug?input=${encodeURIComponent(
-            JSON.stringify({ slug: SEED_ORG })
+        const projRes = await page.request.get(
+          `/api/trpc/project.getById?input=${encodeURIComponent(
+            JSON.stringify({ id: process.env.FLUXAOS_PROJECT_ID })
           )}`
         );
-        if (!orgRes.ok())
+        if (!projRes.ok())
           throw new Error(
-            `organization.getBySlug failed: ${orgRes.status()} ${await orgRes.text()}`
+            `project.getById failed: ${projRes.status()} ${await projRes.text()}`
           );
-        const orgJson = await orgRes.json();
-        const orgId = orgJson?.result?.data?.id;
-        if (!orgId) throw new Error('Seed org not resolvable via tRPC');
+        const seedProject = (await projRes.json())?.result?.data;
+        const orgId = seedProject?.orgId;
+        const teamId = seedProject?.teamId;
+        if (!orgId || !teamId)
+          throw new Error('Seed project not resolvable via tRPC');
 
         const userRes = await page.request.get(
           `/api/trpc/user.listByOrg?input=${encodeURIComponent(
@@ -149,6 +150,7 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
             data: {
               '0': {
                 orgId,
+                teamId,
                 userId,
                 name: SCRATCH_SLUG,
                 slug: SCRATCH_SLUG,
@@ -190,9 +192,7 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
     });
 
     test('cancel keeps current slug', async ({ page }) => {
-      await page.goto(
-        `/${SEED_ORG}/${SEED_USER}/${SCRATCH_SLUG}/settings/projects`
-      );
+      await page.goto(projectPath('/settings/projects'));
       await expect(
         page.getByRole('heading', { name: 'Projects', exact: true })
       ).toBeVisible({ timeout: 15_000 });
@@ -206,21 +206,28 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
       await slugInput.fill(SCRATCH_RENAMED);
       await page.getByRole('button', { name: /^Save$/, exact: false }).click();
 
-      // Modal appears; click Cancel and confirm URL did not change.
+      // Modal appears; click Cancel — the rename must not persist.
       await expect(page.getByRole('dialog')).toBeVisible();
       await page.getByTestId('confirm-modal-cancel').click();
 
-      await expect(page).toHaveURL(
-        new RegExp(
-          `/${SEED_ORG}/${SEED_USER}/${SCRATCH_SLUG}/settings/projects$`
-        )
-      );
+      // URL is UUID-based (slug renames never move the page) and the
+      // rename must not have persisted: after a reload no row carries
+      // the renamed slug. (hasText SCRATCH_RENAMED is the discriminating
+      // check — SCRATCH_SLUG is a prefix of SCRATCH_RENAMED.)
+      await expect(page).toHaveURL(/\/settings\/projects$/);
+      await page.reload();
+      await expect(
+        page.locator('li', { hasText: SCRATCH_SLUG }).first()
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.locator('li', { hasText: SCRATCH_RENAMED })
+      ).toHaveCount(0);
     });
 
-    test('confirm redirects to new slug', async ({ page }) => {
-      await page.goto(
-        `/${SEED_ORG}/${SEED_USER}/${SCRATCH_SLUG}/settings/projects`
-      );
+    test('confirm persists the new slug (URL unchanged — UUID routes)', async ({
+      page,
+    }) => {
+      await page.goto(projectPath('/settings/projects'));
       await expect(
         page.getByRole('heading', { name: 'Projects', exact: true })
       ).toBeVisible({ timeout: 15_000 });
@@ -235,12 +242,11 @@ test.describe('@flx-207 @flx-226 @flx-229 Projects form slice', () => {
       await page.getByRole('button', { name: /^Save$/, exact: false }).click();
       await page.getByTestId('confirm-modal-confirm').click();
 
-      await expect(page).toHaveURL(
-        new RegExp(
-          `/${SEED_ORG}/${SEED_USER}/${SCRATCH_RENAMED}/settings/projects$`
-        ),
-        { timeout: 10_000 }
-      );
+      // FLX-239: slugs are legacy metadata — the rename persists on the
+      // row, but the UUID URL does not change (no redirect).
+      const renamedRow = page.locator('li', { hasText: SCRATCH_RENAMED });
+      await expect(renamedRow.first()).toBeVisible({ timeout: 10_000 });
+      await expect(page).toHaveURL(/\/settings\/projects$/);
     });
   });
 });

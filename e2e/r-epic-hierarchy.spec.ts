@@ -8,9 +8,8 @@
 //      activity-feed label.
 // No external creds — pure state journey, self-contained.
 
-import { execSync } from 'node:child_process';
-import path from 'node:path';
 import postgres from 'postgres';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
@@ -18,21 +17,19 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL (or DIRECT_URL) must be set for e2e tests');
 }
 
-const REPO_ROOT = path.resolve(__dirname, '..');
-
-/** Walk a single tRPC issue.transition call against the dev server. */
+/** Walk a single tRPC issue.transition call against the dev server.
+ *  Relative URL — page.request resolves it against the configured
+ *  Playwright baseURL (one source of truth, no port fallbacks). */
 async function transition(
   page: import('@playwright/test').Page,
-  baseUrl: string,
   issueId: string,
   toStateId: string,
   version: number,
   projectId: string
 ): Promise<void> {
-  const resp = await page.request.post(
-    `${baseUrl}/api/trpc/issue.transition?batch=1`,
-    { data: { '0': { id: issueId, projectId, toStateId, version } } }
-  );
+  const resp = await page.request.post(`/api/trpc/issue.transition?batch=1`, {
+    data: { '0': { id: issueId, projectId, toStateId, version } },
+  });
   if (!resp.ok()) {
     const body = await resp.text();
     throw new Error(
@@ -47,19 +44,9 @@ test.describe('@r-epic @journey', () => {
   test('parent with open child rejects Run Stage; child close auto-closes parent', async ({
     page,
   }) => {
-    execSync('tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
 
     const sql = postgres(DATABASE_URL!, { max: 2, prepare: false });
-    const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3003';
 
     try {
       // Issue #1 becomes the parent.
@@ -133,7 +120,7 @@ test.describe('@r-epic @journey', () => {
         { id: string; pipeline_id: string }[]
       >`SELECT id, pipeline_id FROM "pipeline_stage" WHERE name='research' LIMIT 1`;
       const guardResp = await page.request.post(
-        `${baseUrl}/api/trpc/pipeline.runs.trigger?batch=1`,
+        `/api/trpc/pipeline.runs.trigger?batch=1`,
         {
           data: {
             '0': {
@@ -174,7 +161,6 @@ test.describe('@r-epic @journey', () => {
         const toId = stateByKey.get(key)!;
         await transition(
           page,
-          baseUrl,
           childRow0.id,
           toId,
           childVersion,

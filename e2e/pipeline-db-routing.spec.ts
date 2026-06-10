@@ -70,13 +70,13 @@ test.describe('@flx-153 @flx-129 @journey @pipeline-db-routing', () => {
 
     // Assert routing fields are visible
     await expect(
-      pipeline.getByRole('textbox', { name: 'On pass' })
+      pipeline.getByRole('combobox', { name: 'On pass' })
     ).toBeVisible({ timeout: 5_000 });
     await expect(
-      pipeline.getByRole('textbox', { name: 'On fail' })
+      pipeline.getByRole('combobox', { name: 'On fail' })
     ).toBeVisible({ timeout: 5_000 });
     await expect(
-      pipeline.getByRole('textbox', { name: 'Fallback' })
+      pipeline.getByRole('combobox', { name: 'Fallback' })
     ).toBeVisible({ timeout: 5_000 });
 
     // Assert NO Skill picker is present — this was removed in FLX-153.

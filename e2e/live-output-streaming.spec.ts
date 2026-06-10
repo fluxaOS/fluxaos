@@ -1,20 +1,25 @@
 // FLX-25: LiveOutput should append Realtime INSERT payloads while a stage runs.
 
 import 'dotenv/config';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Locator } from '@playwright/test';
 import postgres from 'postgres';
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import {
+  readSeedProjectTargetRepoPath,
+  resetDb,
+  writeSeedProjectTargetRepoPath,
+} from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 let targetRepoPath: string | null = null;
+let operatorTargetRepoPath: string | null = null;
 let handle: DaemonHandle | null = null;
 
 test.describe('@flx-25 @ui @daemon @realtime', () => {
@@ -24,16 +29,10 @@ test.describe('@flx-25 @ui @daemon @realtime', () => {
   test.beforeAll(async () => {
     targetRepoPath = createTempGitRepo();
 
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    await resetDb();
+    // The fixture points the seed project at a temp repo; capture the
+    // operator's value so afterAll can restore it for later suite specs.
+    operatorTargetRepoPath = await readSeedProjectTargetRepoPath();
 
     // FLX-221: target_repo_path is a per-project column.
     await configureStreamingFixture(targetRepoPath);
@@ -45,6 +44,11 @@ test.describe('@flx-25 @ui @daemon @realtime', () => {
     if (handle && handle.daemon.exitCode === null) {
       await handle.shutdown().catch(() => undefined);
     }
+    // Restore the operator's target repo path — the temp fixture dir is
+    // deleted below and must not leak into later suite specs.
+    await writeSeedProjectTargetRepoPath(operatorTargetRepoPath).catch(
+      () => undefined
+    );
     if (targetRepoPath) {
       rmSync(targetRepoPath, { recursive: true, force: true });
     }
@@ -179,9 +183,12 @@ async function configureStreamingFixture(repoPath: string): Promise<void> {
     await sql`
       INSERT INTO "pipeline_stage" (
         "pipeline_id", "name", "sort_order", "gate_mode", "max_retries",
-        "driver_id", "timeout_sec"
+        "driver_id", "timeout_sec", "persona_id"
       )
-      VALUES (${pipelineRow.id}, 'research', 10, 'auto', 0, ${driverRow.id}, 30)
+      VALUES (
+        ${pipelineRow.id}, 'research', 10, 'auto', 0, ${driverRow.id}, 30,
+        (SELECT id FROM "persona" WHERE "project_id" = ${projectRow.id} LIMIT 1)
+      )
     `;
   } finally {
     await sql.end();

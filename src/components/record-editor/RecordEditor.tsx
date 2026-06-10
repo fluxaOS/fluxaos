@@ -272,7 +272,10 @@ export function RecordEditor<TRecord extends RecordWithVersion>(
     <div className="space-y-5">
       {/* LIST */}
       <Card padding="p-0">
-        <ul className="divide-y divide-slate-700/20">
+        <ul
+          className="divide-y divide-slate-700/20"
+          data-testid="record-editor-list"
+        >
           {records.map((r) => {
             const isSelected = r.id === selectedId;
             const enabled = descriptor.toggleEnabledField

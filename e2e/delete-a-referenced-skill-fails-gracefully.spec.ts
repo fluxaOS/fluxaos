@@ -20,6 +20,17 @@ test.describe('@r-ui-1 @settings @skills', () => {
 
     await gotoSettings(page, 'skills');
 
+    // Wait for the initial skill.list fetch to land (seeded row visible)
+    // BEFORE creating. Creating while that fetch is in flight loses the
+    // post-create invalidation to request dedupe (FLX-279) and the new row
+    // never appears without a reload.
+    await expect(
+      page
+        .getByTestId('record-editor-list')
+        .locator('li', { hasText: 'research' })
+        .first()
+    ).toBeVisible({ timeout: 15_000 });
+
     // Create a fresh skill
     await page.getByRole('button', { name: 'New skill' }).click();
     await page

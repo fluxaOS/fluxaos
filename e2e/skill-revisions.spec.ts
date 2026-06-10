@@ -2,25 +2,13 @@
 // FLX-13 — Skill revision history + revert journey.
 
 import 'dotenv/config';
-import { execSync } from 'node:child_process';
-import path from 'node:path';
+import { resetDb } from './helpers/reset-db';
 import { expect, gotoSettings, test } from './helpers/setup';
-
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 test.describe('@flx-13 @settings @skills @revisions', () => {
   // Reset DB so revision_number assertions are deterministic.
-  test.beforeAll(() => {
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+  test.beforeAll(async () => {
+    await resetDb();
   });
 
   test('skill edit creates revision; revert restores prior content', async ({

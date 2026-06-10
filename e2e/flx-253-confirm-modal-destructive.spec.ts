@@ -9,32 +9,14 @@
 //   - Cancel: ConfirmModal appears, cancel leaves the state unchanged.
 //   - Confirm: ConfirmModal appears, confirm triggers the action.
 
-import { execSync } from 'node:child_process';
-import path from 'node:path';
-import { config as loadDotenv } from 'dotenv';
 import { cleanupFlx253ConfirmModalRows } from './helpers/catalog-cleanup';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
-
-const REPO_ROOT = path.resolve(__dirname, '..');
-const env = {
-  ...process.env,
-  ...loadDotenv({ path: path.join(REPO_ROOT, '.env') }).parsed,
-  ...loadDotenv({ path: path.join(REPO_ROOT, '.env.local') }).parsed,
-};
 
 test.describe('@flx-253 @confirm-modal @destructive', () => {
   test.beforeAll(async () => {
     await cleanupFlx253ConfirmModalRows();
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env,
-    });
+    await resetDb();
   });
 
   test.afterEach(async () => {
@@ -153,8 +135,10 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
     });
 
     // Wait for records to load — need at least 2 skills from seed.
-    const listItems = page.locator('ul li');
-    await expect(listItems).toHaveCount(2, { timeout: 10_000 });
+    // (FLX-239: listGlobal returns every catalog skill — 5 from seed plus
+    // anything other specs created — so assert "at least 2", not exactly 2.)
+    const listItems = page.getByTestId('record-editor-list').locator('li');
+    await expect(listItems.nth(1)).toBeVisible({ timeout: 10_000 });
 
     // Select the first skill.
     const firstItem = listItems.nth(0);
@@ -206,8 +190,9 @@ test.describe('@flx-253 @confirm-modal @destructive', () => {
       timeout: 15_000,
     });
 
-    const listItems = page.locator('ul li');
-    await expect(listItems).toHaveCount(2, { timeout: 10_000 });
+    // FLX-239: at least 2 catalog skills (see note in the Cancel test).
+    const listItems = page.getByTestId('record-editor-list').locator('li');
+    await expect(listItems.nth(1)).toBeVisible({ timeout: 10_000 });
 
     const firstItem = listItems.nth(0);
     const secondItem = listItems.nth(1);

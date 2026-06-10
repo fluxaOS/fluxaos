@@ -1,30 +1,19 @@
 // FLX-21: prior pipeline runs must remain reachable after a newer run exists.
 
 import 'dotenv/config';
-import { execSync } from 'node:child_process';
-import path from 'node:path';
 import postgres from 'postgres';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 const HAS_DB = !!DATABASE_URL;
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 test.describe('@flx-21 @ui', () => {
   test.skip(!HAS_DB, 'requires DATABASE_URL or DIRECT_URL');
   test.setTimeout(60_000);
 
-  test.beforeAll(() => {
-    execSync('npx tsx src/scripts/db/nuke.ts', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
-    execSync('npm run db:seed', {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-      env: process.env,
-    });
+  test.beforeAll(async () => {
+    await resetDb();
   });
 
   test('older run details stay accessible after a newer run is created', async ({

@@ -4,9 +4,18 @@
 // The FK guard in driver.delete should reject with a "referenced by N"
 // error and the row should remain in the list.
 
+import { resetDb } from './helpers/reset-db';
 import { expect, gotoSettings, test } from './helpers/setup';
 
 test.describe('@flx-63 @journey @driver-delete', () => {
+  // The precondition ("Claude Code" referenced by every pipeline_stage) is
+  // seed state. Earlier daemon-fixture specs rewire the seed pipeline's
+  // stages to stub drivers, so re-assert the precondition with a reset
+  // (FLX-266).
+  test.beforeAll(async () => {
+    await resetDb();
+  });
+
   test('delete-a-referenced-driver-fails-gracefully', async ({ page }) => {
     await gotoSettings(page, 'drivers');
 

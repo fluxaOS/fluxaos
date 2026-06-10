@@ -12,6 +12,7 @@
 // without the key stay green.
 
 import { type DaemonHandle, spawnDaemon } from './helpers/daemon';
+import { resetDb } from './helpers/reset-db';
 import { expect, projectPath, test } from './helpers/setup';
 
 const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
@@ -24,6 +25,10 @@ test.describe('@r-daemon @journey', () => {
   let handle: DaemonHandle | null = null;
 
   test.beforeAll(async () => {
+    // Earlier suite specs mutate seed issue #1 (epic hierarchies, runs);
+    // this journey needs pristine seed state. resetDb preserves the
+    // operator-owned target_repo_path (FLX-266).
+    await resetDb();
     handle = await spawnDaemon();
   });
 

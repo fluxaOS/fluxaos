@@ -87,21 +87,31 @@ test.describe('@flx-193 @journey @auto-dispatch', () => {
     // Alternatively, check the issue detail page for the pipeline run
     // indicator text (status badge rendered in the sidebar or run section).
 
-    // Poll: look for any pipeline run status indicator on the issue page.
-    // The issue detail renders a "Pipeline Run" section once a run exists.
+    // Poll: look for the run indicator on the issue page. Once a run
+    // exists the detail page renders "Run: {status} · Cost: $..." (same
+    // surface full-issue-lifecycle.spec.ts polls). Each iteration reloads
+    // and then WAITS for the indicator — the client queries that feed it
+    // resolve after the load event, so an instant visibility check would
+    // race hydration on every pass.
     await expect
       .poll(
         async () => {
           // Reload to pick up Realtime updates if the page doesn't subscribe.
           await page.reload();
-          const runIndicator = page.getByText(/Pipeline Run/i).first();
-          return runIndicator.isVisible().catch(() => false);
+          return page
+            .locator('p', { hasText: /^Run:\s/ })
+            .first()
+            .waitFor({ state: 'visible', timeout: 5_000 })
+            .then(
+              () => true,
+              () => false
+            );
         },
         {
-          timeout: 10_000,
-          intervals: [1_000, 2_000],
+          timeout: 30_000,
+          intervals: [500, 1_000],
           message:
-            'No pipeline run appeared on the issue detail page within 10s. ' +
+            'No pipeline run appeared on the issue detail page within 30s. ' +
             'IssueWatcher may not have dispatched or daemon may not be running.',
         }
       )
@@ -109,14 +119,14 @@ test.describe('@flx-193 @journey @auto-dispatch', () => {
 
     // ── 3. Assert the run has a non-null status ───────────────────────────
     // Any status (pending, running, completed, etc.) proves dispatch fired.
-    const runStatusBadge = page
-      .locator('span.rounded-full.font-semibold')
-      .first();
-
-    const statusText = await runStatusBadge.textContent().catch(() => null);
+    const runIndicatorText = await page
+      .locator('p', { hasText: /^Run:\s/ })
+      .first()
+      .textContent();
+    const statusMatch = runIndicatorText?.match(/Run:\s*(\w+)/);
     expect(
-      statusText,
-      'pipeline run status badge should have text'
+      statusMatch?.[1],
+      'pipeline run indicator should carry a status'
     ).toBeTruthy();
 
     // ── 4. Cleanup — delete the test issue ───────────────────────────────

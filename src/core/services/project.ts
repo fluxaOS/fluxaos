@@ -48,6 +48,25 @@ export function createProjectService(
     },
 
     /**
+     * FLX-266: project.create always writes a `project_member` grant, so a
+     * bare row delete can never succeed — the membership FK blocks it.
+     * Membership grants are ownership metadata of the project; remove them
+     * in the same transaction. Every other FK (pipelines, issues, …) still
+     * blocks the delete — that remains correct fail-fast behaviour for
+     * projects with real content.
+     */
+    async remove(id: string): Promise<boolean> {
+      return await db.transaction(async (tx) => {
+        await tx.delete(projectMember).where(eq(projectMember.projectId, id));
+        const rows = await tx
+          .delete(project)
+          .where(eq(project.id, id))
+          .returning({ id: project.id });
+        return rows.length > 0;
+      });
+    },
+
+    /**
      * FLX-228 / FLX-229: walk FK_VALIDATORS for every key in the patch
      * so FK scope is enforced in one place. FLX-227: when `repoUrl` is
      * in the patch and non-null, re-validate via the injected port.
