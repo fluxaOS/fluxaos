@@ -6,9 +6,20 @@
  * row + an issue_pull_request, and asserts the reader projects each
  * section correctly. Project-scoping is verified via a second project
  * with no fixtures.
+ *
+ * FLX-275/FLX-278 — every fixture is built inside a transaction that is
+ * ALWAYS rolled back (the issue-watcher-config.test.ts pattern). The
+ * reader is pure SELECTs, so the tRPC caller runs on the same tx handle
+ * and sees the uncommitted rows — while the live daemon never can:
+ * a COMMITTED pipeline_run at status='pending' is claimed by the
+ * operator daemon's orchestrator within its Realtime latency
+ * (pending → running + a launched stage), which destroyed exactly the
+ * state this reader asserts on. Rollback-tx fixtures are invisible to
+ * the daemon by construction and leave zero residue.
  */
 import 'dotenv/config';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { TransactionRollbackError } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
 import type { Database } from '@/core/db/connection';
@@ -21,7 +32,6 @@ import {
   createUserService,
 } from '@/core/services';
 import { appRouter } from '@/server/root';
-import { deleteOrgFixture } from './cleanup-fixtures';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -31,32 +41,49 @@ const db: Database = provider.getConnection();
 
 const RUN = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-let _orgId: string;
-let projectId: string;
-let secondProjectId: string;
-let _pipelineId: string;
-let _stageId: string;
-let issueId: string;
+/**
+ * Run `fn` inside a transaction that is ALWAYS rolled back. Fixture rows
+ * are never committed, so the live daemon (Realtime subscriber on
+ * pipeline_run) can never observe or claim them.
+ */
+async function inRollbackTx(
+  fn: (tx: Database) => Promise<void>
+): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await fn(tx as unknown as Database);
+      tx.rollback();
+    });
+  } catch (err) {
+    // The deliberate rollback is the expected exit path; anything else
+    // (including assertion failures inside `fn`) must propagate.
+    if (!(err instanceof TransactionRollbackError)) throw err;
+  }
+}
 
-let pendingRunId: string;
-let runningRunId: string;
-let runningStageRunId: string;
-let terminalRunId: string;
-let terminalStageRunId: string;
-let prId: string;
+interface McFixture {
+  projectId: string;
+  secondProjectId: string;
+  pendingRunId: string;
+  runningRunId: string;
+  runningStageRunId: string;
+  terminalRunId: string;
+  terminalStageRunId: string;
+  prId: string;
+}
 
-beforeAll(async () => {
-  const orgSvc = createOrganizationService(db);
-  const userSvc = createUserService(db);
-  const projSvc = createProjectService(db);
-  const catalogSvc = createIssueCatalogService(db);
-  const issueSvc = createIssueService(db);
+async function buildFixture(tx: Database): Promise<McFixture> {
+  const orgSvc = createOrganizationService(tx);
+  const userSvc = createUserService(tx);
+  const projSvc = createProjectService(tx);
+  const catalogSvc = createIssueCatalogService(tx);
+  const issueSvc = createIssueService(tx);
+  const dbx = tx;
 
   const org = await orgSvc.create({
     name: `mc-${RUN}`,
     settings: {},
   });
-  _orgId = org.id;
 
   const usr = await userSvc.create({
     orgId: org.id,
@@ -64,11 +91,11 @@ beforeAll(async () => {
     name: `mc-${RUN}`,
   });
 
-  const [team] = await db
+  const [team] = await dbx
     .insert(schema.team)
     .values({ orgId: org.id, name: `mc-team-${RUN}` })
     .returning();
-  const [team2] = await db
+  const [team2] = await dbx
     .insert(schema.team)
     .values({
       orgId: org.id,
@@ -82,7 +109,6 @@ beforeAll(async () => {
     userId: usr.id,
     name: `mc-proj-${RUN}`,
   });
-  projectId = proj.id;
 
   const proj2 = await projSvc.create({
     orgId: org.id,
@@ -90,11 +116,10 @@ beforeAll(async () => {
     userId: usr.id,
     name: `mc-proj2-${RUN}`,
   });
-  secondProjectId = proj2.id;
 
   // Catalog
   const t = await catalogSvc.types.create({
-    projectId,
+    projectId: proj.id,
     key: `feat-${RUN}`,
     displayName: 'Feature',
     color: '#00ff00',
@@ -102,7 +127,7 @@ beforeAll(async () => {
   });
 
   await catalogSvc.states.create({
-    projectId,
+    projectId: proj.id,
     key: `open-${RUN}`,
     displayName: 'Open',
     color: '#22cc22',
@@ -111,47 +136,45 @@ beforeAll(async () => {
   });
 
   await catalogSvc.statuses.create({
-    projectId,
+    projectId: proj.id,
     key: `backlog-${RUN}`,
     displayName: 'Backlog',
     sortOrder: 1,
   });
 
   const priority = await catalogSvc.priorities.create({
-    projectId,
+    projectId: proj.id,
     key: `high-${RUN}`,
     displayName: 'High',
     color: '#ff0000',
     weight: 100,
   });
 
-  await db
+  await dbx
     .insert(schema.configEntry)
     .values({
       scope: 'project',
-      projectId,
+      projectId: proj.id,
       key: 'issues.status.on_create_key',
       value: `backlog-${RUN}`,
     })
     .returning();
 
   const iss = await issueSvc.create({
-    projectId,
+    projectId: proj.id,
     title: 'mc test issue',
     typeId: t.id,
     priorityId: priority.id,
     author: 'mc-user',
   });
-  issueId = iss.id;
 
   // Pipeline + stage
-  const [pipe] = await db
+  const [pipe] = await dbx
     .insert(schema.pipeline)
-    .values({ projectId, name: `mc-pipe-${RUN}` })
+    .values({ projectId: proj.id, name: `mc-pipe-${RUN}` })
     .returning();
-  _pipelineId = pipe.id;
 
-  const [stage] = await db
+  const [stage] = await dbx
     .insert(schema.pipelineStage)
     .values({
       pipelineId: pipe.id,
@@ -162,32 +185,29 @@ beforeAll(async () => {
       maxRetries: 0,
     })
     .returning();
-  _stageId = stage.id;
 
   // Pending run
-  const [pendingRun] = await db
+  const [pendingRun] = await dbx
     .insert(schema.pipelineRun)
     .values({
       pipelineId: pipe.id,
-      issueId,
+      issueId: iss.id,
       status: PIPELINE_RUN_STATUS.pending,
     })
     .returning();
-  pendingRunId = pendingRun.id;
 
   // Running run + launching stage_run
-  const [runningRun] = await db
+  const [runningRun] = await dbx
     .insert(schema.pipelineRun)
     .values({
       pipelineId: pipe.id,
-      issueId,
+      issueId: iss.id,
       status: PIPELINE_RUN_STATUS.running,
       startedAt: new Date(),
     })
     .returning();
-  runningRunId = runningRun.id;
 
-  const [runningSr] = await db
+  const [runningSr] = await dbx
     .insert(schema.stageRun)
     .values({
       pipelineRunId: runningRun.id,
@@ -195,22 +215,20 @@ beforeAll(async () => {
       status: STAGE_RUN_STATUS.launching,
     })
     .returning();
-  runningStageRunId = runningSr.id;
 
   // Terminal run + completed stage_run
-  const [terminalRun] = await db
+  const [terminalRun] = await dbx
     .insert(schema.pipelineRun)
     .values({
       pipelineId: pipe.id,
-      issueId,
+      issueId: iss.id,
       status: PIPELINE_RUN_STATUS.completed,
       startedAt: new Date(Date.now() - 60_000),
       completedAt: new Date(),
     })
     .returning();
-  terminalRunId = terminalRun.id;
 
-  const [terminalSr] = await db
+  const [terminalSr] = await dbx
     .insert(schema.stageRun)
     .values({
       pipelineRunId: terminalRun.id,
@@ -220,13 +238,12 @@ beforeAll(async () => {
       completedAt: new Date(),
     })
     .returning();
-  terminalStageRunId = terminalSr.id;
 
   // PR row
-  const [pr] = await db
+  const [pr] = await dbx
     .insert(schema.issuePullRequest)
     .values({
-      issueId,
+      issueId: iss.id,
       repo: 'fluxaOS/fixture',
       provider: 'github',
       prNumber: 42,
@@ -237,17 +254,27 @@ beforeAll(async () => {
       baseBranch: 'main',
     })
     .returning();
-  prId = pr.id;
-});
+
+  return {
+    projectId: proj.id,
+    secondProjectId: proj2.id,
+    pendingRunId: pendingRun.id,
+    runningRunId: runningRun.id,
+    runningStageRunId: runningSr.id,
+    terminalRunId: terminalRun.id,
+    terminalStageRunId: terminalSr.id,
+    prId: pr.id,
+  };
+}
 
 afterAll(async () => {
-  if (_orgId) await deleteOrgFixture(db, _orgId);
   await provider.close();
 });
 
-describe('R-MISSION-CONTROL mission.summary', () => {
-  const caller = appRouter.createCaller({
-    db,
+/** Build a tRPC caller bound to the rollback transaction handle. */
+function makeCaller(tx: Database) {
+  return appRouter.createCaller({
+    db: tx,
     viewer: {
       authUserId: null,
       fluxaUserId: null,
@@ -255,41 +282,53 @@ describe('R-MISSION-CONTROL mission.summary', () => {
       tier: 'enterprise',
     },
   });
+}
 
+describe('R-MISSION-CONTROL mission.summary', () => {
   it('returns each section populated for the project', async () => {
-    const out = await caller.mission.summary({ projectId });
+    await inRollbackTx(async (tx) => {
+      const f = await buildFixture(tx);
+      const caller = makeCaller(tx);
+      const out = await caller.mission.summary({ projectId: f.projectId });
 
-    expect(out.pendingRuns.length).toBe(1);
-    expect(out.pendingRuns[0]?.id).toBe(pendingRunId);
-    expect(out.pendingRuns[0]?.pipelineName).toBe(`mc-pipe-${RUN}`);
-    expect(out.pendingRuns[0]?.issueTitle).toBe('mc test issue');
+      expect(out.pendingRuns.length).toBe(1);
+      expect(out.pendingRuns[0]?.id).toBe(f.pendingRunId);
+      expect(out.pendingRuns[0]?.pipelineName).toBe(`mc-pipe-${RUN}`);
+      expect(out.pendingRuns[0]?.issueTitle).toBe('mc test issue');
 
-    expect(out.runningRuns.length).toBe(1);
-    expect(out.runningRuns[0]?.run.id).toBe(runningRunId);
-    expect(out.runningRuns[0]?.currentStage?.id).toBe(runningStageRunId);
-    expect(out.runningRuns[0]?.currentStage?.name).toBe('research');
-    expect(out.runningRuns[0]?.currentStage?.status).toBe(
-      STAGE_RUN_STATUS.launching
-    );
+      expect(out.runningRuns.length).toBe(1);
+      expect(out.runningRuns[0]?.run.id).toBe(f.runningRunId);
+      expect(out.runningRuns[0]?.currentStage?.id).toBe(f.runningStageRunId);
+      expect(out.runningRuns[0]?.currentStage?.name).toBe('research');
+      expect(out.runningRuns[0]?.currentStage?.status).toBe(
+        STAGE_RUN_STATUS.launching
+      );
 
-    expect(out.recentTerminal.length).toBe(1);
-    expect(out.recentTerminal[0]?.run.id).toBe(terminalRunId);
-    expect(out.recentTerminal[0]?.finalStage?.id).toBe(terminalStageRunId);
-    expect(out.recentTerminal[0]?.finalStage?.status).toBe(
-      STAGE_RUN_STATUS.completed
-    );
+      expect(out.recentTerminal.length).toBe(1);
+      expect(out.recentTerminal[0]?.run.id).toBe(f.terminalRunId);
+      expect(out.recentTerminal[0]?.finalStage?.id).toBe(f.terminalStageRunId);
+      expect(out.recentTerminal[0]?.finalStage?.status).toBe(
+        STAGE_RUN_STATUS.completed
+      );
 
-    expect(out.recentPullRequests.length).toBe(1);
-    expect(out.recentPullRequests[0]?.id).toBe(prId);
-    expect(out.recentPullRequests[0]?.prNumber).toBe(42);
-    expect(out.recentPullRequests[0]?.issueTitle).toBe('mc test issue');
-  });
+      expect(out.recentPullRequests.length).toBe(1);
+      expect(out.recentPullRequests[0]?.id).toBe(f.prId);
+      expect(out.recentPullRequests[0]?.prNumber).toBe(42);
+      expect(out.recentPullRequests[0]?.issueTitle).toBe('mc test issue');
+    });
+  }, 60_000);
 
   it('returns empty arrays for a project with no fixtures', async () => {
-    const out = await caller.mission.summary({ projectId: secondProjectId });
-    expect(out.pendingRuns).toEqual([]);
-    expect(out.runningRuns).toEqual([]);
-    expect(out.recentTerminal).toEqual([]);
-    expect(out.recentPullRequests).toEqual([]);
-  });
+    await inRollbackTx(async (tx) => {
+      const f = await buildFixture(tx);
+      const caller = makeCaller(tx);
+      const out = await caller.mission.summary({
+        projectId: f.secondProjectId,
+      });
+      expect(out.pendingRuns).toEqual([]);
+      expect(out.runningRuns).toEqual([]);
+      expect(out.recentTerminal).toEqual([]);
+      expect(out.recentPullRequests).toEqual([]);
+    });
+  }, 60_000);
 });
