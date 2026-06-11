@@ -127,7 +127,7 @@ Audits, not journey tests. Each invariant gets a one-shot verification (script o
 
 As of 2026-05-10 the matrix is effectively green: the formerly-partial rows (rework, daemon pickup, full daemon journey, DB-driven config) all resolved via FLX-84/85/86/87, FLX-193, FLX-197, FLX-74 + follow-ups. Crash recovery is covered by integration test rather than a Playwright spec — flagged ✅/🟡 to keep that distinction visible.
 
-The verified rows exercise real user-facing behavior end-to-end against a real database. Remaining gaps are tracked in the Linear `fluxaOS Post-Alpha Roadmap` and `Deferred Fixes` projects.
+The verified rows exercise real user-facing behavior end-to-end against a real database. Remaining gaps are tracked in the Linear `Post-Alpha Roadmap` and `Bug Backlog` projects. *(Project names updated 2026-06-10 — the former "Deferred Fixes" project no longer exists.)*
 
 ---
 

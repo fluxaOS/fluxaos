@@ -12,7 +12,7 @@ cp .env.example .env          # fill in Supabase URLs/keys and DATABASE_URL
 # add secrets to .env.local   # ANTHROPIC_API_KEY, FLUXAOS_GITHUB_TOKEN, etc. (gitignored)
 npm run db:migrate
 npm run db:seed
-npm run dev -- -p 3003        # port 3000 is taken; always use 3003
+npm run dev -- -H 0.0.0.0 -p 3004   # dev owns 3004; UAT/Docker owns 3003
 ```
 
 Full env var reference and gotchas: [CLAUDE.md](../CLAUDE.md) → R-RUNTIME env vars section.
@@ -49,7 +49,7 @@ See [CLAUDE.md](../CLAUDE.md) → Worktrees & Hooks for the full list.
 
 - **Linear** (`rebos` workspace, team `FLX`) is the roadmap and deferred-fixes source of truth.
 - Dogfood issues are filed as native fluxaOS issues via the UI, not in Linear directly.
-- Bug findings go to the Linear "fluxaOS Deferred Fixes" project via MCP (`mcp__plugin_linear_linear__save_issue`).
+- Bug findings go to the Linear "Bug Backlog" project via MCP (`mcp__plugin_linear_linear__save_issue`).
 - Frozen historical list: `docs/superpowers/deferred-fixes.md` — do not append.
 
 ### PR expectations
@@ -75,7 +75,7 @@ npx vitest            # integration tests (real Supabase — no mocks)
 
 ```bash
 # against the LAN dev server
-PLAYWRIGHT_BASE_URL=http://192.168.54.101:3003 npx playwright test e2e/<your-spec>.spec.ts
+PLAYWRIGHT_BASE_URL=http://192.168.54.101:3004 npx playwright test e2e/<your-spec>.spec.ts
 ```
 
 Reference pattern: `e2e/real-anthropic-stage-run.spec.ts`. Do not claim UI work is done without a green journey spec.
@@ -86,7 +86,7 @@ Reference pattern: `e2e/real-anthropic-stage-run.spec.ts`. Do not claim UI work 
 
 fluxaOS runs its own development work through the fluxaOS pipeline. Good candidates: bug fixes with clear repros, missing tests, documentation, small mechanical refactors.
 
-Not suitable for dogfooding: schema migrations, engine/orchestrator changes, `CLAUDE.md` edits, or anything touching `ops/git-hooks/` or `.claude/AGENT_BEHAVIOR.md`.
+Not suitable for dogfooding: schema migrations, engine/orchestrator changes, `CLAUDE.md` edits, or anything touching `ops/git-hooks/`.
 
 Full operating procedure: [docs/superpowers/specs/2026-04-28-flx-9-dogfooding-design.md](superpowers/specs/2026-04-28-flx-9-dogfooding-design.md).
 

@@ -35,7 +35,7 @@ No "production-impacting" framing applies here. The override in this project's C
 | `tsx src/scripts/db/nuke.ts` | Drop all user data, keep schema |
 | `npm run pipeline:init-result-doc` | Initialize a result doc for a stage run (debug/test) |
 | `npm run pipeline:ingest-result-doc` | Ingest a result doc into the DB (debug/test) |
-| `npm run cli -- <command>` | `fluxaos` CLI (thin tRPC HTTP wrapper). Requires `FLUXAOS_API_URL` set + `FLUXAOS_LAN_AUTH_BYPASS=1` on the server. See `src/cli/index.ts` for commands. |
+| `npm run cli -- <command>` | `fluxaos` CLI (thin tRPC HTTP wrapper). Requires `FLUXAOS_API_URL` + `FLUXAOS_CLI_PROJECT_ID` (project UUID, FLX-271) set + `FLUXAOS_LAN_AUTH_BYPASS=1` on the server. See `src/cli/index.ts` for commands. |
 
 ## Architecture
 
@@ -45,7 +45,7 @@ src/
   core/         # Domain logic — services, ports, DB schema, gates, pipeline, orchestrator
   server/       # tRPC routers (root.ts, trpc.ts, routers/)
   adapters/     # Vendor integrations (supabase, bullmq, subprocess)
-  app/          # Next.js App Router pages ([org]/[user]/[project]/...)
+  app/          # Next.js App Router pages (p/[projectUuid]/... — UUID-only tenancy, FLX-239)
   components/   # React components (gates/, dashboard/, shared)
   lib/          # Client helpers (supabase client, tRPC client, context resolution)
   config/       # Bootstrap + adapter registry
@@ -71,8 +71,6 @@ Next.js 16, React 19, TypeScript 5, tRPC v11, Drizzle ORM, Supabase Cloud (Postg
 
 ## Agent Behavior
 
-@.claude/AGENT_BEHAVIOR.md
-
 **Project-specific verification:** UI work uses Playwright journey tests in `e2e/`. Reference pattern: `e2e/real-anthropic-stage-run.spec.ts`.
 
 **Canonical full-lifecycle journey:** `e2e/full-issue-lifecycle.spec.ts` files an issue via the UI and watches the pipeline run through every stage to `completed` against the running daemon (no test-side env vars, no spawned daemon — same surface as a human at the keyboard). It MUST be run and pass before any UI sign-off is requested or any UI-touching PR is merged. If it fails, work halts: no commit lands, no PR merges, no issue closes — the failure surfaces a real product bug that must be fixed first. This journey is not deploy/PR proof by itself: deploy-touching sign-off also needs one of the live deploy journeys (`e2e/r-runtime-deploy-journey.spec.ts`, `e2e/r-smoke.spec.ts`, `e2e/manual-stage-chain.spec.ts`, or `e2e/r-artifacts-chain.spec.ts`) or an explicit note that deploy proof was skipped for missing credentials. (When fhc#3314 verify gate ships, this rule converges with `fhc verify`.)
@@ -92,6 +90,7 @@ Runtime deploy loop (file-issue → PR) requires these in `.env.local`:
 - `runtime.workspace_root` (DB-only, FLX-222) — override for where worktrees live, stored as a `config_entry` row (`scope='global'`, `project_id=NULL`, key `runtime.workspace_root`). Default value is jsonb `null` ("use in-project `<repo>/.fluxaos-worktrees/`"); set to an absolute path string via Settings → System. The seed inserts the row; the isolation provider fails fast if it's missing.
 - `runtime.artifacts_root` (DB-only, FLX-223) — override for where per-run artifact directories live, stored as a `config_entry` row (`scope='global'`, `project_id=NULL`, key `runtime.artifacts_root`). Default value is jsonb `null` ("use in-project `<repo>/.fluxaos-artifacts/`" — auto-added to target repo's `.gitignore` on first acquire). Set to an absolute path string via Settings → System. The seed inserts the row; the isolation provider fails fast if it's missing.
 - `cleanup.*` (DB-only, FLX-224) — five `config_entry` rows (`scope='global'`, `project_id=NULL`) that own the cleanup scheduler's thresholds and on/off gate. Seed defaults: `cleanup.sweep_interval_min`=10, `cleanup.stale_days`=7, `cleanup.session_retention_days`=30, `cleanup.artifacts_retention_days`=30, `cleanup.scheduler_enabled`=false. The four thresholds must be positive integers; the gate must be a boolean. The cleanup-scheduler re-reads the thresholds on every sweep, so Settings → System edits take effect on the next tick without a daemon restart. The gate (`cleanup.scheduler_enabled`) is read once at daemon boot — flip it true via Settings → System (or SQL) and restart the daemon to engage the sweep loop.
+- `FLUXAOS_PROJECT_ID` (e2e only) — UUID of the seed project, consumed by `e2e/helpers/setup.ts` to build `/p/{uuid}` paths (slug addressing is gone — FLX-239). `npm run db:seed` inserts the default project with the fixed UUID `00000000-0000-4000-8000-000000000001` (`src/scripts/db/seed-ids.ts`), so the value survives nuke + reseed.
 - `FLUXAOS_TEST_TARGET_REPO` (e2e only) — `owner/repo` the deploy-touching journeys (r-runtime-deploy, r-smoke, manual-stage-chain, r-artifacts-chain) open + auto-close PRs against. Set to `fluxaOS/fluxaos` when dogfooding, or any disposable repo you control. Specs skip cleanly when unset.
 - `FLUXAOS_TARGET_REPO_PATH` (legacy e2e fixture only) — local checkout path still consumed by older deploy-touching specs so they can seed `project.target_repo_path` before exercising the DB-backed runtime path. Not a runtime fallback and not operator configuration; real stage acquisition reads the project row.
 - `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` — required when running the daemon. Positive integer, seconds to wait for in-flight stage runs to drain after SIGTERM. Daemon refuses to start without it (operator owns the drain window — no default).
@@ -105,13 +104,11 @@ Linear is the source of truth for issues, deferred fixes, and post-alpha roadmap
 
 - **Workspace:** `rebos`
 - **Team:** `fluxaOS` (key `FLX`)
-- **Projects:**
-  - **fluxaOS Post-Alpha Roadmap** — parked post-alpha workstreams; alpha is not shipped until the verification matrix is fully green
-  - **fluxaOS Deferred Fixes** — non-blocking cleanup and follow-ups
+- **Projects:** Alpha Release, Bug Backlog, Enhancements, Settings & config integrity, Post-Alpha Roadmap, Post-Alpha Wishlist. Bug findings go to **Bug Backlog**. (There is no "fluxaOS Deferred Fixes" project.)
 - **Access:** Linear MCP only. No CLI. List issues with `mcp__plugin_linear_linear__list_issues`, save with `mcp__plugin_linear_linear__save_issue`.
 - **Branch convention:** `flx-NNN-short-slug` (e.g., `flx-42-fix-realtime-leak`).
 - **Commit trailer:** include `Fixes FLX-NNN` (or `Refs FLX-NNN`) in the commit body when the work resolves a Linear issue.
-- **Legacy:** `docs/superpowers/deferred-fixes.md` is frozen — historical record only. New findings go to the Linear "fluxaOS Deferred Fixes" project.
+- **Legacy:** `docs/superpowers/deferred-fixes.md` is frozen — historical record only. New findings go to the Linear "Bug Backlog" project.
 
 ## Worktrees & Hooks
 
@@ -140,10 +137,7 @@ The four-command snapshot — `git status && git stash list && git branch --list
 - `bash ops/git-hooks/session-audit.sh prune` — deletes only `ORPHAN-MERGED` branches (safe `git branch -d`); never touches dangling or open-PR branches.
 - `bash ops/git-hooks/session-audit.sh json` — machine-readable output for tooling.
 
-The audit runs automatically:
-
-- **At every Claude Code SessionStart** via `.claude/hooks/session-start-audit.sh` (advisory, non-blocking — surfaces orphans the moment the agent kicks off).
-- **After every merge into `main`** via `ops/git-hooks/post-merge` (auto-prunes ORPHAN-MERGED branches; leaves dangling branches for human attention).
+The audit runs automatically **after every merge into `main`** via `ops/git-hooks/post-merge` (auto-prunes ORPHAN-MERGED branches; leaves dangling branches for human attention). There is no automatic SessionStart audit (the `.claude/hooks/session-start-audit.sh` hook was retired with PR #396) — run `bash ops/git-hooks/session-audit.sh report` manually at session start.
 
 **No stash in agent workflows:** `git stash` operates on the repo, not the worktree — agent B can pop agent A's stash silently. Agents must not use stash; use temp commits instead. The pre-push hook fails on any stash that is not prefixed `PROTECTED:` (the human escape hatch).
 
