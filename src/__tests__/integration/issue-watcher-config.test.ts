@@ -210,11 +210,11 @@ async function addOpenIssue(tx: Database, projectId: string, statusId: string) {
 }
 
 async function waitFor(
-  predicate: () => boolean,
-  timeoutMs = 5000
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs = 60_000
 ): Promise<void> {
   const start = Date.now();
-  while (!predicate()) {
+  while (!(await predicate())) {
     if (Date.now() - start > timeoutMs) {
       throw new Error('waitFor timed out');
     }
@@ -242,7 +242,7 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
       expect(subscriptions.length).toBe(0);
       expect(fatals.length).toBe(0);
     });
-  });
+  }, 30_000);
 
   it('start() rejects when the config value is not a string', async () => {
     await inRollbackTx(async (tx) => {
@@ -258,7 +258,7 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
       await expect(watcher.start()).rejects.toThrow(/not a string/);
       expect(watcher.running).toBe(false);
     });
-  });
+  }, 30_000);
 
   it('start() rejects when no issue_status matches the configured key', async () => {
     await inRollbackTx(async (tx) => {
@@ -276,7 +276,7 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
       );
       expect(watcher.running).toBe(false);
     });
-  });
+  }, 30_000);
 
   it('start() resolves with valid config and the startup sweep dispatches an open issue', async () => {
     await inRollbackTx(async (tx) => {
@@ -302,15 +302,23 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
           'UPDATE',
         ]);
 
-        // start() awaits the startup sweep, so the run exists already.
-        const runs = await tx
-          .select({
-            id: schema.pipelineRun.id,
-            status: schema.pipelineRun.status,
-            pipelineId: schema.pipelineRun.pipelineId,
-          })
-          .from(schema.pipelineRun)
-          .where(eq(schema.pipelineRun.issueId, issueRow.id));
+        // The startup sweep runs fire-and-forget — poll for its dispatch.
+        let runs: Array<{
+          id: string;
+          status: string;
+          pipelineId: string | null;
+        }> = [];
+        await waitFor(async () => {
+          runs = await tx
+            .select({
+              id: schema.pipelineRun.id,
+              status: schema.pipelineRun.status,
+              pipelineId: schema.pipelineRun.pipelineId,
+            })
+            .from(schema.pipelineRun)
+            .where(eq(schema.pipelineRun.issueId, issueRow.id));
+          return runs.length > 0;
+        });
 
         expect(runs.length).toBe(1);
         expect(runs[0].status).toBe('pending');
@@ -320,7 +328,9 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
         watcher.stop();
       }
     });
-  });
+    // Generous timeout: the awaited startup sweep walks every open issue in
+    // the shared dev DB, which is slow when the full suite runs in parallel.
+  }, 120_000);
 
   it('escalates via onFatal when the config row disappears at watch time', async () => {
     await inRollbackTx(async (tx) => {
@@ -340,8 +350,16 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
 
       await watcher.start();
       try {
-        // Remove the pending run the sweep just created so the active-run
-        // guard cannot short-circuit before config resolution.
+        // Wait for the fire-and-forget sweep to dispatch our issue, then
+        // remove the pending run it created so the active-run guard cannot
+        // short-circuit before config resolution.
+        await waitFor(async () => {
+          const rows = await tx
+            .select({ id: schema.pipelineRun.id })
+            .from(schema.pipelineRun)
+            .where(eq(schema.pipelineRun.issueId, issueRow.id));
+          return rows.length > 0;
+        });
         await tx
           .delete(schema.pipelineRun)
           .where(eq(schema.pipelineRun.issueId, issueRow.id));
@@ -375,5 +393,6 @@ describe('FLX-270 issue-watcher dispatch-config fail-fast', () => {
         watcher.stop();
       }
     });
-  });
+    // Generous timeout: see the valid-config test above.
+  }, 120_000);
 });

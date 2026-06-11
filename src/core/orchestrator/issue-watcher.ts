@@ -137,7 +137,9 @@ export function createIssueWatcher(
       }
     );
 
-    await startupSweep();
+    // Fire-and-forget so daemon boot time doesn't scale with open-issue
+    // count; sweep failures still escalate (daemon exits) — never swallowed.
+    startupSweep().catch(escalate('startup_sweep'));
   }
 
   function stop(): void {
