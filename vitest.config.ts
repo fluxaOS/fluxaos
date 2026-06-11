@@ -25,6 +25,11 @@ export default defineConfig({
     // time on shared global state. Tests within a file already run
     // sequentially, so this changes scheduling only across files.
     fileParallelism: false,
+    // FLX-275: fixture teardown (deleteOrgFixture) issues ~30 sequential
+    // DELETEs per org against Supabase Cloud — suites with several org
+    // fixtures legitimately exceed the 10s default that assumes a local DB
+    // (observed: pipeline-terminal-hook-deploy-run afterAll at 10.0s).
+    hookTimeout: 60_000,
     exclude: [
       '**/node_modules/**',
       'dist',
