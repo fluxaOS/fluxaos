@@ -53,9 +53,16 @@ export interface EventOrchestratorConfig {
   maxConcurrentRuns: number;
 }
 
-const DEFAULT_CONFIG: EventOrchestratorConfig = {
+/**
+ * Exported so integration tests can derive daemon-saturation fixtures from
+ * the real default instead of hardcoding the number (the operator daemon
+ * passes no override, so this IS its effective limit).
+ */
+export const DEFAULT_EVENT_ORCHESTRATOR_CONFIG: EventOrchestratorConfig = {
   maxConcurrentRuns: 5,
 };
+
+const DEFAULT_CONFIG = DEFAULT_EVENT_ORCHESTRATOR_CONFIG;
 
 export interface EventOrchestrator {
   start(): void;
