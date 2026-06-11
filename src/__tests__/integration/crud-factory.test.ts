@@ -2,11 +2,12 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { driver, organization } from '@/core/db/schema';
+import { driver, organization, user } from '@/core/db/schema';
 import {
   createCrudService,
   createVersionedCrudService,
 } from '@/core/services/crud-factory';
+import { createOrganizationService } from '@/core/services/organization';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL must be set for integration tests');
@@ -19,9 +20,16 @@ type DriverInsert = typeof driver.$inferInsert;
 type DriverSelect = typeof driver.$inferSelect;
 
 const orgCleanup: string[] = [];
+const userCleanup: string[] = [];
 const driverCleanup: string[] = [];
 
 afterAll(async () => {
+  for (const id of userCleanup) {
+    await db
+      .delete(user)
+      .where(eq(user.id, id))
+      .catch(() => {});
+  }
   for (const id of orgCleanup) {
     await db
       .delete(organization)
@@ -38,7 +46,7 @@ afterAll(async () => {
 });
 
 describe('createCrudService (non-versioned)', () => {
-  it('list / getById / create / update / remove round-trips', async () => {
+  it('getById / create / update / remove round-trips', async () => {
     const svc = createCrudService<OrgInsert, OrgSelect>(db, organization);
     const ts = Date.now();
     const created = await svc.create({
@@ -52,9 +60,6 @@ describe('createCrudService (non-versioned)', () => {
     const updated = await svc.update(created.id, { name: 'CRUD-RENAMED' });
     expect(updated?.name).toBe('CRUD-RENAMED');
 
-    const list = await svc.list();
-    expect(list.some((o) => o.id === created.id)).toBe(true);
-
     const removed = await svc.remove(created.id);
     expect(removed).toBe(true);
 
@@ -67,6 +72,39 @@ describe('createCrudService (non-versioned)', () => {
 
     // pop from cleanup array since already removed
     orgCleanup.pop();
+  });
+
+  it('unscoped list() throws — scoped overrides are the only list path', async () => {
+    // FLX-276: the factory's `list()` is banned by contract — calling it must
+    // throw immediately (cross-tenant leak guard), never return rows.
+    const svc = createCrudService<OrgInsert, OrgSelect>(db, organization);
+    await expect(svc.list()).rejects.toThrow(/scoped override/);
+  });
+
+  it('a service-level scoped override lists rows the factory refuses to', async () => {
+    // The contract's other half: services built on the factory replace the
+    // throwing `list()` with a tenant-scoped variant. Exercise the real
+    // organization service's `listByUserId` against an owned fixture.
+    const ts = Date.now();
+    const orgSvc = createOrganizationService(db);
+
+    const org = await orgSvc.create({ name: `CRUD-SCOPED-${ts}` });
+    orgCleanup.push(org.id);
+    const [usr] = await db
+      .insert(user)
+      .values({
+        orgId: org.id,
+        email: `crud-scoped-${ts}@test.local`,
+        name: `CRUD-SCOPED-${ts}`,
+      })
+      .returning();
+    userCleanup.push(usr.id);
+
+    const scoped = await orgSvc.listByUserId(usr.id);
+    expect(scoped.map((o) => o.id)).toEqual([org.id]);
+
+    // The same service still exposes the factory's banned unscoped list().
+    await expect(orgSvc.list()).rejects.toThrow(/scoped override/);
   });
 });
 
@@ -170,7 +208,7 @@ describe('createVersionedCrudService', () => {
     expect(still?.version).toBe(2);
   });
 
-  it('list and getById still work on versioned service', async () => {
+  it('getById works and unscoped list() throws on versioned service', async () => {
     const svc = createVersionedCrudService<DriverInsert, DriverSelect>(
       db,
       driver
@@ -187,7 +225,8 @@ describe('createVersionedCrudService', () => {
     const fetched = await svc.getById(created.id);
     expect(fetched?.id).toBe(created.id);
 
-    const all = await svc.list();
-    expect(all.some((d) => d.id === created.id)).toBe(true);
+    // FLX-276: the versioned factory inherits the banned unscoped list() —
+    // it must throw, same as the base factory.
+    await expect(svc.list()).rejects.toThrow(/scoped override/);
   });
 });

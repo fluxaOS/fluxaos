@@ -134,7 +134,7 @@ export const skillRouter = router({
     .input(z.object({ id: z.string().uuid(), version: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       // Wrap the FK-count + version-locked delete in a single transaction
-      // so a concurrent INSERT into pipelineStage/stageRun/personaSkill
+      // so a concurrent INSERT into stageRun/personaSkill
       // between the count and the delete cannot orphan a reference.
       // (Without the transaction, countReferences could see 0, then another
       //  writer adds a row referencing this skill, then our delete succeeds
@@ -147,10 +147,10 @@ export const skillRouter = router({
 
         // 1. FK guard: reject with a meaningful message if anything still points here
         const refs = await svc.countReferences(input.id);
-        const total = refs.pipelineStages + refs.stageRuns + refs.personaSkills;
+        const total = refs.stageRuns + refs.personaSkills;
         if (total > 0) {
           throw new Error(
-            `Cannot delete skill — referenced by ${refs.pipelineStages} pipeline stage(s), ${refs.stageRuns} stage run(s), and ${refs.personaSkills} persona binding(s). Remove references first.`
+            `Cannot delete skill — referenced by ${refs.stageRuns} stage run(s) and ${refs.personaSkills} persona binding(s). Remove references first.`
           );
         }
 

@@ -76,6 +76,26 @@ async function makeArtifactsBase(label: string): Promise<string> {
   return base;
 }
 
+/**
+ * FLX-275 — confine the sweep's filesystem surface to bases THIS suite owns.
+ *
+ * `runScheduledSweep` is global by design: it discovers every artifacts base
+ * recorded on any isolation_environment row. In the real-world gate
+ * environment the live daemon has env rows pointing at the operator's
+ * in-repo `.fluxaos-artifacts/` base, which accumulates hundreds of
+ * historical run dirs (on NFS). With this suite's 1-day retention override,
+ * the sweep would stat + DB-check + `rm -rf` every one of them — minutes of
+ * I/O (the observed 30s timeouts scale with data volume) and destruction of
+ * artifacts the suite does not own. Listing only owned bases keeps the
+ * real-FS pipeline (readdir → stat → rm) fully exercised on the dirs the
+ * test provisioned while making foreign bases invisible — the same view a
+ * pristine DB would present.
+ */
+function listOwnedArtifactDirs(base: string): Promise<string[]> {
+  if (!tmpArtifactBases.includes(base)) return Promise.resolve([]);
+  return listArtifactDirs(base);
+}
+
 /** Backdated mtime for "stale" cases — 2 days old (exceeds 1-day retention). */
 function staleDate(): Date {
   return new Date(Date.now() - 2 * 86_400_000);
@@ -157,7 +177,7 @@ describe('cleanup-service — artifacts sweep against real FS (R-ARTIFACTS W7-T1
     expect(existsSync(dir)).toBe(true);
 
     const { service } = buildService(db, {
-      listArtifactDirs,
+      listArtifactDirs: listOwnedArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
     });
@@ -186,7 +206,7 @@ describe('cleanup-service — artifacts sweep against real FS (R-ARTIFACTS W7-T1
     });
 
     const { service } = buildService(db, {
-      listArtifactDirs,
+      listArtifactDirs: listOwnedArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
     });
@@ -216,7 +236,7 @@ describe('cleanup-service — artifacts sweep against real FS (R-ARTIFACTS W7-T1
     });
 
     const { service } = buildService(db, {
-      listArtifactDirs,
+      listArtifactDirs: listOwnedArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
     });
@@ -275,7 +295,7 @@ describe('cleanup-service — artifacts sweep against real FS (R-ARTIFACTS W7-T1
     });
 
     const { service } = buildService(db, {
-      listArtifactDirs,
+      listArtifactDirs: listOwnedArtifactDirs,
       removeArtifactsDir,
       getArtifactsDirAge,
     });

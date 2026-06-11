@@ -180,10 +180,11 @@ export function createSkillService(db: DbOrTx) {
      * Count references to this skill across all FK-holding tables.
      * Used to produce meaningful delete-failure messages.
      *
-     * FLX-153: pipeline_stage.skill_id was removed — pipelineStages is always 0.
+     * FLX-153 removed pipeline_stage.skill_id, so the surviving reference
+     * sources are stage_run.skill_id and persona_skill.skill_id (FLX-278
+     * dropped the dead, always-zero pipelineStages field).
      */
     async countReferences(id: string): Promise<{
-      pipelineStages: number;
       stageRuns: number;
       personaSkills: number;
     }> {
@@ -196,7 +197,6 @@ export function createSkillService(db: DbOrTx) {
         .from(personaSkill)
         .where(eq(personaSkill.skillId, id));
       return {
-        pipelineStages: 0,
         stageRuns: Number(sr?.c ?? 0),
         personaSkills: Number(psk?.c ?? 0),
       };

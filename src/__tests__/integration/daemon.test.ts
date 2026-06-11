@@ -14,11 +14,16 @@ import 'dotenv/config';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, notInArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { PIPELINE_RUN_STATUS, STAGE_RUN_STATUS } from '@/core/constants';
 import {
+  PIPELINE_RUN_STATUS,
+  PIPELINE_RUN_TERMINAL,
+  STAGE_RUN_STATUS,
+} from '@/core/constants';
+import {
+  issue,
   organization,
   pipeline,
   pipelineRun,
@@ -32,13 +37,69 @@ import {
 import { createDaemon, loadDaemonEnvFiles, parseEnv } from '@/scripts/daemon';
 
 describe('R-DAEMON factory', () => {
-  beforeAll(() => {
+  // FLX-278/FLX-275 — data isolation from auto-dispatch. createDaemon()
+  // boots a REAL IssueWatcher whose startup sweep dispatches every open
+  // issue in an auto-dispatch-enabled project (defaultPipelineId set) that
+  // has no active pipeline_run — i.e. the seeded issues. Each createDaemon
+  // call in this suite would therefore launch real pipeline executions
+  // that outlive the suite (the in-process daemon is torn down mid-flight),
+  // leaving zombie 'running' rows that starve the global concurrency slots
+  // for every later suite. Block dispatch with DATA, not by stubbing: a
+  // 'queued' pipeline_run is non-terminal (trips the watcher's
+  // active-run-exists guard) but is never claimed by any orchestrator
+  // (only 'pending' is) and never counts toward the running-slot limit.
+  const blockerProvider = new SupabaseDatabaseProvider(
+    process.env.DATABASE_URL as string
+  );
+  const blockerDb = blockerProvider.getConnection();
+  const blockerRunIds: string[] = [];
+
+  beforeAll(async () => {
     process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS = '3';
+
+    const openIssues = await blockerDb
+      .select({
+        id: issue.id,
+        defaultPipelineId: project.defaultPipelineId,
+      })
+      .from(issue)
+      .innerJoin(project, eq(issue.projectId, project.id))
+      .where(
+        and(eq(issue.isClosed, false), isNotNull(project.defaultPipelineId))
+      );
+    for (const row of openIssues) {
+      const active = await blockerDb
+        .select({ id: pipelineRun.id })
+        .from(pipelineRun)
+        .where(
+          and(
+            eq(pipelineRun.issueId, row.id),
+            notInArray(pipelineRun.status, [...PIPELINE_RUN_TERMINAL])
+          )
+        );
+      if (active.length > 0) continue;
+      const [blocker] = await blockerDb
+        .insert(pipelineRun)
+        .values({
+          // defaultPipelineId is non-null per the join filter above.
+          pipelineId: row.defaultPipelineId as string,
+          issueId: row.id,
+          status: PIPELINE_RUN_STATUS.queued,
+        })
+        .returning();
+      blockerRunIds.push(blocker.id);
+    }
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     delete process.env.FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS;
     delete process.env.FLUXAOS_DAEMON_RECOVERY_SWEEP_INTERVAL_MIN;
+    if (blockerRunIds.length > 0) {
+      await blockerDb
+        .delete(pipelineRun)
+        .where(inArray(pipelineRun.id, blockerRunIds));
+    }
+    await blockerProvider.close();
   });
 
   it('parseEnv throws when FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS is unset', () => {
@@ -161,7 +222,9 @@ describe('R-DAEMON factory', () => {
     } finally {
       await daemon.shutdown('test-teardown');
     }
-  });
+    // 30s: createDaemon awaits the recovery sweep + real Supabase Realtime
+    // channel subscriptions — the handshake alone can exceed the 5s default.
+  }, 30_000);
 
   it('shutdown stops orchestrator and cleanup scheduler', async () => {
     const daemon = await createDaemon();
@@ -169,7 +232,7 @@ describe('R-DAEMON factory', () => {
     await daemon.shutdown('test');
     expect(daemon.orchestrator.running).toBe(false);
     expect(daemon.cleanupScheduler.isRunning()).toBe(false);
-  });
+  }, 30_000);
 
   it('double-shutdown is a no-op', async () => {
     const daemon = await createDaemon();
@@ -177,7 +240,7 @@ describe('R-DAEMON factory', () => {
     // Should resolve without throwing even though orchestrator.stop() was
     // already called.
     await expect(daemon.shutdown('second')).resolves.toBeUndefined();
-  });
+  }, 30_000);
 
   it('recoverOnStartup fails stage_runs whose pid is dead', async () => {
     const url = process.env.DATABASE_URL;

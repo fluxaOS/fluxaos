@@ -13,8 +13,16 @@ const db = provider.getConnection();
 
 const RUN = Date.now();
 const createdIds: string[] = [];
+const personaIds: string[] = [];
 
 afterAll(async () => {
+  // persona_skill rows cascade-block deletes — remove junctions first.
+  for (const personaId of personaIds) {
+    await db
+      .delete(schema.personaSkill)
+      .where(eq(schema.personaSkill.personaId, personaId));
+    await db.delete(schema.persona).where(eq(schema.persona.id, personaId));
+  }
   for (const id of createdIds.reverse()) {
     await db.delete(schema.skill).where(eq(schema.skill.id, id));
   }
@@ -85,40 +93,64 @@ describe('skill service CRUD (integration)', () => {
     createdIds.push(created.id);
 
     const refs = await svc.countReferences(created.id);
-    expect(refs.pipelineStages).toBe(0);
     expect(refs.stageRuns).toBe(0);
     expect(refs.personaSkills).toBe(0);
   });
 
-  it('countReferences reports non-zero for seeded skill', async () => {
-    // The "research" skill is seeded AND referenced by a pipeline_stage
-    const [research] = await db
-      .select()
-      .from(schema.skill)
-      .where(eq(schema.skill.name, 'research'));
-
-    if (!research) {
-      // Not seeded in this DB — skip
-      return;
-    }
+  it('countReferences reports non-zero for a persona-bound skill', async () => {
+    // FLX-153 removed pipeline_stage.skill_id, so the surviving reference
+    // sources countReferences reads are stage_run and persona_skill.
+    // Build an OWNED fixture (skill + persona + persona_skill binding)
+    // instead of depending on seeded rows another suite may mutate.
     const svc = createSkillService(db);
-    const refs = await svc.countReferences(research.id);
-    expect(refs.pipelineStages).toBeGreaterThan(0);
+    const created = await svc.create(
+      skillInput({ scope: 'global', name: `persona-bound-${RUN}` })
+    );
+    createdIds.push(created.id);
+
+    const [personaRow] = await db
+      .insert(schema.persona)
+      .values({
+        kind: 'catalog',
+        name: `skill-crud-persona-${RUN}`,
+        soul: 'test soul',
+      })
+      .returning();
+    personaIds.push(personaRow.id);
+    await db
+      .insert(schema.personaSkill)
+      .values({ personaId: personaRow.id, skillId: created.id });
+
+    const refs = await svc.countReferences(created.id);
+    expect(refs.personaSkills).toBe(1);
+    expect(refs.stageRuns).toBe(0);
   });
 
   it('router delete rejects when references exist', async () => {
-    // The seeded "research" skill is referenced by a pipeline_stage
+    // Same owned-fixture shape as above: a persona_skill binding makes the
+    // total reference count non-zero, which is exactly the condition the
+    // router's delete mutation refuses on (it sums countReferences).
     const svc = createSkillService(db);
-    const [research] = await db
-      .select()
-      .from(schema.skill)
-      .where(eq(schema.skill.name, 'research'));
-    if (!research) return; // not seeded in this env
+    const created = await svc.create(
+      skillInput({ scope: 'global', name: `router-guard-${RUN}` })
+    );
+    createdIds.push(created.id);
 
-    const refs = await svc.countReferences(research.id);
-    expect(
-      refs.pipelineStages + refs.stageRuns + refs.personaSkills
-    ).toBeGreaterThan(0);
+    const [personaRow] = await db
+      .insert(schema.persona)
+      .values({
+        kind: 'catalog',
+        name: `skill-crud-guard-persona-${RUN}`,
+        soul: 'test soul',
+      })
+      .returning();
+    personaIds.push(personaRow.id);
+    await db
+      .insert(schema.personaSkill)
+      .values({ personaId: personaRow.id, skillId: created.id });
+
+    const refs = await svc.countReferences(created.id);
+    expect(refs.stageRuns + refs.personaSkills).toBeGreaterThan(0);
 
     // Verify that the service's countReferences is what the router uses
     // to produce its error — the router is tested via Playwright.
