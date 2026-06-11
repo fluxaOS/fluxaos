@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
 import {
   brand,
+  configEntry,
+  issueStatus,
   organization,
   pipeline,
   project,
@@ -40,6 +42,22 @@ async function makeFixture(
       defaultBranch: 'main',
     })
     .returning();
+  // FLX-270: the issue-watcher validates dispatch config for every project
+  // with a defaultPipelineId at daemon boot. These tests transiently set
+  // defaultPipelineId, so the fixture must carry a valid dispatch config to
+  // avoid failing a concurrently-booting daemon in another suite.
+  await db.insert(issueStatus).values({
+    projectId: projRow.id,
+    key: 'open',
+    displayName: 'Open',
+    sortOrder: 1,
+  });
+  await db.insert(configEntry).values({
+    scope: 'project',
+    projectId: projRow.id,
+    key: 'issues.status.on_create_key',
+    value: 'open',
+  });
   return { org, userRow, projRow };
 }
 
@@ -54,6 +72,14 @@ async function teardown(
   await db
     .delete(pipeline)
     .where(eq(pipeline.projectId, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(configEntry)
+    .where(eq(configEntry.projectId, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(issueStatus)
+    .where(eq(issueStatus.projectId, ids.projectId))
     .catch(() => undefined);
   await db
     .delete(project)

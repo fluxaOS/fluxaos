@@ -12,7 +12,15 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { SupabaseDatabaseProvider } from '@/adapters/supabase/database';
-import { organization, pipeline, project, team, user } from '@/core/db/schema';
+import {
+  configEntry,
+  issueStatus,
+  organization,
+  pipeline,
+  project,
+  team,
+  user,
+} from '@/core/db/schema';
 import { appRouter } from '@/server/root';
 
 function stamp(label: string): string {
@@ -51,6 +59,22 @@ async function makeFixture(
     .insert(pipeline)
     .values({ projectId: projectRow.id, name: `${s}-p2` })
     .returning();
+  // FLX-270: the issue-watcher validates dispatch config for every project
+  // with a defaultPipelineId at daemon boot. These tests transiently set
+  // defaultPipelineId, so the fixture must carry a valid dispatch config to
+  // avoid failing a concurrently-booting daemon in another suite.
+  await db.insert(issueStatus).values({
+    projectId: projectRow.id,
+    key: 'open',
+    displayName: 'Open',
+    sortOrder: 1,
+  });
+  await db.insert(configEntry).values({
+    scope: 'project',
+    projectId: projectRow.id,
+    key: 'issues.status.on_create_key',
+    value: 'open',
+  });
   return { org, userRow, projectRow, pipe1, pipe2 };
 }
 
@@ -61,6 +85,14 @@ async function teardown(
   await db
     .delete(pipeline)
     .where(eq(pipeline.projectId, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(configEntry)
+    .where(eq(configEntry.projectId, ids.projectId))
+    .catch(() => undefined);
+  await db
+    .delete(issueStatus)
+    .where(eq(issueStatus.projectId, ids.projectId))
     .catch(() => undefined);
   await db
     .delete(project)
