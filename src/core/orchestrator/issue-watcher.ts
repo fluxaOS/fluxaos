@@ -2,16 +2,26 @@
  * IssueWatcher — subscribes to Supabase Realtime INSERT + UPDATE on the
  * `issue` table and auto-dispatches a pipeline_run whenever:
  *
- *   1. The issue's statusId resolves to the "open" status (config key
+ *   1. The issue's project has a `defaultPipelineId` configured.
+ *   2. The issue's statusId resolves to the "open" status (config key
  *      `issues.status.on_create_key`).
- *   2. No active (non-terminal) pipeline_run exists for the issue.
- *   3. The issue's project has a `defaultPipelineId` configured.
+ *   3. No active (non-terminal) pipeline_run exists for the issue.
  *   4. The issue is not already being dispatched (in-memory dedupe set).
  *
  * The inserted pipeline_run sits at `status = 'pending'`; the existing
  * EventOrchestrator Realtime subscription picks it up automatically.
+ *
+ * FLX-270 — fail-fast contract (Invariant 9 / ARCHITECTURAL_STANDARDS §2):
+ *   - `start()` VALIDATES the dispatch config for every auto-dispatch-enabled
+ *     project (defaultPipelineId set) before subscribing. Missing/unparsable
+ *     `issues.status.on_create_key` or a failed status lookup throws
+ *     `IssueWatcherConfigError` — the daemon refuses to start.
+ *   - Watch-time failures (config deleted mid-flight, DB errors during a
+ *     lookup) are never swallowed: the error boundary logs
+ *     `issue_watcher.fatal` and invokes the injected `onFatal` (the daemon
+ *     exits non-zero). No catch-and-continue, no silent null.
  */
-import { and, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, notInArray } from 'drizzle-orm';
 import {
   CONFIG_KEY,
   PIPELINE_RUN_STATUS,
@@ -45,9 +55,37 @@ interface IssueRealtimeRow {
 }
 
 export interface IssueWatcher {
-  start(): void;
+  /**
+   * Validate dispatch config for every auto-dispatch-enabled project, then
+   * subscribe and run the startup sweep. Rejects with
+   * `IssueWatcherConfigError` when any enabled project's config is
+   * missing/invalid — callers (the daemon) must treat that as fatal.
+   */
+  start(): Promise<void>;
   stop(): void;
   readonly running: boolean;
+}
+
+/**
+ * Error raised when the auto-dispatch config for a project is missing or
+ * invalid: no `issues.status.on_create_key` config_entry row, a non-string
+ * value, or no issue_status row matching the configured key. Thrown at
+ * `start()` (daemon refuses to boot) and at watch time (escalated via
+ * `onFatal`) — per ARCHITECTURAL_STANDARDS.md §2 there is no fallback.
+ */
+export class IssueWatcherConfigError extends Error {
+  readonly projectId: string;
+  constructor(projectId: string, detail: string) {
+    super(
+      `Auto-dispatch config invalid for project ${projectId}: ${detail}. ` +
+        `Every project with a default pipeline must have a ` +
+        `'${CONFIG_KEY.issueStatusOnCreate}' config_entry row whose value ` +
+        `names an existing issue_status key. Run \`npm run db:seed\` or fix ` +
+        `the row, then restart the daemon.`
+    );
+    this.name = 'IssueWatcherConfigError';
+    this.projectId = projectId;
+  }
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────────────
@@ -55,7 +93,13 @@ export interface IssueWatcher {
 export function createIssueWatcher(
   db: Database,
   realtime: RealtimeProvider,
-  logger: ConsoleLogger
+  logger: ConsoleLogger,
+  /**
+   * Invoked when a watch-time dispatch fails (config error, DB error). The
+   * daemon passes a handler that logs and exits non-zero — errors here must
+   * never be silently absorbed.
+   */
+  onFatal: (err: unknown) => void
 ): IssueWatcher {
   let unsubscribeInsert: Unsubscribe | null = null;
   let unsubscribeUpdate: Unsubscribe | null = null;
@@ -66,8 +110,13 @@ export function createIssueWatcher(
 
   // ─── Realtime Subscription ────────────────────────────────────────────
 
-  function start(): void {
+  async function start(): Promise<void> {
     if (isRunning) return;
+
+    // FLX-270: fail fast — a project configured for auto-dispatch with
+    // missing/invalid dispatch config refuses to start the watcher (and
+    // therefore the daemon) rather than silently never dispatching.
+    await validateDispatchConfig();
     isRunning = true;
 
     unsubscribeInsert = realtime.subscribeToTable<IssueRealtimeRow>(
@@ -75,7 +124,7 @@ export function createIssueWatcher(
       'issue',
       'INSERT',
       (payload) => {
-        handleIssueEvent(payload.new).catch(logError('insert'));
+        handleIssueEvent(payload.new).catch(escalate('insert'));
       }
     );
 
@@ -84,11 +133,13 @@ export function createIssueWatcher(
       'issue',
       'UPDATE',
       (payload) => {
-        handleIssueEvent(payload.new).catch(logError('update'));
+        handleIssueEvent(payload.new).catch(escalate('update'));
       }
     );
 
-    startupSweep().catch(logError('startup_sweep'));
+    // Fire-and-forget so daemon boot time doesn't scale with open-issue
+    // count; sweep failures still escalate (daemon exits) — never swallowed.
+    startupSweep().catch(escalate('startup_sweep'));
   }
 
   function stop(): void {
@@ -99,14 +150,42 @@ export function createIssueWatcher(
     unsubscribeUpdate = null;
   }
 
-  function logError(context: string) {
+  /**
+   * Watch-time error boundary. Never swallows: logs loudly, then hands the
+   * error to `onFatal` so the daemon can crash with a non-zero exit. A
+   * dispatch failure means auto-dispatch is broken — continuing silently
+   * would violate the no-fallbacks rule (FLX-270).
+   */
+  function escalate(context: string) {
     return (err: unknown) => {
       logger.error({
-        event: 'issue_watcher.error',
+        event: 'issue_watcher.fatal',
         context,
         error: err instanceof Error ? err.message : String(err),
       });
+      onFatal(err);
     };
+  }
+
+  /**
+   * Resolve + validate the dispatch config for every project that has a
+   * defaultPipelineId (i.e. every project auto-dispatch will act on).
+   * Throws `IssueWatcherConfigError` on the first invalid project.
+   */
+  async function validateDispatchConfig(): Promise<void> {
+    const enabledProjects = await db
+      .select({ id: project.id })
+      .from(project)
+      .where(isNotNull(project.defaultPipelineId));
+
+    for (const proj of enabledProjects) {
+      await resolveOpenStatusId(proj.id);
+    }
+
+    logger.info({
+      event: 'issue_watcher.dispatch_config_validated',
+      projects: enabledProjects.length,
+    });
   }
 
   // ─── Dispatch Logic ───────────────────────────────────────────────────
@@ -231,17 +310,30 @@ export function createIssueWatcher(
       return;
     }
 
-    // Guard 1: status must resolve to the "open" status key.
-    const openStatusId = await resolveOpenStatusId(projectId);
-    if (!openStatusId) {
+    // Guard 1: project must have a defaultPipelineId. Checked FIRST (FLX-270)
+    // so projects that are legitimately not auto-dispatch-enabled skip before
+    // any dispatch-config resolution — config errors below are always real.
+    const [proj] = await db
+      .select({ defaultPipelineId: project.defaultPipelineId })
+      .from(project)
+      .where(eq(project.id, projectId));
+
+    if (!proj?.defaultPipelineId) {
       logger.info({
         event: 'issue_watcher.skipped',
-        reason: 'config_missing',
+        reason: 'no_default_pipeline',
         issueId,
         projectId,
       });
       return;
     }
+
+    const pipelineId = proj.defaultPipelineId;
+
+    // Guard 2: status must resolve to the "open" status key. Throws
+    // IssueWatcherConfigError when the config is missing/invalid — escalated
+    // by the caller's error boundary, never skipped silently.
+    const openStatusId = await resolveOpenStatusId(projectId);
 
     if (row.status_id !== openStatusId) {
       logger.info({
@@ -254,7 +346,7 @@ export function createIssueWatcher(
       return;
     }
 
-    // Guard 2: no active (non-terminal) pipeline_run for this issue.
+    // Guard 3: no active (non-terminal) pipeline_run for this issue.
     const activeRuns = await db
       .select({ id: pipelineRun.id })
       .from(pipelineRun)
@@ -275,24 +367,6 @@ export function createIssueWatcher(
       return;
     }
 
-    // Guard 3: project must have a defaultPipelineId.
-    const [proj] = await db
-      .select({ defaultPipelineId: project.defaultPipelineId })
-      .from(project)
-      .where(eq(project.id, projectId));
-
-    if (!proj?.defaultPipelineId) {
-      logger.info({
-        event: 'issue_watcher.skipped',
-        reason: 'no_default_pipeline',
-        issueId,
-        projectId,
-      });
-      return;
-    }
-
-    const pipelineId = proj.defaultPipelineId;
-
     // All guards passed — insert the pipeline_run at pending.
     const [run] = await db
       .insert(pipelineRun)
@@ -304,14 +378,9 @@ export function createIssueWatcher(
       .returning();
 
     if (!run) {
-      logger.error({
-        event: 'issue_watcher.error',
-        context: 'insert_pipeline_run',
-        error: 'insert returned no row',
-        issueId,
-        pipelineId,
-      });
-      return;
+      throw new Error(
+        `pipeline_run insert returned no row (issue ${issueId}, pipeline ${pipelineId})`
+      );
     }
 
     logger.info({
@@ -328,69 +397,56 @@ export function createIssueWatcher(
    * Resolve the UUID of the "open" issue status for the given project.
    * Uses config key `issues.status.on_create_key` — the same key used when
    * issues are created to mark their initial status.
-   * Returns null when config is missing (fail-safe skip).
+   *
+   * Throws `IssueWatcherConfigError` when the config row is missing, its
+   * value is not a string, or no issue_status matches the configured key.
+   * DB errors propagate untouched — there is no catch-and-continue (FLX-270).
    */
-  async function resolveOpenStatusId(
-    projectId: string
-  ): Promise<string | null> {
-    try {
-      const [config] = await db
-        .select({ value: configEntry.value })
-        .from(configEntry)
-        .where(
-          and(
-            eq(configEntry.projectId, projectId),
-            eq(configEntry.key, CONFIG_KEY.issueStatusOnCreate)
-          )
-        );
+  async function resolveOpenStatusId(projectId: string): Promise<string> {
+    const [config] = await db
+      .select({ value: configEntry.value })
+      .from(configEntry)
+      .where(
+        and(
+          eq(configEntry.projectId, projectId),
+          eq(configEntry.key, CONFIG_KEY.issueStatusOnCreate)
+        )
+      );
 
-      if (!config) {
-        logger.warn({
-          event: 'issue_watcher.resolve_status_error',
-          projectId,
-          error: 'config_entry row not found',
-        });
-        return null;
-      }
-      if (typeof config.value !== 'string') {
-        logger.warn({
-          event: 'issue_watcher.resolve_status_error',
-          projectId,
-          error: `config.value is not a string: ${typeof config.value} = ${JSON.stringify(config.value)}`,
-        });
-        return null;
-      }
-
-      // config.value is stored as a JSON string (e.g. `"open"`), strip quotes.
-      const statusKey = config.value.replace(/^"|"$/g, '');
-
-      const [status] = await db
-        .select({ id: issueStatus.id })
-        .from(issueStatus)
-        .where(
-          and(
-            eq(issueStatus.projectId, projectId),
-            eq(issueStatus.key, statusKey)
-          )
-        );
-
-      if (!status) {
-        logger.warn({
-          event: 'issue_watcher.resolve_status_error',
-          projectId,
-          error: `issue_status row not found for key '${statusKey}'`,
-        });
-      }
-
-      return status?.id ?? null;
-    } catch (err) {
-      logger.warn({
-        event: 'issue_watcher.resolve_status_error',
+    if (!config) {
+      throw new IssueWatcherConfigError(
         projectId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
+        'config_entry row not found'
+      );
     }
+    if (typeof config.value !== 'string') {
+      throw new IssueWatcherConfigError(
+        projectId,
+        `config value is not a string: ${typeof config.value} = ${JSON.stringify(config.value)}`
+      );
+    }
+
+    // config.value is stored as a JSON string (e.g. `"open"`), strip quotes.
+    const statusKey = config.value.replace(/^"|"$/g, '');
+
+    const [status] = await db
+      .select({ id: issueStatus.id })
+      .from(issueStatus)
+      .where(
+        and(
+          eq(issueStatus.projectId, projectId),
+          eq(issueStatus.key, statusKey)
+        )
+      );
+
+    if (!status) {
+      throw new IssueWatcherConfigError(
+        projectId,
+        `issue_status row not found for key '${statusKey}'`
+      );
+    }
+
+    return status.id;
   }
 
   return {

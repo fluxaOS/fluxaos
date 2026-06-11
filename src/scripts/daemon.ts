@@ -220,7 +220,21 @@ export async function createDaemon(): Promise<Daemon> {
     logger: consoleLogger,
   });
 
-  const issueWatcher = createIssueWatcher(db, realtime, consoleLogger);
+  // FLX-270: watch-time dispatch failures are fatal — log and exit non-zero
+  // so the supervisor (systemd / Docker Compose) restarts the daemon instead
+  // of it running on with auto-dispatch silently broken.
+  const issueWatcher = createIssueWatcher(
+    db,
+    realtime,
+    consoleLogger,
+    (err) => {
+      consoleLogger.error({
+        event: 'daemon.issue_watcher_fatal',
+        error: err instanceof Error ? err.message : String(err),
+      });
+      process.exit(1);
+    }
+  );
 
   await orchestrator.recoverOnStartup();
   consoleLogger.info({ event: 'daemon.recovery_complete' });
@@ -228,7 +242,10 @@ export async function createDaemon(): Promise<Daemon> {
   orchestrator.start();
   consoleLogger.info({ event: 'daemon.orchestrator_started' });
 
-  issueWatcher.start();
+  // FLX-270: start() validates dispatch config for every auto-dispatch-enabled
+  // project and throws IssueWatcherConfigError when it's missing/invalid —
+  // the daemon refuses to start (main() logs daemon.fatal and exits 1).
+  await issueWatcher.start();
   consoleLogger.info({ event: 'daemon.issue_watcher_started' });
 
   // FLX-224: scheduler-enabled lives in `config_entry`
