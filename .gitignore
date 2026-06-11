@@ -49,9 +49,7 @@ next-env.d.ts
 *.log
 .flux/
 .claude/*
-!.claude/AGENT_BEHAVIOR.md
 !.claude/hooks/
-!.claude/hooks/permission-request-allowlist.py
 !.claude/skills/
 !.claude/skills/**
 .paul
@@ -93,7 +91,6 @@ __pycache__/
 .superpowers/
 .sync.lock
 .trash
-ARCHITECTURAL_STANDARDS.md
 cache/
 config/install-state.json
 reports/

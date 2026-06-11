@@ -4,7 +4,7 @@
 
 ## Deferred Issues
 
-Issues found during verification go to **Linear** — project **fluxaOS Deferred Fixes** in team **FLX** (workspace `rebos`). Linear was adopted 2026-04-26.
+Issues found during verification go to **Linear** — project **Bug Backlog** in team **FLX** (workspace `rebos`). Linear was adopted 2026-04-26. (There is no "fluxaOS Deferred Fixes" project — active projects are Alpha Release, Bug Backlog, Enhancements, Settings & config integrity, Post-Alpha Roadmap, Post-Alpha Wishlist.)
 
 - Use the Linear MCP: `mcp__plugin_linear_linear__save_issue` to create, `mcp__plugin_linear_linear__list_issues` to query.
 - Title: short, action-oriented (e.g., `UI: GateResultsPanel rule details show empty dots`).
@@ -22,11 +22,9 @@ Use npm scripts to query the app's Supabase database:
 - `npm run db:events` — events (all recent, or filtered by `--run <id>` / `--issue <id>`)
 - `npm run db:studio` — Drizzle Studio (visual DB browser)
 
-Note: These scripts are being built (R-INFRA-2). Until then, use `npm run db:studio`.
-
 ## Dev Server
 
-Headless box. **Prod** runs in Docker on port **3003** (`fluxaos-web` container, deployed via `bash /mnt/stacks/docker/fluxaos/build.sh origin/main`). **Dev** runs on port **3004** — always start with `npm run dev -- -H 0.0.0.0 -p 3004`. The `-H 0.0.0.0` is required; without it Next.js only binds IPv6 loopback and LAN clients get connection refused. Never start dev on 3003. From other machines: `http://192.168.54.101:3004` (dev) / `http://192.168.54.101:3003` (prod). For Playwright runs against dev: `PLAYWRIGHT_BASE_URL=http://192.168.54.101:3004 npx playwright test`.
+Headless box. **UAT** (there is no production) runs in Docker on port **3003** (`fluxaos-web` container, deployed via `./flux server uat build`). **Dev** runs on port **3004** — always start with `npm run dev -- -H 0.0.0.0 -p 3004`. The `-H 0.0.0.0` is required; without it Next.js only binds IPv6 loopback and LAN clients get connection refused. Never start dev on 3003. From other machines: `http://192.168.54.101:3004` (dev) / `http://192.168.54.101:3003` (UAT). For Playwright runs against dev: `PLAYWRIGHT_BASE_URL=http://192.168.54.101:3004 npx playwright test`.
 
 ## Environment Files
 
@@ -58,7 +56,7 @@ Two Supabase projects back fluxaOS. Verify your env files point at the right one
 | **Dev** | `dpdjlnpvxkepkwzwuvim` | `postgres.dpdjlnpvxkepkwzwuvim@aws-1-us-west-2.pooler.supabase.com` | `/mnt/dev/fluxaos/.env.local` |
 | **UAT** | `zesinfsluyxiwzldeffa` | `postgres.zesinfsluyxiwzldeffa@aws-1-us-west-2.pooler.supabase.com` | `/mnt/stacks/docker/fluxaos/fluxaos.env` |
 
-`./flux env audit` extracts the project ref from each `DATABASE_URL` host and PASS/FAILs against the table. It runs automatically at SessionStart via `ops/git-hooks/session-audit.sh report` (advisory — non-zero rc is reported, never blocks the session).
+`./flux env audit` extracts the project ref from each `DATABASE_URL` host and PASS/FAILs against the table. It also runs as part of `bash ops/git-hooks/session-audit.sh report` — run that manually at session start (the automatic SessionStart hook was retired with PR #396; the audit still fires automatically post-merge).
 
 **Never reconstruct env files from a container's environment.** That's how FLX-123 happened: two recovery sessions read the UAT container's env, wrote it back to `.env.local`, and silently swapped dev to point at UAT. If an env file is corrupt or missing, restore from 1Password (`Agents/Supabase/dev info` and `Agents/Supabase/UAT info`) and re-run `./flux env audit` before doing anything else. (FLX-230)
 
@@ -113,7 +111,7 @@ Everything else: pick, document, ship. If something later turns out wrong, the u
 - Optimistic concurrency required on all mutable entities (`WHERE version = $expected`)
 - Events tables are append-only (immutable audit trail)
 - Body HTML rendered at write time, never at read time
-- Multi-tenancy: Org → User → Project. URL: `/[org]/[user]/[project]/issues/1`
+- Tenancy is UUID-only (FLX-239): projects are addressed as `/p/{projectUuid}/...` (e.g. `/p/00000000-0000-4000-8000-000000000001/issues/1`); org/user come from the session inside `resolveContext`, never from the URL. Slug columns were dropped in migration 0033.
 - No production database — Supabase Cloud is the dev database. Nuke-and-seed freely.
 - `appendEvent` is fire-and-forget — concurrent inserts commit out of producer order. Use `pipelineRunService.listEvents()` to read events; it merges stream + lifecycle events back into coherent order. (DEF-017, 2026-04-21.)
 - Each pipeline run has two distinct directories. The **worktree** (`<target>/.fluxaos-worktrees/fluxaos__issue-<n>-<run-short>/`) holds the git checkout stages edit — everything committed to the target repo comes from here. The **artifacts dir** (`<target>/.fluxaos-artifacts/<runId>/`) is where stages hand off intermediate findings to each other (Research writes `research-findings.md`, Implement reads it and writes `plan.md`, Review reads the plan, etc.). Artifacts outlive the worktree; cleanup-service reaps them on a separate DB-backed retention window (`cleanup.artifacts_retention_days`). When debugging a run post-hoc, inspect the artifacts dir for what each stage thought it was doing. (R-ARTIFACTS, 2026-04-23.)

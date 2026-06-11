@@ -60,7 +60,7 @@ npm run daemon
 # 8. Open the UI
 open http://localhost:3004
 # File an issue, advance state to `Implement`, click Run Stage.
-# Watch the daemon log + the mission-control page (/mission-control)
+# Watch the daemon log + the mission-control page (/p/<project-uuid>/mission-control)
 # until the run reaches `completed` and a PR appears on your target repo.
 ```
 
@@ -172,7 +172,7 @@ src/
 │   ├── bullmq/         # QueueProvider (in-tree, alpha-unused)
 │   └── supabase/       # Database + Auth + Realtime
 ├── app/                # Next.js App Router pages
-│   └── [org]/[user]/[project]/  # Project-scoped routes
+│   └── p/[projectUuid]/  # Project-scoped routes (UUID-only tenancy, FLX-239)
 ├── components/         # React components
 ├── config/             # Bootstrap + adapter registry
 ├── core/               # Domain logic (zero vendor imports)

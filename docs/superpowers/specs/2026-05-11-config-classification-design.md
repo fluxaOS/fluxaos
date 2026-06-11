@@ -49,6 +49,8 @@ A var is **Test-only** if it only appears under `src/__tests__/`, `e2e/`, or `te
 
 ## Master classification table — `FLUXAOS_*`
 
+> **Amendment (2026-06-10, FLX-271 / PR #402):** `FLUXAOS_CLI_ORG_SLUG`, `FLUXAOS_CLI_USER_SLUG`, and `FLUXAOS_CLI_PROJECT_SLUG` are retired — slug-based addressing was removed by the FLX-239 tenancy epic, and the CLI now targets a project by UUID via `FLUXAOS_CLI_PROJECT_ID` (see `src/cli/config.ts`). The three slug rows below are superseded and kept for historical record only.
+
 | Env Var | Classification | DB Target | Rationale |
 |---|---|---|---|
 | `FLUXAOS_LAN_AUTH_BYPASS` | **Bootstrap secret** | (stays env) | Auth-skip flag read by `src/lib/supabase/middleware.ts` and `src/server/trpc.ts` *before* a session exists. Reading from the DB would require auth, which is exactly what this flag bypasses. Host-level toggle. |
@@ -56,9 +58,9 @@ A var is **Test-only** if it only appears under `src/__tests__/`, `e2e/`, or `te
 | `FLUXAOS_GITHUB_TOKEN` | **Bootstrap secret** | (stays env) | PAT credential. Read by `src/adapters/github/auth.ts`. Secrets do not belong in the DB without an external secret manager. |
 | `FLUXAOS_ENV_PATH` | **Bootstrap secret** | (stays env) | Tells the daemon which `.env.local` to load. Reading the value from the DB requires the DB connection, which requires the env file — circular. |
 | `FLUXAOS_API_URL` | **Bootstrap secret** | (stays env) | CLI client-side: tells `fluxaos` CLI which tRPC endpoint to call. Lives on the operator's workstation, not the server. The DB-backed setting would have to be reached *through* this URL. |
-| `FLUXAOS_CLI_ORG_SLUG` | **Bootstrap secret** | (stays env) | CLI client default context. Lives on the operator's workstation, not server-side. Used to *choose which* org/project to talk to in the DB. |
-| `FLUXAOS_CLI_USER_SLUG` | **Bootstrap secret** | (stays env) | CLI client default context — same as above. |
-| `FLUXAOS_CLI_PROJECT_SLUG` | **Bootstrap secret** | (stays env) | CLI client default context — same as above. |
+| `FLUXAOS_CLI_ORG_SLUG` | **Superseded (2026-06-10, FLX-271)** — was Bootstrap secret | (retired) | CLI client default context. Replaced by `FLUXAOS_CLI_PROJECT_ID` (UUID) — see amendment above. |
+| `FLUXAOS_CLI_USER_SLUG` | **Superseded (2026-06-10, FLX-271)** — was Bootstrap secret | (retired) | Replaced by `FLUXAOS_CLI_PROJECT_ID` — see amendment above. |
+| `FLUXAOS_CLI_PROJECT_SLUG` | **Superseded (2026-06-10, FLX-271)** — was Bootstrap secret | (retired) | Replaced by `FLUXAOS_CLI_PROJECT_ID` — see amendment above. |
 | `FLUXAOS_INIT_RESULT_DOC_SCRIPT` | **Bootstrap secret** | (stays env) | Override path to a bundled `.mjs` script. Build-output location; default is `.next/daemon/init-result-doc.mjs`. Host filesystem layout, not user config. |
 | `FLUXAOS_INGEST_RESULT_DOC_SCRIPT` | **Bootstrap secret** | (stays env) | Same as above — bundled `.mjs` script path. Host filesystem layout. |
 | `FLUXAOS_DAEMON_SHUTDOWN_GRACE_SECONDS` | **Operational config** | `config_entry` key `daemon.shutdown_grace_seconds` (scope `global`) | Operator tunable. Read at daemon boot in `src/scripts/daemon.ts`; can be moved behind a `daemon.config` service that reads `config_entry` once at startup. Falls under the "operator owns the value, no default" contract. |
